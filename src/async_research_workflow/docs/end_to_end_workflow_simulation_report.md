@@ -9,7 +9,7 @@ Result: passed.
 The simulation built an isolated `research_ops` folder under:
 
 ```text
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops
+/private/tmp/async_research_e2e_workflow_simulation/research_ops
 ```
 
 It exercised a full workflow path:
@@ -91,14 +91,14 @@ run_log_entries: 42
 ## Generated Artifacts
 
 ```text
-/private/tmp/ideas_ai_e2e_workflow_simulation/simulation_summary.json
-/private/tmp/ideas_ai_e2e_workflow_simulation/run_log.json
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/accepted_outputs_index.md
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/weekly_digest.md
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/cost_ledger.csv
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/health_report.json
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/metrics_history.jsonl
-/private/tmp/ideas_ai_e2e_workflow_simulation/research_ops/data_source_audit.md
+/private/tmp/async_research_e2e_workflow_simulation/simulation_summary.json
+/private/tmp/async_research_e2e_workflow_simulation/run_log.json
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/accepted_outputs_index.md
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/weekly_digest.md
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/cost_ledger.csv
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/health_report.json
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/metrics_history.jsonl
+/private/tmp/async_research_e2e_workflow_simulation/research_ops/data_source_audit.md
 ```
 
 ## Accepted Outputs Index Snapshot
