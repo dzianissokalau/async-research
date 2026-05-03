@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Idea Evaluation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "candidate_id",
+    "evaluated_at",
+    "route",
+    "recommended_next_task",
+    "mission_policy_version",
+    "scorecard",
+    "hard_gate_results",
+    "dedupe",
+    "rejection_logging",
+    "promotion_readiness",
+    "review_notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "idea_evaluation_v1.0"
+      ]
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^IDEA-[0-9]{4}$"
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "route": {
+      "type": "string",
+      "enum": [
+        "promote_to_hypothesis_card",
+        "promote_to_data_readiness",
+        "promote_to_literature_extract",
+        "park",
+        "reject",
+        "needs_human"
+      ]
+    },
+    "recommended_next_task": {
+      "type": "string",
+      "enum": [
+        "hypothesis_card",
+        "data_readiness",
+        "literature_extract",
+        "park",
+        "reject"
+      ]
+    },
+    "mission_policy_version": {
+      "type": "string"
+    },
+    "scorecard": {
+      "type": "object",
+      "required": [
+        "decision_impact",
+        "novelty",
+        "data_availability",
+        "feasibility",
+        "killability",
+        "robustness_risk",
+        "cost",
+        "reuse_potential",
+        "weighted_total",
+        "promotion_threshold",
+        "minimum_killability"
+      ],
+      "properties": {
+        "decision_impact": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "novelty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "data_availability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "feasibility": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "killability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "robustness_risk": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "cost": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "reuse_potential": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "weighted_total": {
+          "type": "number"
+        },
+        "promotion_threshold": {
+          "type": "number"
+        },
+        "minimum_killability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "hard_gate_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "gate",
+          "passed",
+          "reason"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dedupe": {
+      "type": "object",
+      "required": [
+        "duplicate_status",
+        "checked_against",
+        "cluster_id",
+        "representative"
+      ],
+      "properties": {
+        "duplicate_status": {
+          "type": "string",
+          "enum": [
+            "new",
+            "near_duplicate",
+            "duplicate",
+            "revisit"
+          ]
+        },
+        "checked_against": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cluster_id": {
+          "type": "string"
+        },
+        "representative": {
+          "type": "boolean"
+        }
+      }
+    },
+    "rejection_logging": {
+      "type": "object",
+      "required": [
+        "required",
+        "log_path",
+        "logged",
+        "rejection_kind",
+        "revisit_condition"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "log_path": {
+          "type": "string"
+        },
+        "logged": {
+          "type": "boolean"
+        },
+        "rejection_kind": {
+          "type": "string",
+          "enum": [
+            "none",
+            "temporary",
+            "permanent"
+          ]
+        },
+        "revisit_condition": {
+          "type": "string"
+        }
+      }
+    },
+    "promotion_readiness": {
+      "type": "object",
+      "required": [
+        "planner_may_promote",
+        "promotion_reason",
+        "blocked_reasons"
+      ],
+      "properties": {
+        "planner_may_promote": {
+          "type": "boolean"
+        },
+        "promotion_reason": {
+          "type": "string"
+        },
+        "blocked_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "review_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "async-research-workflow"
+version = "0.1.0a1"
+description = "Installable alpha CLI and starter template for low-cost async research workflows."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Dzianis Sokalau"}]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = []
+
+[project.scripts]
+async-research = "async_research_workflow.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+async_research_workflow = [
+  "*.json",
+  "*.schema.json",
+  "schemas/*.json",
+  "schemas/*.schema.json",
+  "templates/**/*.md",
+  "templates/**/*.json",
+  "templates/**/*.csv",
+  "templates/**/*.jsonl",
+  "templates/**/.gitkeep",
+  "docs/**/*.md",
+  "examples/**/*.yml",
+  "examples/**/*.json",
+  "benchmarks/**/*.json",
+]

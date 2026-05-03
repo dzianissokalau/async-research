@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Mission Policy",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "mission_id",
+    "mission_policy_version",
+    "objective",
+    "last_reviewed",
+    "score_scale",
+    "weights",
+    "dimension_map",
+    "promotion",
+    "budget_pressure",
+    "hard_gates",
+    "human_approval_required_for",
+    "calibration"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "mission_scoring_v1.0"
+      ]
+    },
+    "mission_id": {
+      "type": "string"
+    },
+    "mission_policy_version": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+_v[0-9]+\\.[0-9]+$"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "last_reviewed": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "score_scale": {
+      "type": "object",
+      "required": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "properties": {
+        "1": {
+          "type": "string"
+        },
+        "2": {
+          "type": "string"
+        },
+        "3": {
+          "type": "string"
+        },
+        "4": {
+          "type": "string"
+        },
+        "5": {
+          "type": "string"
+        }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "required": [
+        "decision_impact",
+        "data_availability",
+        "killability",
+        "feasibility",
+        "reuse_potential",
+        "novelty",
+        "robustness_risk",
+        "cost"
+      ],
+      "properties": {
+        "decision_impact": {
+          "type": "number"
+        },
+        "data_availability": {
+          "type": "number"
+        },
+        "killability": {
+          "type": "number"
+        },
+        "feasibility": {
+          "type": "number"
+        },
+        "reuse_potential": {
+          "type": "number"
+        },
+        "novelty": {
+          "type": "number"
+        },
+        "robustness_risk": {
+          "type": "number"
+        },
+        "cost": {
+          "type": "number"
+        }
+      }
+    },
+    "dimension_map": {
+      "type": "object",
+      "required": [
+        "decision_impact",
+        "data_availability",
+        "killability",
+        "feasibility",
+        "reuse_potential",
+        "novelty",
+        "robustness_risk",
+        "cost"
+      ],
+      "properties": {
+        "decision_impact": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "data_availability": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "killability": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "feasibility": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reuse_potential": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "novelty": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "robustness_risk": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cost": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "required": [
+        "normal",
+        "budget_constrained"
+      ],
+      "properties": {
+        "normal": {
+          "type": "object",
+          "required": [
+            "promotion_threshold",
+            "park_threshold",
+            "minimum_killability",
+            "max_promotions_per_week"
+          ],
+          "properties": {
+            "promotion_threshold": {
+              "type": "number"
+            },
+            "park_threshold": {
+              "type": "number"
+            },
+            "minimum_killability": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "max_promotions_per_week": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "budget_constrained": {
+          "type": "object",
+          "required": [
+            "promotion_threshold",
+            "park_threshold",
+            "minimum_killability",
+            "max_promotions_per_week"
+          ],
+          "properties": {
+            "promotion_threshold": {
+              "type": "number"
+            },
+            "park_threshold": {
+              "type": "number"
+            },
+            "minimum_killability": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "max_promotions_per_week": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "budget_pressure": {
+      "type": "object",
+      "required": [
+        "threshold",
+        "default_mode",
+        "constrained_mode"
+      ],
+      "properties": {
+        "threshold": {
+          "type": "number",
+          "minimum": 0
+        },
+        "default_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "budget_constrained"
+          ]
+        },
+        "constrained_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "budget_constrained"
+          ]
+        }
+      }
+    },
+    "hard_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_approval_required_for": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "required": [
+        "cadence",
+        "last_completed",
+        "next_due",
+        "required_inputs"
+      ],
+      "properties": {
+        "cadence": {
+          "type": "string",
+          "enum": [
+            "monthly"
+          ]
+        },
+        "last_completed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_due": {
+          "type": "string"
+        },
+        "required_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

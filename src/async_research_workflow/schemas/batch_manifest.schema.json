@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Batch Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "batch_id",
+    "lifecycle_status",
+    "input_files",
+    "prompt_template",
+    "model",
+    "expected_output_schema",
+    "ingest_path",
+    "output_trust",
+    "costs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "batch_id": {
+      "type": "string",
+      "pattern": "^BATCH-[0-9]{4}$"
+    },
+    "provider_batch_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "ingest_task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "review_task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "lifecycle_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "validated",
+        "submitted",
+        "completed",
+        "ingested",
+        "reviewed",
+        "failed",
+        "needs_human"
+      ]
+    },
+    "input_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "output_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ingested_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prompt_template": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "expected_output_schema": {
+      "type": "string"
+    },
+    "ingest_path": {
+      "type": "string"
+    },
+    "output_trust": {
+      "type": "string",
+      "enum": [
+        "untrusted",
+        "ingested_pending_review",
+        "reviewed"
+      ]
+    },
+    "costs": {
+      "type": "object",
+      "required": [
+        "estimated_api_usd",
+        "estimated_compute_usd",
+        "logged"
+      ],
+      "properties": {
+        "estimated_api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "estimated_compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "logged": {
+          "type": "boolean"
+        },
+        "ledger_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logged_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "submitted_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ingested_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "allow_browsing": true,
+  "allow_code_execution": false,
+  "allow_network": true,
+  "allowed_paths": [
+    "research_ops/tasks/TASK-0003-repeat-sales-experiment-plan/**"
+  ],
+  "allowed_tools": [
+    "repo_read",
+    "markdown_edit"
+  ],
+  "budget": {
+    "max_api_usd": 1.0,
+    "max_compute_usd": 0.0
+  },
+  "created_at": "2026-05-02T00:00:00Z",
+  "data_audit_refs": [],
+  "escalate_to_tier": null,
+  "escalation_reason": null,
+  "escalation_requested_at": null,
+  "escalation_requested_by": null,
+  "framework_versions": {
+    "accepted_outputs_index": "accepted_outputs_index_v1.0",
+    "data_source_audit": "data_source_audit_v1.0",
+    "escalation_policy": "escalation_policy_v1.0",
+    "experimentation": "experimentation_v1.0",
+    "exploration": "exploration_v1.0",
+    "idea_evaluation": "idea_evaluation_v1.0",
+    "mission_scoring": "mission_scoring_v1.0",
+    "result_acceptance": "result_acceptance_v1.0",
+    "review_aggregation": "review_aggregation_v1.0",
+    "schema_versioning": "schema_versioning_v1.0"
+  },
+  "human_gate_reason": null,
+  "id": "TASK-0003",
+  "last_transition_reason": "starter_template_seed",
+  "lock_expires_at": null,
+  "lock_owner": null,
+  "max_minutes": 75,
+  "max_revisions": 1,
+  "max_turns": 5,
+  "model_tier": "frontier_or_standard",
+  "previous_status": null,
+  "priority": 3,
+  "prompt_versions": {
+    "discovery_scout": "discovery_scout_v1.0",
+    "health_monitor": "health_monitor_v1.0",
+    "methodology_reviewer": "methodology_reviewer_v1.0",
+    "planner": "planner_v1.0",
+    "primary_reviewer": "primary_reviewer_v1.0",
+    "review_aggregator": "review_aggregator_v1.0",
+    "skeptic_reviewer": "skeptic_reviewer_v1.0",
+    "weekly_synthesizer": "weekly_synthesizer_v1.0",
+    "worker": "worker_v1.0"
+  },
+  "requires_human": false,
+  "result": {
+    "claim_strength": "none",
+    "claim_strength_policy": "result_acceptance_v1.0",
+    "claim_strength_revalidated_at": null,
+    "claim_strength_revalidation_reason": null,
+    "claim_strength_revalidation_required": false,
+    "claim_strength_stale": false,
+    "followup_count": 0,
+    "recommendation": null
+  },
+  "review_policy": {
+    "human_required_for_acceptance": false,
+    "panel_required": false,
+    "required_reviewers": [
+      "primary"
+    ],
+    "tier": 1
+  },
+  "revision_count": 0,
+  "revision_limit_hit": false,
+  "schema_version": "1.0",
+  "status": "inbox",
+  "title": "Plan repeat-sales volatility experiment",
+  "type": "experiment_plan",
+  "updated_at": "2026-05-02T00:00:00Z"
+}

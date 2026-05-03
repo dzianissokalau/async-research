@@ -1,0 +1,66 @@
+name: Async Research Worker Example
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9,13,17 * * 1-5"
+
+concurrency:
+  group: async-research-worker-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: Run one bounded worker task
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESEARCH_WORKER_OWNER: github-actions-${{ github.run_id }}
+          RESEARCH_REPO_ROOT: ${{ github.workspace }}
+        run: |
+          mkdir -p research_ops/run_artifacts/github-${{ github.run_id }}
+          codex exec \
+            --json \
+            --cd "$RESEARCH_REPO_ROOT" \
+            --sandbox workspace-write \
+            --ask-for-approval never \
+            --output-last-message /tmp/codex-worker-last-message.md \
+            "You are the worker for the low-cost async research workflow. Read research_ops/queue.md, pick the oldest ready_for_worker task, then acquire its task-local LOCK/ before writing any output by running python3 async_research_workflow/examples/scripts/task_lock.py acquire <task-dir> --owner \"$RESEARCH_WORKER_OWNER\". If lock acquisition fails because the lock is fresh, skip that task and try the next ready task. Work only in that task's allowed_paths, write worker_output.md, update status.json with previous_status and last_transition_reason, validate status JSON by running python3 async_research_workflow/examples/scripts/validate_json_artifact.py --schema async_research_workflow/examples/task_status.schema.json <task-dir>/status.json, validate the transition by running python3 async_research_workflow/examples/scripts/validate_transition.py <task-dir>, and if validation fails run python3 async_research_workflow/examples/scripts/recover_status_json.py <task-dir> before stopping. If API or CLI usage metadata is visible, write it under the task artifacts and run cost_tracking.py ingest-usage before final status validation. Release LOCK/ only after final writes and validation or recovery by running python3 async_research_workflow/examples/scripts/task_lock.py release <task-dir> --owner \"$RESEARCH_WORKER_OWNER\", and stop after one task. Do not browse or use network unless status.json explicitly allows it." \
+            > research_ops/run_artifacts/github-${{ github.run_id }}/codex_events.jsonl
+
+          python3 async_research_workflow/examples/scripts/cost_tracking.py ingest-usage \
+            research_ops \
+            --usage-file research_ops/run_artifacts/github-${{ github.run_id }}/codex_events.jsonl \
+            --item-id github-${{ github.run_id }} \
+            --role worker \
+            --model codex-cli \
+            --status completed \
+            || echo "No ingestible usage metadata found in Codex JSON events."
+
+      - name: Upload Codex JSON events
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-worker-events-${{ github.run_id }}
+          path: research_ops/run_artifacts/github-${{ github.run_id }}/codex_events.jsonl
+
+      - name: Create pull request with worker output
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: async-research/worker-${{ github.run_id }}
+          commit-message: "Run async research worker"
+          title: "Async research worker output"
+          body-path: /tmp/codex-worker-last-message.md
+          labels: async-research

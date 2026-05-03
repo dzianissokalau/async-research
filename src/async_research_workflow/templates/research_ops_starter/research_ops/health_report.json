@@ -1,0 +1,11 @@
+{
+  "alerts": [],
+  "checks": {},
+  "ops_dir": "research_ops",
+  "schema_version": "1.0",
+  "summary": {
+    "alert_count": 0,
+    "highest_severity": "ok",
+    "task_count": 3
+  }
+}

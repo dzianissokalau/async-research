@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Exploration Cycle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "exploration_id",
+    "task_id",
+    "framework_version",
+    "cycle_type",
+    "mission_scope",
+    "source_register_path",
+    "exploration_budget",
+    "search_modes",
+    "category_targets",
+    "sources_scanned",
+    "raw_candidate_count",
+    "kept_candidates",
+    "discovery_inbox_additions",
+    "promotions_to_tasks",
+    "candidates",
+    "stop_rules_triggered",
+    "duplicate_summary",
+    "parking_summary",
+    "health_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "exploration_id": {
+      "type": "string",
+      "pattern": "^EXPL-[0-9]{4}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "exploration_v1.0"
+      ]
+    },
+    "cycle_type": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "ad_hoc",
+        "user_seeded"
+      ]
+    },
+    "mission_scope": {
+      "type": "string"
+    },
+    "source_register_path": {
+      "type": "string"
+    },
+    "exploration_budget": {
+      "type": "object",
+      "required": [
+        "max_sources_scanned",
+        "max_raw_candidates",
+        "max_kept_candidates",
+        "max_discovery_inbox_additions",
+        "max_promotions_to_tasks",
+        "max_api_usd",
+        "max_compute_usd",
+        "max_human_decisions"
+      ],
+      "properties": {
+        "max_sources_scanned": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "max_raw_candidates": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "max_kept_candidates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_discovery_inbox_additions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "max_promotions_to_tasks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "max_api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_human_decisions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        }
+      }
+    },
+    "search_modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "internal_mining",
+          "rejected_idea_revisit",
+          "source_register_scanning",
+          "dataset_gap_generation",
+          "method_transfer",
+          "contradiction_anomaly_detection",
+          "user_seeded"
+        ]
+      }
+    },
+    "category_targets": {
+      "type": "object",
+      "required": [
+        "exploit",
+        "adjacent",
+        "speculative"
+      ],
+      "properties": {
+        "exploit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "adjacent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "speculative": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "sources_scanned": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "raw_candidate_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+    },
+    "kept_candidates": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+    },
+    "discovery_inbox_additions": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+    },
+    "promotions_to_tasks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "category",
+          "source_refs",
+          "trigger",
+          "status",
+          "idea_score",
+          "diversity_bonus",
+          "duplicate_penalty",
+          "drift_penalty",
+          "candidate_rank",
+          "recommended_next_task",
+          "duplicate_status",
+          "revisit_condition"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^IDEA-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "exploit",
+              "adjacent",
+              "speculative"
+            ]
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "trigger": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "candidate",
+              "promote",
+              "park",
+              "reject"
+            ]
+          },
+          "idea_score": {
+            "type": "number"
+          },
+          "diversity_bonus": {
+            "type": "number"
+          },
+          "duplicate_penalty": {
+            "type": "number",
+            "minimum": 0
+          },
+          "drift_penalty": {
+            "type": "number",
+            "minimum": 0
+          },
+          "candidate_rank": {
+            "type": "number"
+          },
+          "recommended_next_task": {
+            "type": "string",
+            "enum": [
+              "hypothesis_card",
+              "data_readiness",
+              "literature_extract",
+              "idea_scoring",
+              "park",
+              "reject"
+            ]
+          },
+          "duplicate_status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "near_duplicate",
+              "duplicate",
+              "revisit"
+            ]
+          },
+          "revisit_condition": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stop_rules_triggered": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "candidate_limit",
+          "below_threshold",
+          "budget_limit",
+          "source_quality_too_weak",
+          "duplicate_rate_too_high",
+          "source_access_unavailable",
+          "none"
+        ]
+      }
+    },
+    "duplicate_summary": {
+      "type": "object",
+      "required": [
+        "checked_against_accepted_outputs",
+        "near_duplicate_count",
+        "duplicate_count"
+      ],
+      "properties": {
+        "checked_against_accepted_outputs": {
+          "type": "boolean"
+        },
+        "near_duplicate_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicate_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "parking_summary": {
+      "type": "object",
+      "required": [
+        "parked_count",
+        "rejected_count",
+        "parked_written_to_log"
+      ],
+      "properties": {
+        "parked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parked_written_to_log": {
+          "type": "boolean"
+        }
+      }
+    },
+    "health_summary": {
+      "type": "object",
+      "required": [
+        "category_distribution",
+        "limits_respected",
+        "human_decisions_requested"
+      ],
+      "properties": {
+        "category_distribution": {
+          "type": "object",
+          "required": [
+            "exploit",
+            "adjacent",
+            "speculative"
+          ],
+          "properties": {
+            "exploit": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "adjacent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "speculative": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "limits_respected": {
+          "type": "boolean"
+        },
+        "human_decisions_requested": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+date,item_id,role,model_or_tool,usage_source,input_tokens,output_tokens,total_tokens,input_usd,output_usd,api_usd,compute_usd,amount_usd,human_minutes,status,actual,monthly_budget_usd,weekly_budget_usd,notes
+2026-05-02T00:00:00Z,OPS-STARTER,admin,none,starter_pack,0,0,0,0,0,0,0,0,0,initialized,false,50,15,starter_budget_anchor

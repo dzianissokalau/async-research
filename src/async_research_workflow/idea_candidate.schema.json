@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Idea Candidate",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "question",
+    "why_it_might_matter",
+    "required_data",
+    "minimum_viable_test",
+    "main_risks",
+    "kill_reason",
+    "score",
+    "recommended_next_task"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^IDEA-[0-9]{4}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "candidate",
+        "promote",
+        "park",
+        "reject"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "question": {
+      "type": "string"
+    },
+    "why_it_might_matter": {
+      "type": "string"
+    },
+    "evidence_seeds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exploration_category": {
+      "type": "string",
+      "enum": [
+        "exploit",
+        "adjacent",
+        "speculative"
+      ]
+    },
+    "exploration_source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^SRC-[0-9]{4}$"
+      }
+    },
+    "exploration_rank": {
+      "type": "number"
+    },
+    "duplicate_status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "near_duplicate",
+        "duplicate",
+        "revisit"
+      ]
+    },
+    "revisit_condition": {
+      "type": "string"
+    },
+    "cluster_id": {
+      "type": "string"
+    },
+    "cluster_representative": {
+      "type": "boolean"
+    },
+    "required_data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "minimum_viable_test": {
+      "type": "string"
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "novelty_angle": {
+      "type": "string"
+    },
+    "main_risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "kill_reason": {
+      "type": "string"
+    },
+    "score": {
+      "type": "object",
+      "required": [
+        "mission_policy_version",
+        "budget_mode",
+        "decision_impact",
+        "novelty",
+        "data_availability",
+        "feasibility",
+        "robustness_risk",
+        "cost",
+        "killability",
+        "reuse_potential",
+        "weighted_total",
+        "promotion_threshold",
+        "minimum_killability",
+        "max_promotions_per_week",
+        "budget_pressure_threshold",
+        "budget_mode_reason",
+        "budget_usage",
+        "hard_gate_results",
+        "score_explanation"
+      ],
+      "properties": {
+        "mission_policy_version": {
+          "type": "string"
+        },
+        "budget_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "budget_constrained"
+          ]
+        },
+        "decision_impact": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "impact": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "novelty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "data_availability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "feasibility": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "robustness_risk": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "cost": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "killability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "reuse_potential": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "weighted_total": {
+          "type": "number"
+        },
+        "promotion_threshold": {
+          "type": "number"
+        },
+        "minimum_killability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "max_promotions_per_week": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "budget_pressure_threshold": {
+          "type": "number"
+        },
+        "budget_mode_reason": {
+          "type": "string"
+        },
+        "budget_usage": {
+          "type": "object",
+          "required": [
+            "monthly_usage_ratio",
+            "weekly_usage_ratio",
+            "monthly_cost_usd",
+            "weekly_cost_usd",
+            "monthly_budget_usd",
+            "weekly_budget_usd"
+          ],
+          "properties": {
+            "monthly_usage_ratio": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "weekly_usage_ratio": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "monthly_cost_usd": {
+              "type": "number"
+            },
+            "weekly_cost_usd": {
+              "type": "number"
+            },
+            "monthly_budget_usd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "weekly_budget_usd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "hard_gate_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "gate",
+              "passed",
+              "reason"
+            ],
+            "properties": {
+              "gate": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "score_explanation": {
+          "type": "string"
+        }
+      }
+    },
+    "recommended_next_task": {
+      "type": "string",
+      "enum": [
+        "hypothesis_card",
+        "data_readiness",
+        "literature_extract",
+        "experiment_plan",
+        "park",
+        "reject"
+      ]
+    },
+    "idea_evaluation": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "framework_version": {
+          "type": "string"
+        },
+        "candidate_id": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "promotion_readiness": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
