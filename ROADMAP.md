@@ -75,7 +75,8 @@ about.
 | 2026-05-04 | P0: Safety defaults | Done | Made `starter-smoke` non-destructive by default. | Changed `--force` from implicit to explicit, returned structured `target_exists` JSON for existing non-empty work dirs, and added marker-preservation tests. | Commit `68283a0`; `.venv/bin/python -m unittest tests.test_cli_safety`; `async-research starter-smoke /tmp/async-research-starter --force`. |
 | 2026-05-04 | P0: Transactional init | Done | Made `init` transactional for bootstrap failures. | Staged template copy, backed up existing targets on forced replacement, restored old targets or removed new partial targets when metrics bootstrap failed, and added rollback tests. | Commit `fcb5ea0`; acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
 | 2026-05-04 | P0: Rollback hardening | Done | Closed verification edge cases found after the first transactional init patch. | Prevented rollback from deleting an untouched target when copy fails before backup, returned JSON for file-valued `starter-smoke` paths, made path removal symlink-safe, and preserved backup details if restore fails. | Commit `f07999e`; 11 safety tests, acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
-| 2026-05-04 | P0: Remaining safety work | Next | Make `async-research` the blessed documented interface and add drift detection tests. | Replace stale `async_research_workflow/examples/scripts/...` references where CLI equivalents exist; add tests for nonexistent doc paths, duplicate schemas, and packaged resource access. | Not started. |
+| 2026-05-04 | P0: Interface and resource drift | Done | Made `async-research` the blessed documented interface where wrappers exist and added drift guards. | Replaced stale public examples-script references in operator docs, scheduler prompts, starter templates, and examples with `async-research` commands or explicit `python -m async_research_workflow.scripts.<module>` advanced forms. Added tests for stale/nonexistent example references, duplicated schema/policy drift, and importlib resource access. | This change; `.venv/bin/python -m unittest tests.test_doc_references tests.test_packaged_resources`. |
+| 2026-05-04 | P1: Generic starter | Next | Add a domain-neutral default starter while keeping real-estate as a worked example. | Introduce a generic `research_ops` template, make it the default for `init`, keep real-estate under `--template real-estate`, and smoke-test both templates. | Not started. |
 
 ## Prioritized Roadmap
 
@@ -101,13 +102,12 @@ P0 work is required before recommending the package beyond careful alpha users.
 
 3. Make `async-research` the blessed user interface.
    - Replace user-facing docs and starter task instructions that point to
-     `async_research_workflow/examples/scripts/...` when an equivalent CLI
-     command exists.
+     removed examples-script paths when an equivalent CLI command exists.
    - For operations not yet exposed by the CLI, either add a CLI wrapper or
      document the `python -m async_research_workflow.scripts.<module>` form as
      internal/advanced.
-   - Acceptance: a repo scan has no stale references to nonexistent
-     `examples/scripts` paths in README, starter templates, or operator docs.
+   - Acceptance: a repo scan has no stale references to removed examples-script
+     paths in README, starter templates, or operator docs.
 
 4. Add drift detection tests.
    - Add tests that fail when docs reference nonexistent packaged files.
@@ -229,7 +229,7 @@ P3 work is useful but should not distract from P0/P1.
 ### Phase 2: Interface And Docs Drift
 
 - Decide which operational scripts need CLI wrappers now.
-- Replace stale `examples/scripts` references in public docs and starter tasks.
+- Replace stale examples-script references in public docs and starter tasks.
 - Add doc-resource drift tests.
 - Update the example GitHub worker to use the blessed invocation forms.
 

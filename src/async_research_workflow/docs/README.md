@@ -64,80 +64,44 @@ The main cost reduction comes from:
 32. [Implementation Plan](./implementation_plan.md)
 33. [Sources](./sources.md)
 
-## Example Files
+## Package Resources
 
-The `examples/` folder contains non-active examples:
+Use the `async-research` CLI for supported workflow operations. Advanced helpers
+remain importable as `python -m async_research_workflow.scripts.<module>` when a
+CLI wrapper does not exist yet.
 
-- [github_actions_codex_worker.yml](./examples/github_actions_codex_worker.yml)
-- [mission_policy.json](./examples/mission_policy.json)
-- [mission_policy.schema.json](./examples/mission_policy.schema.json)
-- [mission_score_template.md](./examples/mission_score_template.md)
-- [scripts/aggregate_reviews.py](./examples/scripts/aggregate_reviews.py)
-- [scripts/batch_lifecycle.py](./examples/scripts/batch_lifecycle.py)
-- [scripts/escalate_review_tier.py](./examples/scripts/escalate_review_tier.py)
-- [scripts/escalation_policy.py](./examples/scripts/escalation_policy.py)
-- [scripts/framework_version_calibration.py](./examples/scripts/framework_version_calibration.py)
-- [scripts/generate_anti_context.py](./examples/scripts/generate_anti_context.py)
-- [scripts/health_check.py](./examples/scripts/health_check.py)
-- [scripts/autonomy_readiness_gate.py](./examples/scripts/autonomy_readiness_gate.py)
-- [scripts/human_review_surface.py](./examples/scripts/human_review_surface.py)
-- [scripts/human_decision_log.py](./examples/scripts/human_decision_log.py)
-- [scripts/metrics_history.py](./examples/scripts/metrics_history.py)
-- [scripts/check_schema_versions.py](./examples/scripts/check_schema_versions.py)
-- [scripts/queue_capacity.py](./examples/scripts/queue_capacity.py)
-- [scripts/cost_tracking.py](./examples/scripts/cost_tracking.py)
-- [scripts/data_source_audit.py](./examples/scripts/data_source_audit.py)
-- [scripts/review_template.py](./examples/scripts/review_template.py)
-- [scripts/score_idea_candidate.py](./examples/scripts/score_idea_candidate.py)
-- [scripts/validate_mission_policy.py](./examples/scripts/validate_mission_policy.py)
-- [scripts/task_lock.py](./examples/scripts/task_lock.py)
-- [scripts/update_accepted_outputs_index.py](./examples/scripts/update_accepted_outputs_index.py)
-- [scripts/validate_idea_evaluation.py](./examples/scripts/validate_idea_evaluation.py)
-- [scripts/validate_exploration_cycle.py](./examples/scripts/validate_exploration_cycle.py)
-- [scripts/validate_experiment_plan.py](./examples/scripts/validate_experiment_plan.py)
-- [scripts/validate_result_acceptance.py](./examples/scripts/validate_result_acceptance.py)
-- [scripts/version_metadata.py](./examples/scripts/version_metadata.py)
-- [scripts/decision_log.py](./examples/scripts/decision_log.py)
-- [scripts/validate_transition.py](./examples/scripts/validate_transition.py)
-- [scripts/validate_json_artifact.py](./examples/scripts/validate_json_artifact.py)
-- [scripts/recover_status_json.py](./examples/scripts/recover_status_json.py)
-- [scripts/revision_counter.py](./examples/scripts/revision_counter.py)
-- [scripts/prepare_review_context.py](./examples/scripts/prepare_review_context.py)
-- [scripts/run_acceptance_suite.py](./examples/scripts/run_acceptance_suite.py)
-- [scripts/simulate_scheduled_week.py](./examples/scripts/simulate_scheduled_week.py)
-- [idea_candidate.schema.json](./examples/idea_candidate.schema.json)
-- [batch_manifest.schema.json](./examples/batch_manifest.schema.json)
-- [exploration_cycle.schema.json](./examples/exploration_cycle.schema.json)
-- [exploration_cycle_template.md](./examples/exploration_cycle_template.md)
-- [idea_evaluation.schema.json](./examples/idea_evaluation.schema.json)
-- [idea_evaluation_template.md](./examples/idea_evaluation_template.md)
-- [experiment_plan.schema.json](./examples/experiment_plan.schema.json)
-- [experiment_plan_template.md](./examples/experiment_plan_template.md)
-- [result_acceptance.schema.json](./examples/result_acceptance.schema.json)
-- [result_summary_template.md](./examples/result_summary_template.md)
-- [review_panel.schema.json](./examples/review_panel.schema.json)
-- [task_status.schema.json](./examples/task_status.schema.json)
-- [task_template.md](./examples/task_template.md)
+Packaged resources:
 
-These are examples only. They are intentionally not placed under `.github/workflows/`, so they will not run.
+- [GitHub worker example](../examples/github_actions_codex_worker.yml)
+- [Benchmark cases](../examples/benchmarks/autonomy_benchmark_cases.json)
+- [Default mission policy](../mission_policy.json)
+- [JSON schemas](../schemas/)
+- [Artifact templates](../templates/artifact_templates/)
+
+The GitHub workflow is an example only. It is intentionally not placed under
+`.github/workflows/`, so it will not run unless copied into an active workflow.
 
 ## Acceptance Suite
 
 Run the durable P0-P3 hardening and framework checks with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/run_acceptance_suite.py
+async-research acceptance-suite
 ```
 
 The suite creates isolated fixtures under `/private/tmp`, exercises the workflow
-helpers, and exits nonzero if a hardening contract regresses. Use
-`--keep-work-dir` when debugging a failed check.
+helpers, and exits nonzero if a hardening contract regresses. When debugging a
+failed check, use the underlying helper with `--keep-work-dir`:
+
+```bash
+python -m async_research_workflow.scripts.run_acceptance_suite --keep-work-dir
+```
 
 Before spending model budget on unattended jobs, rehearse one scheduled week
 with fixture outputs:
 
 ```bash
-python3 async_research_workflow/examples/scripts/simulate_scheduled_week.py research_ops
+async-research simulate-week research_ops
 ```
 
 The simulator writes to a temporary `research_ops` copy by default, drives the
@@ -148,8 +112,8 @@ cost.
 For light human supervision, generate and validate the markdown control surface:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_review_surface.py update research_ops
-python3 async_research_workflow/examples/scripts/human_review_surface.py validate research_ops
+async-research surface update research_ops
+async-research surface validate research_ops
 ```
 
 This refreshes `daily_status.md`, `human_review_queue.md`, and the weekly digest
@@ -158,8 +122,7 @@ summary so the operator can focus on current state and actionable decisions.
 Accepted memory freshness is part of the suite. Use:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
-  revalidation-report research_ops --write-schedule
+async-research accepted revalidation research_ops --write-schedule
 ```
 
 to write `research_ops/revalidation_schedule.md` and surface due/stale accepted

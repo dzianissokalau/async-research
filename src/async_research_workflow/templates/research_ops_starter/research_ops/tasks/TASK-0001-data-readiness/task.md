@@ -40,7 +40,7 @@ with major licensing, matching, or methodology uncertainty.
 
 - `research_ops/data_source_audit.md`
 - `async_research_workflow/data_source_audit_register_protocol.md`
-- `async_research_workflow/examples/scripts/data_source_audit.py`
+- `async_research_workflow/scripts/data_source_audit.py`
 
 ## Data Source Audit
 

@@ -13,14 +13,14 @@ this file is the first place to look during operations.
 Start every manual intervention with read-only checks:
 
 ```bash
-python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops
-python3 async_research_workflow/examples/scripts/autonomy_readiness_gate.py research_ops --dry-run
-python3 async_research_workflow/examples/scripts/human_review_surface.py update research_ops
-python3 async_research_workflow/examples/scripts/human_review_surface.py validate research_ops
-python3 async_research_workflow/examples/scripts/escalation_policy.py scan-needs-human research_ops
-python3 async_research_workflow/examples/scripts/data_source_audit.py freshness-report research_ops
-python3 async_research_workflow/examples/scripts/health_check.py research_ops --dry-run
-python3 async_research_workflow/examples/scripts/cost_tracking.py summary research_ops
+async-research schema-check research_ops
+async-research readiness research_ops --dry-run
+async-research surface update research_ops
+async-research surface validate research_ops
+python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research source freshness research_ops
+async-research health research_ops --dry-run
+async-research cost summary research_ops
 ```
 
 Then inspect:
@@ -43,23 +43,24 @@ Do not hand-edit `status.json` unless a protocol explicitly says to do so.
 Refresh the light-supervision files before manual review:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_review_surface.py update research_ops
-python3 async_research_workflow/examples/scripts/human_review_surface.py validate research_ops
+async-research surface update research_ops
+async-research surface validate research_ops
 ```
 
 Start with `research_ops/daily_status.md`, then inspect
 `research_ops/human_review_queue.md` only when it reports open decisions. Each
 queue row gives the decision id, task id, decision needed, available options,
 recommended command, consequence of ignoring, urgency, owner, and required
-update path. Resolve rows with `human_decision_log.py resolve-task`; do not
-delete queue rows by hand.
+update path. Resolve rows with
+`python -m async_research_workflow.scripts.human_decision_log resolve-task`; do
+not delete queue rows by hand.
 
 ## Escalation Policy
 
 When a task may require human judgment, run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
+python -m async_research_workflow.scripts.escalation_policy evaluate \
   research_ops/tasks/TASK-0001-data-readiness \
   --ops-dir research_ops
 ```
@@ -67,7 +68,7 @@ python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
 If it exits `2`, do not continue automated work. Apply the stop state with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
+python -m async_research_workflow.scripts.escalation_policy evaluate \
   research_ops/tasks/TASK-0001-data-readiness \
   --ops-dir research_ops \
   --apply
@@ -78,7 +79,7 @@ available decisions, default safe action, retry behavior, and ledger update
 behavior. Validate that invariant with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py scan-needs-human research_ops
+python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
 ```
 
 ## Back Up Before Automation
@@ -105,7 +106,7 @@ automation until the owner decides whether those edits are safe.
 Use this only when `status.json` is malformed or cannot be parsed:
 
 ```bash
-python3 async_research_workflow/examples/scripts/recover_status_json.py \
+python -m async_research_workflow.scripts.recover_status_json \
   research_ops/tasks/TASK-0001-data-readiness
 ```
 
@@ -119,16 +120,17 @@ The recovery wrapper:
 After recovery:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
+python -m async_research_workflow.scripts.validate_json_artifact \
   research_ops/tasks/TASK-0001-data-readiness/status.json \
-  --schema async_research_workflow/examples/task_status.schema.json
+  --schema async_research_workflow/task_status.schema.json
 
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001-data-readiness
 ```
 
 Human decision: inspect the quarantined file, decide whether to resume, pause,
-or reject the task, and record the decision with `human_decision_log.py`.
+or reject the task, and record the decision with
+`python -m async_research_workflow.scripts.human_decision_log`.
 
 ## Recover Local Crashes
 
@@ -139,9 +141,9 @@ First inspect the repo and task lock without changing anything:
 
 ```bash
 git status --short
-python3 async_research_workflow/examples/scripts/task_lock.py status \
+python -m async_research_workflow.scripts.task_lock status \
   research_ops/tasks/TASK-0001-data-readiness
-python3 async_research_workflow/examples/scripts/health_check.py research_ops --dry-run
+async-research health research_ops --dry-run
 ```
 
 Then decide:
@@ -162,7 +164,7 @@ and the owner has decided what should be discarded.
 Never move a task out of `needs_human` by editing `status.json` directly. Use:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py resolve-task \
+python -m async_research_workflow.scripts.human_decision_log resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001-data-readiness \
   --decision resume \
@@ -185,7 +187,7 @@ Common decisions:
 Then verify:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001-data-readiness
 ```
 
@@ -194,7 +196,7 @@ python3 async_research_workflow/examples/scripts/validate_transition.py \
 Use summary first:
 
 ```bash
-python3 async_research_workflow/examples/scripts/cost_tracking.py summary \
+python -m async_research_workflow.scripts.cost_tracking summary \
   research_ops \
   --monthly-budget-usd 50 \
   --weekly-budget-usd 15
@@ -203,7 +205,7 @@ python3 async_research_workflow/examples/scripts/cost_tracking.py summary \
 Before any paid promotion, batch, API call, or cloud run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/cost_tracking.py budget-check \
+python -m async_research_workflow.scripts.cost_tracking budget-check \
   research_ops \
   --item-id TASK-0001 \
   --action "planned paid run" \
@@ -217,13 +219,13 @@ If `budget-check` exits nonzero:
 
 - do not spend
 - route the task to `needs_human` or `paused`
-- approve with `human_decision_log.py resolve-task --decision approve_budget`
+- approve with `python -m async_research_workflow.scripts.human_decision_log resolve-task --decision approve_budget`
   only if the spend is intentional
 
 Discovery scoring also reacts to budget pressure through:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0001.json \
   --budget-mode auto \
   --ops-dir research_ops
@@ -246,7 +248,7 @@ codex exec --json --cd "$RESEARCH_REPO_ROOT" \
 If the event stream contains token usage fields, ingest them:
 
 ```bash
-python3 async_research_workflow/examples/scripts/cost_tracking.py ingest-usage \
+python -m async_research_workflow.scripts.cost_tracking ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0001-data-readiness/artifacts/codex_events.jsonl \
   --item-id TASK-0001 \
@@ -263,7 +265,7 @@ row with `actual=false`; the budget gate still protects against planned spend.
 Every scheduled loop should start with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/autonomy_readiness_gate.py research_ops
+async-research readiness research_ops
 ```
 
 Use `--dry-run` for manual inspection. Without `--dry-run`, the command writes
@@ -290,7 +292,7 @@ freshness, required ops files, and metrics snapshot freshness.
 Before discovery writes candidates, run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/queue_capacity.py discovery-gate \
+python -m async_research_workflow.scripts.queue_capacity discovery-gate \
   research_ops \
   --max-active 10
 ```
@@ -311,7 +313,7 @@ Shell-safe pattern for `set -e` wrappers:
 
 ```bash
 set +e
-gate_json="$(python3 async_research_workflow/examples/scripts/queue_capacity.py discovery-gate research_ops --max-active 10)"
+gate_json="$(python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10)"
 gate_rc=$?
 set -e
 
@@ -332,17 +334,17 @@ Batch outputs are untrusted until review marks them trusted.
 Check a manifest:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py trust-status \
+python -m async_research_workflow.scripts.batch_lifecycle trust-status \
   research_ops/batches/BATCH-0001/batch_manifest.json
 ```
 
 Normal lifecycle:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py validate-manifest \
+python -m async_research_workflow.scripts.batch_lifecycle validate-manifest \
   research_ops/batches/BATCH-0001/batch_manifest.json
 
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py ingest \
+python -m async_research_workflow.scripts.batch_lifecycle ingest \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --ingest-task-id TASK-0302 \
   --ingested-file artifacts/ingested.jsonl
@@ -351,7 +353,7 @@ python3 async_research_workflow/examples/scripts/batch_lifecycle.py ingest \
 After a reviewer accepts the ingest task:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py mark-reviewed \
+python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --review-task-id TASK-0303
 ```
@@ -365,14 +367,14 @@ auditing untrusted output.
 Initialize or validate the register:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py init research_ops
-python3 async_research_workflow/examples/scripts/data_source_audit.py validate research_ops
+python -m async_research_workflow.scripts.data_source_audit init research_ops
+async-research source validate research_ops
 ```
 
 Approve or update a source:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py upsert \
+python -m async_research_workflow.scripts.data_source_audit upsert \
   research_ops \
   --source-id DS-0001 \
   --approval-status approved_with_caveats \
@@ -393,7 +395,7 @@ python3 async_research_workflow/examples/scripts/data_source_audit.py upsert \
 Before creating or accepting an experiment plan:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py check-experiment \
+python -m async_research_workflow.scripts.data_source_audit check-experiment \
   research_ops \
   research_ops/tasks/TASK-0003-repeat-sales-experiment-plan/task.md
 ```
@@ -408,7 +410,7 @@ Allowed experiment-planning statuses are `approved` and
 After required reviews are written:
 
 ```bash
-python3 async_research_workflow/examples/scripts/aggregate_reviews.py \
+async-research review aggregate \
   research_ops/tasks/TASK-0001-data-readiness
 ```
 
@@ -424,7 +426,7 @@ research_ops/rejected_results.md
 Rerun acceptance validation manually with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_result_acceptance.py \
+async-research result-acceptance \
   research_ops/tasks/TASK-0001-data-readiness \
   --ops-dir research_ops
 ```
@@ -432,14 +434,13 @@ python3 async_research_workflow/examples/scripts/validate_result_acceptance.py \
 Refresh reusable accepted-output memory:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops
+async-research accepted update research_ops
 ```
 
 Check accepted-memory freshness and write the revalidation schedule:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
-  revalidation-report research_ops --write-schedule
+async-research accepted revalidation research_ops --write-schedule
 ```
 
 The schedule is written to `research_ops/revalidation_schedule.md`. Treat rows
@@ -450,7 +451,7 @@ Before a worker, planner, or discovery scout relies on a prior accepted task as
 a current fact, check the artifact:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
+python -m async_research_workflow.scripts.update_accepted_outputs_index \
   check-memory-use research_ops <artifact-path>
 ```
 
@@ -479,8 +480,8 @@ research_ops/archive/YYYY-MM/
 Before moving anything:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops
-python3 async_research_workflow/examples/scripts/health_check.py research_ops --dry-run
+async-research accepted update research_ops
+async-research health research_ops --dry-run
 git status --short
 ```
 
@@ -492,17 +493,17 @@ After archiving, update `queue.md`, `weekly_digest.md`, and
 Before enabling unattended scheduled jobs, this should pass:
 
 ```bash
-python3 async_research_workflow/examples/scripts/run_acceptance_suite.py
-python3 async_research_workflow/examples/scripts/simulate_scheduled_week.py research_ops
-python3 async_research_workflow/examples/scripts/human_review_surface.py update research_ops
-python3 async_research_workflow/examples/scripts/human_review_surface.py validate research_ops
-python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops
-python3 async_research_workflow/examples/scripts/autonomy_readiness_gate.py research_ops --dry-run
-python3 async_research_workflow/examples/scripts/escalation_policy.py scan-needs-human research_ops
-python3 async_research_workflow/examples/scripts/data_source_audit.py freshness-report research_ops
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py revalidation-report research_ops --write-schedule
-python3 async_research_workflow/examples/scripts/queue_capacity.py discovery-gate research_ops --max-active 10
-python3 async_research_workflow/examples/scripts/health_check.py research_ops --dry-run
+async-research acceptance-suite
+async-research simulate-week research_ops
+async-research surface update research_ops
+async-research surface validate research_ops
+async-research schema-check research_ops
+async-research readiness research_ops --dry-run
+python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research source freshness research_ops
+async-research accepted revalidation research_ops --write-schedule
+python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10
+async-research health research_ops --dry-run
 ```
 
 If any command fails, do not run autonomous jobs until the failure is resolved or

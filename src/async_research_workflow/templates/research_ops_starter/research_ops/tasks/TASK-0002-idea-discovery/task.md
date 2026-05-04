@@ -32,7 +32,7 @@ Write `worker_output.md` with:
 Before updating `discovery_inbox.md` or marking the task ready for review, run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_exploration_cycle.py \
+async-research exploration validate \
   research_ops/tasks/TASK-0002-idea-discovery/worker_output.md \
   --ops-dir research_ops \
   --task-dir research_ops/tasks/TASK-0002-idea-discovery
@@ -42,15 +42,15 @@ For every candidate JSON that may be promoted or added to the discovery inbox,
 run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_mission_policy.py \
-  async_research_workflow/examples/mission_policy.json
+python -m async_research_workflow.scripts.validate_mission_policy \
+  async_research_workflow/mission_policy.json
 
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0001.json \
   --budget-mode auto \
   --ops-dir research_ops
 
-python3 async_research_workflow/examples/scripts/validate_idea_evaluation.py \
+async-research idea validate \
   research_ops/discovery/IDEA-0001.json \
   --ops-dir research_ops
 ```
@@ -84,20 +84,20 @@ experiment planning for a candidate with unresolved data or methodology risk.
 - `async_research_workflow/framework_requirements/mission_scoring_framework_requirements.md`
 - `async_research_workflow/framework_requirements/exploration_framework_requirements.md`
 - `async_research_workflow/framework_requirements/idea_evaluation_framework_requirements.md`
-- `async_research_workflow/examples/exploration_cycle.schema.json`
-- `async_research_workflow/examples/exploration_cycle_template.md`
-- `async_research_workflow/examples/scripts/validate_exploration_cycle.py`
-- `async_research_workflow/examples/idea_evaluation.schema.json`
-- `async_research_workflow/examples/idea_evaluation_template.md`
-- `async_research_workflow/examples/scripts/validate_idea_evaluation.py`
+- `async_research_workflow/exploration_cycle.schema.json`
+- `async_research_workflow/templates/artifact_templates/exploration_cycle_template.md`
+- `async_research_workflow/scripts/validate_exploration_cycle.py`
+- `async_research_workflow/idea_evaluation.schema.json`
+- `async_research_workflow/templates/artifact_templates/idea_evaluation_template.md`
+- `async_research_workflow/scripts/validate_idea_evaluation.py`
 - `async_research_workflow/mission_weighted_idea_scoring_protocol.md`
-- `async_research_workflow/examples/mission_policy.json`
-- `async_research_workflow/examples/mission_policy.schema.json`
-- `async_research_workflow/examples/mission_score_template.md`
-- `async_research_workflow/examples/scripts/validate_mission_policy.py`
-- `async_research_workflow/examples/scripts/score_idea_candidate.py`
-- `async_research_workflow/examples/scripts/cost_tracking.py`
-- `async_research_workflow/examples/scripts/validate_json_artifact.py`
+- `async_research_workflow/mission_policy.json`
+- `async_research_workflow/mission_policy.schema.json`
+- `async_research_workflow/templates/artifact_templates/mission_score_template.md`
+- `async_research_workflow/scripts/validate_mission_policy.py`
+- `async_research_workflow/scripts/score_idea_candidate.py`
+- `async_research_workflow/scripts/cost_tracking.py`
+- `async_research_workflow/scripts/validate_json_artifact.py`
 - `async_research_workflow/idea_discovery_workflow.md`
 
 ## Data Source Audit

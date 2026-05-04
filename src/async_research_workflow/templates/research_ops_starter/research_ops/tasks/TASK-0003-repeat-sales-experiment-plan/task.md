@@ -34,7 +34,7 @@ Write `worker_output.md` with:
 Before marking this task ready for review, run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_experiment_plan.py \
+async-research experiment validate \
   research_ops/tasks/TASK-0003-repeat-sales-experiment-plan/worker_output.md \
   --ops-dir research_ops \
   --task-dir research_ops/tasks/TASK-0003-repeat-sales-experiment-plan
@@ -57,9 +57,9 @@ isolated reviews before aggregation.
 - `research_ops/data_source_audit.md`
 - `research_ops/accepted_outputs_index.md`
 - `async_research_workflow/framework_requirements/experimentation_framework_requirements.md`
-- `async_research_workflow/examples/experiment_plan.schema.json`
-- `async_research_workflow/examples/experiment_plan_template.md`
-- `async_research_workflow/examples/scripts/validate_experiment_plan.py`
+- `async_research_workflow/experiment_plan.schema.json`
+- `async_research_workflow/templates/artifact_templates/experiment_plan_template.md`
+- `async_research_workflow/scripts/validate_experiment_plan.py`
 - `async_research_workflow/data_source_audit_register_protocol.md`
 
 ## Data Source Audit

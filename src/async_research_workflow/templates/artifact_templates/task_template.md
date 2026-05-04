@@ -33,12 +33,12 @@ Write `worker_output.md` with:
 - Default: Tier 1 primary review.
 - Escalate to Tier 2 for experiment plans and result summaries.
 - Escalate to Tier 3 for final memos, moderate/strong claims, or public/high-stakes use.
-- Reviewers escalate with `escalate_review_tier.py`; do not hand-edit review tiers.
+- Reviewers escalate with `python -m async_research_workflow.scripts.escalate_review_tier`; do not hand-edit review tiers.
 
 ## Escalation Policy
 
 - Read `research_ops/escalation_policy.md` before moving risky work forward.
-- Run `examples/scripts/escalation_policy.py evaluate <task-dir> --ops-dir research_ops`.
+- Run `python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops`.
 - If it exits `2`, rerun with `--apply`, stop, and leave the structured
   `human_gate` for a human decision.
 - Do not set `needs_human` with a vague reason.
@@ -50,13 +50,14 @@ Write `worker_output.md` with:
 ## Data Source Audit
 
 - For `idea_discovery` tasks, include a fenced JSON exploration cycle block or
-  `exploration_cycle.json` conforming to `examples/exploration_cycle.schema.json`,
-  and pass `examples/scripts/validate_exploration_cycle.py` before updating the
-  discovery inbox.
-- For scored idea candidates, run `examples/scripts/validate_mission_policy.py`,
-  `examples/scripts/score_idea_candidate.py`, and
-  `examples/scripts/validate_idea_evaluation.py` before adding candidates to the
-  discovery inbox or planner queue.
+  `exploration_cycle.json` conforming to
+  `async_research_workflow/exploration_cycle.schema.json`, and pass
+  `async-research exploration validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
+  before updating the discovery inbox.
+- For scored idea candidates, run
+  `python -m async_research_workflow.scripts.validate_mission_policy`,
+  `async-research idea score`, and `async-research idea validate` before adding
+  candidates to the discovery inbox or planner queue.
 - For `experiment_plan` tasks, list audited data source IDs such as `DS-0001`.
 - If no audited data source exists yet, route to `data_readiness` before experiment planning.
 - Source-dependent tasks must follow `data_source_audit_register_protocol.md`:
@@ -64,20 +65,23 @@ Write `worker_output.md` with:
   human approval, high-impact claims need Tier 1/2 support, and stale sources
   must be refreshed or routed to `needs_human`.
 - Accepted evidence must cite audited `DS-*` source IDs and pass
-  `examples/scripts/data_source_audit.py check-claim` when source-dependent.
+  `python -m async_research_workflow.scripts.data_source_audit check-claim`
+  when source-dependent.
 - If the task uses prior accepted evidence as a current fact, run
-  `examples/scripts/update_accepted_outputs_index.py check-memory-use` against
-  the artifact. Stale accepted memory must be revalidated or used only as
-  historical context.
+  `python -m async_research_workflow.scripts.update_accepted_outputs_index check-memory-use`
+  against the artifact. Stale accepted memory must be revalidated or used only
+  as historical context.
 - Accepted task results should include `claim_type`, `freshness_window_days`,
   `next_recheck_date`, `revalidation_status`, `source_ids`, `caveats`,
   `supersedes`, and `superseded_by` fields.
 - `experiment_plan` outputs must include a fenced JSON block or `experiment_plan.json`
-  conforming to `examples/experiment_plan.schema.json`, and must pass
-  `examples/scripts/validate_experiment_plan.py` before review.
+  conforming to `async_research_workflow/experiment_plan.schema.json`, and must
+  pass `async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
+  before review.
 - For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result
-  summary following `examples/result_summary_template.md`; accepted/rejected
-  review aggregates must pass `examples/scripts/validate_result_acceptance.py`.
+  summary following
+  `async_research_workflow/templates/artifact_templates/result_summary_template.md`;
+  accepted/rejected review aggregates must pass `async-research result-acceptance`.
 
 ## Cross-Task Anti-Context
 

@@ -147,17 +147,17 @@ Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
 Task:
-1. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops.
-2. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py revalidation-report research_ops --write-schedule.
+1. Run async-research accepted update research_ops.
+2. Run async-research accepted revalidation research_ops --write-schedule.
 3. Read research_ops/accepted_outputs_index.md, research_ops/revalidation_schedule.md if present, research_ops/discovery_inbox.md, research_ops/inbox.md, research_ops/queue.md, research_ops/data_source_audit.md if present, research_ops/escalation_policy.md, and research_ops/daily_status.md.
-4. Before promoting an item, run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py check-duplicate research_ops --title "<candidate title>".
-5. Before promoting any item that would trigger paid API/cloud work, run python3 async_research_workflow/examples/scripts/cost_tracking.py budget-check research_ops --item-id "<candidate-or-task-id>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the item or route it to needs_human.
+4. Before promoting an item, run python -m async_research_workflow.scripts.update_accepted_outputs_index check-duplicate research_ops --title "<candidate title>".
+5. Before promoting any item that would trigger paid API/cloud work, run python -m async_research_workflow.scripts.cost_tracking budget-check research_ops --item-id "<candidate-or-task-id>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the item or route it to needs_human.
 6. Promote at most 3 non-duplicate items into small task folders under research_ops/tasks/.
 7. Each task must be completable in 30-45 minutes unless explicitly marked as a panel or synthesis task.
 8. Write task.md and status.json for each new task; every status.json must include schema_version="1.0", prompt_versions, and framework_versions.
-9. Before promoting a discovery candidate into a task, run python3 async_research_workflow/examples/scripts/validate_idea_evaluation.py <candidate-json> --ops-dir research_ops. Promote only when idea_evaluation.promotion_readiness.planner_may_promote is true.
-10. For `experiment_plan` tasks, add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/examples/experiment_plan_template.md in context, and run python3 async_research_workflow/examples/scripts/data_source_audit.py check-experiment research_ops <task-dir>/task.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
-11. For each new task, run python3 async_research_workflow/examples/scripts/generate_anti_context.py build research_ops --title "<candidate title>" --task-dir <task-dir>.
+9. Before promoting a discovery candidate into a task, run async-research idea validate <candidate-json> --ops-dir research_ops. Promote only when idea_evaluation.promotion_readiness.planner_may_promote is true.
+10. For `experiment_plan` tasks, add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run python -m async_research_workflow.scripts.data_source_audit check-experiment research_ops <task-dir>/task.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
+11. For each new task, run python -m async_research_workflow.scripts.generate_anti_context build research_ops --title "<candidate title>" --task-dir <task-dir>.
 12. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise task.md so the task has a clear new angle, create a revalidation task first, or park it.
 13. Set review_policy.tier based on task type and risk.
 14. Update queue.md and daily_status.md.
@@ -197,20 +197,20 @@ Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
 Task:
-1. Run python3 async_research_workflow/examples/scripts/queue_capacity.py discovery-gate research_ops --max-active 10. If it returns action=discovery_skipped, append a brief daily_status.md note with active_task_count and stop without scanning sources.
+1. Run python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10. If it returns action=discovery_skipped, append a brief daily_status.md note with active_task_count and stop without scanning sources.
 2. Read research_ops/discovery/source_register.md and research_ops/data_source_audit.md if they exist, including source tiers, approval status, allowed use cases, and freshness windows.
-3. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops.
-4. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py revalidation-report research_ops --write-schedule.
+3. Run async-research accepted update research_ops.
+4. Run async-research accepted revalidation research_ops --write-schedule.
 5. Read research_ops/accepted_outputs_index.md, research_ops/revalidation_schedule.md if present, research_ops/weekly_digest.md, research_ops/discovery_inbox.md, and recent accepted/rejected task summaries.
 6. Scan at most 10 approved sources or internal artifacts.
 7. Generate at most 20 raw idea candidates.
 8. Deduplicate and cluster them against the accepted outputs index.
-9. Write an exploration_cycle.json or worker_output.md fenced JSON block conforming to async_research_workflow/examples/exploration_cycle.schema.json.
-10. Run python3 async_research_workflow/examples/scripts/validate_exploration_cycle.py <cycle-path> --ops-dir research_ops. If validation fails, revise or stop without updating discovery_inbox.md.
-11. Run python3 async_research_workflow/examples/scripts/validate_mission_policy.py async_research_workflow/examples/mission_policy.json before scoring candidates.
-12. Score each kept candidate with python3 async_research_workflow/examples/scripts/score_idea_candidate.py <candidate-json> --budget-mode auto --ops-dir research_ops.
+9. Write an exploration_cycle.json or worker_output.md fenced JSON block conforming to async_research_workflow/exploration_cycle.schema.json.
+10. Run python -m async_research_workflow.scripts.validate_exploration_cycle <cycle-path> --ops-dir research_ops. If validation fails, revise or stop without updating discovery_inbox.md.
+11. Run python -m async_research_workflow.scripts.validate_mission_policy async_research_workflow/mission_policy.json before scoring candidates.
+12. Score each kept candidate with async-research idea score <candidate-json> --budget-mode auto --ops-dir research_ops.
 13. Write rejected or parked candidates to research_ops/discovery/rejected_ideas.md before idea-evaluation validation when the scored route is park or reject.
-14. Validate each scored candidate with python3 async_research_workflow/examples/scripts/validate_idea_evaluation.py <candidate-json> --ops-dir research_ops.
+14. Validate each scored candidate with async-research idea validate <candidate-json> --ops-dir research_ops.
 15. Keep at most 5 candidates that pass idea-evaluation validation or are properly logged as park/reject.
 16. Write or update research_ops/discovery_inbox.md using score.weighted_total only for candidates whose idea_evaluation.promotion_readiness.planner_may_promote is true.
 17. If any candidate scores with budget_mode=budget_constrained, append a short note to research_ops/daily_status.md with budget_mode_reason and score.max_promotions_per_week.
@@ -226,7 +226,7 @@ Rules:
 - Treat Tier 3 sources as context only and never as the sole justification for promotion to experiment planning.
 - Do not use Tier 4 sources in candidates except as blocked examples or explicitly human-approved exceptions.
 - Every scored candidate must include schema_version="1.0" and score.mission_policy_version.
-- Stop without updating discovery_inbox.md if `validate_mission_policy.py` fails.
+- Stop without updating discovery_inbox.md if `python -m async_research_workflow.scripts.validate_mission_policy` fails.
 - Every scored candidate must include idea_evaluation.framework_version="idea_evaluation_v1.0" before it is added to discovery_inbox.md.
 - Do not add candidates that duplicate accepted outputs unless the new angle is explicit.
 - Do not reuse stale accepted outputs as current facts; cite them only as historical context or create a revalidation task.
@@ -235,9 +235,9 @@ Rules:
 - When scoring returns budget_mode=budget_constrained, respect score.max_promotions_per_week and prefer only candidates with killability=5.
 - Daily status notes about constrained mode should be factual and brief; do not ask for human action unless promotions are blocked.
 - If there are no good candidates, say so and stop.
-- Do not update discovery_inbox.md until `validate_exploration_cycle.py` passes.
-- Do not update discovery_inbox.md with candidates that fail `validate_idea_evaluation.py`.
-- Do not run discovery when `queue_capacity.py discovery-gate` returns action=discovery_skipped.
+- Do not update discovery_inbox.md until exploration validation passes.
+- Do not update discovery_inbox.md with candidates that fail `async-research idea validate`.
+- Do not run discovery when `python -m async_research_workflow.scripts.queue_capacity discovery-gate` returns action=discovery_skipped.
 
 Final response:
 - Candidates added.
@@ -257,21 +257,21 @@ Task:
 1. Read research_ops/queue.md.
 2. Pick the oldest task with status ready_for_worker and no active lock.
 3. Read that task's task.md, anti_context.md if present, status.json, and research_ops/escalation_policy.md.
-4. Before writing any output, acquire the task-local LOCK/ using async_research_workflow/examples/scripts/task_lock.py.
+4. Before writing any output, acquire the task-local LOCK/ using async_research_workflow/scripts/task_lock.py.
 5. If lock acquisition fails because the lock is fresh, skip that task and try the next ready task.
 6. Work only inside the task's allowed_paths.
 7. Complete exactly one task.
 8. Write worker_output.md.
-9. For `data_readiness` tasks, update research_ops/data_source_audit.md with data_source_audit.py when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
-10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/examples/exploration_cycle.schema.json, then run python3 async_research_workflow/examples/scripts/validate_exploration_cycle.py <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
-11. For `idea_discovery` tasks, run validate_mission_policy.py, score candidate JSON files with score_idea_candidate.py, log parked/rejected candidates, then run validate_idea_evaluation.py on each candidate before updating discovery_inbox.md or marking the task ready for review.
-12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/examples/experiment_plan.schema.json, then run python3 async_research_workflow/examples/scripts/validate_experiment_plan.py <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
-13. Before moving the task forward, run python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
+9. For `data_readiness` tasks, update research_ops/data_source_audit.md with `python -m async_research_workflow.scripts.data_source_audit upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
+10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
+11. For `idea_discovery` tasks, run `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
+12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
+13. Before moving the task forward, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
 14. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
-15. Run python3 async_research_workflow/examples/scripts/validate_json_artifact.py --schema async_research_workflow/examples/task_status.schema.json <task-dir>/status.json.
-16. Run python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops.
-17. Run python3 async_research_workflow/examples/scripts/validate_transition.py <task-dir>.
-18. If schema or transition validation fails, run python3 async_research_workflow/examples/scripts/recover_status_json.py <task-dir>, then stop and report the recovery result.
+15. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/task_status.schema.json <task-dir>/status.json.
+16. Run async-research schema-check research_ops.
+17. Run python -m async_research_workflow.scripts.validate_transition <task-dir>.
+18. If schema or transition validation fails, run python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
 19. Release LOCK/ only after final writes and validation or recovery are complete.
 
 Rules:
@@ -285,13 +285,13 @@ Rules:
 - Do not browse unless allow_browsing=true.
 - Do not run network commands unless allow_network=true.
 - Do not spend paid API/cloud budget unless budget allows it.
-- Before paid API/cloud spend, run `cost_tracking.py budget-check`; if it exits nonzero, set status to `needs_human`.
-- If an API response includes usage, write it under artifacts/ and run `cost_tracking.py ingest-usage` before final status validation.
-- For `batch_job` tasks, validate `batch_manifest.json` with `batch_lifecycle.py validate-manifest` before submission and submit with `batch_lifecycle.py submit` so costs are logged.
-- For `batch_ingest` tasks, use `batch_lifecycle.py ingest`; do not mark batch outputs trusted unless a reviewer later runs `batch_lifecycle.py mark-reviewed`.
+- Before paid API/cloud spend, run `python -m async_research_workflow.scripts.cost_tracking budget-check`; if it exits nonzero, set status to `needs_human`.
+- If an API response includes usage, write it under artifacts/ and run `python -m async_research_workflow.scripts.cost_tracking ingest-usage` before final status validation.
+- For `batch_job` tasks, validate `batch_manifest.json` with `python -m async_research_workflow.scripts.batch_lifecycle validate-manifest` before submission and submit with `python -m async_research_workflow.scripts.batch_lifecycle submit` so costs are logged.
+- For `batch_ingest` tasks, use `python -m async_research_workflow.scripts.batch_lifecycle ingest`; do not mark batch outputs trusted unless a reviewer later runs `python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed`.
 - If experiment data audit checks fail, revise the plan to reference ready `DS-0000` entries or set status to `needs_human`; do not proceed silently.
 - Do not mark source-dependent outputs ready for review until unapproved, stale, Tier 3-only, or Tier 4-blocked source issues are resolved or routed to `needs_human`.
-- Accepted evidence should cite audited `DS-*` source IDs; use `data_source_audit.py check-claim` for high-impact or accepted-evidence claims.
+- Accepted evidence should cite audited `DS-*` source IDs; use `python -m async_research_workflow.scripts.data_source_audit check-claim` for high-impact or accepted-evidence claims.
 - If exploration framework validation fails, revise the cycle or set status to `needs_human`; do not update discovery_inbox.md.
 - If mission policy validation fails, set status to `needs_human`; do not score candidates or update discovery_inbox.md.
 - If idea-evaluation validation fails, revise the candidate, log the rejection, or set status to `needs_human`; do not update discovery_inbox.md with that candidate.
@@ -324,19 +324,19 @@ Task:
 2. Pick the oldest task with status awaiting_review.
 3. Read task.md, status.json, worker_output.md, research_ops/escalation_policy.md, and any artifacts.
 4. Read review_policy from status.json.
-5. For `experiment_plan` tasks, run python3 async_research_workflow/examples/scripts/validate_experiment_plan.py <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> and reject or request revision if it fails.
-6. Optionally run python3 async_research_workflow/examples/scripts/review_template.py primary --decision <decision> --claim-strength <claim_strength> --raw-json to start the review JSON with required version metadata.
+5. For `experiment_plan` tasks, run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> and reject or request revision if it fails.
+6. Optionally run python -m async_research_workflow.scripts.review_template primary --decision <decision> --claim-strength <claim_strength> --raw-json to start the review JSON with required version metadata.
 7. If tier is 0 or 1, write reviews/primary.md with reviewer_role, decision, claim_strength, confidence, prompt_version="primary_reviewer_v1.0", and framework_versions.result_acceptance.
 8. If tier is 2 or 3, write reviews/primary.md with the same structured metadata and set status to panel_review unless all required reviews are already present.
-9. If the output needs a higher review tier before it can be accepted, run python3 async_research_workflow/examples/scripts/escalate_review_tier.py apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
-10. Before accepting, rejecting, or routing to revision/human, run python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
+9. If the output needs a higher review tier before it can be accepted, run python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
+10. Before accepting, rejecting, or routing to revision/human, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
 11. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
-12. If the review decision is needs_revision, do not edit status.json by hand. Run python3 async_research_workflow/examples/scripts/revision_counter.py request <task-dir> --reviewer primary.
-13. Run python3 async_research_workflow/examples/scripts/validate_json_artifact.py --schema async_research_workflow/examples/task_status.schema.json <task-dir>/status.json.
-14. Run python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops.
-15. Run python3 async_research_workflow/examples/scripts/validate_transition.py <task-dir>.
-16. If setting accepted or rejected directly, run python3 async_research_workflow/examples/scripts/validate_result_acceptance.py <task-dir> --ops-dir research_ops --write --update-ledgers.
-17. If schema, transition, or result-acceptance validation fails, run python3 async_research_workflow/examples/scripts/recover_status_json.py <task-dir> for malformed status only, otherwise revise the review route and stop.
+12. If the review decision is needs_revision, do not edit status.json by hand. Run python -m async_research_workflow.scripts.revision_counter request <task-dir> --reviewer primary.
+13. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/task_status.schema.json <task-dir>/status.json.
+14. Run async-research schema-check research_ops.
+15. Run python -m async_research_workflow.scripts.validate_transition <task-dir>.
+16. If setting accepted or rejected directly, run async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers.
+17. If schema, transition, or result-acceptance validation fails, run python -m async_research_workflow.scripts.recover_status_json <task-dir> for malformed status only, otherwise revise the review route and stop.
 18. Update daily_status.md with a short note.
 
 Review criteria:
@@ -348,11 +348,11 @@ Review criteria:
 - Did the worker stay inside allowed paths?
 - Is a follow-up needed before downstream work?
 - Is human approval required?
-- For idea discovery, does `validate_exploration_cycle.py` pass, and are duplicate/parked candidates handled?
-- For idea discovery, does each promoted candidate pass `validate_idea_evaluation.py` and include an `idea_evaluation` record?
+- For idea discovery, does exploration validation pass, and are duplicate/parked candidates handled?
+- For idea discovery, does each promoted candidate pass `async-research idea validate` and include an `idea_evaluation` record?
 - For experiment plans, do all required data sources reference ready data audit entries?
-- For source-dependent claims, does `data_source_audit.py check-claim` allow the cited sources for the claim impact?
-- For experiment plans, does `validate_experiment_plan.py` pass, and are warnings explicitly addressed?
+- For source-dependent claims, does `python -m async_research_workflow.scripts.data_source_audit check-claim` allow the cited sources for the claim impact?
+- For experiment plans, does `async-research experiment validate` pass, and are warnings explicitly addressed?
 - For result/evaluation tasks, does the worker output include a structured result summary from `result_summary_template.md`?
 
 Rules:
@@ -365,7 +365,7 @@ Rules:
 - Do not accept claims above the cap allowed by `result_acceptance_v1.0`.
 - Do not read other reviewers' files before writing your own review.
 - Do not request revisions without using revision_counter.py.
-- Do not hand-edit review_policy for escalation; use escalate_review_tier.py.
+- Do not hand-edit review_policy for escalation; use `python -m async_research_workflow.scripts.escalate_review_tier`.
 - Do not change status without setting previous_status and last_transition_reason.
 - Do not remove prompt_versions or framework_versions.
 - Do not treat a JSON write as complete until schema validation passes.
@@ -457,14 +457,14 @@ Operational folder: input and output inside the isolated bundle
 
 Task:
 1. Read input/task.md, input/status.json, input/worker_output.md, input/artifacts/, input/reviews/, and input/review_panel/aggregate.json if present.
-2. If aggregate.json is not present, stop and ask the scheduler to run python3 async_research_workflow/examples/scripts/aggregate_reviews.py <task-dir>.
+2. If aggregate.json is not present, stop and ask the scheduler to run async-research review aggregate <task-dir>.
 3. Write only a narrative supplement to output/review_panel/aggregate.md.
 4. Do not directly edit the original task folder from inside this bundle.
 
 Aggregation rules:
 - Do not compute or override the final route yourself.
 - Do not invent new substantive analysis.
-- The deterministic route must come from aggregate_reviews.py.
+- The deterministic route must come from `async-research review aggregate`.
 - Summarize agreements and disagreements.
 - Preserve escalation metadata from aggregate.json.
 - Preserve prompt_versions and framework_versions from aggregate.json.
@@ -485,7 +485,7 @@ Final response:
 Run deterministic aggregation after required reviewer files are installed and before any narrative aggregation:
 
 ```bash
-python3 async_research_workflow/examples/scripts/aggregate_reviews.py \
+async-research review aggregate \
   research_ops/tasks/TASK-0001
 ```
 
@@ -500,14 +500,13 @@ result acceptance gates fail closed.
 If the aggregate route is `accepted`, refresh accepted-output memory:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update \
-  research_ops
+async-research accepted update research_ops
 ```
 
 If a review file requests a higher tier using `escalate_to_tier`, run the escalation helper before aggregation:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalate_review_tier.py apply \
+python -m async_research_workflow.scripts.escalate_review_tier apply \
   research_ops/tasks/TASK-0001 \
   --to-tier 2 \
   --reason "reviewer requested methodology review" \
@@ -519,7 +518,7 @@ python3 async_research_workflow/examples/scripts/escalate_review_tier.py apply \
 Prepare reviewer bundles before running specialist reviewers:
 
 ```bash
-python3 async_research_workflow/examples/scripts/prepare_review_context.py prepare \
+python -m async_research_workflow.scripts.prepare_review_context prepare \
   research_ops/tasks/TASK-0001 \
   --role methodology \
   --bundle-dir /tmp/review-TASK-0001-methodology \
@@ -529,7 +528,7 @@ python3 async_research_workflow/examples/scripts/prepare_review_context.py prepa
 After the reviewer writes its output, install only that output:
 
 ```bash
-python3 async_research_workflow/examples/scripts/prepare_review_context.py install \
+python -m async_research_workflow.scripts.prepare_review_context install \
   /tmp/review-TASK-0001-methodology \
   --force
 ```
@@ -545,14 +544,14 @@ Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
 Task:
-1. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops.
-2. Run python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py revalidation-report research_ops --write-schedule.
+1. Run async-research accepted update research_ops.
+2. Run async-research accepted revalidation research_ops --write-schedule.
 3. Read accepted_outputs_index.md, revalidation_schedule.md if present, queue.md, daily_status.md, and all tasks accepted since the last weekly_digest.md entry.
-4. Run python3 async_research_workflow/examples/scripts/revision_counter.py scan-limits research_ops/tasks --markdown.
-5. Run python3 async_research_workflow/examples/scripts/metrics_history.py append-snapshot research_ops --period weekly --label weekly_digest.
-6. If this is the final weekly synthesis of the month, run python3 async_research_workflow/examples/scripts/framework_version_calibration.py research_ops --output research_ops/monthly_calibration_framework_versions.md.
-7. If this is the final weekly synthesis of the month, run python3 async_research_workflow/examples/scripts/human_decision_log.py summarize research_ops --output research_ops/monthly_human_decision_summary.md.
-8. If this is the final weekly synthesis of the month, run python3 async_research_workflow/examples/scripts/metrics_history.py summarize research_ops --output research_ops/monthly_metrics_trends.md.
+4. Run python -m async_research_workflow.scripts.revision_counter scan-limits research_ops/tasks --markdown.
+5. Run python -m async_research_workflow.scripts.metrics_history append-snapshot research_ops --period weekly --label weekly_digest.
+6. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.framework_version_calibration research_ops --output research_ops/monthly_calibration_framework_versions.md.
+7. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.human_decision_log summarize research_ops --output research_ops/monthly_human_decision_summary.md.
+8. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.metrics_history summarize research_ops --output research_ops/monthly_metrics_trends.md.
 9. Write a concise weekly_digest.md update.
 10. Group accepted outputs into themes.
 11. List evidence due for refresh and stale evidence that must not be reused as current fact.
@@ -587,7 +586,7 @@ Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
 Task:
-1. Run python3 async_research_workflow/examples/scripts/health_check.py research_ops.
+1. Run async-research health research_ops.
 2. Read research_ops/health_report.json.
 3. Do not modify task folders or route task statuses.
 4. If alerts exist, summarize them in the final response, including schema_version_warnings.
@@ -609,9 +608,9 @@ Final response:
 
 ```text
 1. Read daily_status.md only if notified, if health_report.json has alerts, or if convenient.
-2. Resolve tasks marked needs_human with human_decision_log.py resolve-task; do not hand-edit status.json.
+2. Resolve tasks marked needs_human with `python -m async_research_workflow.scripts.human_decision_log resolve-task`; do not hand-edit status.json.
 3. Add urgent ideas to inbox.md.
-4. Log public, high-stakes, expensive, or sensitive-data approvals with human_decision_log.py append.
+4. Log public, high-stakes, expensive, or sensitive-data approvals with `python -m async_research_workflow.scripts.human_decision_log append`.
 5. Kill tasks that are clearly not worth the cost.
 ```
 
