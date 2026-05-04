@@ -101,6 +101,15 @@ def run_init(args: argparse.Namespace) -> int:
 def run_starter_smoke(args: argparse.Namespace) -> int:
     base = args.work_dir
     ops_dir = base if base.name == "research_ops" else base / "research_ops"
+    if base.exists() and any(base.iterdir()) and not args.force:
+        print_json({
+            "ok": False,
+            "reason": "target_exists",
+            "work_dir": str(base),
+            "ops_dir": str(ops_dir),
+            "next_step": "rerun with --force or choose an empty work directory",
+        })
+        return INVALID
     if base.exists() and args.force:
         shutil.rmtree(base)
     failures: list[dict] = []
@@ -166,7 +175,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
 
     smoke = sub.add_parser("starter-smoke", help="Initialize and validate a starter workspace.")
     smoke.add_argument("work_dir", type=Path)
-    smoke.add_argument("--force", action="store_true", default=True)
+    smoke.add_argument("--force", action="store_true")
     smoke.set_defaults(func=run_starter_smoke)
 
     acceptance = sub.add_parser("acceptance-suite")
