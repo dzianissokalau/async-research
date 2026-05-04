@@ -51,7 +51,7 @@ Write `worker_output.md` with:
 
 - For `idea_discovery` tasks, include a fenced JSON exploration cycle block or
   `exploration_cycle.json` conforming to
-  `async_research_workflow/exploration_cycle.schema.json`, and pass
+  `async_research_workflow/schemas/exploration_cycle.schema.json`, and pass
   `async-research exploration validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
   before updating the discovery inbox.
 - For scored idea candidates, run
@@ -75,7 +75,7 @@ Write `worker_output.md` with:
   `next_recheck_date`, `revalidation_status`, `source_ids`, `caveats`,
   `supersedes`, and `superseded_by` fields.
 - `experiment_plan` outputs must include a fenced JSON block or `experiment_plan.json`
-  conforming to `async_research_workflow/experiment_plan.schema.json`, and must
+  conforming to `async_research_workflow/schemas/experiment_plan.schema.json`, and must
   pass `async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
   before review.
 - For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result

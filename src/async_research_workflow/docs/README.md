@@ -75,7 +75,7 @@ Packaged resources:
 - [Generic starter template](../templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example template](../templates/research_ops_starter/research_ops/README.md)
 - [GitHub worker example](../examples/github_actions_codex_worker.yml)
-- [Benchmark cases](../examples/benchmarks/autonomy_benchmark_cases.json)
+- [Benchmark cases](../benchmarks/autonomy_benchmark_cases.json)
 - [Default mission policy](../mission_policy.json)
 - [JSON schemas](../schemas/)
 - [Artifact templates](../templates/artifact_templates/)

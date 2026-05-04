@@ -10,18 +10,18 @@ import json
 import shutil
 import sys
 import tempfile
-from importlib import resources
 from pathlib import Path
 from typing import Iterable, Sequence
 
 from async_research_workflow import __version__
+from async_research_workflow.resources import template_path
 
 
 SUCCESS = 0
 INVALID = 4
 TEMPLATES = {
-    "generic": ("templates", "generic_research_ops_starter", "research_ops"),
-    "real-estate": ("templates", "research_ops_starter", "research_ops"),
+    "generic": ("generic_research_ops_starter", "research_ops"),
+    "real-estate": ("research_ops_starter", "research_ops"),
 }
 
 
@@ -52,7 +52,7 @@ def template_root(template: str):
     parts = TEMPLATES.get(template)
     if parts is None:
         raise ValueError(f"unsupported template: {template}")
-    return resources.files("async_research_workflow").joinpath(*parts)
+    return template_path(*parts)
 
 
 def copy_resource_tree(src, dst: Path, force: bool = False) -> None:

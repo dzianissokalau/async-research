@@ -18,6 +18,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from validate_json_artifact import load_json, validate
 from validate_transition import validate_payload
 from version_metadata import apply_default_versions
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -33,7 +34,7 @@ DEFAULT_MAX_REVISIONS = {
 
 REVISION_REQUEST_REASON = "reviewer_requested_revision"
 REVISION_LIMIT_REASON = "revision_limit_exceeded"
-DEFAULT_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+DEFAULT_SCHEMA = schema_path("task_status.schema.json")
 SCHEMA_VERSION = "1.0"
 CLAIM_STRENGTH_POLICY = "weakest_current_review"
 

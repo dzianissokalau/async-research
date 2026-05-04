@@ -350,7 +350,7 @@ Implementation:
 Implementation status:
 
 - helper script added at `async_research_workflow/scripts/aggregate_reviews.py`
-- aggregate schema updated at `async_research_workflow/review_panel.schema.json`
+- aggregate schema updated at `async_research_workflow/schemas/review_panel.schema.json`
 - documented in `async_research_workflow/algorithmic_review_aggregation_protocol.md`
 - aggregator prompt updated so narrative summaries cannot override deterministic routing
 
@@ -738,7 +738,7 @@ Acceptance tests:
 Implementation status:
 
 - task status schema includes `batch_job` and `batch_ingest`
-- batch manifest schema added at `async_research_workflow/batch_manifest.schema.json`
+- batch manifest schema added at `async_research_workflow/schemas/batch_manifest.schema.json`
 - lifecycle helper added at `async_research_workflow/scripts/batch_lifecycle.py`
 - schema-version checks scan `research_ops/batches/*/batch_manifest.json`
 - protocol documented in `async_research_workflow/batch_job_lifecycle_protocol.md`

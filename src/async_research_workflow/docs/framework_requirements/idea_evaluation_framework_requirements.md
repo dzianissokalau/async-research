@@ -44,7 +44,7 @@ consistency.
 The evaluation record conforms to:
 
 ```text
-async_research_workflow/idea_evaluation.schema.json
+async_research_workflow/schemas/idea_evaluation.schema.json
 ```
 
 ## Idea Evaluation Lifecycle

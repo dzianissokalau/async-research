@@ -21,7 +21,7 @@ A failed or negative result can be accepted if it is reproducible, well-tested, 
 Result acceptance has three executable artifacts:
 
 ```text
-async_research_workflow/result_acceptance.schema.json
+async_research_workflow/schemas/result_acceptance.schema.json
 async_research_workflow/templates/artifact_templates/result_summary_template.md
 async_research_workflow/scripts/validate_result_acceptance.py
 ```

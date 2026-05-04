@@ -40,7 +40,7 @@ research_ops/batches/BATCH-0001/batch_manifest.json
 The manifest validates against:
 
 ```text
-async_research_workflow/batch_manifest.schema.json
+async_research_workflow/schemas/batch_manifest.schema.json
 ```
 
 Required core fields:

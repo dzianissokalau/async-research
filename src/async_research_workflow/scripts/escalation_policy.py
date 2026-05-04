@@ -22,6 +22,7 @@ from health_check import parse_datetime, row_amount
 from validate_json_artifact import load_json, validate
 from validate_transition import validate_payload
 from version_metadata import apply_default_versions
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -31,7 +32,7 @@ MALFORMED = 4
 
 SCHEMA_VERSION = "1.0"
 FRAMEWORK_VERSION = "escalation_policy_v1.0"
-STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+STATUS_SCHEMA = schema_path("task_status.schema.json")
 CLAIM_ORDER = {"none": 0, "weak": 1, "suggestive": 2, "moderate": 3, "strong": 4}
 ESCALATABLE_STATUSES = {
     "inbox",

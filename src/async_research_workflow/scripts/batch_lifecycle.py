@@ -17,6 +17,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from validate_json_artifact import load_json, validate
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -25,7 +26,7 @@ MALFORMED = 4
 
 SCHEMA_VERSION = "1.0"
 MANIFEST_NAME = "batch_manifest.json"
-MANIFEST_SCHEMA = Path(__file__).resolve().parents[1] / "batch_manifest.schema.json"
+MANIFEST_SCHEMA = schema_path("batch_manifest.schema.json")
 LEDGER_HEADER = [
     "date",
     "item_id",

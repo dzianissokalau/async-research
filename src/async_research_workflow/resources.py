@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 from importlib import resources
-from pathlib import Path
-from typing import Union
-
-TraversablePath = Union[str, Path]
 
 
 def package_root():
@@ -15,6 +11,14 @@ def package_root():
 
 def schema_path(name: str):
     return package_root().joinpath("schemas", name)
+
+
+def mission_policy_path():
+    return package_root().joinpath("mission_policy.json")
+
+
+def benchmark_cases_path():
+    return package_root().joinpath("benchmarks", "autonomy_benchmark_cases.json")
 
 
 def template_path(*parts: str):

@@ -57,7 +57,7 @@ isolated reviews before aggregation.
 - `research_ops/data_source_audit.md`
 - `research_ops/accepted_outputs_index.md`
 - `async_research_workflow/framework_requirements/experimentation_framework_requirements.md`
-- `async_research_workflow/experiment_plan.schema.json`
+- `async_research_workflow/schemas/experiment_plan.schema.json`
 - `async_research_workflow/templates/artifact_templates/experiment_plan_template.md`
 - `async_research_workflow/scripts/validate_experiment_plan.py`
 - `async_research_workflow/data_source_audit_register_protocol.md`

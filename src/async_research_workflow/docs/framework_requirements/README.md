@@ -61,20 +61,20 @@ the rubrics are stable. The mission scoring, exploration, idea evaluation,
 experimentation, and result acceptance frameworks have reached this point:
 
 - `mission_scoring_v1.0` is backed by
-  `async_research_workflow/mission_policy.schema.json`,
+  `async_research_workflow/schemas/mission_policy.schema.json`,
   `async_research_workflow/scripts/validate_mission_policy.py`, and
   `async_research_workflow/scripts/score_idea_candidate.py`
 - `exploration_v1.0` is backed by
-  `async_research_workflow/exploration_cycle.schema.json` and
+  `async_research_workflow/schemas/exploration_cycle.schema.json` and
   `async_research_workflow/scripts/validate_exploration_cycle.py`
 - `idea_evaluation_v1.0` is backed by
-  `async_research_workflow/idea_evaluation.schema.json` and
+  `async_research_workflow/schemas/idea_evaluation.schema.json` and
   `async_research_workflow/scripts/validate_idea_evaluation.py`
 - `experimentation_v1.0` is backed by
-  `async_research_workflow/experiment_plan.schema.json` and
+  `async_research_workflow/schemas/experiment_plan.schema.json` and
   `async_research_workflow/scripts/validate_experiment_plan.py`
 - `result_acceptance_v1.0` is backed by
-  `async_research_workflow/result_acceptance.schema.json` and
+  `async_research_workflow/schemas/result_acceptance.schema.json` and
   `async_research_workflow/scripts/validate_result_acceptance.py`
 
 Recommended first implementation:

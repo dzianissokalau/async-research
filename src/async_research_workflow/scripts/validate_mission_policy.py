@@ -14,13 +14,14 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from validate_json_artifact import load_json, validate
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
 VALIDATION_FAILED = 2
 MALFORMED = 4
 
-SCHEMA = Path(__file__).resolve().parents[1] / "mission_policy.schema.json"
+SCHEMA = schema_path("mission_policy.schema.json")
 SCORING_DIMENSIONS = {
     "decision_impact",
     "data_availability",

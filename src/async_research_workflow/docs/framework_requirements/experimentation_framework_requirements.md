@@ -25,7 +25,7 @@ Every `experiment_plan` worker output shall include either:
 The JSON plan must conform to:
 
 ```text
-async_research_workflow/experiment_plan.schema.json
+async_research_workflow/schemas/experiment_plan.schema.json
 ```
 
 Validate the plan with:

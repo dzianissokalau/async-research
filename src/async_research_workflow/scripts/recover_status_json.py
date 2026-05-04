@@ -24,13 +24,14 @@ if str(SCRIPT_DIR) not in sys.path:
 from validate_json_artifact import load_json, validate
 from validate_transition import ALLOWED, RECOVERY_REASON, STATUSES, validate_payload
 from version_metadata import apply_default_versions
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
 INVALID = 4
 
 TASK_ID_PATTERN = re.compile(r"TASK-[0-9]{4}")
-DEFAULT_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+DEFAULT_SCHEMA = schema_path("task_status.schema.json")
 SCHEMA_VERSION = "1.0"
 
 

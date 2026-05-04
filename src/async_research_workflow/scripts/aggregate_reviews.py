@@ -20,6 +20,7 @@ from validate_json_artifact import load_json, validate
 from validate_result_acceptance import validate_result_acceptance_for_task
 from validate_transition import validate_payload
 from version_metadata import apply_default_versions, version_summary
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -48,8 +49,8 @@ DEFAULT_MAX_REVISIONS = {
     3: 1,
 }
 
-AGGREGATE_SCHEMA = Path(__file__).resolve().parents[1] / "review_panel.schema.json"
-STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+AGGREGATE_SCHEMA = schema_path("review_panel.schema.json")
+STATUS_SCHEMA = schema_path("task_status.schema.json")
 SCHEMA_VERSION = "1.0"
 
 

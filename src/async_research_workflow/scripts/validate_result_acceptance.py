@@ -18,6 +18,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from validate_json_artifact import load_json, validate
 from data_source_audit import SOURCE_REF_PATTERN, assess_source_refs
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -27,7 +28,7 @@ MALFORMED = 4
 SCHEMA_VERSION = "1.0"
 FRAMEWORK_VERSION = "result_acceptance_v1.0"
 CLAIM_STRENGTH_POLICY = "result_acceptance_v1.0_claim_caps"
-ACCEPTANCE_SCHEMA = Path(__file__).resolve().parents[1] / "result_acceptance.schema.json"
+ACCEPTANCE_SCHEMA = schema_path("result_acceptance.schema.json")
 CLAIM_ORDER = {"none": 0, "weak": 1, "suggestive": 2, "moderate": 3, "strong": 4}
 CLAIM_BY_SCORE = {score: claim for claim, score in CLAIM_ORDER.items()}
 RESULT_TASK_TYPES = {"run_analysis", "evaluate_results"}

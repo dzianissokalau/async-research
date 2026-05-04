@@ -30,7 +30,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 async_research_workflow = [
   "*.json",
-  "*.schema.json",
   "schemas/*.json",
   "schemas/*.schema.json",
   "templates/**/*.md",
@@ -40,6 +39,5 @@ async_research_workflow = [
   "templates/**/.gitkeep",
   "docs/**/*.md",
   "examples/**/*.yml",
-  "examples/**/*.json",
   "benchmarks/**/*.json",
 ]

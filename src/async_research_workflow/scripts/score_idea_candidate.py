@@ -18,6 +18,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from cost_tracking import cost_window, ledger_path
 from validate_json_artifact import load_json, validate
 from validate_mission_policy import validate_policy_contract
+from async_research_workflow.resources import mission_policy_path, schema_path
 
 
 SUCCESS = 0
@@ -25,8 +26,8 @@ VALIDATION_FAILED = 2
 INVALID_REQUEST = 3
 MALFORMED = 4
 
-DEFAULT_POLICY = Path(__file__).resolve().parents[1] / "mission_policy.json"
-DEFAULT_SCHEMA = Path(__file__).resolve().parents[1] / "idea_candidate.schema.json"
+DEFAULT_POLICY = mission_policy_path()
+DEFAULT_SCHEMA = schema_path("idea_candidate.schema.json")
 SCHEMA_VERSION = "1.0"
 
 DIMENSIONS = [

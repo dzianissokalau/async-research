@@ -21,6 +21,7 @@ from check_schema_versions import DEFAULT_SCHEMA_VERSION, scan_schema_versions
 from data_source_audit import source_governance_report
 from update_accepted_outputs_index import memory_decay_report
 from validate_json_artifact import load_json, validate
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -42,7 +43,7 @@ DATE_FIELDS = ("date", "created_at", "timestamp", "period_start")
 INPUT_TOKEN_FIELDS = ("input_tokens", "prompt_tokens")
 OUTPUT_TOKEN_FIELDS = ("output_tokens", "completion_tokens")
 TOTAL_TOKEN_FIELDS = ("total_tokens",)
-DEFAULT_STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+DEFAULT_STATUS_SCHEMA = schema_path("task_status.schema.json")
 
 
 def utc_now() -> datetime:

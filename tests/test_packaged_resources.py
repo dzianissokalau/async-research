@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import unittest
-from importlib import resources
+from importlib import resources as importlib_resources
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "src" / "async_research_workflow"
-
-
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+RUNTIME_CODE = [PACKAGE_ROOT / "cli.py", *sorted((PACKAGE_ROOT / "scripts").glob("*.py"))]
 
 
 def text_files(root: Path) -> list[Path]:
@@ -23,36 +19,47 @@ def text_files(root: Path) -> list[Path]:
 
 
 class PackagedResourceTests(unittest.TestCase):
-    def test_duplicate_schema_copies_match_until_canonicalized(self) -> None:
-        failures: list[str] = []
-        for canonical in sorted((PACKAGE_ROOT / "schemas").glob("*.schema.json")):
-            root_copy = PACKAGE_ROOT / canonical.name
-            if not root_copy.exists():
-                failures.append(f"missing root schema copy for {canonical.name}")
+    def test_duplicate_runtime_resources_are_not_packaged(self) -> None:
+        forbidden = [
+            *sorted(PACKAGE_ROOT.glob("*.schema.json")),
+            PACKAGE_ROOT / "examples" / "mission_policy.json",
+            PACKAGE_ROOT / "examples" / "benchmarks" / "autonomy_benchmark_cases.json",
+        ]
+        present = [str(path.relative_to(PACKAGE_ROOT)) for path in forbidden if path.exists()]
+
+        self.assertEqual([], present)
+
+    def test_runtime_code_uses_canonical_resource_helpers(self) -> None:
+        patterns = [
+            re.compile(r"Path\(__file__\)\.resolve\(\)\.parents\[1\]\s*/\s*[\"'][^\"']+\.schema\.json[\"']"),
+            re.compile(r"Path\(__file__\)\.resolve\(\)\.parents\[1\]\s*/\s*[\"']mission_policy\.json[\"']"),
+            re.compile(r"resources\.files\([\"']async_research_workflow[\"']\)"),
+            re.compile(r"EXAMPLES_DIR\s*/\s*[\"']benchmarks[\"']"),
+            re.compile(r"EXAMPLES_DIR\s*/\s*[\"']mission_policy\.json[\"']"),
+        ]
+        hits: list[str] = []
+        for path in RUNTIME_CODE:
+            if path.name == "resources.py":
                 continue
-            if sha256(canonical) != sha256(root_copy):
-                failures.append(f"schema copy drifted: {canonical.name}")
+            text = path.read_text(encoding="utf-8")
+            for pattern in patterns:
+                if pattern.search(text):
+                    hits.append(f"{path.relative_to(PACKAGE_ROOT)} matches {pattern.pattern!r}")
 
-        self.assertEqual([], failures)
-
-    def test_example_mission_policy_matches_canonical_policy(self) -> None:
-        canonical = PACKAGE_ROOT / "mission_policy.json"
-        example = PACKAGE_ROOT / "examples" / "mission_policy.json"
-
-        self.assertEqual(sha256(canonical), sha256(example))
+        self.assertEqual([], hits)
 
     def test_key_resources_are_available_via_importlib_resources(self) -> None:
-        package = resources.files("async_research_workflow")
+        package = importlib_resources.files("async_research_workflow")
         required = [
             ("schemas", "task_status.schema.json"),
             ("schemas", "experiment_plan.schema.json"),
+            ("benchmarks", "autonomy_benchmark_cases.json"),
             ("templates", "artifact_templates", "task_template.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "README.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "tasks", ".gitkeep"),
             ("templates", "research_ops_starter", "research_ops", "README.md"),
             ("templates", "research_ops_starter", "research_ops", "tasks", "TASK-0001-data-readiness", "status.json"),
             ("examples", "github_actions_codex_worker.yml"),
-            ("examples", "benchmarks", "autonomy_benchmark_cases.json"),
             ("mission_policy.json",),
         ]
 

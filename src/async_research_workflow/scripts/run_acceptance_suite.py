@@ -11,9 +11,10 @@ import json
 import shutil
 import sys
 import tempfile
-from importlib import resources
 from pathlib import Path
 from typing import Iterable
+
+from async_research_workflow.resources import mission_policy_path
 
 SUCCESS = 0
 FAILED = 1
@@ -83,7 +84,7 @@ def main(argv: Iterable[str]) -> int:
     code, payload = run_cli(["version"])
     check("CLI version", code, payload, failures, checks)
 
-    policy = resources.files("async_research_workflow").joinpath("mission_policy.json")
+    policy = mission_policy_path()
     code, payload = run_module("validate_mission_policy", [str(policy)])
     check("Mission policy validates", code, payload, failures, checks)
 

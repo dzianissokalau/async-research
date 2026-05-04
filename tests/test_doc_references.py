@@ -27,6 +27,10 @@ FORBIDDEN_SNIPPETS = (
 EXAMPLES_REF_RE = re.compile(r"async_research_workflow/examples/[A-Za-z0-9_./-]+")
 RELATIVE_EXAMPLES_REF_RE = re.compile(r"(?<!async_research_workflow/)examples/[A-Za-z0-9_./-]+")
 SCRIPT_REF_RE = re.compile(r"async_research_workflow/scripts/[A-Za-z0-9_./-]+\.py")
+ROOT_SCHEMA_REF_RE = re.compile(r"async_research_workflow/[A-Za-z0-9_]+\.schema\.json")
+REMOVED_EXAMPLE_RESOURCE_RE = re.compile(
+    r"async_research_workflow/examples/(?:mission_policy\.json|benchmarks/autonomy_benchmark_cases\.json)"
+)
 
 
 def iter_documentation_files() -> list[Path]:
@@ -77,6 +81,17 @@ class DocumentationReferenceTests(unittest.TestCase):
                 if not package_path.exists():
                     line = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path.relative_to(ROOT)}:{line} -> {reference}")
+
+        self.assertEqual([], failures)
+
+    def test_docs_use_canonical_runtime_resource_paths(self) -> None:
+        failures: list[str] = []
+        for path in iter_documentation_files():
+            text = path.read_text(encoding="utf-8")
+            for pattern in (ROOT_SCHEMA_REF_RE, REMOVED_EXAMPLE_RESOURCE_RE):
+                for match in pattern.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    failures.append(f"{path.relative_to(ROOT)}:{line} -> {match.group(0)}")
 
         self.assertEqual([], failures)
 

@@ -73,13 +73,13 @@ async-research idea score \
 The policy record conforms to:
 
 ```text
-async_research_workflow/mission_policy.schema.json
+async_research_workflow/schemas/mission_policy.schema.json
 ```
 
 The scored candidate record conforms to:
 
 ```text
-async_research_workflow/idea_candidate.schema.json
+async_research_workflow/schemas/idea_candidate.schema.json
 ```
 
 The score template lives at:

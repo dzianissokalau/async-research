@@ -17,6 +17,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from validate_json_artifact import load_json, validate
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -26,8 +27,8 @@ MALFORMED = 4
 
 SCHEMA_VERSION = "1.0"
 FRAMEWORK_VERSION = "idea_evaluation_v1.0"
-CANDIDATE_SCHEMA = Path(__file__).resolve().parents[1] / "idea_candidate.schema.json"
-EVALUATION_SCHEMA = Path(__file__).resolve().parents[1] / "idea_evaluation.schema.json"
+CANDIDATE_SCHEMA = schema_path("idea_candidate.schema.json")
+EVALUATION_SCHEMA = schema_path("idea_evaluation.schema.json")
 PROMOTION_ROUTES = {
     "hypothesis_card": "promote_to_hypothesis_card",
     "data_readiness": "promote_to_data_readiness",

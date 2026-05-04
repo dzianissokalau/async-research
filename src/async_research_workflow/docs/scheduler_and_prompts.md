@@ -205,7 +205,7 @@ Task:
 6. Scan at most 10 approved sources or internal artifacts.
 7. Generate at most 20 raw idea candidates.
 8. Deduplicate and cluster them against the accepted outputs index.
-9. Write an exploration_cycle.json or worker_output.md fenced JSON block conforming to async_research_workflow/exploration_cycle.schema.json.
+9. Write an exploration_cycle.json or worker_output.md fenced JSON block conforming to async_research_workflow/schemas/exploration_cycle.schema.json.
 10. Run python -m async_research_workflow.scripts.validate_exploration_cycle <cycle-path> --ops-dir research_ops. If validation fails, revise or stop without updating discovery_inbox.md.
 11. Run python -m async_research_workflow.scripts.validate_mission_policy async_research_workflow/mission_policy.json before scoring candidates.
 12. Score each kept candidate with async-research idea score <candidate-json> --budget-mode auto --ops-dir research_ops.
@@ -263,12 +263,12 @@ Task:
 7. Complete exactly one task.
 8. Write worker_output.md.
 9. For `data_readiness` tasks, update research_ops/data_source_audit.md with `python -m async_research_workflow.scripts.data_source_audit upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
-10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
+10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
 11. For `idea_discovery` tasks, run `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
-12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
+12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
 13. Before moving the task forward, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
 14. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
-15. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/task_status.schema.json <task-dir>/status.json.
+15. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
 16. Run async-research schema-check research_ops.
 17. Run python -m async_research_workflow.scripts.validate_transition <task-dir>.
 18. If schema or transition validation fails, run python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
@@ -332,7 +332,7 @@ Task:
 10. Before accepting, rejecting, or routing to revision/human, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
 11. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
 12. If the review decision is needs_revision, do not edit status.json by hand. Run python -m async_research_workflow.scripts.revision_counter request <task-dir> --reviewer primary.
-13. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/task_status.schema.json <task-dir>/status.json.
+13. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
 14. Run async-research schema-check research_ops.
 15. Run python -m async_research_workflow.scripts.validate_transition <task-dir>.
 16. If setting accepted or rejected directly, run async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers.

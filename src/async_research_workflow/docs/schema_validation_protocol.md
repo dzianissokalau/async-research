@@ -45,7 +45,7 @@ Task status:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/task_status.schema.json \
+  --schema async_research_workflow/schemas/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 ```
 
@@ -53,7 +53,7 @@ Idea candidate:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/idea_candidate.schema.json \
+  --schema async_research_workflow/schemas/idea_candidate.schema.json \
   research_ops/discovery/IDEA-0001.json
 ```
 
@@ -61,7 +61,7 @@ Review panel output:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/review_panel.schema.json \
+  --schema async_research_workflow/schemas/review_panel.schema.json \
   research_ops/tasks/TASK-0001/review_panel/aggregate.json
 ```
 
@@ -86,7 +86,7 @@ For `status.json`, agents must run both:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/task_status.schema.json \
+  --schema async_research_workflow/schemas/task_status.schema.json \
   <task-dir>/status.json
 
 python -m async_research_workflow.scripts.validate_transition \
@@ -181,7 +181,7 @@ Example for a known task:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/task_status.schema.json \
+  --schema async_research_workflow/schemas/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 ```
 

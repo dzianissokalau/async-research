@@ -321,7 +321,7 @@ After changing `status.json`, run:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
-  --schema async_research_workflow/task_status.schema.json \
+  --schema async_research_workflow/schemas/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 
 python -m async_research_workflow.scripts.validate_transition research_ops/tasks/TASK-0001
@@ -343,7 +343,7 @@ contract. The worker output may be `experiment_plan.json` or `worker_output.md`
 with a fenced JSON block conforming to:
 
 ```text
-async_research_workflow/experiment_plan.schema.json
+async_research_workflow/schemas/experiment_plan.schema.json
 ```
 
 Validate the plan before review:

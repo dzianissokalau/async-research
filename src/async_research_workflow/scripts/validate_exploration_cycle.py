@@ -15,6 +15,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from validate_json_artifact import load_json, validate
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -24,8 +25,8 @@ MALFORMED = 4
 
 SCHEMA_VERSION = "1.0"
 FRAMEWORK_VERSION = "exploration_v1.0"
-PLAN_SCHEMA = Path(__file__).resolve().parents[1] / "exploration_cycle.schema.json"
-STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+PLAN_SCHEMA = schema_path("exploration_cycle.schema.json")
+STATUS_SCHEMA = schema_path("task_status.schema.json")
 SOURCE_HEADER = [
     "source_id",
     "source_name",

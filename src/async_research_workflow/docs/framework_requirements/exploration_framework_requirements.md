@@ -35,7 +35,7 @@ Every `idea_discovery` task or discovery-scout run shall produce either:
 The JSON cycle must conform to:
 
 ```text
-async_research_workflow/exploration_cycle.schema.json
+async_research_workflow/schemas/exploration_cycle.schema.json
 ```
 
 Validate the cycle with:

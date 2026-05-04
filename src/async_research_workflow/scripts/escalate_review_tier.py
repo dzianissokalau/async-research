@@ -18,6 +18,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from validate_json_artifact import load_json, validate
 from validate_transition import validate_payload
 from version_metadata import apply_default_versions
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -25,7 +26,7 @@ VALIDATION_FAILED = 2
 INVALID_REQUEST = 3
 MALFORMED = 4
 
-STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+STATUS_SCHEMA = schema_path("task_status.schema.json")
 SCHEMA_VERSION = "1.0"
 
 ESCALATABLE_STATUSES = {"awaiting_review", "single_review", "panel_review"}

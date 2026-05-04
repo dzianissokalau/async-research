@@ -122,7 +122,7 @@ After recovery:
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
   research_ops/tasks/TASK-0001-data-readiness/status.json \
-  --schema async_research_workflow/task_status.schema.json
+  --schema async_research_workflow/schemas/task_status.schema.json
 
 python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001-data-readiness

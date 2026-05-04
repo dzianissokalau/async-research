@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
+from async_research_workflow.resources import benchmark_cases_path, schema_path
+
 
 SUCCESS = 0
 FAILED = 1
@@ -28,11 +30,10 @@ MISSING_REQUIRED = 3
 INVALID = 4
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EXAMPLES_DIR = SCRIPT_DIR.parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
-DEFAULT_CASES = EXAMPLES_DIR / "benchmarks" / "autonomy_benchmark_cases.json"
+DEFAULT_CASES = benchmark_cases_path()
 LIVE_OPS_DIR = REPO_ROOT / "research_ops"
-TASK_STATUS_SCHEMA = EXAMPLES_DIR / "task_status.schema.json"
+TASK_STATUS_SCHEMA = schema_path("task_status.schema.json")
 
 REQUIRED_CASE_FIELDS = {
     "case_id",

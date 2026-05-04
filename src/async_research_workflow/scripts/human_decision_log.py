@@ -19,6 +19,7 @@ from decision_log import DECISIONS, append_decision, has_decision, normalize_rel
 from validate_json_artifact import load_json, validate
 from validate_transition import ALLOWED, validate_payload
 from version_metadata import apply_default_versions
+from async_research_workflow.resources import schema_path
 
 
 SUCCESS = 0
@@ -26,7 +27,7 @@ INVALID_REQUEST = 2
 VALIDATION_FAILED = 3
 MALFORMED = 4
 
-STATUS_SCHEMA = Path(__file__).resolve().parents[1] / "task_status.schema.json"
+STATUS_SCHEMA = schema_path("task_status.schema.json")
 SCHEMA_VERSION = "1.0"
 
 RESOLUTION_STATUS_BY_DECISION = {
