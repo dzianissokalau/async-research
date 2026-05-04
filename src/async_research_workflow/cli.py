@@ -68,18 +68,29 @@ def copy_resource_tree(src, dst: Path, force: bool = False) -> None:
 
 
 def remove_path(path: Path) -> None:
-    if not path.exists():
+    if not path.exists() and not path.is_symlink():
         return
-    if path.is_dir():
-        shutil.rmtree(path)
+    if path.is_symlink() or path.is_file():
+        path.unlink()
         return
-    path.unlink()
+    shutil.rmtree(path)
 
 
-def restore_target(target: Path, backup: Path | None) -> None:
-    remove_path(target)
+def restore_target(target: Path, backup: Path | None, target_installed: bool) -> None:
     if backup is not None and backup.exists():
+        remove_path(target)
         shutil.move(str(backup), str(target))
+        return
+    if target_installed:
+        remove_path(target)
+
+
+def rollback_target(target: Path, backup: Path | None, target_installed: bool) -> tuple[bool, str | None]:
+    try:
+        restore_target(target, backup, target_installed)
+    except Exception as exc:
+        return False, str(exc)
+    return True, None
 
 
 def run_init(args: argparse.Namespace) -> int:
@@ -87,6 +98,8 @@ def run_init(args: argparse.Namespace) -> int:
     staging: Path | None = None
     backup_root: Path | None = None
     backup: Path | None = None
+    target_installed = False
+    preserve_backup_root = False
     try:
         source = template_root(args.template)
         if target.exists() and not target.is_dir() and not args.force:
@@ -114,26 +127,39 @@ def run_init(args: argparse.Namespace) -> int:
             shutil.move(str(target), str(backup))
         shutil.move(str(staging), str(target))
         staging = None
+        target_installed = True
         metrics_init_code, metrics_init = module_json("metrics_history", ["init", str(target), "--label", "starter_init", "--force"])
         metrics_append_code, metrics_append = module_json("metrics_history", ["append-snapshot", str(target), "--label", "starter_init"])
         if metrics_init_code != SUCCESS or metrics_append_code != SUCCESS:
-            restore_target(target, backup)
-            print_json({
+            rollback_ok, rollback_error = rollback_target(target, backup, target_installed)
+            preserve_backup_root = not rollback_ok
+            payload = {
                 "ok": False,
                 "reason": "starter_metrics_init_failed",
                 "target_dir": str(target),
                 "metrics_init": metrics_init,
                 "metrics_append": metrics_append,
-            })
+            }
+            if rollback_error is not None:
+                payload["rollback_error"] = rollback_error
+                if backup_root is not None:
+                    payload["backup_dir"] = str(backup_root)
+            print_json(payload)
             return INVALID
     except Exception as exc:
-        restore_target(target, backup)
-        print_json({"ok": False, "reason": "init_failed", "error": str(exc), "target_dir": str(target)})
+        rollback_ok, rollback_error = rollback_target(target, backup, target_installed)
+        preserve_backup_root = not rollback_ok
+        payload = {"ok": False, "reason": "init_failed", "error": str(exc), "target_dir": str(target)}
+        if rollback_error is not None:
+            payload["rollback_error"] = rollback_error
+            if backup_root is not None:
+                payload["backup_dir"] = str(backup_root)
+        print_json(payload)
         return INVALID
     finally:
         if staging is not None:
             remove_path(staging)
-        if backup_root is not None:
+        if backup_root is not None and not preserve_backup_root:
             shutil.rmtree(backup_root, ignore_errors=True)
     print_json({"ok": True, "action": "initialized", "target_dir": str(target), "template": args.template})
     return SUCCESS
@@ -142,6 +168,15 @@ def run_init(args: argparse.Namespace) -> int:
 def run_starter_smoke(args: argparse.Namespace) -> int:
     base = args.work_dir
     ops_dir = base if base.name == "research_ops" else base / "research_ops"
+    if base.exists() and not base.is_dir():
+        print_json({
+            "ok": False,
+            "reason": "target_is_file",
+            "work_dir": str(base),
+            "ops_dir": str(ops_dir),
+            "next_step": "choose a directory work path",
+        })
+        return INVALID
     if base.exists() and any(base.iterdir()) and not args.force:
         print_json({
             "ok": False,
@@ -152,7 +187,7 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
         })
         return INVALID
     if base.exists() and args.force:
-        shutil.rmtree(base)
+        remove_path(base)
     failures: list[dict] = []
     reports: list[dict] = []
 
