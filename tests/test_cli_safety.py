@@ -52,5 +52,68 @@ class StarterSmokeSafetyTests(unittest.TestCase):
             self.assertTrue(init_args.force)
 
 
+class InitSafetyTests(unittest.TestCase):
+    def run_cli_json(self, argv):
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            code = cli.main(argv)
+        payload = json.loads(stream.getvalue())
+        return code, payload
+
+    def test_init_metrics_failure_for_new_target_removes_partial_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "research_ops"
+
+            with mock.patch.object(
+                cli,
+                "module_json",
+                side_effect=[
+                    (cli.INVALID, {"ok": False, "reason": "boom"}),
+                    (cli.SUCCESS, {"ok": True}),
+                ],
+            ):
+                code, payload = self.run_cli_json(["init", str(target)])
+
+            self.assertEqual(code, cli.INVALID)
+            self.assertEqual(payload["reason"], "starter_metrics_init_failed")
+            self.assertFalse(target.exists())
+
+    def test_init_force_metrics_failure_restores_existing_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "research_ops"
+            target.mkdir()
+            marker = target / "keep.txt"
+            marker.write_text("previous workspace\n", encoding="utf-8")
+
+            with mock.patch.object(
+                cli,
+                "module_json",
+                side_effect=[
+                    (cli.INVALID, {"ok": False, "reason": "boom"}),
+                    (cli.SUCCESS, {"ok": True}),
+                ],
+            ):
+                code, payload = self.run_cli_json(["init", str(target), "--force"])
+
+            self.assertEqual(code, cli.INVALID)
+            self.assertEqual(payload["reason"], "starter_metrics_init_failed")
+            self.assertTrue(marker.exists())
+            self.assertEqual(marker.read_text(encoding="utf-8"), "previous workspace\n")
+            self.assertFalse((target / "queue.md").exists())
+
+    def test_init_success_creates_usable_starter_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "research_ops"
+
+            code, payload = self.run_cli_json(["init", str(target)])
+
+            self.assertEqual(code, cli.SUCCESS)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["target_dir"], str(target))
+            self.assertTrue((target / "queue.md").exists())
+            self.assertTrue((target / "metrics_baseline.json").exists())
+            self.assertTrue((target / "metrics_history.jsonl").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

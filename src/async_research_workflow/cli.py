@@ -67,11 +67,29 @@ def copy_resource_tree(src, dst: Path, force: bool = False) -> None:
         target.write_bytes(item.read_bytes())
 
 
+def remove_path(path: Path) -> None:
+    if not path.exists():
+        return
+    if path.is_dir():
+        shutil.rmtree(path)
+        return
+    path.unlink()
+
+
+def restore_target(target: Path, backup: Path | None) -> None:
+    remove_path(target)
+    if backup is not None and backup.exists():
+        shutil.move(str(backup), str(target))
+
+
 def run_init(args: argparse.Namespace) -> int:
     target = args.target_dir
+    staging: Path | None = None
+    backup_root: Path | None = None
+    backup: Path | None = None
     try:
         source = template_root(args.template)
-        if target.exists() and any(target.iterdir()) and not args.force:
+        if target.exists() and not target.is_dir() and not args.force:
             print_json({
                 "ok": False,
                 "reason": "target_exists",
@@ -79,10 +97,27 @@ def run_init(args: argparse.Namespace) -> int:
                 "next_step": "rerun with --force or choose an empty target directory",
             })
             return INVALID
-        copy_resource_tree(source, target, force=args.force)
+        if target.exists() and target.is_dir() and any(target.iterdir()) and not args.force:
+            print_json({
+                "ok": False,
+                "reason": "target_exists",
+                "target_dir": str(target),
+                "next_step": "rerun with --force or choose an empty target directory",
+            })
+            return INVALID
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.staging-", dir=target.parent))
+        copy_resource_tree(source, staging, force=True)
+        if target.exists():
+            backup_root = Path(tempfile.mkdtemp(prefix=f".{target.name}.backup-", dir=target.parent))
+            backup = backup_root / target.name
+            shutil.move(str(target), str(backup))
+        shutil.move(str(staging), str(target))
+        staging = None
         metrics_init_code, metrics_init = module_json("metrics_history", ["init", str(target), "--label", "starter_init", "--force"])
         metrics_append_code, metrics_append = module_json("metrics_history", ["append-snapshot", str(target), "--label", "starter_init"])
         if metrics_init_code != SUCCESS or metrics_append_code != SUCCESS:
+            restore_target(target, backup)
             print_json({
                 "ok": False,
                 "reason": "starter_metrics_init_failed",
@@ -92,8 +127,14 @@ def run_init(args: argparse.Namespace) -> int:
             })
             return INVALID
     except Exception as exc:
+        restore_target(target, backup)
         print_json({"ok": False, "reason": "init_failed", "error": str(exc), "target_dir": str(target)})
         return INVALID
+    finally:
+        if staging is not None:
+            remove_path(staging)
+        if backup_root is not None:
+            shutil.rmtree(backup_root, ignore_errors=True)
     print_json({"ok": True, "action": "initialized", "target_dir": str(target), "template": args.template})
     return SUCCESS
 
