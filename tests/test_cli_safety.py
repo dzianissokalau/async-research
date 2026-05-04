@@ -46,9 +46,32 @@ class StarterSmokeSafetyTests(unittest.TestCase):
 
             self.assertEqual(code, cli.SUCCESS)
             self.assertTrue(payload["ok"])
+            self.assertEqual(payload["template"], "generic")
             self.assertFalse(marker.exists())
             init_args = run_init.call_args.args[0]
             self.assertEqual(init_args.target_dir, work_dir / "research_ops")
+            self.assertEqual(init_args.template, "generic")
+            self.assertTrue(init_args.force)
+
+    def test_starter_smoke_real_estate_template_is_explicit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp) / "smoke"
+
+            with mock.patch.object(cli, "run_init", return_value=cli.SUCCESS) as run_init:
+                with mock.patch.object(cli, "module_json", return_value=(cli.SUCCESS, {"ok": True})):
+                    code, payload = self.run_cli_json([
+                        "starter-smoke",
+                        str(work_dir),
+                        "--template",
+                        "real-estate",
+                    ])
+
+            self.assertEqual(code, cli.SUCCESS)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["template"], "real-estate")
+            init_args = run_init.call_args.args[0]
+            self.assertEqual(init_args.target_dir, work_dir / "research_ops")
+            self.assertEqual(init_args.template, "real-estate")
             self.assertTrue(init_args.force)
 
     def test_starter_smoke_refuses_file_work_dir_with_json_error(self):
@@ -199,10 +222,14 @@ class InitSafetyTests(unittest.TestCase):
 
             self.assertEqual(code, cli.SUCCESS)
             self.assertTrue(payload["ok"])
+            self.assertEqual(payload["template"], "generic")
             self.assertEqual(payload["target_dir"], str(target))
             self.assertTrue((target / "queue.md").exists())
             self.assertTrue((target / "metrics_baseline.json").exists())
             self.assertTrue((target / "metrics_history.jsonl").exists())
+            self.assertTrue((target / "tasks" / ".gitkeep").exists())
+            self.assertFalse((target / "health_report.json").exists())
+            self.assertEqual(list((target / "tasks").glob("*/status.json")), [])
             leftovers = [
                 path.name
                 for path in target.parent.iterdir()
@@ -210,6 +237,18 @@ class InitSafetyTests(unittest.TestCase):
                 or path.name.startswith(f".{target.name}.backup-")
             ]
             self.assertEqual(leftovers, [])
+
+    def test_init_real_estate_template_remains_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "research_ops"
+
+            code, payload = self.run_cli_json(["init", str(target), "--template", "real-estate"])
+
+            self.assertEqual(code, cli.SUCCESS)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["template"], "real-estate")
+            self.assertTrue((target / "tasks" / "TASK-0001-data-readiness" / "status.json").exists())
+            self.assertTrue((target / "health_report.json").exists())
 
 
 if __name__ == "__main__":

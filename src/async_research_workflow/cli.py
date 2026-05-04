@@ -19,6 +19,10 @@ from async_research_workflow import __version__
 
 SUCCESS = 0
 INVALID = 4
+TEMPLATES = {
+    "generic": ("templates", "generic_research_ops_starter", "research_ops"),
+    "real-estate": ("templates", "research_ops_starter", "research_ops"),
+}
 
 
 def print_json(payload: dict) -> None:
@@ -45,11 +49,10 @@ def module_json(module_name: str, argv: Sequence[str]) -> tuple[int, dict]:
 
 
 def template_root(template: str):
-    if template != "real-estate":
+    parts = TEMPLATES.get(template)
+    if parts is None:
         raise ValueError(f"unsupported template: {template}")
-    return resources.files("async_research_workflow").joinpath(
-        "templates", "research_ops_starter", "research_ops"
-    )
+    return resources.files("async_research_workflow").joinpath(*parts)
 
 
 def copy_resource_tree(src, dst: Path, force: bool = False) -> None:
@@ -191,7 +194,7 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
     failures: list[dict] = []
     reports: list[dict] = []
 
-    init_args = argparse.Namespace(target_dir=ops_dir, template="real-estate", force=True)
+    init_args = argparse.Namespace(target_dir=ops_dir, template=args.template, force=True)
     init_code = run_init(init_args)
     if init_code != SUCCESS:
         return init_code
@@ -217,6 +220,7 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
         "action": "starter_smoke_checked",
         "work_dir": str(base),
         "ops_dir": str(ops_dir),
+        "template": args.template,
         "checks": reports,
         "failures": failures,
     })
@@ -245,12 +249,13 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
 
     init = sub.add_parser("init", help="Initialize a research_ops workspace from a starter template.")
     init.add_argument("target_dir", nargs="?", type=Path, default=Path("research_ops"))
-    init.add_argument("--template", choices=["real-estate"], default="real-estate")
+    init.add_argument("--template", choices=sorted(TEMPLATES), default="generic")
     init.add_argument("--force", action="store_true")
     init.set_defaults(func=run_init)
 
     smoke = sub.add_parser("starter-smoke", help="Initialize and validate a starter workspace.")
     smoke.add_argument("work_dir", type=Path)
+    smoke.add_argument("--template", choices=sorted(TEMPLATES), default="generic")
     smoke.add_argument("--force", action="store_true")
     smoke.set_defaults(func=run_starter_smoke)
 

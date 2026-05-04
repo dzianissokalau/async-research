@@ -1,6 +1,6 @@
 # Async Research Workflow
 
-Alpha Python CLI and starter template for low-cost asynchronous research workflows.
+Alpha Python CLI and starter templates for low-cost asynchronous research workflows.
 
 This package provides an installable CLI, reusable `research_ops` starter workspace,
 schemas, benchmark fixtures, and operational docs for running slow, low-cost,
@@ -29,11 +29,19 @@ async-research surface update ../my-research-repo/research_ops
 async-research surface validate ../my-research-repo/research_ops
 ```
 
+The default `init` template is generic and domain-neutral. To install the
+worked real-estate example instead, run:
+
+```bash
+async-research init ../my-research-repo/research_ops --template real-estate
+```
+
 ## Core Checks
 
 ```bash
 async-research acceptance-suite
 async-research starter-smoke /tmp/async-research-starter
+async-research starter-smoke /tmp/async-research-real-estate --template real-estate
 async-research benchmark
 async-research simulate-week research_ops
 ```

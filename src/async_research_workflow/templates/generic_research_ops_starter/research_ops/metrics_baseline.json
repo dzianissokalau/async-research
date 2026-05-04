@@ -1,0 +1,16 @@
+{
+  "baseline_label": "generic_starter_template",
+  "created_at": "1970-01-01T00:00:00Z",
+  "metrics": {
+    "estimated_cost_usd": 0.0,
+    "human_minutes": 0.0,
+    "ideas_generated": 0,
+    "ideas_promoted": 0,
+    "ideas_rejected": 0,
+    "tasks_accepted": 0,
+    "tasks_created": 0,
+    "tasks_rejected": 0
+  },
+  "operational_view": {},
+  "schema_version": "1.0"
+}

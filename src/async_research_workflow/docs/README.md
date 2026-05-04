@@ -72,6 +72,8 @@ CLI wrapper does not exist yet.
 
 Packaged resources:
 
+- [Generic starter template](../templates/generic_research_ops_starter/research_ops/README.md)
+- [Real-estate worked example template](../templates/research_ops_starter/research_ops/README.md)
 - [GitHub worker example](../examples/github_actions_codex_worker.yml)
 - [Benchmark cases](../examples/benchmarks/autonomy_benchmark_cases.json)
 - [Default mission policy](../mission_policy.json)
@@ -131,12 +133,19 @@ evidence before discovery or planning uses it as current context.
 Latest full-loop simulation result:
 [End-To-End Workflow Simulation Report](./end_to_end_workflow_simulation_report.md).
 
-## Operational Starter Pack
+## Operational Starter Templates
 
-A real starter workspace is available at
-[research_ops/](../research_ops/README.md). It includes initial queue, status,
-cost, metric, data-audit, decision-log, accepted-index, and seed task files for
-the first low-cost real-estate research loop.
+The default `async-research init` template is the
+[generic starter](../templates/generic_research_ops_starter/research_ops/README.md).
+It includes durable queue, source-governance, cost, metric, decision, review,
+and evidence files without live tasks or project-specific sources.
+
+The [real-estate starter](../templates/research_ops_starter/research_ops/README.md)
+remains available as a worked example:
+
+```bash
+async-research init research_ops --template real-estate
+```
 
 For manual operations and recovery, start with the
 [Operational Readiness Runbook](./operational_readiness_runbook.md).
