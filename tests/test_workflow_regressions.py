@@ -31,6 +31,20 @@ NOW = "2026-05-04T00:00:00Z"
 TASK_ID_RE = re.compile(r"TASK-[0-9]{4}")
 
 
+def readiness_fixture_args(*extra: str) -> list[str]:
+    # Readiness-gate tests suppress unrelated metrics freshness blockers unless
+    # metrics freshness is the behavior under test.
+    return [
+        "--dry-run",
+        "--no-daily-status",
+        "--now",
+        NOW,
+        "--metrics-stale-hours",
+        "100000",
+        *extra,
+    ]
+
+
 def run_json(entrypoint, argv: list[str | Path]) -> tuple[int, dict]:
     stream = io.StringIO()
     with contextlib.redirect_stdout(stream):
@@ -216,17 +230,7 @@ class WorkflowRegressionTests(unittest.TestCase):
 
             code, payload = run_json(
                 autonomy_readiness_gate,
-                [
-                    ops_dir,
-                    "--dry-run",
-                    "--no-daily-status",
-                    "--now",
-                    NOW,
-                    "--stale-source-days",
-                    "90",
-                    "--metrics-stale-hours",
-                    "100000",
-                ],
+                [ops_dir, *readiness_fixture_args("--stale-source-days", "90")],
             )
 
             self.assertEqual(autonomy_readiness_gate.HUMAN_REQUIRED, code, payload)
@@ -319,7 +323,7 @@ class WorkflowRegressionTests(unittest.TestCase):
 
             code, payload = run_json(
                 autonomy_readiness_gate,
-                [ops_dir, "--dry-run", "--no-daily-status", "--now", NOW, "--metrics-stale-hours", "100000"],
+                [ops_dir, *readiness_fixture_args()],
             )
 
             self.assertEqual(autonomy_readiness_gate.SKIP_LOOP, code, payload)
