@@ -83,13 +83,13 @@ Do not delete stale locks immediately. Renaming preserves forensic evidence.
 Use:
 
 ```text
-async_research_workflow/examples/scripts/task_lock.py
+async_research_workflow/scripts/task_lock.py
 ```
 
 Acquire:
 
 ```bash
-python3 async_research_workflow/examples/scripts/task_lock.py acquire \
+python -m async_research_workflow.scripts.task_lock acquire \
   research_ops/tasks/TASK-0001-example \
   --owner "$RESEARCH_WORKER_OWNER" \
   --stale-minutes 60
@@ -98,7 +98,7 @@ python3 async_research_workflow/examples/scripts/task_lock.py acquire \
 Release:
 
 ```bash
-python3 async_research_workflow/examples/scripts/task_lock.py release \
+python -m async_research_workflow.scripts.task_lock release \
   research_ops/tasks/TASK-0001-example \
   --owner "$RESEARCH_WORKER_OWNER"
 ```
@@ -106,7 +106,7 @@ python3 async_research_workflow/examples/scripts/task_lock.py release \
 Status:
 
 ```bash
-python3 async_research_workflow/examples/scripts/task_lock.py status \
+python -m async_research_workflow.scripts.task_lock status \
   research_ops/tasks/TASK-0001-example
 ```
 
@@ -148,7 +148,7 @@ Every worker prompt should include:
 
 ```text
 Before writing any task output, acquire the task-local LOCK/ using
-async_research_workflow/examples/scripts/task_lock.py. If lock acquisition fails,
+async_research_workflow/scripts/task_lock.py. If lock acquisition fails,
 skip that task. Release the lock only after final status and output writes complete.
 ```
 

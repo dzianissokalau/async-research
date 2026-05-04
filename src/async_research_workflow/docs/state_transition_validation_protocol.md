@@ -65,27 +65,27 @@ Unchanged status is allowed only when a role writes supporting artifacts without
 Use:
 
 ```text
-async_research_workflow/examples/scripts/validate_transition.py
+async_research_workflow/scripts/validate_transition.py
 ```
 
 Validate one task:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001/status.json
 ```
 
 Validate a task folder:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001
 ```
 
 List the allowed transition table:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_transition.py --list
+python -m async_research_workflow.scripts.validate_transition --list
 ```
 
 Exit codes:
@@ -160,7 +160,7 @@ absent.
 Preferred resolver:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py resolve-task \
+python -m async_research_workflow.scripts.human_decision_log resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \
@@ -174,7 +174,7 @@ python3 async_research_workflow/examples/scripts/human_decision_log.py resolve-t
 After a worker or reviewer step, validate changed task statuses before creating a pull request:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001
 ```
 

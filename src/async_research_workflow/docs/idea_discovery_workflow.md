@@ -201,7 +201,7 @@ Every idea needs a kill reason. If there is no cheap way to kill it, it is proba
 Before adding candidates, refresh and read the accepted outputs index:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update research_ops
+async-research accepted update research_ops
 ```
 
 Discovery should avoid adding duplicate candidates unless the new idea has a clearly different data path, geography, mechanism, or decision use.

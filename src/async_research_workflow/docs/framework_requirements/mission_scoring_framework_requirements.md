@@ -39,14 +39,14 @@ The executable idea-candidate scoring policy uses the equivalent operational
 dimensions in:
 
 ```text
-async_research_workflow/examples/mission_policy.json
+async_research_workflow/mission_policy.json
 ```
 
 That file is validated by:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_mission_policy.py \
-  async_research_workflow/examples/mission_policy.json
+python -m async_research_workflow.scripts.validate_mission_policy \
+  async_research_workflow/mission_policy.json
 ```
 
 Scoring must fail closed when the mission policy is invalid.
@@ -61,10 +61,10 @@ Mission scoring has two executable layers:
 Required commands:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_mission_policy.py \
-  async_research_workflow/examples/mission_policy.json
+python -m async_research_workflow.scripts.validate_mission_policy \
+  async_research_workflow/mission_policy.json
 
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0001.json \
   --budget-mode auto \
   --ops-dir research_ops
@@ -73,19 +73,19 @@ python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
 The policy record conforms to:
 
 ```text
-async_research_workflow/examples/mission_policy.schema.json
+async_research_workflow/mission_policy.schema.json
 ```
 
 The scored candidate record conforms to:
 
 ```text
-async_research_workflow/examples/idea_candidate.schema.json
+async_research_workflow/idea_candidate.schema.json
 ```
 
 The score template lives at:
 
 ```text
-async_research_workflow/examples/mission_score_template.md
+async_research_workflow/templates/artifact_templates/mission_score_template.md
 ```
 
 ## Mission Scoring Lifecycle
@@ -221,7 +221,7 @@ Abbreviated shape; the operational file must include every field required by
 The example policy for this repository lives at:
 
 ```text
-async_research_workflow/examples/mission_policy.json
+async_research_workflow/mission_policy.json
 ```
 
 Initial policy version:

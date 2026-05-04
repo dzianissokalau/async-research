@@ -22,7 +22,7 @@ Every candidate that may enter `discovery_inbox.md` or be promoted by the
 planner shall first be scored with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0001.json \
   --budget-mode auto \
   --ops-dir research_ops
@@ -31,7 +31,7 @@ python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
 Then validate and attach the idea-evaluation record:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_idea_evaluation.py \
+async-research idea validate \
   research_ops/discovery/IDEA-0001.json \
   --ops-dir research_ops
 ```
@@ -44,7 +44,7 @@ consistency.
 The evaluation record conforms to:
 
 ```text
-async_research_workflow/examples/idea_evaluation.schema.json
+async_research_workflow/idea_evaluation.schema.json
 ```
 
 ## Idea Evaluation Lifecycle

@@ -25,13 +25,13 @@ Every `experiment_plan` worker output shall include either:
 The JSON plan must conform to:
 
 ```text
-async_research_workflow/examples/experiment_plan.schema.json
+async_research_workflow/experiment_plan.schema.json
 ```
 
 Validate the plan with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_experiment_plan.py \
+async-research experiment validate \
   research_ops/tasks/TASK-0003-repeat-sales-experiment-plan/worker_output.md \
   --ops-dir research_ops \
   --task-dir research_ops/tasks/TASK-0003-repeat-sales-experiment-plan

@@ -15,7 +15,7 @@ State transition validation checks whether a status move is legal. Schema valida
 Use:
 
 ```text
-async_research_workflow/examples/scripts/validate_json_artifact.py
+async_research_workflow/scripts/validate_json_artifact.py
 ```
 
 This is a small stdlib validator for the JSON Schema subset used by the workflow examples. It intentionally avoids third-party dependencies so it can run locally or in GitHub Actions without setup.
@@ -44,24 +44,24 @@ schema features, add validator support first or replace it with a pinned
 Task status:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
-  --schema async_research_workflow/examples/task_status.schema.json \
+python -m async_research_workflow.scripts.validate_json_artifact \
+  --schema async_research_workflow/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 ```
 
 Idea candidate:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
-  --schema async_research_workflow/examples/idea_candidate.schema.json \
+python -m async_research_workflow.scripts.validate_json_artifact \
+  --schema async_research_workflow/idea_candidate.schema.json \
   research_ops/discovery/IDEA-0001.json
 ```
 
 Review panel output:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
-  --schema async_research_workflow/examples/review_panel.schema.json \
+python -m async_research_workflow.scripts.validate_json_artifact \
+  --schema async_research_workflow/review_panel.schema.json \
   research_ops/tasks/TASK-0001/review_panel/aggregate.json
 ```
 
@@ -85,11 +85,11 @@ Any agent writing JSON must:
 For `status.json`, agents must run both:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
-  --schema async_research_workflow/examples/task_status.schema.json \
+python -m async_research_workflow.scripts.validate_json_artifact \
+  --schema async_research_workflow/task_status.schema.json \
   <task-dir>/status.json
 
-python3 async_research_workflow/examples/scripts/validate_transition.py \
+python -m async_research_workflow.scripts.validate_transition \
   <task-dir>
 ```
 
@@ -132,7 +132,7 @@ Every new workflow JSON artifact should include:
 During the P2-1 migration window, missing versions are warnings rather than hard validation failures so old task folders stay readable. Run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops
+async-research schema-check research_ops
 ```
 
 The health monitor also includes these warnings in `checks.schema_version_warnings`.
@@ -156,7 +156,7 @@ Use this wrapper when `status.json` is malformed, missing, schema-invalid, or ha
 an invalid transition:
 
 ```bash
-python3 async_research_workflow/examples/scripts/recover_status_json.py \
+python -m async_research_workflow.scripts.recover_status_json \
   research_ops/tasks/TASK-0001
 ```
 
@@ -180,8 +180,8 @@ After Codex writes task artifacts, validate the changed JSON files before openin
 Example for a known task:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_json_artifact.py \
-  --schema async_research_workflow/examples/task_status.schema.json \
+python -m async_research_workflow.scripts.validate_json_artifact \
+  --schema async_research_workflow/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 ```
 

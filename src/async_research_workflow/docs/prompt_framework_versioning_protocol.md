@@ -50,7 +50,7 @@ The schema keeps these fields optional during migration so old task folders stay
 Workflow helpers use:
 
 ```text
-async_research_workflow/examples/scripts/version_metadata.py
+async_research_workflow/scripts/version_metadata.py
 ```
 
 This file is the local source of truth for current prompt and framework version labels. When a prompt or framework changes materially, update this file and add a migration note here.
@@ -83,7 +83,7 @@ Every reviewer must include prompt/framework version metadata in its review JSON
 Run monthly, or before reviewing prompt/framework quality:
 
 ```bash
-python3 async_research_workflow/examples/scripts/framework_version_calibration.py \
+python -m async_research_workflow.scripts.framework_version_calibration \
   research_ops \
   --month 2026-05 \
   --output research_ops/monthly_calibration_framework_versions.md

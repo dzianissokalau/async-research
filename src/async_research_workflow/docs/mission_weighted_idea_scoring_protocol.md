@@ -15,7 +15,7 @@ The system should prefer ideas that are decision-relevant, data-backed, feasible
 Use:
 
 ```text
-async_research_workflow/examples/mission_policy.json
+async_research_workflow/mission_policy.json
 ```
 
 Initial version:
@@ -29,8 +29,8 @@ The policy defines stable weights, hard gates, promotion thresholds, and budget-
 Validate the policy before scheduled scoring:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_mission_policy.py \
-  async_research_workflow/examples/mission_policy.json
+python -m async_research_workflow.scripts.validate_mission_policy \
+  async_research_workflow/mission_policy.json
 ```
 
 `score_idea_candidate.py` also validates the policy contract at runtime and
@@ -41,20 +41,21 @@ fails closed if the policy is malformed, misaligned, or missing required gates.
 Use:
 
 ```text
-async_research_workflow/examples/scripts/score_idea_candidate.py
+async_research_workflow/scripts/score_idea_candidate.py
 ```
 
 Example:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
-  research_ops/discovery/IDEA-0007.json
+async-research idea score \
+  research_ops/discovery/IDEA-0007.json \
+  --ops-dir research_ops
 ```
 
 For automatic budget mode:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0007.json \
   --budget-mode auto \
   --ops-dir research_ops
@@ -66,9 +67,10 @@ weekly or monthly spend reaches the configured budget pressure threshold.
 For manual constrained budget mode:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0007.json \
-  --budget-mode budget_constrained
+  --budget-mode budget_constrained \
+  --ops-dir research_ops
 ```
 
 The helper:

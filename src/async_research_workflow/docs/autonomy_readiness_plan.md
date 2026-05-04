@@ -79,7 +79,7 @@ The benchmark set should include:
 Add a deterministic runner:
 
 ```bash
-python3 async_research_workflow/examples/scripts/run_autonomy_benchmark.py
+async-research benchmark
 ```
 
 ### Acceptance Criteria
@@ -135,7 +135,7 @@ Add one command that determines whether another autonomous loop is safe to run.
 Example:
 
 ```bash
-python3 async_research_workflow/examples/scripts/autonomy_readiness_gate.py research_ops
+async-research readiness research_ops
 ```
 
 ### Checks
@@ -325,7 +325,7 @@ Before spending model budget, simulate a week of scheduled operation with fixtur
 Example:
 
 ```bash
-python3 async_research_workflow/examples/scripts/simulate_scheduled_week.py research_ops
+async-research simulate-week research_ops
 ```
 
 ### Simulated Steps

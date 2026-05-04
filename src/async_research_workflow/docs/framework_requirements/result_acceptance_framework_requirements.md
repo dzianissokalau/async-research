@@ -21,9 +21,9 @@ A failed or negative result can be accepted if it is reproducible, well-tested, 
 Result acceptance has three executable artifacts:
 
 ```text
-async_research_workflow/examples/result_acceptance.schema.json
-async_research_workflow/examples/result_summary_template.md
-async_research_workflow/examples/scripts/validate_result_acceptance.py
+async_research_workflow/result_acceptance.schema.json
+async_research_workflow/templates/artifact_templates/result_summary_template.md
+async_research_workflow/scripts/validate_result_acceptance.py
 ```
 
 For `run_analysis` and `evaluate_results` tasks, workers shall include a fenced
@@ -35,7 +35,7 @@ strength is capped conservatively.
 After reviews are aggregated, validate acceptance:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_result_acceptance.py \
+async-research result-acceptance \
   research_ops/tasks/TASK-0004-evaluate-results \
   --ops-dir research_ops \
   --write \

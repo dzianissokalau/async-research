@@ -13,7 +13,7 @@ when only highly killable, cheap-to-reject ideas deserve the next execution slot
 
 ## Policy Source
 
-`async_research_workflow/examples/mission_policy.json` defines:
+`async_research_workflow/mission_policy.json` defines:
 
 ```json
 {
@@ -44,7 +44,7 @@ when only highly killable, cheap-to-reject ideas deserve the next execution slot
 Use automatic budget mode when scoring discovery candidates:
 
 ```bash
-python3 async_research_workflow/examples/scripts/score_idea_candidate.py \
+async-research idea score \
   research_ops/discovery/IDEA-0007.json \
   --budget-mode auto \
   --ops-dir research_ops

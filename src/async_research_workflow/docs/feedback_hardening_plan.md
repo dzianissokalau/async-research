@@ -142,7 +142,7 @@ Requirement:
 Implementation status:
 
 - documented in `async_research_workflow/atomic_locking_protocol.md`
-- helper script added at `async_research_workflow/examples/scripts/task_lock.py`
+- helper script added at `async_research_workflow/scripts/task_lock.py`
 - worker prompt and GitHub Actions example updated to require task-local lock acquisition
 
 Recommended local implementation:
@@ -174,7 +174,7 @@ Requirement:
 Implementation status:
 
 - documented in `async_research_workflow/state_transition_validation_protocol.md`
-- helper script added at `async_research_workflow/examples/scripts/validate_transition.py`
+- helper script added at `async_research_workflow/scripts/validate_transition.py`
 - task status schema updated with `previous_status` and `last_transition_reason`
 - worker/reviewer prompts and GitHub Actions example updated to require transition validation
 
@@ -225,8 +225,8 @@ Requirement:
 Implementation status:
 
 - documented in `async_research_workflow/schema_validation_protocol.md`
-- helper script added at `async_research_workflow/examples/scripts/validate_json_artifact.py`
-- recovery script added at `async_research_workflow/examples/scripts/recover_status_json.py`
+- helper script added at `async_research_workflow/scripts/validate_json_artifact.py`
+- recovery script added at `async_research_workflow/scripts/recover_status_json.py`
 - worker/reviewer prompts and GitHub Actions example updated to validate `status.json`
 
 Scope:
@@ -253,7 +253,7 @@ Requirement:
 Implementation status:
 
 - documented in `async_research_workflow/reviewer_isolation_protocol.md`
-- helper script added at `async_research_workflow/examples/scripts/prepare_review_context.py`
+- helper script added at `async_research_workflow/scripts/prepare_review_context.py`
 - specialist reviewer prompts updated to run inside isolated bundles
 - aggregator prompt updated to run inside an aggregator bundle that includes all reviews
 
@@ -324,7 +324,7 @@ Default:
 Implementation status:
 
 - task status schema updated with `revision_count`, `max_revisions`, and `revision_limit_hit`
-- helper script added at `async_research_workflow/examples/scripts/revision_counter.py`
+- helper script added at `async_research_workflow/scripts/revision_counter.py`
 - documented in `async_research_workflow/revision_counter_protocol.md`
 - reviewer and weekly synthesizer prompts updated to use revision counters
 
@@ -349,8 +349,8 @@ Implementation:
 
 Implementation status:
 
-- helper script added at `async_research_workflow/examples/scripts/aggregate_reviews.py`
-- aggregate schema updated at `async_research_workflow/examples/review_panel.schema.json`
+- helper script added at `async_research_workflow/scripts/aggregate_reviews.py`
+- aggregate schema updated at `async_research_workflow/review_panel.schema.json`
 - documented in `async_research_workflow/algorithmic_review_aggregation_protocol.md`
 - aggregator prompt updated so narrative summaries cannot override deterministic routing
 
@@ -402,7 +402,7 @@ Checks:
 
 Implementation status:
 
-- helper script added at `async_research_workflow/examples/scripts/health_check.py`
+- helper script added at `async_research_workflow/scripts/health_check.py`
 - documented in `async_research_workflow/health_monitor_protocol.md`
 - scheduler prompt added for independent daily health monitoring
 - health check writes `research_ops/health_report.json` and appends `research_ops/daily_status.md`
@@ -422,7 +422,7 @@ Requirement:
 Implementation status:
 
 - status schema updated with `escalate_to_tier`, `escalation_reason`, `escalation_requested_by`, and `escalation_requested_at`
-- helper script added at `async_research_workflow/examples/scripts/escalate_review_tier.py`
+- helper script added at `async_research_workflow/scripts/escalate_review_tier.py`
 - documented in `async_research_workflow/dynamic_tier_escalation_protocol.md`
 - aggregation logs applied escalation metadata and blocks unresolved review-file escalation requests
 
@@ -449,8 +449,8 @@ Requirement:
 
 Implementation status:
 
-- mission policy added at `async_research_workflow/examples/mission_policy.json`
-- helper script added at `async_research_workflow/examples/scripts/score_idea_candidate.py`
+- mission policy added at `async_research_workflow/mission_policy.json`
+- helper script added at `async_research_workflow/scripts/score_idea_candidate.py`
 - idea candidate schema updated with mission policy version, weighted total, reuse potential, hard gate results, and budget mode
 - documented in `async_research_workflow/mission_weighted_idea_scoring_protocol.md`
 
@@ -484,7 +484,7 @@ Requirement:
 
 Implementation status:
 
-- helper script added at `async_research_workflow/examples/scripts/update_accepted_outputs_index.py`
+- helper script added at `async_research_workflow/scripts/update_accepted_outputs_index.py`
 - documented in `async_research_workflow/accepted_outputs_index_protocol.md`
 - planner, discovery scout, and synthesizer prompts updated to refresh/read the index
 - duplicate-check command added for planner warnings before promotion
@@ -535,7 +535,7 @@ Acceptance tests:
 Implementation status:
 
 - schemas require `schema_version = "1.0"` for task status artifacts
-- new helper added at `async_research_workflow/examples/scripts/check_schema_versions.py`
+- new helper added at `async_research_workflow/scripts/check_schema_versions.py`
 - health monitor reports missing or mismatched versions in `checks.schema_version_warnings`
 - schema-version checks fail closed when known JSON artifacts omit or mismatch the expected version
 - status recovery, review aggregation, revision counter, tier escalation, and idea scoring helpers write the default version
@@ -570,10 +570,10 @@ Acceptance tests:
 Implementation status:
 
 - task status schema allows `prompt_versions` and `framework_versions`
-- shared defaults live in `async_research_workflow/examples/scripts/version_metadata.py`
+- shared defaults live in `async_research_workflow/scripts/version_metadata.py`
 - status-writing helpers preserve existing versions and add defaults when missing
 - deterministic review aggregation copies version metadata into `review_panel/aggregate.json`
-- monthly calibration helper added at `async_research_workflow/examples/scripts/framework_version_calibration.py`
+- monthly calibration helper added at `async_research_workflow/scripts/framework_version_calibration.py`
 - prompt/framework versioning protocol documented in `async_research_workflow/prompt_framework_versioning_protocol.md`
 
 ### P2-3: Human Decision Log
@@ -602,8 +602,8 @@ Acceptance tests:
 
 Implementation status:
 
-- append-only decision helper added at `async_research_workflow/examples/scripts/human_decision_log.py`
-- shared decision log parser added at `async_research_workflow/examples/scripts/decision_log.py`
+- append-only decision helper added at `async_research_workflow/scripts/human_decision_log.py`
+- shared decision log parser added at `async_research_workflow/scripts/decision_log.py`
 - `validate_transition.py` now fails `needs_human` exits without a matching decision row
 - human decision summaries can be written for monthly calibration
 - protocol documented in `async_research_workflow/human_decision_log_protocol.md`
@@ -641,7 +641,7 @@ Acceptance tests:
 
 Implementation status:
 
-- metrics helper added at `async_research_workflow/examples/scripts/metrics_history.py`
+- metrics helper added at `async_research_workflow/scripts/metrics_history.py`
 - baseline file `metrics_baseline.json` is created by `metrics_history.py init` or the first snapshot append
 - append-only history file `metrics_history.jsonl` stores weekly snapshots
 - weekly synthesizer prompt appends one snapshot per digest run
@@ -689,7 +689,7 @@ Acceptance tests:
 
 Implementation status:
 
-- anti-context helper added at `async_research_workflow/examples/scripts/generate_anti_context.py`
+- anti-context helper added at `async_research_workflow/scripts/generate_anti_context.py`
 - planner prompt runs the helper for each promoted task
 - worker prompt reads `anti_context.md` and must address do-not-repeat warnings
 - task template includes a Cross-Task Anti-Context section
@@ -738,8 +738,8 @@ Acceptance tests:
 Implementation status:
 
 - task status schema includes `batch_job` and `batch_ingest`
-- batch manifest schema added at `async_research_workflow/examples/batch_manifest.schema.json`
-- lifecycle helper added at `async_research_workflow/examples/scripts/batch_lifecycle.py`
+- batch manifest schema added at `async_research_workflow/batch_manifest.schema.json`
+- lifecycle helper added at `async_research_workflow/scripts/batch_lifecycle.py`
 - schema-version checks scan `research_ops/batches/*/batch_manifest.json`
 - protocol documented in `async_research_workflow/batch_job_lifecycle_protocol.md`
 
@@ -757,7 +757,7 @@ Acceptance tests:
 
 Implementation status:
 
-- usage ingestion helper added at `async_research_workflow/examples/scripts/cost_tracking.py`
+- usage ingestion helper added at `async_research_workflow/scripts/cost_tracking.py`
 - cost ledger rows can record `input_tokens`, `output_tokens`, `total_tokens`, and `actual=true`
 - health monitor aggregates actual usage token totals from the ledger
 - deterministic budget gate exits nonzero when projected spend crosses threshold
@@ -827,7 +827,7 @@ Acceptance tests:
 Implementation status:
 
 - data source audit protocol documented in `async_research_workflow/data_source_audit_register_protocol.md`
-- markdown register helper added at `async_research_workflow/examples/scripts/data_source_audit.py`
+- markdown register helper added at `async_research_workflow/scripts/data_source_audit.py`
 - task status schema allows `data_audit_refs`
 - planner, worker, and reviewer prompts require audit checks for `experiment_plan` tasks
 - discovery may use plausible data paths but experiments require ready audited sources
@@ -851,13 +851,14 @@ Update docs and schemas for:
 Add:
 
 ```text
-async_research_workflow/examples/scripts/validate_task_state.py
-async_research_workflow/examples/scripts/validate_transition.py
-async_research_workflow/examples/scripts/aggregate_reviews.py
-async_research_workflow/examples/scripts/health_check.py
+async_research_workflow/scripts/validate_json_artifact.py
+async_research_workflow/scripts/validate_transition.py
+async_research_workflow/scripts/aggregate_reviews.py
+async_research_workflow/scripts/health_check.py
 ```
 
-Keep them example scripts until the runtime `research_ops/` folder exists.
+Keep them as packaged helper scripts until each operation has a stable CLI
+wrapper.
 
 ### Step 3: Update Schemas
 
@@ -910,7 +911,7 @@ Before scheduling:
 For regression coverage, run the durable acceptance suite:
 
 ```bash
-python3 async_research_workflow/examples/scripts/run_acceptance_suite.py
+async-research acceptance-suite
 ```
 
 The suite builds temporary fixtures and checks representative P0-P3 and

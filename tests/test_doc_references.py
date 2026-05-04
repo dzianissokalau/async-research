@@ -1,4 +1,4 @@
-"""Regression tests for public documentation and starter package references."""
+"""Regression tests for documentation and starter package references."""
 
 from __future__ import annotations
 
@@ -10,13 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "src" / "async_research_workflow"
 
-PUBLIC_DOCS = [
+TOP_LEVEL_DOCS = [
     ROOT / "README.md",
-    PACKAGE_ROOT / "docs" / "README.md",
-    PACKAGE_ROOT / "docs" / "operational_readiness_runbook.md",
-    PACKAGE_ROOT / "docs" / "scheduler_and_prompts.md",
+    ROOT / "ROADMAP.md",
 ]
-PUBLIC_TREES = [
+DOC_TREES = [
+    PACKAGE_ROOT / "docs",
     PACKAGE_ROOT / "examples",
     PACKAGE_ROOT / "templates",
 ]
@@ -27,11 +26,12 @@ FORBIDDEN_SNIPPETS = (
 )
 EXAMPLES_REF_RE = re.compile(r"async_research_workflow/examples/[A-Za-z0-9_./-]+")
 RELATIVE_EXAMPLES_REF_RE = re.compile(r"(?<!async_research_workflow/)examples/[A-Za-z0-9_./-]+")
+SCRIPT_REF_RE = re.compile(r"async_research_workflow/scripts/[A-Za-z0-9_./-]+\.py")
 
 
-def iter_public_files() -> list[Path]:
-    files = list(PUBLIC_DOCS)
-    for tree in PUBLIC_TREES:
+def iter_documentation_files() -> list[Path]:
+    files = list(TOP_LEVEL_DOCS)
+    for tree in DOC_TREES:
         files.extend(
             path
             for path in tree.rglob("*")
@@ -44,10 +44,10 @@ def clean_reference(raw: str) -> str:
     return raw.rstrip("`'\".,:;)]}")
 
 
-class PublicDocumentationReferenceTests(unittest.TestCase):
-    def test_public_docs_do_not_use_removed_examples_scripts_paths(self) -> None:
+class DocumentationReferenceTests(unittest.TestCase):
+    def test_docs_do_not_use_removed_examples_scripts_paths(self) -> None:
         failures: list[str] = []
-        for path in iter_public_files():
+        for path in iter_documentation_files():
             text = path.read_text(encoding="utf-8")
             for snippet in FORBIDDEN_SNIPPETS:
                 if snippet in text:
@@ -57,7 +57,7 @@ class PublicDocumentationReferenceTests(unittest.TestCase):
 
     def test_examples_package_references_exist(self) -> None:
         failures: list[str] = []
-        for path in iter_public_files():
+        for path in iter_documentation_files():
             text = path.read_text(encoding="utf-8")
             for match in EXAMPLES_REF_RE.finditer(text):
                 reference = clean_reference(match.group(0))
@@ -68,6 +68,12 @@ class PublicDocumentationReferenceTests(unittest.TestCase):
             for match in RELATIVE_EXAMPLES_REF_RE.finditer(text):
                 reference = clean_reference(match.group(0))
                 package_path = PACKAGE_ROOT / reference
+                if not package_path.exists():
+                    line = text.count("\n", 0, match.start()) + 1
+                    failures.append(f"{path.relative_to(ROOT)}:{line} -> {reference}")
+            for match in SCRIPT_REF_RE.finditer(text):
+                reference = clean_reference(match.group(0))
+                package_path = ROOT / "src" / reference
                 if not package_path.exists():
                     line = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path.relative_to(ROOT)}:{line} -> {reference}")

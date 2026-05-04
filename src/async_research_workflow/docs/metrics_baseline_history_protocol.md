@@ -24,13 +24,13 @@ research_ops/metrics_history.jsonl
 Use:
 
 ```text
-async_research_workflow/examples/scripts/metrics_history.py
+async_research_workflow/scripts/metrics_history.py
 ```
 
 Initialize the baseline:
 
 ```bash
-python3 async_research_workflow/examples/scripts/metrics_history.py init \
+python -m async_research_workflow.scripts.metrics_history init \
   research_ops \
   --label initial_baseline
 ```
@@ -38,7 +38,7 @@ python3 async_research_workflow/examples/scripts/metrics_history.py init \
 Append the weekly digest snapshot:
 
 ```bash
-python3 async_research_workflow/examples/scripts/metrics_history.py append-snapshot \
+python -m async_research_workflow.scripts.metrics_history append-snapshot \
   research_ops \
   --period weekly \
   --label weekly_digest
@@ -47,7 +47,7 @@ python3 async_research_workflow/examples/scripts/metrics_history.py append-snaps
 Summarize monthly trends:
 
 ```bash
-python3 async_research_workflow/examples/scripts/metrics_history.py summarize \
+python -m async_research_workflow.scripts.metrics_history summarize \
   research_ops \
   --month 2026-05 \
   --output research_ops/monthly_metrics_trends.md
@@ -73,7 +73,7 @@ The helper records:
 `human_minutes` is an estimate unless supplied explicitly:
 
 ```bash
-python3 async_research_workflow/examples/scripts/metrics_history.py append-snapshot \
+python -m async_research_workflow.scripts.metrics_history append-snapshot \
   research_ops \
   --period weekly \
   --label weekly_digest \

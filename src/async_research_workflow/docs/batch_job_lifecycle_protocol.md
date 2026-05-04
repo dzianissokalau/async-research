@@ -40,7 +40,7 @@ research_ops/batches/BATCH-0001/batch_manifest.json
 The manifest validates against:
 
 ```text
-async_research_workflow/examples/batch_manifest.schema.json
+async_research_workflow/batch_manifest.schema.json
 ```
 
 Required core fields:
@@ -69,13 +69,13 @@ Required core fields:
 Use:
 
 ```text
-async_research_workflow/examples/scripts/batch_lifecycle.py
+async_research_workflow/scripts/batch_lifecycle.py
 ```
 
 Create a draft manifest:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py init \
+python -m async_research_workflow.scripts.batch_lifecycle init \
   research_ops \
   --batch-id BATCH-0001 \
   --input-file research_ops/batches/BATCH-0001/input.jsonl \
@@ -88,14 +88,14 @@ python3 async_research_workflow/examples/scripts/batch_lifecycle.py init \
 Validate before submission:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py validate-manifest \
+python -m async_research_workflow.scripts.batch_lifecycle validate-manifest \
   research_ops/batches/BATCH-0001/batch_manifest.json
 ```
 
 Submit and log estimated cost:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py submit \
+python -m async_research_workflow.scripts.batch_lifecycle submit \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --provider-batch-id provider-batch-id \
   --api-usd 1.25 \
@@ -105,7 +105,7 @@ python3 async_research_workflow/examples/scripts/batch_lifecycle.py submit \
 Record provider outputs while keeping them untrusted:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py complete \
+python -m async_research_workflow.scripts.batch_lifecycle complete \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --output-file research_ops/batches/BATCH-0001/provider_output.jsonl
 ```
@@ -113,7 +113,7 @@ python3 async_research_workflow/examples/scripts/batch_lifecycle.py complete \
 Record ingestion while keeping outputs pending review:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py ingest \
+python -m async_research_workflow.scripts.batch_lifecycle ingest \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --ingest-task-id TASK-0002 \
   --ingested-file research_ops/discovery/IDEA-0007.json
@@ -122,7 +122,7 @@ python3 async_research_workflow/examples/scripts/batch_lifecycle.py ingest \
 Trust outputs only after review:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py mark-reviewed \
+python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --review-task-id TASK-0003
 ```
@@ -146,7 +146,7 @@ only when the manifest is `reviewed`.
 Check trust status:
 
 ```bash
-python3 async_research_workflow/examples/scripts/batch_lifecycle.py trust-status \
+python -m async_research_workflow.scripts.batch_lifecycle trust-status \
   research_ops/batches/BATCH-0001/batch_manifest.json
 ```
 

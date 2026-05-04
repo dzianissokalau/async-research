@@ -34,13 +34,13 @@ The file is append-only. Do not edit previous rows to reinterpret history. If a 
 Use:
 
 ```text
-async_research_workflow/examples/scripts/human_decision_log.py
+async_research_workflow/scripts/human_decision_log.py
 ```
 
 Append a decision:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py append \
+python -m async_research_workflow.scripts.human_decision_log append \
   research_ops \
   --item-id TASK-0001 \
   --decision approve_public \
@@ -52,7 +52,7 @@ python3 async_research_workflow/examples/scripts/human_decision_log.py append \
 Resolve a task blocked in `needs_human`:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py resolve-task \
+python -m async_research_workflow.scripts.human_decision_log resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \
@@ -99,7 +99,7 @@ If no matching decision row exists for the task ID, transition validation fails 
 Summarize human gate reasons:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py summarize \
+python -m async_research_workflow.scripts.human_decision_log summarize \
   research_ops \
   --month 2026-05 \
   --output research_ops/monthly_human_decision_summary.md

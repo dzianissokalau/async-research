@@ -139,7 +139,7 @@ If the output is not safe to accept at the current tier but does not need immedi
 Run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalate_review_tier.py apply \
+python -m async_research_workflow.scripts.escalate_review_tier apply \
   research_ops/tasks/TASK-0001 \
   --to-tier 2 \
   --reason "output requires methodology review" \

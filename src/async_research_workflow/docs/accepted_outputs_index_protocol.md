@@ -34,14 +34,13 @@ format on update.
 Use:
 
 ```text
-async_research_workflow/examples/scripts/update_accepted_outputs_index.py
+async_research_workflow/scripts/update_accepted_outputs_index.py
 ```
 
 Update the index from accepted task folders:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py update \
-  research_ops
+async-research accepted update research_ops
 ```
 
 The helper:
@@ -96,15 +95,13 @@ treated as current market facts without a human decision.
 Generate a deterministic revalidation report:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
-  revalidation-report research_ops
+async-research accepted revalidation research_ops
 ```
 
 Write a schedule for due/stale evidence:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
-  revalidation-report research_ops --write-schedule
+async-research accepted revalidation research_ops --write-schedule
 ```
 
 This writes:
@@ -117,7 +114,7 @@ Check whether a candidate, discovery note, or task output is trying to reuse
 stale accepted memory:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py \
+python -m async_research_workflow.scripts.update_accepted_outputs_index \
   check-memory-use research_ops research_ops/discovery/IDEA-0001.md
 ```
 
@@ -154,7 +151,7 @@ older status/review metadata only for pre-P2-5 tasks.
 Before promoting a discovery candidate or creating a new task, the planner should check whether the idea overlaps accepted outputs:
 
 ```bash
-python3 async_research_workflow/examples/scripts/update_accepted_outputs_index.py check-duplicate \
+python -m async_research_workflow.scripts.update_accepted_outputs_index check-duplicate \
   research_ops \
   --title "EPC premium during energy shocks"
 ```

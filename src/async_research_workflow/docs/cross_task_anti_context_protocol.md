@@ -13,13 +13,13 @@ The workflow should not rediscover the same accepted finding or repeat a known f
 Use:
 
 ```text
-async_research_workflow/examples/scripts/generate_anti_context.py
+async_research_workflow/scripts/generate_anti_context.py
 ```
 
 Build anti-context for a proposed task:
 
 ```bash
-python3 async_research_workflow/examples/scripts/generate_anti_context.py build \
+python -m async_research_workflow.scripts.generate_anti_context build \
   research_ops \
   --title "EPC premium during energy shocks" \
   --task-dir research_ops/tasks/TASK-0007-epc-premium-energy-shocks

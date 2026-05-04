@@ -15,13 +15,13 @@ The health monitor is independent of worker, reviewer, discovery, and synthesis 
 Use:
 
 ```text
-async_research_workflow/examples/scripts/health_check.py
+async_research_workflow/scripts/health_check.py
 ```
 
 Run against the operational folder:
 
 ```bash
-python3 async_research_workflow/examples/scripts/health_check.py research_ops
+async-research health research_ops
 ```
 
 The helper writes:
@@ -97,7 +97,7 @@ The health report aggregates these into `checks.cost.input_tokens`,
 Budgets can be passed as flags:
 
 ```bash
-python3 async_research_workflow/examples/scripts/health_check.py research_ops \
+python -m async_research_workflow.scripts.health_check research_ops \
   --monthly-budget-usd 100 \
   --weekly-budget-usd 25
 ```

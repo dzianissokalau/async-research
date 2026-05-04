@@ -45,7 +45,7 @@ Status-writing helpers also add the default when they update an older task. This
 Run:
 
 ```bash
-python3 async_research_workflow/examples/scripts/check_schema_versions.py research_ops
+async-research schema-check research_ops
 ```
 
 The checker scans known workflow JSON artifacts and reports:

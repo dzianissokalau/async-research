@@ -140,13 +140,13 @@ Every task also has `status.json`:
 Worker claim rule:
 
 1. Pick the oldest task with `status = ready_for_worker`.
-2. Attempt to acquire `LOCK/` using `async_research_workflow/examples/scripts/task_lock.py`.
+2. Attempt to acquire `LOCK/` using `async_research_workflow/scripts/task_lock.py`.
 3. Skip the task if lock acquisition fails because the lock is fresh.
 4. If the lock is stale, the helper renames it and retries acquisition.
 5. After lock acquisition succeeds, set `status = in_progress`.
 6. Set `previous_status = ready_for_worker` and `last_transition_reason = worker_claimed`.
 7. Set `lock_owner = <job-name-or-run-id>` and `lock_expires_at = now + max_minutes + 15 minutes`.
-8. Run `async_research_workflow/examples/scripts/validate_transition.py`.
+8. Run `async_research_workflow/scripts/validate_transition.py`.
 9. Work only inside `allowed_paths`.
 10. On completion, set `previous_status = in_progress`, set `status = awaiting_review`, and set `last_transition_reason = worker_completed_output`.
 11. Run `validate_transition.py` again.

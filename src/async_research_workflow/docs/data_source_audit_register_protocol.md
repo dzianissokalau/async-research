@@ -23,7 +23,7 @@ research_ops/data_source_audit.md
 Initialize it with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py init research_ops
+python -m async_research_workflow.scripts.data_source_audit init research_ops
 ```
 
 The register is a markdown table with schema version `1.0` and these fields:
@@ -94,7 +94,7 @@ Tier rules:
 Add or update an entry:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py upsert \
+python -m async_research_workflow.scripts.data_source_audit upsert \
   research_ops \
   --source-id DS-0001 \
   --approval-status approved \
@@ -115,13 +115,13 @@ python3 async_research_workflow/examples/scripts/data_source_audit.py upsert \
 Validate the register:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py validate research_ops
+async-research source validate research_ops
 ```
 
 Check an experiment plan or task output:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py check-experiment \
+python -m async_research_workflow.scripts.data_source_audit check-experiment \
   research_ops \
   research_ops/tasks/TASK-0007-experiment-plan/worker_output.md
 ```
@@ -129,7 +129,7 @@ python3 async_research_workflow/examples/scripts/data_source_audit.py check-expe
 Check an accepted-evidence claim:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py check-claim \
+python -m async_research_workflow.scripts.data_source_audit check-claim \
   research_ops \
   research_ops/tasks/TASK-0007/worker_output.md \
   --use-case accepted_evidence \
@@ -139,7 +139,7 @@ python3 async_research_workflow/examples/scripts/data_source_audit.py check-clai
 Explain one source decision:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py explain \
+python -m async_research_workflow.scripts.data_source_audit explain \
   research_ops \
   DS-0001 \
   --use-case experiment_planning
@@ -148,7 +148,7 @@ python3 async_research_workflow/examples/scripts/data_source_audit.py explain \
 Report freshness warnings:
 
 ```bash
-python3 async_research_workflow/examples/scripts/data_source_audit.py freshness-report research_ops
+async-research source freshness research_ops
 ```
 
 The check fails closed when:

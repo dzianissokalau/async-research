@@ -15,7 +15,7 @@ or reviewer to continue safely.
 The policy is executable through:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
+python -m async_research_workflow.scripts.escalation_policy evaluate \
   research_ops/tasks/TASK-0001 \
   --ops-dir research_ops
 ```
@@ -23,7 +23,7 @@ python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
 Use `--apply` when the scheduler or worker should write the stop state:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py evaluate \
+python -m async_research_workflow.scripts.escalation_policy evaluate \
   research_ops/tasks/TASK-0001 \
   --ops-dir research_ops \
   --apply
@@ -58,7 +58,7 @@ Every `needs_human` task must include:
 Validate existing human gates with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/escalation_policy.py scan-needs-human research_ops
+python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
 ```
 
 ## Trigger Table
@@ -94,7 +94,7 @@ If it exits `2`, they must stop and leave the task in `needs_human`.
 Never resolve a human gate by editing `status.json` directly. Use:
 
 ```bash
-python3 async_research_workflow/examples/scripts/human_decision_log.py resolve-task \
+python -m async_research_workflow.scripts.human_decision_log resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \

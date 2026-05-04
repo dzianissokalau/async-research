@@ -46,13 +46,13 @@ Tier 3 returns to human review after one revision because disagreement between m
 Use:
 
 ```text
-async_research_workflow/examples/scripts/revision_counter.py
+async_research_workflow/scripts/revision_counter.py
 ```
 
 Request a revision:
 
 ```bash
-python3 async_research_workflow/examples/scripts/revision_counter.py request \
+python -m async_research_workflow.scripts.revision_counter request \
   research_ops/tasks/TASK-0001 \
   --reviewer primary
 ```
@@ -81,14 +81,14 @@ If `revision_count >= max_revisions`, the helper:
 Inspect one task:
 
 ```bash
-python3 async_research_workflow/examples/scripts/revision_counter.py inspect \
+python -m async_research_workflow.scripts.revision_counter inspect \
   research_ops/tasks/TASK-0001
 ```
 
 Report tasks that hit revision limits:
 
 ```bash
-python3 async_research_workflow/examples/scripts/revision_counter.py scan-limits \
+python -m async_research_workflow.scripts.revision_counter scan-limits \
   research_ops/tasks \
   --markdown
 ```

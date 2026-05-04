@@ -35,13 +35,13 @@ Every `idea_discovery` task or discovery-scout run shall produce either:
 The JSON cycle must conform to:
 
 ```text
-async_research_workflow/examples/exploration_cycle.schema.json
+async_research_workflow/exploration_cycle.schema.json
 ```
 
 Validate the cycle with:
 
 ```bash
-python3 async_research_workflow/examples/scripts/validate_exploration_cycle.py \
+async-research exploration validate \
   research_ops/tasks/TASK-0002-idea-discovery/worker_output.md \
   --ops-dir research_ops \
   --task-dir research_ops/tasks/TASK-0002-idea-discovery
