@@ -4,38 +4,18 @@ Status: public alpha hardening roadmap
 
 Last reviewed: 2026-05-04
 
-## Current State
+## Project Summary
 
-`async-research` is a promising alpha package for low-cost asynchronous
-research workflows. The core idea is strong: keep durable state in repo files
-instead of hidden chat context, and use the CLI to enforce queue state, source
-governance, review gates, accepted evidence, cost tracking, metrics, and human
-escalation.
+`async-research` is an alpha Python CLI and starter workspace for low-cost
+asynchronous research workflows. It uses repo files as durable shared memory:
+queue, task state, source governance, review gates, accepted evidence, cost
+tracking, metrics, decisions, and human review surfaces.
 
-The package is currently usable for careful dogfooding:
-
-- `async-research version` returns `0.1.0a1`.
-- `acceptance-suite`, `starter-smoke`, `benchmark`, `simulate-week`, and
-  `compileall` passed in the onboarding check.
-- The benchmark rejected or routed all known-bad cases safely, with no weak or
-  malformed evidence accepted.
-- The runtime dependency posture is intentionally standard-library-only.
-
-The package is not ready for broad promotion yet. The main gaps are packaging
-hygiene, command/documentation drift, safety defaults, a domain-specific starter
-template, duplicated runtime assets, and thin Python-level tests. These are
-mostly mechanical hardening tasks rather than challenges to the underlying
-workflow design.
-
-## Progress Table
-
-| Date | Area | Status | What was done | How it was done | Evidence |
-| --- | --- | --- | --- | --- | --- |
-| 2026-05-03 | Phase 0: Roadmap | Done | Established the public alpha hardening roadmap. | Added this root `ROADMAP.md` with current state, north star, priorities, phases, concerns, and LLM operating rules. | Commit `d37abc3`. |
-| 2026-05-04 | P0: Safety defaults | Done | Made `starter-smoke` non-destructive by default. | Changed `--force` from implicit to explicit, returned structured `target_exists` JSON for existing non-empty work dirs, and added marker-preservation tests. | Commit `68283a0`; `.venv/bin/python -m unittest tests.test_cli_safety`; `async-research starter-smoke /tmp/async-research-starter --force`. |
-| 2026-05-04 | P0: Transactional init | Done | Made `init` transactional for bootstrap failures. | Staged template copy, backed up existing targets on forced replacement, restored old targets or removed new partial targets when metrics bootstrap failed, and added rollback tests. | Commit `fcb5ea0`; acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
-| 2026-05-04 | P0: Rollback hardening | Done | Closed verification edge cases found after the first transactional init patch. | Prevented rollback from deleting an untouched target when copy fails before backup, returned JSON for file-valued `starter-smoke` paths, made path removal symlink-safe, and preserved backup details if restore fails. | Commit `f07999e`; 11 safety tests, acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
-| 2026-05-04 | P0: Remaining safety work | Next | Make `async-research` the blessed documented interface and add drift detection tests. | Replace stale `async_research_workflow/examples/scripts/...` references where CLI equivalents exist; add tests for nonexistent doc paths, duplicate schemas, and packaged resource access. | Not started. |
+The package is currently usable for careful dogfooding. Core checks are green,
+the benchmark routes known-bad cases safely, and runtime dependencies remain
+standard-library-only. It is not ready for broad promotion yet because public
+package hygiene still needs work: command/documentation drift, a domain-specific
+starter, duplicated runtime assets, and thin Python-level tests.
 
 ## North Star
 
@@ -86,6 +66,16 @@ The most severe concern from the reviews is valid: `starter-smoke` is
 destructive by default because `--force` is effectively always true. That should
 be fixed before encouraging anyone to run commands on directories they care
 about.
+
+## Progress Table
+
+| Date | Area | Status | What was done | How it was done | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| 2026-05-03 | Phase 0: Roadmap | Done | Established the public alpha hardening roadmap. | Added this root `ROADMAP.md` with current state, north star, priorities, phases, concerns, and LLM operating rules. | Commit `d37abc3`. |
+| 2026-05-04 | P0: Safety defaults | Done | Made `starter-smoke` non-destructive by default. | Changed `--force` from implicit to explicit, returned structured `target_exists` JSON for existing non-empty work dirs, and added marker-preservation tests. | Commit `68283a0`; `.venv/bin/python -m unittest tests.test_cli_safety`; `async-research starter-smoke /tmp/async-research-starter --force`. |
+| 2026-05-04 | P0: Transactional init | Done | Made `init` transactional for bootstrap failures. | Staged template copy, backed up existing targets on forced replacement, restored old targets or removed new partial targets when metrics bootstrap failed, and added rollback tests. | Commit `fcb5ea0`; acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
+| 2026-05-04 | P0: Rollback hardening | Done | Closed verification edge cases found after the first transactional init patch. | Prevented rollback from deleting an untouched target when copy fails before backup, returned JSON for file-valued `starter-smoke` paths, made path removal symlink-safe, and preserved backup details if restore fails. | Commit `f07999e`; 11 safety tests, acceptance-suite, starter-smoke, benchmark, simulate-week, and compileall passed. |
+| 2026-05-04 | P0: Remaining safety work | Next | Make `async-research` the blessed documented interface and add drift detection tests. | Replace stale `async_research_workflow/examples/scripts/...` references where CLI equivalents exist; add tests for nonexistent doc paths, duplicate schemas, and packaged resource access. | Not started. |
 
 ## Prioritized Roadmap
 
