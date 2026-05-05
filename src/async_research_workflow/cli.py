@@ -695,16 +695,6 @@ def register_accepted_commands(subparsers) -> None:
     accepted_duplicate.add_argument("--index", type=Path, help="Override the default accepted_outputs_index.md path.")
     accepted_duplicate.add_argument("--threshold", type=float, default=0.35, help="Similarity threshold used to report duplicate risk.")
     accepted_duplicate.set_defaults(func=run_accepted_check_duplicate_command)
-    accepted_reval = add_command(
-        accepted_sub,
-        "revalidation",
-        aliases=["revalidate"],
-        help="Report due or stale accepted memory.",
-        description="Print an accepted-memory freshness report and optionally write revalidation_schedule.md.",
-    )
-    add_common_ops(accepted_reval)
-    accepted_reval.add_argument("--write-schedule", action="store_true", help="Write research_ops/revalidation_schedule.md.")
-    accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
     accepted_memory = add_command(
         accepted_sub,
         "check-memory-use",
@@ -717,6 +707,16 @@ def register_accepted_commands(subparsers) -> None:
     accepted_memory.add_argument("--now", help="Override current time for deterministic freshness checks, ISO-8601.")
     accepted_memory.add_argument("--allow-stale", action="store_true", help="Report stale refs without failing the gate.")
     accepted_memory.set_defaults(func=run_accepted_check_memory_use_command)
+    accepted_reval = add_command(
+        accepted_sub,
+        "revalidation",
+        aliases=["revalidate"],
+        help="Report due or stale accepted memory.",
+        description="Print an accepted-memory freshness report and optionally write revalidation_schedule.md.",
+    )
+    add_common_ops(accepted_reval)
+    accepted_reval.add_argument("--write-schedule", action="store_true", help="Write research_ops/revalidation_schedule.md.")
+    accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
 
 
 def register_review_commands(subparsers) -> None:

@@ -75,7 +75,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["validate", "freshness", "check-experiment", "check-claim"], list(source_choices))
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["append", "summarize"], list(metrics_choices))
-        self.assertEqual(["update", "check-duplicate", "revalidation", "revalidate", "check-memory-use"], list(accepted_choices))
+        self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
         self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])
 
 

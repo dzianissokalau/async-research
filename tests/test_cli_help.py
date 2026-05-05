@@ -114,6 +114,7 @@ class CliHelpTests(unittest.TestCase):
             "`accepted revalidate` is an alias for `accepted revalidation`",
             "| `readiness` | `0` safe; `2` warnings only.",
             "| `cost budget-check` | `0` proposed spend is below the configured threshold.",
+            "| `metrics summarize` | `0` metrics summary printed or written.",
             "`check-duplicate` is advisory and reports duplicate risk in JSON",
             "| `accepted check-memory-use` | `0` artifact does not cite stale accepted memory",
             "| `starter-smoke` | `0` all starter checks passed.",

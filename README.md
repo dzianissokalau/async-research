@@ -273,7 +273,8 @@ specific diagnostic.
 | `source validate`, `source freshness`, `source check-experiment`, and `source check-claim` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, or source-readiness failure; `3` invalid request; `4` malformed register or artifact. |
 | `cost summary` and `cost ingest-usage` | `0` cost summary printed or usage row ingested. | `4` malformed or unreadable cost ledger or usage artifact. |
 | `cost budget-check` | `0` proposed spend is below the configured threshold. | `2` budget threshold exceeded. |
-| `metrics append` and `metrics summarize` | `0` snapshot appended or metrics summary printed/written. | `2` invalid request; `4` malformed workspace state. |
+| `metrics append` | `0` snapshot appended. | `2` invalid request; `4` malformed workspace state. |
+| `metrics summarize` | `0` metrics summary printed or written. | No command-specific nonzero return from the backing script. |
 | `accepted update`, `accepted revalidation`, and `accepted check-duplicate` | `0` index/report/check succeeded. `check-duplicate` is advisory and reports duplicate risk in JSON. | `2` invalid accepted-memory state; `4` malformed input. |
 | `accepted check-memory-use` | `0` artifact does not cite stale accepted memory, or `--allow-stale` was set. | `2` stale accepted-memory reuse; `4` malformed input. |
 | `review aggregate` | `0` aggregate succeeded. | `2` validation failed; `3` missing required review or unresolved escalation; `4` malformed task or review input. |
