@@ -428,6 +428,22 @@ def run_accepted_check_memory_use_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
+    active_args: list[str] = []
+    for status in args.active_status or []:
+        active_args.extend(["--active-status", status])
+    return module_main(
+        "queue_capacity",
+        [
+            "discovery-gate",
+            str(args.ops_dir),
+            "--max-active",
+            str(args.max_active),
+        ]
+        + active_args,
+    )
+
+
 def register_package_commands(subparsers) -> None:
     version = add_command(
         subparsers,
@@ -530,6 +546,31 @@ def register_schema_command(subparsers) -> None:
     )
     add_common_ops(schema)
     schema.set_defaults(func=lambda a: module_main("check_schema_versions", [str(a.ops_dir)]))
+
+
+def register_queue_commands(subparsers) -> None:
+    queue = add_command(
+        subparsers,
+        "queue",
+        help="Inspect queue capacity gates.",
+        description="Run read-only queue capacity checks used by scheduled discovery jobs.",
+    )
+    queue_sub = queue.add_subparsers(dest="queue_command", required=True)
+    discovery = add_command(
+        queue_sub,
+        "discovery-gate",
+        help="Skip discovery when active task capacity is full.",
+        description="Read task status files and decide whether discovery should run without mutating research_ops.",
+        epilog="Exits 0 with action=discovery_allowed, or 2 with action=discovery_skipped.",
+    )
+    add_common_ops(discovery)
+    discovery.add_argument("--max-active", type=int, default=10, help="Maximum active tasks allowed before discovery is skipped.")
+    discovery.add_argument(
+        "--active-status",
+        action="append",
+        help="Status counted as active. Repeat to override the default active-status set.",
+    )
+    discovery.set_defaults(func=run_queue_discovery_gate_command)
 
 
 def register_source_commands(subparsers) -> None:
@@ -843,6 +884,7 @@ COMMAND_REGISTRARS = (
     register_status_commands,
     register_surface_commands,
     register_schema_command,
+    register_queue_commands,
     register_source_commands,
     register_cost_commands,
     register_metrics_commands,

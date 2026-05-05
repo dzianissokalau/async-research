@@ -108,6 +108,27 @@ def write_budget_ledger(ops_dir: Path) -> None:
         )
 
 
+def write_task_status(ops_dir: Path, task_id: str, status: str) -> Path:
+    task_dir = ops_dir / "tasks" / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "id": task_id,
+                "status": status,
+                "priority": 2,
+                "updated_at": "2026-05-05T00:00:00Z",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return task_dir
+
+
 class CliAuditSurfaceTests(unittest.TestCase):
     def init_ops(self, root: Path) -> Path:
         ops_dir = root / "research_ops"
@@ -242,6 +263,40 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(str(output), payload["output"])
             self.assertTrue(output.exists())
             self.assertIn("Metrics Trend Summary", output.read_text(encoding="utf-8"))
+
+    def test_queue_discovery_gate_allows_under_capacity_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task_status(ops_dir, "TASK-4001", "ready_for_worker")
+            daily_status = ops_dir / "daily_status.md"
+            before_daily = daily_status.read_text(encoding="utf-8")
+            queue_before = (ops_dir / "queue.md").read_text(encoding="utf-8")
+
+            code, payload = run_cli_json(["queue", "discovery-gate", ops_dir, "--max-active", "2"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("discovery_allowed", payload["action"])
+            self.assertEqual(1, payload["active_task_count"])
+            self.assertEqual(before_daily, daily_status.read_text(encoding="utf-8"))
+            self.assertEqual(queue_before, (ops_dir / "queue.md").read_text(encoding="utf-8"))
+
+    def test_queue_discovery_gate_skips_over_capacity_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task_status(ops_dir, "TASK-4002", "ready_for_worker")
+            write_task_status(ops_dir, "TASK-4003", "needs_human")
+            daily_status = ops_dir / "daily_status.md"
+            before_daily = daily_status.read_text(encoding="utf-8")
+
+            code, payload = run_cli_json(["queue", "discovery-gate", ops_dir, "--max-active", "1"])
+
+            self.assertEqual(2, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("discovery_skipped", payload["action"])
+            self.assertEqual("active_queue_over_capacity", payload["reason"])
+            self.assertEqual(2, payload["active_task_count"])
+            self.assertEqual(before_daily, daily_status.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

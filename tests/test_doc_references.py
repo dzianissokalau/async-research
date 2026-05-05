@@ -52,6 +52,9 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
     "metrics_history": re.compile(
         r"(?:python -m\s+async_research_workflow\.scripts\.metrics_history\s+\\?\s*|metrics_history\.py\s+)summarize\b"
     ),
+    "queue_capacity": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.queue_capacity\s+\\?\s*|queue_capacity\.py\s+)discovery-gate\b"
+    ),
 }
 
 

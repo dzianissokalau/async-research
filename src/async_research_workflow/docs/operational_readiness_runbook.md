@@ -292,7 +292,7 @@ freshness, required ops files, and metrics snapshot freshness.
 Before discovery writes candidates, run:
 
 ```bash
-python -m async_research_workflow.scripts.queue_capacity discovery-gate \
+async-research queue discovery-gate \
   research_ops \
   --max-active 10
 ```
@@ -313,7 +313,7 @@ Shell-safe pattern for `set -e` wrappers:
 
 ```bash
 set +e
-gate_json="$(python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10)"
+gate_json="$(async-research queue discovery-gate research_ops --max-active 10)"
 gate_rc=$?
 set -e
 
@@ -501,7 +501,7 @@ async-research readiness research_ops --dry-run
 python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
 async-research source freshness research_ops
 async-research accepted revalidation research_ops --write-schedule
-python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10
+async-research queue discovery-gate research_ops --max-active 10
 async-research health research_ops --dry-run
 ```
 

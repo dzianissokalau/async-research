@@ -197,7 +197,7 @@ Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
 Task:
-1. Run python -m async_research_workflow.scripts.queue_capacity discovery-gate research_ops --max-active 10. If it returns action=discovery_skipped, append a brief daily_status.md note with active_task_count and stop without scanning sources.
+1. Run async-research queue discovery-gate research_ops --max-active 10. If it returns action=discovery_skipped, append a brief daily_status.md note with active_task_count and stop without scanning sources.
 2. Read research_ops/discovery/source_register.md and research_ops/data_source_audit.md if they exist, including source tiers, approval status, allowed use cases, and freshness windows.
 3. Run async-research accepted update research_ops.
 4. Run async-research accepted revalidation research_ops --write-schedule.
@@ -237,7 +237,7 @@ Rules:
 - If there are no good candidates, say so and stop.
 - Do not update discovery_inbox.md until exploration validation passes.
 - Do not update discovery_inbox.md with candidates that fail `async-research idea validate`.
-- Do not run discovery when `python -m async_research_workflow.scripts.queue_capacity discovery-gate` returns action=discovery_skipped.
+- Do not run discovery when `async-research queue discovery-gate` returns action=discovery_skipped.
 
 Final response:
 - Candidates added.
