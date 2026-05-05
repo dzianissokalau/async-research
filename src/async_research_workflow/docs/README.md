@@ -62,8 +62,9 @@ The main cost reduction comes from:
 30. [Scheduler And Prompts](./scheduler_and_prompts.md)
 31. [Cost Controls](./cost_controls.md)
 32. [Async Research Console Specification](./async_research_console_spec.md)
-33. [Implementation Plan](./implementation_plan.md)
-34. [Sources](./sources.md)
+33. [Dashboard Delivery Roadmap](../../../roadmaps/dashboard_delivery_roadmap.md)
+34. [Implementation Plan](./implementation_plan.md)
+35. [Sources](./sources.md)
 
 ## Package Resources
 

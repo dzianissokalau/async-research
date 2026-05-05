@@ -12,9 +12,9 @@ PACKAGE_ROOT = ROOT / "src" / "async_research_workflow"
 
 TOP_LEVEL_DOCS = [
     ROOT / "README.md",
-    ROOT / "ROADMAP.md",
 ]
 DOC_TREES = [
+    ROOT / "roadmaps",
     PACKAGE_ROOT / "docs",
     PACKAGE_ROOT / "examples",
     PACKAGE_ROOT / "templates",
