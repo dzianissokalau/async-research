@@ -10,7 +10,6 @@ import json
 import shutil
 import sys
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -19,7 +18,6 @@ from async_research_workflow.resources import template_path
 
 
 SUCCESS = 0
-INVALID_REQUEST = 2
 INVALID = 4
 TEMPLATES = {
     "generic": ("generic_research_ops_starter", "research_ops"),
@@ -66,10 +64,6 @@ READINESS_EXIT_EPILOG = """Readiness exit codes:
 
 def print_json(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
-
-
-def iso_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def module_main(module_name: str, argv: Sequence[str]) -> int:
@@ -467,22 +461,6 @@ def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
     )
 
 
-def normalize_related_artifacts(values: Sequence[str] | None) -> str:
-    artifacts = [str(value).strip() for value in values or [] if str(value).strip()]
-    return "; ".join(artifacts) if artifacts else "none"
-
-
-def decision_row(args: argparse.Namespace, item_id: str) -> dict[str, str]:
-    return {
-        "date": args.date or iso_now(),
-        "item_id": item_id,
-        "decision": args.decision,
-        "reason": args.reason,
-        "approver": args.approver,
-        "related_artifacts": normalize_related_artifacts(args.related_artifact),
-    }
-
-
 def decision_option_values(args: argparse.Namespace) -> list[str]:
     return (
         [
@@ -499,23 +477,11 @@ def decision_option_values(args: argparse.Namespace) -> list[str]:
 
 
 def run_decision_append_command(args: argparse.Namespace) -> int:
-    if args.dry_run:
-        if not args.reason.strip() or not args.approver.strip():
-            print_json({"ok": False, "reason": "reason_and_approver_required"})
-            return INVALID_REQUEST
-        path = args.ops_dir / "decisions.md"
-        print_json(
-            {
-                "ok": True,
-                "action": "dry_run_decision_appended",
-                "decisions": str(path),
-                "row": decision_row(args, args.item_id),
-            }
-        )
-        return SUCCESS
     return module_main(
         "human_decision_log",
-        ["append", str(args.ops_dir), "--item-id", args.item_id] + decision_option_values(args),
+        ["append", str(args.ops_dir), "--item-id", args.item_id]
+        + decision_option_values(args)
+        + (["--dry-run"] if args.dry_run else []),
     )
 
 

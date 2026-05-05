@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import human_decision_log
 
 
 NOW = "2026-05-05T00:00:00Z"
@@ -20,6 +21,14 @@ def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
     stream = io.StringIO()
     with contextlib.redirect_stdout(stream):
         code = cli.main([str(arg) for arg in argv])
+    text = stream.getvalue().strip()
+    return code, json.loads(text) if text else {}
+
+
+def run_decision_helper_json(argv: list[str | Path]) -> tuple[int, dict]:
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        code = human_decision_log.main([str(arg) for arg in argv])
     text = stream.getvalue().strip()
     return code, json.loads(text) if text else {}
 
@@ -340,6 +349,30 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, dry)
             self.assertEqual("dry_run_decision_appended", dry["action"])
             self.assertEqual("TASK-5001", dry["row"]["item_id"])
+            self.assertEqual(before, decisions.read_text(encoding="utf-8"))
+
+            helper_code, helper_dry = run_decision_helper_json(
+                [
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5001",
+                    "--decision",
+                    "approve_budget",
+                    "--reason",
+                    "Budget approved for fixture",
+                    "--approver",
+                    "test-owner",
+                    "--related-artifact",
+                    "research_ops/tasks/TASK-5001/status.json",
+                    "--date",
+                    NOW,
+                    "--dry-run",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, helper_code, helper_dry)
+            self.assertEqual(dry, helper_dry)
             self.assertEqual(before, decisions.read_text(encoding="utf-8"))
 
             code, written = run_cli_json(

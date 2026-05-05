@@ -121,6 +121,9 @@ def run_append(args: argparse.Namespace) -> int:
         return INVALID_REQUEST
     path = decisions_path(args.ops_dir)
     row = decision_row(args, args.item_id)
+    if args.dry_run:
+        print_json({"ok": True, "action": "dry_run_decision_appended", "decisions": str(path), "row": row})
+        return SUCCESS
     append_decision(path, row)
     print_json({"ok": True, "action": "decision_appended", "decisions": str(path), "row": row})
     return SUCCESS
@@ -317,6 +320,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     append.add_argument("ops_dir", type=Path)
     append.add_argument("--item-id", required=True)
     add_decision_args(append)
+    append.add_argument("--dry-run", action="store_true")
 
     check = subparsers.add_parser("check", help="Check whether an item has a decision row.")
     check.add_argument("ops_dir", type=Path)
