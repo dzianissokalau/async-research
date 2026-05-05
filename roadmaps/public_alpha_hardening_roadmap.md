@@ -1,8 +1,8 @@
-# Async Research Roadmap
+# Async Research Public Alpha Hardening Roadmap
 
 Status: public alpha hardening roadmap
 
-Last reviewed: 2026-05-04
+Last reviewed: 2026-05-05
 
 ## Project Summary
 
@@ -11,11 +11,13 @@ asynchronous research workflows. It uses repo files as durable shared memory:
 queue, task state, source governance, review gates, accepted evidence, cost
 tracking, metrics, decisions, and human review surfaces.
 
-The package is currently usable for careful dogfooding. Core checks are green,
-the benchmark routes known-bad cases safely, and runtime dependencies remain
-standard-library-only. It is not ready for broad promotion yet because public
-package hygiene still needs work: command/documentation drift, a domain-specific
-starter, duplicated runtime assets, and thin Python-level tests.
+The package is currently usable for careful dogfooding and visible alpha use.
+Core checks are green, the benchmark routes known-bad cases safely, runtime
+dependencies remain standard-library-only, and the original P0/P1/P2/P3
+hardening work has addressed the most obvious packaging and starter risks. The
+next risk frontier is public/internal CLI surface clarity: users should see the
+commands they are taught to run in `async-research --help`, while lower-level
+runner and maintainer primitives should stay clearly marked as advanced.
 
 ## North Star
 
@@ -38,7 +40,7 @@ The desired product shape:
 
 ## Review Synthesis
 
-Three reviews now agree on the core diagnosis:
+The initial external reviews agreed on the core diagnosis:
 
 - The governance design is unusually mature for an alpha.
 - The core smoke checks are meaningful and currently green.
@@ -62,10 +64,14 @@ sequenced carefully:
 - Broad command renames should be avoided until there is user feedback. Add
   help text and aliases before breaking names.
 
-The most severe concern from the reviews is valid: `starter-smoke` is
-destructive by default because `--force` is effectively always true. That should
-be fixed before encouraging anyone to run commands on directories they care
-about.
+The most severe initial concern was valid: `starter-smoke` was destructive by
+default because `--force` was effectively always true. That risk has been fixed
+and is now covered by safety regression tests.
+
+Most of those initial hardening risks are now closed. The current review signal
+has shifted from packaging safety toward CLI surface governance: deciding which
+script-backed operations deserve public wrappers, which should remain advanced,
+and how docs should migrate only after the public contract exists.
 
 ## Progress Table
 
@@ -89,6 +95,7 @@ about.
 | 2026-05-05 | P3: Optional command naming cleanup | Done | Added clearer aliases without breaking existing commands. | Kept canonical names stable while adding `review-surface` as an alias for `surface` and `accepted revalidate` as an alias for `accepted revalidation`; documented the aliases and added CLI regression coverage. | This change; CLI alias/help tests, unittest discovery, acceptance-suite, benchmark, starter-smoke, compileall, and installed-wheel alias smokes passed. |
 | 2026-05-05 | P3: Optional CLI architecture refactor | Done | Split CLI parser wiring into explicit internal registration groups. | Added `build_parser()`, shared parser helpers, and focused command registration functions while keeping command names, aliases, JSON output, and module dispatch unchanged. | This change; CLI architecture/help/alias tests, unittest discovery, acceptance-suite, benchmark, starter-smoke, compileall, and installed-wheel parser smokes passed. |
 | 2026-05-05 | P3: Optional docs packaging review | Done | Reviewed packaged protocol docs and kept them in the wheel for alpha. | Recorded `DOCS_PACKAGING_REVIEW.md`, kept `docs/**/*.md` explicit, and added tests for docs package-data, Markdown-only docs, footprint thresholds, and importlib resource access. | This change; docs packaging tests, packaged-resource tests, unittest discovery, acceptance-suite, benchmark, starter-smoke, compileall, package build, and installed-wheel docs smokes passed. |
+| 2026-05-05 | CLI surface audit planning | Planned | Captured the public/internal CLI audit as the next execution track. | Added an audit results section, decision notes, and a phase-by-phase action table so implementation can proceed one slice at a time. | Roadmap now tracks CLI Audit 0-7 with status, timing, and acceptance criteria. |
 
 ## Prioritized Roadmap
 
@@ -347,3 +354,58 @@ Before promoting beyond alpha dogfooding, the package should satisfy:
 - README explains the full task lifecycle.
 - No public docs point to nonexistent package paths.
 - Core checks green on Python 3.11, 3.12, and 3.13.
+
+## CLI Surface Audit Results
+
+The CLI/script surface audit reviewed `main` at commit `0a0e370` and found that
+the package now has a much clearer public contract than it did at the start of
+hardening: the public interface is `async-research`, while direct
+`python -m async_research_workflow.scripts.<module>` usage should be reserved
+for advanced or internal tools that do not have a wrapper yet.
+
+The audit inventory found 34 script modules under
+`src/async_research_workflow/scripts/`. Two are library-only modules
+(`decision_log.py` and `version_metadata.py`); the other 32 expose an
+`argparse`-driven `main(argv)`. The top-level CLI currently exposes 20 public
+commands, counting aliases such as `review-surface`.
+
+The main finding is not that every script needs promotion. The useful split is:
+
+- Promote low-risk gaps inside command groups that already exist.
+- Promote a few small command groups only where docs/templates already teach
+  users to run the underlying script.
+- Keep validators, lock/recovery primitives, review-context builders, and
+  authoring utilities internal until a broader workflow justifies them.
+- Fix documentation drift only after the relevant public wrapper exists, except
+  for one current doc bug: `validate_exploration_cycle` already has the public
+  wrapper `async-research exploration validate`.
+
+### CLI Audit Execution Table
+
+| Phase | Priority | Action items | When | Status | What was done | Evidence / acceptance |
+| --- | --- | --- | --- | --- | --- | --- |
+| CLI Audit 0 | P2 | Fix the existing doc bug that teaches `python -m async_research_workflow.scripts.validate_exploration_cycle` where `async-research exploration validate` already exists. | First audit follow-up; no CLI changes needed. | Planned | Not started. | Scheduler prompts use the public wrapper; doc-reference tests pass. |
+| CLI Audit 1 | P2 | Add subcommands inside existing groups: `cost ingest-usage`, `cost budget-check`, `accepted check-duplicate`, `accepted check-memory-use`, `source check-experiment`, `source check-claim`, and `metrics summarize`. | After the doc bug fix. | Planned | Not started. | CLI help lists each command; JSON contracts and exit behavior match backing scripts; focused CLI regression tests pass. |
+| CLI Audit 2 | P2 | Migrate docs/templates for the newly promoted subcommands from advanced `python -m ...scripts.<module>` forms to `async-research ...` forms. | Immediately after CLI Audit 1 lands. | Planned | Not started. | No public docs/templates teach advanced forms for commands that now have public wrappers; doc-reference tests pass. |
+| CLI Audit 3 | P2 | Add `queue discovery-gate` as a small public command group. | After Audit 1/2 prove the wrapper pattern. | Planned | Not started. | Under-capacity returns success, over-capacity returns the documented skip code, and help documents read-only behavior. |
+| CLI Audit 4 | P2 | Add `decision append`, `decision check`, `decision resolve-task`, and `decision summarize`. | After queue wrapper; separate commit because it writes decision state. | Planned | Not started. | Append/resolve behavior is tested through the public CLI, `--dry-run` writes nothing, and docs/templates use the public commands. |
+| CLI Audit 5 | P2/P3 | Add `escalation list`, `escalation scan-needs-human`, and `escalation evaluate`, with an explicit decision on public exit-code semantics. | After decision commands; separate commit because exit-code meaning needs care. | Planned | Not started. | Help documents escalation-specific exit codes; tests cover no-trigger, trigger-without-apply, and `--apply` mutation behavior. |
+| CLI Audit 6 | P3 | Revisit deferred surfaces: `batch_lifecycle`, `revision_counter`, source authoring (`source init`, `source upsert`, `source explain`), `prepare_review_context`, and `generate_anti_context`. | Only after the surrounding workflow becomes public enough to justify the surface. | Planned | Not started. | Each promoted command has a documented user story, tests, and migration docs; otherwise it remains advanced/internal. |
+| CLI Audit 7 | Permanent internal | Keep `validate_json_artifact`, `validate_transition`, `validate_mission_policy`, `task_lock`, `recover_status_json`, `review_template`, `framework_version_calibration`, `escalate_review_tier`, `decision_log`, and `version_metadata` out of the public CLI unless a later design explicitly changes that policy. | Ongoing. | Planned | Not started. | Public docs call artifact-specific gates instead of generic validators; advanced/internal docs label direct script use clearly. |
+
+### CLI Audit Decisions
+
+- `accepted check-duplicate` should remain advisory unless deliberately changed:
+  duplicate risk is reported in JSON, but the backing script currently exits
+  successfully.
+- `accepted check-memory-use` is a hard gate and should preserve nonzero exit
+  behavior for stale accepted-memory reuse.
+- `cost budget-check` should be documented as a budget gate failure when it
+  halts, not as malformed CLI input.
+- `metrics init` should stay internal because `async-research init` already
+  creates the baseline.
+- `source init`, `source upsert`, and `source explain` should wait for a
+  coherent public source-authoring workflow.
+- `escalation` needs an explicit wrapper-level exit-code decision before
+  promotion because the backing script's current code meanings do not line up
+  perfectly with the general CLI epilog.

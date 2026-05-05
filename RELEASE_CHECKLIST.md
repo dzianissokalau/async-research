@@ -91,7 +91,7 @@ PY
 ## Release Hygiene
 
 - Update `CHANGELOG.md`.
-- Confirm `roadmaps/ROADMAP.md` reflects the release state.
+- Confirm `roadmaps/public_alpha_hardening_roadmap.md` reflects the release state.
 - Confirm GitHub description, topics, and release notes are ready.
 - Tag only after the source checks, build checks, installed-wheel smokes, and
   packaged-resource smoke pass.
