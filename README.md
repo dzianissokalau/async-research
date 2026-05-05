@@ -228,6 +228,49 @@ async-research idea validate <idea-json> --ops-dir research_ops
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 ```
 
+## Exit Code Contract
+
+`async-research --help` and subcommand help exit `0`. Command-line usage errors
+from `argparse` exit `2` and print usage text. Runtime command output is JSON
+unless a Python-level crash occurs.
+
+Readiness is the most important scheduler-facing contract:
+
+| Exit code | Meaning | Scheduler action |
+| ---: | --- | --- |
+| 0 | Safe to continue. | Start or continue bounded work. |
+| 2 | Warnings only. | Continue, but surface warnings to the operator. |
+| 3 | Skip this loop for now. | Do not start new expensive work in this run. |
+| 4 | Invalid or malformed workspace state. | Stop and repair state. |
+| 5 | Human action required. | Stop autonomous work until a human decision is recorded. |
+
+Other commands follow these command-specific codes. When a command prints a
+non-OK JSON payload, its `reason`, `errors`, or `failures` fields are the most
+specific diagnostic.
+
+| Command | Success codes | Nonzero codes |
+| --- | --- | --- |
+| `version` | `0` version printed. | No command-specific runtime failures. |
+| `init` | `0` workspace initialized. | `4` target exists without `--force`, target is invalid, template/bootstrap failed, or rollback/reportable init failure occurred. |
+| `starter-smoke` | `0` all starter checks passed. | `1` one or more smoke checks failed; `4` target path is unsafe or init failed. |
+| `acceptance-suite` | `0` all checks passed. | `1` one or more acceptance checks failed. |
+| `readiness` | `0` safe; `2` warnings only. | `3` skip loop; `4` invalid state; `5` human required. |
+| `health` | `0` health report generated or printed. | `4` invalid input or malformed workspace state. |
+| `surface update` | `0` surface updated. | `4` malformed workspace state or missing required files. |
+| `surface validate` | `0` rendered surface matches workspace state. | `2` validation drift; `4` malformed workspace state or missing required files. |
+| `schema-check` | `0` schema versions pass. | `4` missing, malformed, mismatched, or unreadable versioned artifacts. |
+| `source validate` and `source freshness` | `0` source register passes or report is clean. | `2` validation/freshness failure; `3` invalid request; `4` malformed register. |
+| `cost summary` | `0` cost summary printed. | `4` malformed or unreadable cost ledger. |
+| `metrics append` | `0` snapshot appended. | `2` invalid request; `4` malformed workspace state. |
+| `accepted update` and `accepted revalidation` | `0` index/report succeeded. | `2` invalid accepted-memory state or stale-memory gate failure; `4` malformed input. |
+| `review aggregate` | `0` aggregate succeeded. | `2` validation failed; `3` missing required review or unresolved escalation; `4` malformed task or review input. |
+| `result-acceptance` | `0` gates passed. | `2` result-acceptance gates failed; `4` malformed task, aggregate, or source state. |
+| `exploration validate` | `0` artifact passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
+| `idea score` and `idea validate` | `0` score/validation passed. | `2` validation failed; `3` invalid request; `4` malformed idea artifact. |
+| `experiment validate` | `0` experiment output passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
+| `benchmark` | `0` benchmark passed. | `1` benchmark failed. |
+| `simulate-week` | `0` simulated week passed. | `1` simulation failed or `ops_dir` was missing. |
+
 ## Core Checks For Maintainers
 
 From this package repo, run:
