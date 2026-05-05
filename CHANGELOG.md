@@ -18,6 +18,8 @@ alpha hardening work that still reports package version `0.1.0a1`.
 - Added package metadata, contributor guidance, and GitHub issue/PR templates.
 - Added non-breaking CLI aliases for review surfaces and accepted-memory
   revalidation.
+- Refactored CLI parser construction into explicit internal registration
+  groups without changing public command behavior.
 
 ## 0.1.0a1 - 2026-05-03
 

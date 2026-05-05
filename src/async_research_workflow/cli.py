@@ -270,217 +270,232 @@ def add_common_ops(parser: argparse.ArgumentParser, default: str = "research_ops
     )
 
 
-def parse_args(argv: Iterable[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="async-research",
-        description="Async research workflow alpha CLI for file-backed research_ops workspaces.",
-        epilog=COMMON_EXIT_EPILOG,
-        formatter_class=HelpFormatter,
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
+def add_command(subparsers, *args, **kwargs) -> argparse.ArgumentParser:
+    kwargs.setdefault("formatter_class", HelpFormatter)
+    return subparsers.add_parser(*args, **kwargs)
 
-    version = sub.add_parser(
+
+def register_package_commands(subparsers) -> None:
+    version = add_command(
+        subparsers,
         "version",
         help="Print the installed package version as JSON.",
         description="Print the installed async-research package version as JSON.",
-        formatter_class=HelpFormatter,
     )
     version.set_defaults(func=run_version)
 
-    init = sub.add_parser(
+    init = add_command(
+        subparsers,
         "init",
         help="Initialize a research_ops workspace from a starter template.",
         description="Create a generic or worked-example research_ops workspace safely.",
         epilog="Without --force, existing non-empty targets are refused with exit code 4.",
-        formatter_class=HelpFormatter,
     )
     init.add_argument("target_dir", nargs="?", type=Path, default=Path("research_ops"), help="Target research_ops directory to create.")
     init.add_argument("--template", choices=sorted(TEMPLATES), default="generic", help="Starter template to install.")
     init.add_argument("--force", action="store_true", help="Replace an existing target after staging succeeds.")
     init.set_defaults(func=run_init)
 
-    smoke = sub.add_parser(
+    smoke = add_command(
+        subparsers,
         "starter-smoke",
         help="Initialize and validate a disposable starter workspace.",
         description="Create a starter workspace, then run schema, readiness, health, surface, source, cost, benchmark, and simulation checks.",
         epilog="Without --force, existing non-empty work directories are refused with exit code 4.",
-        formatter_class=HelpFormatter,
     )
     smoke.add_argument("work_dir", type=Path, help="Disposable work directory; research_ops is created inside unless this path is already named research_ops.")
     smoke.add_argument("--template", choices=sorted(TEMPLATES), default="generic", help="Starter template to smoke.")
     smoke.add_argument("--force", action="store_true", help="Remove and recreate the disposable work directory.")
     smoke.set_defaults(func=run_starter_smoke)
 
-    acceptance = sub.add_parser(
+    acceptance = add_command(
+        subparsers,
         "acceptance-suite",
         help="Run isolated package acceptance checks.",
         description="Run the durable package acceptance suite against isolated temporary fixtures.",
         epilog="Exits 0 when all checks pass, 1 when any acceptance check fails.",
-        formatter_class=HelpFormatter,
     )
     acceptance.set_defaults(func=run_acceptance_suite_command)
 
-    readiness = sub.add_parser(
+
+def register_status_commands(subparsers) -> None:
+    readiness = add_command(
+        subparsers,
         "readiness",
         help="Decide whether another autonomous loop is safe.",
         description="Inspect a research_ops workspace and classify whether scheduled or expensive work may continue.",
         epilog=READINESS_EXIT_EPILOG,
-        formatter_class=HelpFormatter,
     )
     add_common_ops(readiness)
     readiness.add_argument("--dry-run", action="store_true", help="Print the report without writing health_report.json or daily_status.md.")
     readiness.set_defaults(func=lambda a: module_main("autonomy_readiness_gate", [str(a.ops_dir)] + (["--dry-run"] if a.dry_run else [])))
 
-    health = sub.add_parser(
+    health = add_command(
+        subparsers,
         "health",
         help="Generate operational health status.",
         description="Summarize queue, task, lock, review, source, cost, metric, and accepted-memory health.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(health)
     health.add_argument("--dry-run", action="store_true", help="Print the report without writing health_report.json or daily_status.md.")
     health.set_defaults(func=lambda a: module_main("health_check", [str(a.ops_dir)] + (["--dry-run"] if a.dry_run else [])))
 
-    surface = sub.add_parser(
+
+def register_surface_commands(subparsers) -> None:
+    surface = add_command(
+        subparsers,
         "surface",
         aliases=["review-surface"],
         help="Update or validate human-facing review surfaces.",
         description="Manage daily_status.md, human_review_queue.md, and weekly_digest.md.",
-        formatter_class=HelpFormatter,
     )
     surface_sub = surface.add_subparsers(dest="surface_command", required=True)
-    surface_update = surface_sub.add_parser(
+    surface_update = add_command(
+        surface_sub,
         "update",
         help="Write human-facing status and review queue files.",
         description="Refresh daily_status.md, human_review_queue.md, and the weekly digest surface.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(surface_update)
     surface_update.set_defaults(func=lambda a: module_main("human_review_surface", ["update", str(a.ops_dir)]))
-    surface_validate = surface_sub.add_parser(
+    surface_validate = add_command(
+        surface_sub,
         "validate",
         help="Validate human-facing status and review queue files.",
         description="Compare rendered human review surfaces with the current workspace state.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(surface_validate)
     surface_validate.set_defaults(func=lambda a: module_main("human_review_surface", ["validate", str(a.ops_dir)]))
 
-    schema = sub.add_parser(
+
+def register_schema_command(subparsers) -> None:
+    schema = add_command(
+        subparsers,
         "schema-check",
         help="Validate schema versions for workflow JSON artifacts.",
         description="Check task status and other versioned JSON artifacts for expected schema versions.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(schema)
     schema.set_defaults(func=lambda a: module_main("check_schema_versions", [str(a.ops_dir)]))
 
-    source = sub.add_parser(
+
+def register_source_commands(subparsers) -> None:
+    source = add_command(
+        subparsers,
         "source",
         help="Validate or report source-governance state.",
         description="Inspect data_source_audit.md for validity and source freshness.",
-        formatter_class=HelpFormatter,
     )
     source_sub = source.add_subparsers(dest="source_command", required=True)
-    validate = source_sub.add_parser(
+    validate = add_command(
+        source_sub,
         "validate",
         help="Validate data_source_audit.md.",
         description="Validate source audit rows, statuses, tiers, and required governance fields.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(validate)
     validate.set_defaults(func=lambda a: module_main("data_source_audit", ["validate", str(a.ops_dir)]))
-    freshness = source_sub.add_parser(
+    freshness = add_command(
+        source_sub,
         "freshness",
         help="Report stale or due source reviews.",
         description="Report whether source audit entries are stale relative to freshness windows.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(freshness)
     freshness.set_defaults(func=lambda a: module_main("data_source_audit", ["freshness-report", str(a.ops_dir)]))
 
-    cost = sub.add_parser(
+
+def register_cost_commands(subparsers) -> None:
+    cost = add_command(
+        subparsers,
         "cost",
         help="Summarize cost and budget state.",
         description="Inspect cost_ledger.csv for spend, usage, and budget pressure.",
-        formatter_class=HelpFormatter,
     )
     cost_sub = cost.add_subparsers(dest="cost_command", required=True)
-    cost_summary = cost_sub.add_parser(
+    cost_summary = add_command(
+        cost_sub,
         "summary",
         help="Summarize the cost ledger.",
         description="Print aggregate spend, usage, and budget information from cost_ledger.csv.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(cost_summary)
     cost_summary.set_defaults(func=lambda a: module_main("cost_tracking", ["summary", str(a.ops_dir)]))
 
-    metrics = sub.add_parser(
+
+def register_metrics_commands(subparsers) -> None:
+    metrics = add_command(
+        subparsers,
         "metrics",
         help="Append or inspect autonomy metrics.",
         description="Maintain metrics_baseline.json and metrics_history.jsonl snapshots.",
-        formatter_class=HelpFormatter,
     )
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
-    metrics_append = metrics_sub.add_parser(
+    metrics_append = add_command(
+        metrics_sub,
         "append",
         help="Append an autonomy metrics snapshot.",
         description="Append a metrics_history.jsonl snapshot for the current workspace state.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(metrics_append)
     metrics_append.add_argument("--label", default="manual", help="Label stored with the snapshot.")
     metrics_append.add_argument("--update-weekly-digest", action="store_true", help="Refresh the autonomy metrics section in weekly_digest.md.")
     metrics_append.set_defaults(func=lambda a: module_main("metrics_history", ["append-snapshot", str(a.ops_dir), "--label", a.label] + (["--update-weekly-digest"] if a.update_weekly_digest else [])))
 
-    accepted = sub.add_parser(
+
+def register_accepted_commands(subparsers) -> None:
+    accepted = add_command(
+        subparsers,
         "accepted",
         help="Maintain accepted-output memory and revalidation state.",
         description="Update accepted_outputs_index.md and accepted-memory revalidation schedules.",
-        formatter_class=HelpFormatter,
     )
     accepted_sub = accepted.add_subparsers(dest="accepted_command", required=True)
-    accepted_update = accepted_sub.add_parser(
+    accepted_update = add_command(
+        accepted_sub,
         "update",
         help="Refresh accepted_outputs_index.md.",
         description="Upsert accepted task rows into accepted_outputs_index.md.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(accepted_update)
     accepted_update.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["update", str(a.ops_dir)]))
-    accepted_reval = accepted_sub.add_parser(
+    accepted_reval = add_command(
+        accepted_sub,
         "revalidation",
         aliases=["revalidate"],
         help="Report due or stale accepted memory.",
         description="Print an accepted-memory freshness report and optionally write revalidation_schedule.md.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(accepted_reval)
     accepted_reval.add_argument("--write-schedule", action="store_true", help="Write research_ops/revalidation_schedule.md.")
     accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
 
-    review = sub.add_parser(
+
+def register_review_commands(subparsers) -> None:
+    review = add_command(
+        subparsers,
         "review",
         help="Aggregate isolated reviewer notes.",
         description="Route reviewed tasks based on independent review files and policy.",
-        formatter_class=HelpFormatter,
     )
     review_sub = review.add_subparsers(dest="review_command", required=True)
-    aggregate = review_sub.add_parser(
+    aggregate = add_command(
+        review_sub,
         "aggregate",
         help="Aggregate review decisions for one task.",
         description="Read reviews/*.md, compute a deterministic aggregate, and optionally update task state and result ledgers.",
-        formatter_class=HelpFormatter,
     )
     aggregate.add_argument("task_dir", type=Path, help="Task directory containing status.json and reviews/.")
     aggregate.add_argument("--dry-run", action="store_true", help="Validate and preview routing without writing aggregate/status files.")
     aggregate.set_defaults(func=lambda a: module_main("aggregate_reviews", [str(a.task_dir)] + (["--dry-run"] if a.dry_run else [])))
 
-    result = sub.add_parser(
+
+def register_result_command(subparsers) -> None:
+    result = add_command(
+        subparsers,
         "result-acceptance",
         help="Validate final result acceptance gates for one task.",
         description="Validate reviewed task output against result-acceptance gates and optionally write result_acceptance.json and ledgers.",
-        formatter_class=HelpFormatter,
     )
     result.add_argument("task_dir", type=Path, help="Task directory to validate.")
     result.add_argument("--ops-dir", type=Path, help="research_ops directory; inferred from task_dir when omitted.")
@@ -488,89 +503,124 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     result.add_argument("--update-ledgers", action="store_true", help="Update evidence_ledger.md or rejected_results.md when gates pass.")
     result.set_defaults(func=lambda a: module_main("validate_result_acceptance", [str(a.task_dir)] + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else []) + (["--write"] if a.write else []) + (["--update-ledgers"] if a.update_ledgers else [])))
 
-    exploration = sub.add_parser(
+
+def register_artifact_commands(subparsers) -> None:
+    exploration = add_command(
+        subparsers,
         "exploration",
         help="Validate exploration-cycle artifacts.",
         description="Validate worker outputs for idea discovery and exploration-cycle tasks.",
-        formatter_class=HelpFormatter,
     )
     exploration_sub = exploration.add_subparsers(dest="exploration_command", required=True)
-    exploration_validate = exploration_sub.add_parser(
+    exploration_validate = add_command(
+        exploration_sub,
         "validate",
         help="Validate an exploration worker output.",
         description="Validate one exploration-cycle worker output against schemas, task state, and accepted-memory rules.",
-        formatter_class=HelpFormatter,
     )
     exploration_validate.add_argument("worker_output", type=Path, help="Worker output artifact to validate.")
     exploration_validate.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     exploration_validate.add_argument("--task-dir", type=Path, required=True, help="Task directory associated with the worker output.")
     exploration_validate.set_defaults(func=lambda a: module_main("validate_exploration_cycle", [str(a.worker_output), "--ops-dir", str(a.ops_dir), "--task-dir", str(a.task_dir)]))
 
-    idea = sub.add_parser(
+    idea = add_command(
+        subparsers,
         "idea",
         help="Score or validate idea artifacts.",
         description="Score idea candidates and validate idea-evaluation JSON artifacts.",
-        formatter_class=HelpFormatter,
     )
     idea_sub = idea.add_subparsers(dest="idea_command", required=True)
-    idea_score = idea_sub.add_parser(
+    idea_score = add_command(
+        idea_sub,
         "score",
         help="Score an idea candidate.",
         description="Score an idea JSON file against mission policy, cost posture, and accepted-memory context.",
-        formatter_class=HelpFormatter,
     )
     idea_score.add_argument("idea_json", type=Path, help="Idea candidate JSON file.")
     idea_score.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     idea_score.add_argument("--budget-mode", choices=["normal", "budget_constrained", "auto"], default="auto", help="Budget posture to apply while scoring.")
     idea_score.set_defaults(func=lambda a: module_main("score_idea_candidate", [str(a.idea_json), "--ops-dir", str(a.ops_dir), "--budget-mode", a.budget_mode]))
-    idea_validate = idea_sub.add_parser(
+    idea_validate = add_command(
+        idea_sub,
         "validate",
         help="Validate an idea-evaluation artifact.",
         description="Validate an idea-evaluation JSON file against schemas and workflow gates.",
-        formatter_class=HelpFormatter,
     )
     idea_validate.add_argument("idea_json", type=Path, help="Idea-evaluation JSON file.")
     idea_validate.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     idea_validate.set_defaults(func=lambda a: module_main("validate_idea_evaluation", [str(a.idea_json), "--ops-dir", str(a.ops_dir)]))
 
-    experiment = sub.add_parser(
+    experiment = add_command(
+        subparsers,
         "experiment",
         help="Validate experiment-plan artifacts.",
         description="Validate experiment worker outputs against source readiness, schemas, and task constraints.",
-        formatter_class=HelpFormatter,
     )
     experiment_sub = experiment.add_subparsers(dest="experiment_command", required=True)
-    experiment_validate = experiment_sub.add_parser(
+    experiment_validate = add_command(
+        experiment_sub,
         "validate",
         help="Validate an experiment worker output.",
         description="Validate one experiment-plan worker output against schemas, task state, and source governance.",
-        formatter_class=HelpFormatter,
     )
     experiment_validate.add_argument("worker_output", type=Path, help="Worker output artifact to validate.")
     experiment_validate.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     experiment_validate.add_argument("--task-dir", type=Path, required=True, help="Task directory associated with the worker output.")
     experiment_validate.set_defaults(func=lambda a: module_main("validate_experiment_plan", [str(a.worker_output), "--ops-dir", str(a.ops_dir), "--task-dir", str(a.task_dir)]))
 
-    benchmark = sub.add_parser(
+
+def register_benchmark_commands(subparsers) -> None:
+    benchmark = add_command(
+        subparsers,
         "benchmark",
         help="Run packaged autonomy benchmark cases.",
         description="Run known-good and known-bad benchmark cases against isolated temporary fixtures.",
         epilog="Exits 0 when all cases satisfy acceptance criteria, 1 when the benchmark fails.",
-        formatter_class=HelpFormatter,
     )
     benchmark.set_defaults(func=lambda a: module_main("run_autonomy_benchmark", []))
 
-    simulate = sub.add_parser(
+    simulate = add_command(
+        subparsers,
         "simulate-week",
         help="Simulate one scheduled week against an isolated workspace copy.",
         description="Drive readiness, discovery, review, result acceptance, metrics, and surface helpers with fixture outputs.",
         epilog="Exits 0 when the simulated week satisfies all checks, 1 when the simulation fails.",
-        formatter_class=HelpFormatter,
     )
     add_common_ops(simulate)
     simulate.set_defaults(func=lambda a: module_main("simulate_scheduled_week", [str(a.ops_dir)]))
 
-    return parser.parse_args(list(argv))
+
+COMMAND_REGISTRARS = (
+    register_package_commands,
+    register_status_commands,
+    register_surface_commands,
+    register_schema_command,
+    register_source_commands,
+    register_cost_commands,
+    register_metrics_commands,
+    register_accepted_commands,
+    register_review_commands,
+    register_result_command,
+    register_artifact_commands,
+    register_benchmark_commands,
+)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="async-research",
+        description="Async research workflow alpha CLI for file-backed research_ops workspaces.",
+        epilog=COMMON_EXIT_EPILOG,
+        formatter_class=HelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for register in COMMAND_REGISTRARS:
+        register(subparsers)
+    return parser
+
+
+def parse_args(argv: Iterable[str]) -> argparse.Namespace:
+    return build_parser().parse_args(list(argv))
 
 
 def main(argv: Iterable[str] | None = None) -> int:

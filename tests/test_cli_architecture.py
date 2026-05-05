@@ -1,0 +1,76 @@
+"""Regression tests for the CLI parser registration structure."""
+
+from __future__ import annotations
+
+import argparse
+import unittest
+
+from async_research_workflow import cli
+
+
+def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action.choices
+    raise AssertionError(f"no subparsers found for {parser.prog}")
+
+
+class CliArchitectureTests(unittest.TestCase):
+    def test_command_registrars_are_grouped_in_public_order(self) -> None:
+        self.assertEqual(
+            [
+                "register_package_commands",
+                "register_status_commands",
+                "register_surface_commands",
+                "register_schema_command",
+                "register_source_commands",
+                "register_cost_commands",
+                "register_metrics_commands",
+                "register_accepted_commands",
+                "register_review_commands",
+                "register_result_command",
+                "register_artifact_commands",
+                "register_benchmark_commands",
+            ],
+            [register.__name__ for register in cli.COMMAND_REGISTRARS],
+        )
+
+    def test_build_parser_registers_expected_public_commands(self) -> None:
+        choices = subparser_choices(cli.build_parser())
+
+        self.assertEqual(
+            [
+                "version",
+                "init",
+                "starter-smoke",
+                "acceptance-suite",
+                "readiness",
+                "health",
+                "surface",
+                "review-surface",
+                "schema-check",
+                "source",
+                "cost",
+                "metrics",
+                "accepted",
+                "review",
+                "result-acceptance",
+                "exploration",
+                "idea",
+                "experiment",
+                "benchmark",
+                "simulate-week",
+            ],
+            list(choices),
+        )
+        self.assertIs(choices["surface"], choices["review-surface"])
+
+    def test_build_parser_registers_nested_aliases(self) -> None:
+        accepted_choices = subparser_choices(subparser_choices(cli.build_parser())["accepted"])
+
+        self.assertEqual(["update", "revalidation", "revalidate"], list(accepted_choices))
+        self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])
+
+
+if __name__ == "__main__":
+    unittest.main()
