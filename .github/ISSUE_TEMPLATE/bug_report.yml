@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible problem with the CLI, package resources, or starter workspace.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please avoid sharing private research data or credentials.
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: Output from `async-research version`.
+      placeholder: "0.1.0a1"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the failure and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands and a minimal workspace shape when possible.
+      placeholder: |
+        1. async-research init /tmp/arw/research_ops
+        2. async-research readiness /tmp/arw/research_ops --dry-run
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command output
+      description: Paste relevant JSON/stdout/stderr, redacting private paths or data as needed.
+      render: shell
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install mode
+      options:
+        - Editable checkout
+        - Built wheel
+        - GitHub install
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks run
+      description: List any tests, smoke checks, or package checks you ran.
+      placeholder: |
+        python -m unittest discover -s tests
+        async-research acceptance-suite
+        async-research benchmark
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have not included credentials, private research data, or sensitive workspace contents.
+          required: true

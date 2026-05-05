@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose an improvement to the workflow, CLI, templates, or docs.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What workflow pain or missing capability should this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful version of the change.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Roadmap priority
+      description: Where do you think this belongs?
+      options:
+        - P0 safety/trust
+        - P1 public alpha readiness
+        - P2 ergonomics/maintainability
+        - P3 release polish
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and safety
+      description: Note any command, JSON contract, schema, template, or fail-closed behavior that must be preserved.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What would prove the change is working?
+      placeholder: |
+        - ...
+        - Tests/checks:
