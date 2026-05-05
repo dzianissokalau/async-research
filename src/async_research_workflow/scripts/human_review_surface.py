@@ -17,15 +17,23 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from cost_tracking import cost_window, ledger_path
-from data_source_audit import source_governance_report
-from decision_log import HEADER as DECISION_HEADER
-from decision_log import has_decision, markdown_escape, read_decisions, split_markdown_row
-from health_check import DEFAULT_STATUS_SCHEMA, load_status_schema, load_task_statuses, markdown_table_row_count, parse_datetime, status_counts
+from async_research_workflow.scripts.cost_tracking import cost_window, ledger_path
+from async_research_workflow.scripts.data_source_audit import source_governance_report
+from async_research_workflow.scripts.decision_log import HEADER as DECISION_HEADER
+from async_research_workflow.scripts.decision_log import (
+    has_decision,
+    markdown_escape,
+    read_decisions,
+    split_markdown_row,
+)
+from async_research_workflow.scripts.health_check import (
+    DEFAULT_STATUS_SCHEMA,
+    load_status_schema,
+    load_task_statuses,
+    markdown_table_row_count,
+    parse_datetime,
+    status_counts,
+)
 
 
 SUCCESS = 0

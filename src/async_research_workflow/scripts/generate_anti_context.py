@@ -11,11 +11,11 @@ import re
 import sys
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from update_accepted_outputs_index import DEFAULT_INDEX_NAME, read_index_rows, similarity
+from async_research_workflow.scripts.update_accepted_outputs_index import (
+    DEFAULT_INDEX_NAME,
+    read_index_rows,
+    similarity,
+)
 
 
 SUCCESS = 0

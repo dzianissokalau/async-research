@@ -11,13 +11,9 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from cost_tracking import cost_window, ledger_path
-from validate_json_artifact import load_json, validate
-from validate_mission_policy import validate_policy_contract
+from async_research_workflow.scripts.cost_tracking import cost_window, ledger_path
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
+from async_research_workflow.scripts.validate_mission_policy import validate_policy_contract
 from async_research_workflow.resources import mission_policy_path, schema_path
 
 

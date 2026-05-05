@@ -13,12 +13,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from decision_log import read_decisions
-from update_accepted_outputs_index import memory_decay_report
+from async_research_workflow.scripts.decision_log import read_decisions
+from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 
 
 SUCCESS = 0

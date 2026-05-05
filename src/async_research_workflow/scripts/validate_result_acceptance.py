@@ -12,13 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from validate_json_artifact import load_json, validate
-from data_source_audit import SOURCE_REF_PATTERN, assess_source_refs
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.data_source_audit import (
+    SOURCE_REF_PATTERN,
+    assess_source_refs,
+)
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
 
 SUCCESS = 0

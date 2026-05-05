@@ -13,15 +13,14 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from check_schema_versions import DEFAULT_SCHEMA_VERSION, scan_schema_versions
-from data_source_audit import source_governance_report
-from update_accepted_outputs_index import memory_decay_report
-from validate_json_artifact import load_json, validate
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.check_schema_versions import (
+    DEFAULT_SCHEMA_VERSION,
+    scan_schema_versions,
+)
+from async_research_workflow.scripts.data_source_audit import source_governance_report
+from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
 
 SUCCESS = 0

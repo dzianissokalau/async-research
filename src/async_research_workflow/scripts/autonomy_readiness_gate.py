@@ -16,13 +16,16 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from check_schema_versions import DEFAULT_SCHEMA_VERSION, scan_schema_versions
-from data_source_audit import EXPERIMENT_READY_STATUSES, parse_register, validate_rows
-from health_check import (
+from async_research_workflow.scripts.check_schema_versions import (
+    DEFAULT_SCHEMA_VERSION,
+    scan_schema_versions,
+)
+from async_research_workflow.scripts.data_source_audit import (
+    EXPERIMENT_READY_STATUSES,
+    parse_register,
+    validate_rows,
+)
+from async_research_workflow.scripts.health_check import (
     DEFAULT_STATUS_SCHEMA,
     load_status_schema,
     load_task_statuses,
@@ -32,8 +35,8 @@ from health_check import (
     scan_cost_ledger,
     status_counts,
 )
-from metrics_history import read_history
-from update_accepted_outputs_index import memory_decay_report
+from async_research_workflow.scripts.metrics_history import read_history
+from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 
 
 SUCCESS = 0

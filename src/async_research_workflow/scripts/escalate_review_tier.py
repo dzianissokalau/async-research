@@ -11,14 +11,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from validate_json_artifact import load_json, validate
-from validate_transition import validate_payload
-from version_metadata import apply_default_versions
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
+from async_research_workflow.scripts.validate_transition import validate_payload
+from async_research_workflow.scripts.version_metadata import apply_default_versions
 
 
 SUCCESS = 0
