@@ -236,8 +236,8 @@ From this package repo, run:
 .venv/bin/python -m unittest discover -s tests
 .venv/bin/async-research acceptance-suite
 .venv/bin/async-research benchmark
-.venv/bin/async-research starter-smoke /private/tmp/async-research-starter-generic --force
-.venv/bin/async-research starter-smoke /private/tmp/async-research-starter-real-estate --template real-estate --force
+.venv/bin/async-research starter-smoke /tmp/async-research-starter-generic --force
+.venv/bin/async-research starter-smoke /tmp/async-research-starter-real-estate --template real-estate --force
 .venv/bin/python -m compileall src tests
 ```
 
