@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Roadmap
-    url: https://github.com/dzianissokalau/async-research/blob/main/ROADMAP.md
+    url: https://github.com/dzianissokalau/async-research/blob/main/roadmaps/public_alpha_hardening_roadmap.md
     about: Check current priorities before proposing a larger change.

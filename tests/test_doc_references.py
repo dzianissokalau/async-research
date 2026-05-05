@@ -14,6 +14,7 @@ TOP_LEVEL_DOCS = [
     ROOT / "README.md",
 ]
 DOC_TREES = [
+    ROOT / ".github",
     ROOT / "roadmaps",
     PACKAGE_ROOT / "docs",
     PACKAGE_ROOT / "examples",
@@ -23,6 +24,7 @@ TEXT_SUFFIXES = {".csv", ".json", ".md", ".txt", ".yml", ".yaml"}
 FORBIDDEN_SNIPPETS = (
     "async_research_workflow/examples/scripts/",
     "examples/scripts/",
+    "blob/main/ROADMAP.md",
 )
 EXAMPLES_REF_RE = re.compile(r"async_research_workflow/examples/[A-Za-z0-9_./-]+")
 RELATIVE_EXAMPLES_REF_RE = re.compile(r"(?<!async_research_workflow/)examples/[A-Za-z0-9_./-]+")
@@ -49,7 +51,7 @@ def clean_reference(raw: str) -> str:
 
 
 class DocumentationReferenceTests(unittest.TestCase):
-    def test_docs_do_not_use_removed_examples_scripts_paths(self) -> None:
+    def test_docs_do_not_use_removed_or_stale_paths(self) -> None:
         failures: list[str] = []
         for path in iter_documentation_files():
             text = path.read_text(encoding="utf-8")
