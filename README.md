@@ -197,6 +197,10 @@ For a populated example task set, initialize the real-estate worked example with
 Most commands print JSON. Commands that mutate files should be run with
 `--dry-run` first when that option is available.
 
+The original command names remain canonical for scripts and docs. Two additive
+readability aliases are also available: `review-surface` is an alias for
+`surface`, and `accepted revalidate` is an alias for `accepted revalidation`.
+
 | Command | Use | Reads | Writes |
 | --- | --- | --- | --- |
 | `async-research version` | Confirm the installed CLI version. | Package metadata. | JSON to stdout. |
@@ -205,8 +209,8 @@ Most commands print JSON. Commands that mutate files should be run with
 | `async-research schema-check research_ops` | Validate schema versions for workflow JSON artifacts. | Task status files and other versioned JSON artifacts. | JSON to stdout only. |
 | `async-research readiness research_ops --dry-run` | Decide whether another autonomous loop is safe. | Queue, task status, locks, source audit, accepted memory, cost, metrics, health state. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research health research_ops --dry-run` | Produce operational health status. | Queue, task status, locks, review state, cost, metrics, accepted memory. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
-| `async-research surface update research_ops` | Refresh the human-facing control surface. | Task status, health report, ledgers, cost, accepted memory. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
-| `async-research surface validate research_ops` | Check the rendered human surface for drift. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
+| `async-research surface update research_ops` | Refresh the human-facing control surface; alias: `review-surface update`. | Task status, health report, ledgers, cost, accepted memory. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
+| `async-research surface validate research_ops` | Check the rendered human surface for drift; alias: `review-surface validate`. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
 | `async-research source validate research_ops` | Validate the source audit register. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research source freshness research_ops` | Report stale or due source reviews. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research cost summary research_ops` | Summarize spend and budget pressure. | `cost_ledger.csv`. | JSON to stdout only. |
@@ -214,7 +218,7 @@ Most commands print JSON. Commands that mutate files should be run with
 | `async-research review aggregate <task-dir>` | Combine isolated reviews and route a task. | `status.json`, `reviews/*.md`, worker output, review policy. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. |
 | `async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers` | Validate or write final result acceptance for a reviewed task. | Task status, worker output, review aggregate, source audit, accepted memory. | `review_panel/result_acceptance.json`; with ledgers, `evidence_ledger.md` or `rejected_results.md`. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
-| `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
+| `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
 | `async-research benchmark` | Run known-good and known-bad autonomy cases. | Packaged benchmark cases and runtime resources. | Isolated temporary fixtures and JSON to stdout. |
 | `async-research acceptance-suite` | Run the package hardening suite. | Packaged resources and isolated fixtures. | Isolated temporary fixtures and JSON to stdout. |
 | `async-research simulate-week research_ops` | Rehearse a scheduled week against an isolated copy. | The provided `research_ops/` workspace. | Temporary simulation copy and JSON to stdout. |

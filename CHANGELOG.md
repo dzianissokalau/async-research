@@ -16,6 +16,8 @@ alpha hardening work that still reports package version `0.1.0a1`.
 - Rewrote first-user README guidance and documented CLI exit-code behavior.
 - Cleaned up script imports and benchmark/simulation installed-package paths.
 - Added package metadata, contributor guidance, and GitHub issue/PR templates.
+- Added non-breaking CLI aliases for review surfaces and accepted-memory
+  revalidation.
 
 ## 0.1.0a1 - 2026-05-03
 

@@ -343,6 +343,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
 
     surface = sub.add_parser(
         "surface",
+        aliases=["review-surface"],
         help="Update or validate human-facing review surfaces.",
         description="Manage daily_status.md, human_review_queue.md, and weekly_digest.md.",
         formatter_class=HelpFormatter,
@@ -449,6 +450,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     accepted_update.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["update", str(a.ops_dir)]))
     accepted_reval = accepted_sub.add_parser(
         "revalidation",
+        aliases=["revalidate"],
         help="Report due or stale accepted memory.",
         description="Print an accepted-memory freshness report and optionally write revalidation_schedule.md.",
         formatter_class=HelpFormatter,
