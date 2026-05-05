@@ -61,8 +61,9 @@ The main cost reduction comes from:
 29. [Operational Readiness Runbook](./operational_readiness_runbook.md)
 30. [Scheduler And Prompts](./scheduler_and_prompts.md)
 31. [Cost Controls](./cost_controls.md)
-32. [Implementation Plan](./implementation_plan.md)
-33. [Sources](./sources.md)
+32. [Async Research Console Specification](./async_research_console_spec.md)
+33. [Implementation Plan](./implementation_plan.md)
+34. [Sources](./sources.md)
 
 ## Package Resources
 
