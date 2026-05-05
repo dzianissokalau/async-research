@@ -50,7 +50,7 @@ Every `needs_human` task must include:
     "available_decisions": ["approve_data_use", "request_data_readiness", "pause", "reject"],
     "default_safe_action": "pause worker execution before using the source",
     "retry_behavior": "retry after data_source_audit.md records an experiment-ready source status",
-    "ledger_update_behavior": "record the approval or rejection with human_decision_log.py before resuming"
+    "ledger_update_behavior": "record the approval or rejection with async-research decision before resuming"
   }
 }
 ```
@@ -94,7 +94,7 @@ If it exits `2`, they must stop and leave the task in `needs_human`.
 Never resolve a human gate by editing `status.json` directly. Use:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \

@@ -26,7 +26,7 @@ If the command exits `2`, stop autonomous work on that task. Resolve the
 structured `human_gate` with:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops research_ops/tasks/<TASK-ID>
 ```
 

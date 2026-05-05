@@ -116,8 +116,20 @@ def write_task_status(ops_dir: Path, task_id: str, status: str) -> Path:
             {
                 "schema_version": "1.0",
                 "id": task_id,
+                "title": f"{task_id} fixture",
+                "type": "admin",
                 "status": status,
+                "previous_status": "ready_for_worker" if status == "needs_human" else None,
+                "last_transition_reason": "fixture",
                 "priority": 2,
+                "revision_count": 0,
+                "max_revisions": 1,
+                "revision_limit_hit": False,
+                "allowed_paths": [f"research_ops/tasks/{task_id}/**"],
+                "max_minutes": 10,
+                "requires_human": status == "needs_human",
+                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                "human_gate_reason": "fixture needs human" if status == "needs_human" else None,
                 "updated_at": "2026-05-05T00:00:00Z",
             },
             indent=2,
@@ -297,6 +309,154 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual("active_queue_over_capacity", payload["reason"])
             self.assertEqual(2, payload["active_task_count"])
             self.assertEqual(before_daily, daily_status.read_text(encoding="utf-8"))
+
+    def test_decision_append_dry_run_preserves_log_and_append_writes_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            decisions = ops_dir / "decisions.md"
+            before = decisions.read_text(encoding="utf-8")
+
+            code, dry = run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5001",
+                    "--decision",
+                    "approve_budget",
+                    "--reason",
+                    "Budget approved for fixture",
+                    "--approver",
+                    "test-owner",
+                    "--related-artifact",
+                    "research_ops/tasks/TASK-5001/status.json",
+                    "--date",
+                    NOW,
+                    "--dry-run",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertEqual("dry_run_decision_appended", dry["action"])
+            self.assertEqual("TASK-5001", dry["row"]["item_id"])
+            self.assertEqual(before, decisions.read_text(encoding="utf-8"))
+
+            code, written = run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5001",
+                    "--decision",
+                    "approve_budget",
+                    "--reason",
+                    "Budget approved for fixture",
+                    "--approver",
+                    "test-owner",
+                    "--related-artifact",
+                    "research_ops/tasks/TASK-5001/status.json",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, written)
+            self.assertEqual("decision_appended", written["action"])
+            self.assertIn("TASK-5001", decisions.read_text(encoding="utf-8"))
+
+    def test_decision_check_and_summarize_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5002",
+                    "--decision",
+                    "acknowledge",
+                    "--reason",
+                    "Acknowledged fixture gate",
+                    "--approver",
+                    "test-owner",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            code, check = run_cli_json(["decision", "check", ops_dir, "--item-id", "TASK-5002", "--decision", "acknowledge"])
+            self.assertEqual(cli.SUCCESS, code, check)
+            self.assertTrue(check["ok"])
+
+            output = Path(tmp) / "decision-summary.md"
+            code, summary = run_cli_json(["decision", "summarize", ops_dir, "--month", "2026-05", "--output", output])
+
+            self.assertEqual(cli.SUCCESS, code, summary)
+            self.assertEqual(1, summary["decision_count"])
+            self.assertEqual(str(output), summary["output"])
+            self.assertIn("Human Decision Summary", output.read_text(encoding="utf-8"))
+
+    def test_decision_resolve_task_dry_run_preserves_state_and_write_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-5003", "needs_human")
+            decisions = ops_dir / "decisions.md"
+            before_decisions = decisions.read_text(encoding="utf-8")
+            before_status = (task_dir / "status.json").read_text(encoding="utf-8")
+
+            code, dry = run_cli_json(
+                [
+                    "decision",
+                    "resolve-task",
+                    ops_dir,
+                    task_dir,
+                    "--decision",
+                    "resume",
+                    "--reason",
+                    "Fixture reviewed and can resume",
+                    "--approver",
+                    "test-owner",
+                    "--status",
+                    "ready_for_worker",
+                    "--date",
+                    NOW,
+                    "--dry-run",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertEqual("dry_run_resolved", dry["action"])
+            self.assertEqual(before_decisions, decisions.read_text(encoding="utf-8"))
+            self.assertEqual(before_status, (task_dir / "status.json").read_text(encoding="utf-8"))
+
+            code, resolved = run_cli_json(
+                [
+                    "decision",
+                    "resolve-task",
+                    ops_dir,
+                    task_dir,
+                    "--decision",
+                    "resume",
+                    "--reason",
+                    "Fixture reviewed and can resume",
+                    "--approver",
+                    "test-owner",
+                    "--status",
+                    "ready_for_worker",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, resolved)
+            self.assertEqual("resolved", resolved["action"])
+            self.assertIn("TASK-5003", decisions.read_text(encoding="utf-8"))
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+            self.assertFalse(status["requires_human"])
 
 
 if __name__ == "__main__":

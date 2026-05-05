@@ -23,7 +23,7 @@ python -m async_research_workflow.scripts.escalation_policy evaluate \
 ```
 
 If the command exits `2`, do not continue autonomous work on that task. Resolve
-the structured `human_gate` with `human_decision_log.py resolve-task`.
+the structured `human_gate` with `async-research decision resolve-task`.
 
 ## Stop Triggers
 

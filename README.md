@@ -210,6 +210,10 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research readiness research_ops --dry-run` | Decide whether another autonomous loop is safe. | Queue, task status, locks, source audit, accepted memory, cost, metrics, health state. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research health research_ops --dry-run` | Produce operational health status. | Queue, task status, locks, review state, cost, metrics, accepted memory. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
+| `async-research decision append research_ops --item-id <id> --decision approve --reason "<why>" --approver <name>` | Record a structured human decision. | Command flags. | `decisions.md`; with `--dry-run`, stdout only. |
+| `async-research decision resolve-task research_ops <task-dir> --decision resume --reason "<why>" --approver <name>` | Resolve a `needs_human` task through the decision log. | Task `status.json` and `decisions.md`. | `decisions.md` and task `status.json`; with `--dry-run`, stdout only. |
+| `async-research decision check research_ops --item-id <id>` | Check whether an item has a matching decision row. | `decisions.md`. | JSON to stdout only. |
+| `async-research decision summarize research_ops --output research_ops/monthly_human_decision_summary.md` | Summarize human decisions for calibration. | `decisions.md`. | JSON to stdout; optional Markdown output file. |
 | `async-research surface update research_ops` | Refresh the human-facing control surface; alias: `review-surface update`. | Task status, health report, ledgers, cost, accepted memory. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
 | `async-research surface validate research_ops` | Check the rendered human surface for drift; alias: `review-surface validate`. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
 | `async-research source validate research_ops` | Validate the source audit register. | `data_source_audit.md`. | JSON to stdout only. |
@@ -269,6 +273,10 @@ specific diagnostic.
 | `readiness` | `0` safe; `2` warnings only. | `3` skip loop; `4` invalid state; `5` human required. |
 | `health` | `0` health report generated or printed. | `4` invalid input or malformed workspace state. |
 | `queue discovery-gate` | `0` active queue capacity is available. | `2` discovery should be skipped because active task capacity is full or status files are malformed. |
+| `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |
+| `decision check` | `0` matching decision found. | `3` no matching decision row. |
+| `decision resolve-task` | `0` task resolved or dry-run transition printed. | `2` invalid request such as task not in `needs_human`; `3` transition validation failed; `4` malformed task state. |
+| `decision summarize` | `0` summary printed or written. | No command-specific nonzero return from the backing script. |
 | `surface update` | `0` surface updated. | `4` malformed workspace state or missing required files. |
 | `surface validate` | `0` rendered surface matches workspace state. | `2` validation drift; `4` malformed workspace state or missing required files. |
 | `schema-check` | `0` schema versions pass. | `4` missing, malformed, mismatched, or unreadable versioned artifacts. |

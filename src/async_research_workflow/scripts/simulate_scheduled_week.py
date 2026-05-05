@@ -638,7 +638,7 @@ def day5_rejection_and_human_gate(ops_dir: Path, when: date) -> dict[str, Any]:
         "required_human_decision": "Clarify whether the fixture should be expanded, paused, or rejected.",
         "available_decisions": ["approve", "pause", "reject", "revise_scope"],
         "default_safe_action": "pause expensive scheduled workers",
-        "retry_behavior": "resume only after human_decision_log.py records a resolution",
+        "retry_behavior": "resume only after async-research decision records a resolution",
         "ledger_update_behavior": "append a structured row to decisions.md",
         "triggered_triggers": ["ambiguous_task_contract"],
         "details": [{"artifact": "TASK-0703/task.md", "issue": "simulated ambiguity"}],

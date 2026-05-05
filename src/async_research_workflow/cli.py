@@ -10,6 +10,7 @@ import json
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -18,11 +19,25 @@ from async_research_workflow.resources import template_path
 
 
 SUCCESS = 0
+INVALID_REQUEST = 2
 INVALID = 4
 TEMPLATES = {
     "generic": ("generic_research_ops_starter", "research_ops"),
     "real-estate": ("research_ops_starter", "research_ops"),
 }
+DECISION_CHOICES = (
+    "acknowledge",
+    "approve",
+    "approve_budget",
+    "approve_data_use",
+    "approve_high_stakes",
+    "approve_public",
+    "override",
+    "pause",
+    "reject",
+    "resume",
+)
+RESOLUTION_STATUS_CHOICES = ("paused", "ready_for_worker", "rejected")
 
 
 class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
@@ -51,6 +66,10 @@ READINESS_EXIT_EPILOG = """Readiness exit codes:
 
 def print_json(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def iso_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def module_main(module_name: str, argv: Sequence[str]) -> int:
@@ -296,6 +315,13 @@ def optional_number(flag: str, value: float | None) -> list[str]:
     return [flag, str(value)] if value is not None else []
 
 
+def repeated_option(flag: str, values: Sequence[str] | None) -> list[str]:
+    args: list[str] = []
+    for value in values or []:
+        args.extend([flag, str(value)])
+    return args
+
+
 def budget_option_values(args: argparse.Namespace) -> list[str]:
     return optional_number("--monthly-budget-usd", args.monthly_budget_usd) + optional_number("--weekly-budget-usd", args.weekly_budget_usd)
 
@@ -429,9 +455,6 @@ def run_accepted_check_memory_use_command(args: argparse.Namespace) -> int:
 
 
 def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
-    active_args: list[str] = []
-    for status in args.active_status or []:
-        active_args.extend(["--active-status", status])
     return module_main(
         "queue_capacity",
         [
@@ -440,7 +463,86 @@ def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
             "--max-active",
             str(args.max_active),
         ]
-        + active_args,
+        + repeated_option("--active-status", args.active_status),
+    )
+
+
+def normalize_related_artifacts(values: Sequence[str] | None) -> str:
+    artifacts = [str(value).strip() for value in values or [] if str(value).strip()]
+    return "; ".join(artifacts) if artifacts else "none"
+
+
+def decision_row(args: argparse.Namespace, item_id: str) -> dict[str, str]:
+    return {
+        "date": args.date or iso_now(),
+        "item_id": item_id,
+        "decision": args.decision,
+        "reason": args.reason,
+        "approver": args.approver,
+        "related_artifacts": normalize_related_artifacts(args.related_artifact),
+    }
+
+
+def decision_option_values(args: argparse.Namespace) -> list[str]:
+    return (
+        [
+            "--decision",
+            args.decision,
+            "--reason",
+            args.reason,
+            "--approver",
+            args.approver,
+        ]
+        + repeated_option("--related-artifact", args.related_artifact)
+        + optional_text("--date", args.date)
+    )
+
+
+def run_decision_append_command(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        if not args.reason.strip() or not args.approver.strip():
+            print_json({"ok": False, "reason": "reason_and_approver_required"})
+            return INVALID_REQUEST
+        path = args.ops_dir / "decisions.md"
+        print_json(
+            {
+                "ok": True,
+                "action": "dry_run_decision_appended",
+                "decisions": str(path),
+                "row": decision_row(args, args.item_id),
+            }
+        )
+        return SUCCESS
+    return module_main(
+        "human_decision_log",
+        ["append", str(args.ops_dir), "--item-id", args.item_id] + decision_option_values(args),
+    )
+
+
+def run_decision_check_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "human_decision_log",
+        ["check", str(args.ops_dir), "--item-id", args.item_id]
+        + repeated_option("--decision", args.decision),
+    )
+
+
+def run_decision_resolve_task_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "human_decision_log",
+        ["resolve-task", str(args.ops_dir), str(args.task_dir)]
+        + decision_option_values(args)
+        + optional_text("--status", args.status)
+        + (["--dry-run"] if args.dry_run else []),
+    )
+
+
+def run_decision_summarize_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "human_decision_log",
+        ["summarize", str(args.ops_dir)]
+        + optional_text("--month", args.month)
+        + optional_path("--output", args.output),
     )
 
 
@@ -571,6 +673,67 @@ def register_queue_commands(subparsers) -> None:
         help="Status counted as active. Repeat to override the default active-status set.",
     )
     discovery.set_defaults(func=run_queue_discovery_gate_command)
+
+
+def add_decision_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--decision", required=True, choices=DECISION_CHOICES, help="Structured human decision value to record.")
+    parser.add_argument("--reason", required=True, help="Reason for the human decision.")
+    parser.add_argument("--approver", required=True, help="Human or owner approving the decision.")
+    parser.add_argument("--related-artifact", action="append", default=[], help="Related task, artifact, or report path. Repeat for multiple artifacts.")
+    parser.add_argument("--date", help="Decision timestamp or date to record; defaults to current UTC time.")
+
+
+def register_decision_commands(subparsers) -> None:
+    decision = add_command(
+        subparsers,
+        "decision",
+        help="Append, check, resolve, or summarize human decisions.",
+        description="Manage the append-only decisions.md audit trail for human gates.",
+    )
+    decision_sub = decision.add_subparsers(dest="decision_command", required=True)
+    append = add_command(
+        decision_sub,
+        "append",
+        help="Append a structured human decision row.",
+        description="Append a decision row to decisions.md, or preview the exact row with --dry-run.",
+    )
+    add_common_ops(append)
+    append.add_argument("--item-id", required=True, help="Task, idea, source, or policy item the decision applies to.")
+    add_decision_options(append)
+    append.add_argument("--dry-run", action="store_true", help="Print the row that would be appended without writing decisions.md.")
+    append.set_defaults(func=run_decision_append_command)
+    check = add_command(
+        decision_sub,
+        "check",
+        help="Check whether an item has a matching decision row.",
+        description="Read decisions.md and report whether an item has a matching decision row.",
+    )
+    add_common_ops(check)
+    check.add_argument("--item-id", required=True, help="Item identifier to look up in decisions.md.")
+    check.add_argument("--decision", action="append", choices=DECISION_CHOICES, help="Accepted decision value. Repeat to allow multiple values.")
+    check.set_defaults(func=run_decision_check_command)
+    resolve = add_command(
+        decision_sub,
+        "resolve-task",
+        help="Resolve a needs_human task through the decision log.",
+        description="Resolve a needs_human task by appending a decision row, updating status.json, and validating the transition.",
+    )
+    add_required_ops(resolve)
+    resolve.add_argument("task_dir", type=Path, help="Task directory or status.json path to resolve.")
+    add_decision_options(resolve)
+    resolve.add_argument("--status", choices=RESOLUTION_STATUS_CHOICES, help="Target status; defaults from the decision when possible.")
+    resolve.add_argument("--dry-run", action="store_true", help="Preview decision and status transition without writing decisions.md or status.json.")
+    resolve.set_defaults(func=run_decision_resolve_task_command)
+    summarize = add_command(
+        decision_sub,
+        "summarize",
+        help="Summarize human decisions for calibration.",
+        description="Summarize decision rows by decision, reason, and approver, optionally writing Markdown.",
+    )
+    add_common_ops(summarize)
+    summarize.add_argument("--month", help="Only include decision rows whose date starts with YYYY-MM.")
+    summarize.add_argument("--output", type=Path, help="Write a Markdown summary to this path.")
+    summarize.set_defaults(func=run_decision_summarize_command)
 
 
 def register_source_commands(subparsers) -> None:
@@ -885,6 +1048,7 @@ COMMAND_REGISTRARS = (
     register_surface_commands,
     register_schema_command,
     register_queue_commands,
+    register_decision_commands,
     register_source_commands,
     register_cost_commands,
     register_metrics_commands,

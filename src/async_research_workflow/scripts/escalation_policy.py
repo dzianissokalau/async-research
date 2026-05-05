@@ -68,7 +68,7 @@ POLICY_ROWS: list[dict[str, Any]] = [
         "available_decisions": ["approve_data_use", "request_data_readiness", "pause", "reject"],
         "default_safe_action": "pause worker execution before using the source",
         "retry_behavior": "retry after data_source_audit.md records an experiment-ready source status",
-        "ledger_update_behavior": "record the approval or rejection with human_decision_log.py before resuming",
+        "ledger_update_behavior": "record the approval or rejection with async-research decision before resuming",
     },
     {
         "trigger": "source_freshness_expired",
@@ -123,7 +123,7 @@ POLICY_ROWS: list[dict[str, Any]] = [
         "available_decisions": ["approve_budget", "pause", "reject"],
         "default_safe_action": "stop paid work",
         "retry_behavior": "retry only after a budget approval or lowered scope",
-        "ledger_update_behavior": "record approval with human_decision_log.py and preserve cost_ledger.csv rows",
+        "ledger_update_behavior": "record approval with async-research decision and preserve cost_ledger.csv rows",
     },
     {
         "trigger": "revision_limit_hit",

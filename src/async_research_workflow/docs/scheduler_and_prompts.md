@@ -550,7 +550,7 @@ Task:
 4. Run python -m async_research_workflow.scripts.revision_counter scan-limits research_ops/tasks --markdown.
 5. Run python -m async_research_workflow.scripts.metrics_history append-snapshot research_ops --period weekly --label weekly_digest.
 6. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.framework_version_calibration research_ops --output research_ops/monthly_calibration_framework_versions.md.
-7. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.human_decision_log summarize research_ops --output research_ops/monthly_human_decision_summary.md.
+7. If this is the final weekly synthesis of the month, run async-research decision summarize research_ops --output research_ops/monthly_human_decision_summary.md.
 8. If this is the final weekly synthesis of the month, run async-research metrics summarize research_ops --output research_ops/monthly_metrics_trends.md.
 9. Write a concise weekly_digest.md update.
 10. Group accepted outputs into themes.
@@ -608,9 +608,9 @@ Final response:
 
 ```text
 1. Read daily_status.md only if notified, if health_report.json has alerts, or if convenient.
-2. Resolve tasks marked needs_human with `python -m async_research_workflow.scripts.human_decision_log resolve-task`; do not hand-edit status.json.
+2. Resolve tasks marked needs_human with `async-research decision resolve-task`; do not hand-edit status.json.
 3. Add urgent ideas to inbox.md.
-4. Log public, high-stakes, expensive, or sensitive-data approvals with `python -m async_research_workflow.scripts.human_decision_log append`.
+4. Log public, high-stakes, expensive, or sensitive-data approvals with `async-research decision append`.
 5. Kill tasks that are clearly not worth the cost.
 ```
 

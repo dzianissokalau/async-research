@@ -55,6 +55,9 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
     "queue_capacity": re.compile(
         r"(?:python -m\s+async_research_workflow\.scripts\.queue_capacity\s+\\?\s*|queue_capacity\.py\s+)discovery-gate\b"
     ),
+    "human_decision_log": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.human_decision_log\s+\\?\s*|human_decision_log\.py\s+)(?:append|check|resolve-task|summarize)\b|async_research_workflow/scripts/human_decision_log\.py|human_decision_log\.py\b"
+    ),
 }
 
 

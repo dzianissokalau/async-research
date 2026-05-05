@@ -52,7 +52,7 @@ Start with `research_ops/daily_status.md`, then inspect
 queue row gives the decision id, task id, decision needed, available options,
 recommended command, consequence of ignoring, urgency, owner, and required
 update path. Resolve rows with
-`python -m async_research_workflow.scripts.human_decision_log resolve-task`; do
+`async-research decision resolve-task`; do
 not delete queue rows by hand.
 
 ## Escalation Policy
@@ -130,7 +130,7 @@ python -m async_research_workflow.scripts.validate_transition \
 
 Human decision: inspect the quarantined file, decide whether to resume, pause,
 or reject the task, and record the decision with
-`python -m async_research_workflow.scripts.human_decision_log`.
+`async-research decision append` or `async-research decision resolve-task`.
 
 ## Recover Local Crashes
 
@@ -164,7 +164,7 @@ and the owner has decided what should be discarded.
 Never move a task out of `needs_human` by editing `status.json` directly. Use:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001-data-readiness \
   --decision resume \
@@ -219,7 +219,7 @@ If `budget-check` exits nonzero:
 
 - do not spend
 - route the task to `needs_human` or `paused`
-- approve with `python -m async_research_workflow.scripts.human_decision_log resolve-task --decision approve_budget`
+- approve with `async-research decision resolve-task --decision approve_budget`
   only if the spend is intentional
 
 Discovery scoring also reacts to budget pressure through:

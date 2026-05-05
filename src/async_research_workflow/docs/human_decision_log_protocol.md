@@ -31,16 +31,16 @@ The file is append-only. Do not edit previous rows to reinterpret history. If a 
 
 ## Required Helper
 
-Use:
+Use the public decision commands:
 
 ```text
-async_research_workflow/scripts/human_decision_log.py
+async-research decision
 ```
 
 Append a decision:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log append \
+async-research decision append \
   research_ops \
   --item-id TASK-0001 \
   --decision approve_public \
@@ -52,7 +52,7 @@ python -m async_research_workflow.scripts.human_decision_log append \
 Resolve a task blocked in `needs_human`:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \
@@ -62,6 +62,15 @@ python -m async_research_workflow.scripts.human_decision_log resolve-task \
 ```
 
 The resolver appends a decision row, updates `status.json`, and validates the transition. It is the preferred way to move a task out of `needs_human`.
+
+Check whether a decision row exists:
+
+```bash
+async-research decision check \
+  research_ops \
+  --item-id TASK-0001 \
+  --decision resume
+```
 
 ## Decision Values
 
@@ -99,7 +108,7 @@ If no matching decision row exists for the task ID, transition validation fails 
 Summarize human gate reasons:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log summarize \
+async-research decision summarize \
   research_ops \
   --month 2026-05 \
   --output research_ops/monthly_human_decision_summary.md

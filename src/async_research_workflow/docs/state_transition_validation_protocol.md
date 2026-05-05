@@ -160,7 +160,7 @@ absent.
 Preferred resolver:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \

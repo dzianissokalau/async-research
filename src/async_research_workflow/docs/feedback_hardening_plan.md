@@ -602,7 +602,7 @@ Acceptance tests:
 
 Implementation status:
 
-- append-only decision helper added at `async_research_workflow/scripts/human_decision_log.py`
+- append-only decision helper commands added under `async-research decision`
 - shared decision log parser added at `async_research_workflow/scripts/decision_log.py`
 - `validate_transition.py` now fails `needs_human` exits without a matching decision row
 - human decision summaries can be written for monthly calibration

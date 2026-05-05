@@ -233,7 +233,7 @@ Human approval is required for:
 - use of new private, scraped, or legally sensitive data
 
 Every human approval or resolution must be appended to
-`research_ops/decisions.md` using `human_decision_log.py`. Reviewer or
+`research_ops/decisions.md` using `async-research decision append`. Reviewer or
 aggregator acceptance is not a substitute for a human decision row when a task
 is public, high-stakes, expensive, or blocked in `needs_human`.
 

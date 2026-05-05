@@ -387,7 +387,7 @@ date | item_id | decision | reason | approver | related_artifacts
 Do not move a task out of `needs_human` by editing `status.json` directly. Use:
 
 ```bash
-python -m async_research_workflow.scripts.human_decision_log resolve-task \
+async-research decision resolve-task \
   research_ops \
   research_ops/tasks/TASK-0001 \
   --decision resume \
@@ -479,7 +479,7 @@ strong
 
 Only a human can approve `strong` for publication or high-stakes use. That
 approval must be recorded in `research_ops/decisions.md` with
-`human_decision_log.py`.
+`async-research decision append`.
 
 Claim strength must be re-evaluated on every review pass. If a task routes to
 `needs_revision`, helpers clear `result.claim_strength` and mark it stale until

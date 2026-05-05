@@ -110,7 +110,7 @@ Future schemas should be added for:
 - cost ledger machine summaries
 
 Human decisions are structured markdown rows in `research_ops/decisions.md`;
-validate them with `human_decision_log.py check` and transition validation
+validate them with `async-research decision check` and transition validation
 rather than a JSON schema.
 
 Metrics snapshots are JSONL records in `research_ops/metrics_history.jsonl`.

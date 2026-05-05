@@ -299,7 +299,7 @@ def recommended_action(item: dict[str, Any], ops_dir: Path) -> str:
     task_path = item["task_dir"].as_posix()
     command = (
         "choose one option, then run "
-        f"`human_decision_log.py resolve-task {ops_dir.as_posix()} {task_path} "
+        f"`async-research decision resolve-task {ops_dir.as_posix()} {task_path} "
         "--decision <option> --reason <reason> --approver <name>`"
     )
     safe_action = normalize_text(gate.get("default_safe_action"), "")
@@ -332,7 +332,7 @@ def update_path_for(ops_dir: Path, item: dict[str, Any]) -> str:
         status_relative = status_path.relative_to(ops_dir).as_posix()
     except ValueError:
         status_relative = status_path.as_posix()
-    return f"decisions.md plus {status_relative} via human_decision_log.py resolve-task"
+    return f"decisions.md plus {status_relative} via async-research decision resolve-task"
 
 
 def review_queue_rows(ops_dir: Path, items: list[dict[str, Any]]) -> list[dict[str, str]]:
