@@ -10,11 +10,13 @@ quality gate.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import importlib
+import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,10 +31,7 @@ VALIDATION_FAILED = 2
 MISSING_REQUIRED = 3
 INVALID = 4
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[2]
 DEFAULT_CASES = benchmark_cases_path()
-LIVE_OPS_DIR = REPO_ROOT / "research_ops"
 TASK_STATUS_SCHEMA = schema_path("task_status.schema.json")
 
 REQUIRED_CASE_FIELDS = {
@@ -245,21 +244,32 @@ def task_dir(ops_dir: Path, task_id: str, slug: str) -> Path:
     return path
 
 
+def script_module_name(name: str) -> str:
+    return name[:-3] if name.endswith(".py") else name
+
+
 def run_script(name: str, args: list[str], expected: int = SUCCESS) -> dict[str, Any]:
-    command = [sys.executable, str(SCRIPT_DIR / name), *args]
-    result = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True)
-    if result.returncode != expected:
+    module_name = script_module_name(name)
+    module = importlib.import_module(f"async_research_workflow.scripts.{module_name}")
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            return_code = int(module.main(list(args)))
+    except SystemExit as exc:
+        return_code = int(exc.code) if isinstance(exc.code, int) else FAILED
+    if return_code != expected:
         raise BenchmarkFailure(
-            f"{name} exited {result.returncode}, expected {expected}; "
-            f"stdout={result.stdout.strip()!r}; stderr={result.stderr.strip()!r}"
+            f"{name} exited {return_code}, expected {expected}; "
+            f"stdout={stdout.getvalue().strip()!r}; stderr={stderr.getvalue().strip()!r}"
         )
-    stdout = result.stdout.strip()
-    if not stdout:
+    text = stdout.getvalue().strip()
+    if not text:
         return {}
     try:
-        payload = json.loads(stdout)
+        payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise BenchmarkFailure(f"{name} returned non-JSON output: {stdout!r}") from exc
+        raise BenchmarkFailure(f"{name} returned non-JSON output: {text!r}") from exc
     if not isinstance(payload, dict):
         raise BenchmarkFailure(f"{name} returned non-object JSON")
     return payload
@@ -877,10 +887,17 @@ def default_work_dir() -> Path:
 
 
 def ensure_isolated(work_dir: Path) -> None:
-    live = LIVE_OPS_DIR.resolve()
     resolved = work_dir.resolve()
-    if resolved == live or live in resolved.parents:
-        raise BenchmarkFailure(f"benchmark work_dir must not be inside live research_ops: {work_dir}")
+    if "research_ops" in resolved.parts:
+        raise BenchmarkFailure(f"benchmark work_dir must be outside any research_ops workspace: {work_dir}")
+
+
+def is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
 
 
 def run_benchmark(cases_path: Path, work_dir: Path, keep_work_dir: bool) -> tuple[dict[str, Any], int]:
@@ -889,6 +906,7 @@ def run_benchmark(cases_path: Path, work_dir: Path, keep_work_dir: bool) -> tupl
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
+    work_root = work_dir.resolve()
 
     results: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
@@ -916,7 +934,7 @@ def run_benchmark(cases_path: Path, work_dir: Path, keep_work_dir: bool) -> tupl
                 known_bad_safe_count += 1
         if set(case.get("risk_tags", [])) & RISK_TAGS_THAT_MUST_NOT_ACCEPT and actual.get("outcome") == "accepted_evidence":
             weak_or_malformed_accepted += 1
-        if LIVE_OPS_DIR.resolve() == ops_dir.resolve() or LIVE_OPS_DIR.resolve() in ops_dir.resolve().parents:
+        if not is_relative_to(ops_dir.resolve(), work_root):
             isolated = False
 
         record = {

@@ -10,11 +10,13 @@ accepted-output indexing, health checks, and metrics snapshots.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import importlib
+import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -23,8 +25,6 @@ from typing import Any, Iterable, Optional
 
 SUCCESS = 0
 FAILED = 1
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_VERSION = "1.0"
 
 LEDGER_HEADER = [
@@ -113,8 +113,8 @@ def append_markdown_row(path: Path, row: Iterable[Any]) -> None:
     append_text(path, "| " + " | ".join(str(item).replace("|", "/") for item in row) + " |\n")
 
 
-def script_path(name: str) -> Path:
-    return SCRIPT_DIR / name
+def script_module_name(name: str) -> str:
+    return name[:-3] if name.endswith(".py") else name
 
 
 def run_script(
@@ -122,22 +122,29 @@ def run_script(
     args: list[str],
     expected: Iterable[int] = (SUCCESS,),
 ) -> tuple[int, dict[str, Any]]:
-    command = [sys.executable, str(script_path(name)), *args]
-    result = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True)
-    expected_codes = set(expected)
-    stdout = result.stdout.strip()
+    module_name = script_module_name(name)
+    module = importlib.import_module(f"async_research_workflow.scripts.{module_name}")
+    stdout = io.StringIO()
+    stderr = io.StringIO()
     try:
-        payload = json.loads(stdout) if stdout else {}
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            return_code = int(module.main(list(args)))
+    except SystemExit as exc:
+        return_code = int(exc.code) if isinstance(exc.code, int) else FAILED
+    expected_codes = set(expected)
+    text = stdout.getvalue().strip()
+    try:
+        payload = json.loads(text) if text else {}
     except json.JSONDecodeError as exc:
         raise SimulationFailure(
-            f"{name} returned non-JSON stdout: {stdout!r}; stderr={result.stderr.strip()!r}"
+            f"{name} returned non-JSON stdout: {text!r}; stderr={stderr.getvalue().strip()!r}"
         ) from exc
-    if result.returncode not in expected_codes:
+    if return_code not in expected_codes:
         raise SimulationFailure(
-            f"{name} {' '.join(args)} exited {result.returncode}, expected {sorted(expected_codes)}; "
-            f"stdout={stdout!r}; stderr={result.stderr.strip()!r}"
+            f"{name} {' '.join(args)} exited {return_code}, expected {sorted(expected_codes)}; "
+            f"stdout={text!r}; stderr={stderr.getvalue().strip()!r}"
         )
-    return result.returncode, payload
+    return return_code, payload
 
 
 def default_work_dir() -> Path:
@@ -155,6 +162,25 @@ def ensure_empty_work_dir(path: Path) -> None:
             raise SimulationFailure(f"refusing to delete non-temporary work dir: {path}")
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
+
+
+def is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def ensure_simulation_work_dir_isolated(work_dir: Path, source_ops_dir: Path) -> None:
+    resolved_work = work_dir.resolve()
+    resolved_source = source_ops_dir.resolve()
+    if "research_ops" in resolved_work.parts:
+        raise SimulationFailure(f"simulation work_dir must be outside any research_ops workspace: {work_dir}")
+    if resolved_work == resolved_source or is_relative_to(resolved_work, resolved_source) or is_relative_to(resolved_source, resolved_work):
+        raise SimulationFailure(
+            f"simulation work_dir must not overlap source ops_dir: work_dir={work_dir}, ops_dir={source_ops_dir}"
+        )
 
 
 def write_cost_ledger_header(path: Path) -> None:
@@ -740,6 +766,7 @@ def metrics_history_has_simulation(ops_dir: Path) -> bool:
 def run_week(args: argparse.Namespace) -> dict[str, Any]:
     start_day = date.fromisoformat(args.start_date)
     work_dir = args.work_dir
+    ensure_simulation_work_dir_isolated(work_dir, args.ops_dir)
     ensure_empty_work_dir(work_dir)
     ops_dir = prepare_ops_fixture(args.ops_dir, work_dir, start_day)
 
