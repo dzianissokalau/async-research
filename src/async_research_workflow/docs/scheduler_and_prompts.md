@@ -206,7 +206,7 @@ Task:
 7. Generate at most 20 raw idea candidates.
 8. Deduplicate and cluster them against the accepted outputs index.
 9. Write an exploration_cycle.json or worker_output.md fenced JSON block conforming to async_research_workflow/schemas/exploration_cycle.schema.json.
-10. Run python -m async_research_workflow.scripts.validate_exploration_cycle <cycle-path> --ops-dir research_ops. If validation fails, revise or stop without updating discovery_inbox.md.
+10. Run async-research exploration validate <cycle-path> --ops-dir research_ops --task-dir <task-dir>. If validation fails, revise or stop without updating discovery_inbox.md.
 11. Run python -m async_research_workflow.scripts.validate_mission_policy async_research_workflow/mission_policy.json before scoring candidates.
 12. Score each kept candidate with async-research idea score <candidate-json> --budget-mode auto --ops-dir research_ops.
 13. Write rejected or parked candidates to research_ops/discovery/rejected_ideas.md before idea-evaluation validation when the scored route is park or reject.
