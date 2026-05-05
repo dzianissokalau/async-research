@@ -20,6 +20,8 @@ alpha hardening work that still reports package version `0.1.0a1`.
   revalidation.
 - Refactored CLI parser construction into explicit internal registration
   groups without changing public command behavior.
+- Recorded docs packaging policy and added footprint/resource regression tests
+  for packaged protocol docs.
 
 ## 0.1.0a1 - 2026-05-03
 
