@@ -121,7 +121,7 @@ async-research source validate research_ops
 Check an experiment plan or task output:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit check-experiment \
+async-research source check-experiment \
   research_ops \
   research_ops/tasks/TASK-0007-experiment-plan/worker_output.md
 ```
@@ -129,7 +129,7 @@ python -m async_research_workflow.scripts.data_source_audit check-experiment \
 Check an accepted-evidence claim:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit check-claim \
+async-research source check-claim \
   research_ops \
   research_ops/tasks/TASK-0007/worker_output.md \
   --use-case accepted_evidence \

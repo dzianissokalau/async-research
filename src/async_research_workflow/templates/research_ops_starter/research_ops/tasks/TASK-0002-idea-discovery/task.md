@@ -96,7 +96,7 @@ experiment planning for a candidate with unresolved data or methodology risk.
 - `async_research_workflow/templates/artifact_templates/mission_score_template.md`
 - `async_research_workflow/scripts/validate_mission_policy.py`
 - `async_research_workflow/scripts/score_idea_candidate.py`
-- `async_research_workflow/scripts/cost_tracking.py`
+- `async-research cost budget-check`
 - `async_research_workflow/scripts/validate_json_artifact.py`
 - `async_research_workflow/idea_discovery_workflow.md`
 

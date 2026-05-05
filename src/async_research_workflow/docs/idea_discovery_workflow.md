@@ -145,7 +145,7 @@ Every scored candidate must record `mission_policy_version`. Automatic budget mo
 
 Ideas may use plausible unaudited data paths in `required_data`. Promotion to
 `experiment_plan` requires `DS-0000` style references that pass
-`data_source_audit.py check-experiment`; otherwise the next task should be
+`async-research source check-experiment`; otherwise the next task should be
 `data_readiness`.
 
 ## Weekly Discovery Limits

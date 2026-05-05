@@ -33,6 +33,26 @@ ROOT_SCHEMA_REF_RE = re.compile(r"async_research_workflow/[A-Za-z0-9_]+\.schema\
 REMOVED_EXAMPLE_RESOURCE_RE = re.compile(
     r"async_research_workflow/examples/(?:mission_policy\.json|benchmarks/autonomy_benchmark_cases\.json)"
 )
+PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
+    "cost_tracking": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.cost_tracking\s+\\?\s*|cost_tracking\.py\s+)(?:summary|ingest-usage|budget-check)\b"
+    ),
+    "cost_tracking_helper_path": re.compile(
+        r"(?:async_research_workflow/scripts/cost_tracking\.py|cost_tracking\.py\b)"
+    ),
+    "update_accepted_outputs_index": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.update_accepted_outputs_index\s+\\?\s*|update_accepted_outputs_index\.py\s+)(?:check-duplicate|check-memory-use)\b"
+    ),
+    "update_accepted_outputs_index_helper_path": re.compile(
+        r"(?:async_research_workflow/scripts/update_accepted_outputs_index\.py|update_accepted_outputs_index\.py\b)"
+    ),
+    "data_source_audit": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.data_source_audit\s+\\?\s*|data_source_audit\.py\s+)(?:check-experiment|check-claim)\b"
+    ),
+    "metrics_history": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.metrics_history\s+\\?\s*|metrics_history\.py\s+)summarize\b"
+    ),
+}
 
 
 def iter_documentation_files() -> list[Path]:
@@ -94,6 +114,17 @@ class DocumentationReferenceTests(unittest.TestCase):
                 for match in pattern.finditer(text):
                     line = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path.relative_to(ROOT)}:{line} -> {match.group(0)}")
+
+        self.assertEqual([], failures)
+
+    def test_docs_use_public_cli_for_promoted_commands(self) -> None:
+        failures: list[str] = []
+        for path in iter_documentation_files():
+            text = path.read_text(encoding="utf-8")
+            for module_name, pattern in PUBLIC_CLI_ADVANCED_REF_PATTERNS.items():
+                for match in pattern.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    failures.append(f"{path.relative_to(ROOT)}:{line} -> advanced {module_name} invocation")
 
         self.assertEqual([], failures)
 

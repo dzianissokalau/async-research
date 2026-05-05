@@ -81,7 +81,7 @@ timestamp
 period_start
 ```
 
-Rows created by `cost_tracking.py ingest-usage` also include actual usage fields:
+Rows created by `async-research cost ingest-usage` also include actual usage fields:
 
 ```text
 input_tokens

@@ -65,10 +65,10 @@ Write `worker_output.md` with:
   human approval, high-impact claims need Tier 1/2 support, and stale sources
   must be refreshed or routed to `needs_human`.
 - Accepted evidence must cite audited `DS-*` source IDs and pass
-  `python -m async_research_workflow.scripts.data_source_audit check-claim`
+  `async-research source check-claim`
   when source-dependent.
 - If the task uses prior accepted evidence as a current fact, run
-  `python -m async_research_workflow.scripts.update_accepted_outputs_index check-memory-use`
+  `async-research accepted check-memory-use`
   against the artifact. Stale accepted memory must be revalidated or used only
   as historical context.
 - Accepted task results should include `claim_type`, `freshness_window_days`,

@@ -31,10 +31,10 @@ format on update.
 
 ## Required Helper
 
-Use:
+Use the public accepted-output commands:
 
 ```text
-async_research_workflow/scripts/update_accepted_outputs_index.py
+async-research accepted
 ```
 
 Update the index from accepted task folders:
@@ -114,8 +114,7 @@ Check whether a candidate, discovery note, or task output is trying to reuse
 stale accepted memory:
 
 ```bash
-python -m async_research_workflow.scripts.update_accepted_outputs_index \
-  check-memory-use research_ops research_ops/discovery/IDEA-0001.md
+async-research accepted check-memory-use research_ops research_ops/discovery/IDEA-0001.md
 ```
 
 This fails closed when the artifact cites a stale `TASK-0000` accepted output.
@@ -151,7 +150,7 @@ older status/review metadata only for pre-P2-5 tasks.
 Before promoting a discovery candidate or creating a new task, the planner should check whether the idea overlaps accepted outputs:
 
 ```bash
-python -m async_research_workflow.scripts.update_accepted_outputs_index check-duplicate \
+async-research accepted check-duplicate \
   research_ops \
   --title "EPC premium during energy shocks"
 ```

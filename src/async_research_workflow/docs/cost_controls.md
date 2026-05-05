@@ -199,7 +199,7 @@ date,item_id,role,model_or_tool,estimated_minutes,estimated_api_usd,estimated_co
 When APIs return usage, ingest the response programmatically:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking ingest-usage \
+async-research cost ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0001/artifacts/api_response.json \
   --item-id TASK-0001 \
@@ -215,7 +215,7 @@ Programmatic rows record `input_tokens`, `output_tokens`, `total_tokens`,
 Before promotion into expensive work or paid API/cloud execution, run:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking budget-check \
+async-research cost budget-check \
   research_ops \
   --item-id TASK-0001 \
   --action expensive_task \

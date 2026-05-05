@@ -484,7 +484,7 @@ Requirement:
 
 Implementation status:
 
-- helper script added at `async_research_workflow/scripts/update_accepted_outputs_index.py`
+- accepted-output helper commands added under `async-research accepted`
 - documented in `async_research_workflow/accepted_outputs_index_protocol.md`
 - planner, discovery scout, and synthesizer prompts updated to refresh/read the index
 - duplicate-check command added for planner warnings before promotion
@@ -641,8 +641,8 @@ Acceptance tests:
 
 Implementation status:
 
-- metrics helper added at `async_research_workflow/scripts/metrics_history.py`
-- baseline file `metrics_baseline.json` is created by `metrics_history.py init` or the first snapshot append
+- metrics helper added with public monthly summary through `async-research metrics summarize`
+- baseline file `metrics_baseline.json` is created by init or the first snapshot append
 - append-only history file `metrics_history.jsonl` stores weekly snapshots
 - weekly synthesizer prompt appends one snapshot per digest run
 - monthly calibration prompt writes `monthly_metrics_trends.md`
@@ -757,7 +757,7 @@ Acceptance tests:
 
 Implementation status:
 
-- usage ingestion helper added at `async_research_workflow/scripts/cost_tracking.py`
+- usage ingestion helper added under `async-research cost ingest-usage`
 - cost ledger rows can record `input_tokens`, `output_tokens`, `total_tokens`, and `actual=true`
 - health monitor aggregates actual usage token totals from the ledger
 - deterministic budget gate exits nonzero when projected spend crosses threshold

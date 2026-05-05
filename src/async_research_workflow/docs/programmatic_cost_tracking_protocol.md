@@ -13,16 +13,16 @@ response artifact into `research_ops/cost_ledger.csv` with actual token fields.
 
 ## Required Helper
 
-Use:
+Use the public cost commands:
 
 ```text
-async_research_workflow/scripts/cost_tracking.py
+async-research cost
 ```
 
 Ingest usage from a JSON or JSONL response:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking ingest-usage \
+async-research cost ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0007/artifacts/api_response.json \
   --item-id TASK-0007 \
@@ -62,7 +62,7 @@ codex exec --json --cd "$RESEARCH_REPO_ROOT" \
 Then ingest the file if the stream contains usage metadata:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking ingest-usage \
+async-research cost ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0007/artifacts/codex_events.jsonl \
   --item-id TASK-0007 \
@@ -79,7 +79,7 @@ In shell wrappers, usage ingestion should not mask a successful worker run when
 the event stream has no usage fields yet:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking ingest-usage \
+async-research cost ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0007/artifacts/codex_events.jsonl \
   --item-id TASK-0007 \
@@ -107,7 +107,7 @@ Before promoting a discovery candidate into expensive work, submitting a paid
 batch, or running a paid API/cloud task, run:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking budget-check \
+async-research cost budget-check \
   research_ops \
   --item-id TASK-0007 \
   --action expensive_task \

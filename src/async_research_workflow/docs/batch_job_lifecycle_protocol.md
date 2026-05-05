@@ -162,7 +162,7 @@ research_ops/cost_ledger.csv
 
 The row includes `amount_usd`, `api_usd`, `compute_usd`, and `actual=false`, so
 health checks and metrics snapshots can include batch spend. If the provider
-later returns usage JSON, ingest it with `cost_tracking.py ingest-usage` so the
+later returns usage JSON, ingest it with `async-research cost ingest-usage` so the
 ledger also records actual tokens.
 
 ## Acceptance Checks

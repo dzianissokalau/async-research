@@ -56,7 +56,10 @@ The accepted task cannot claim stronger evidence than the weakest current review
 
 ## Accepted Output Rule
 
-`update_accepted_outputs_index.py` prefers `review_panel/aggregate.json.aggregate_claim_strength` when available. Older accepted outputs without the field still fall back to review files or status metadata.
+The accepted-output updater used by `async-research accepted update` prefers
+`review_panel/aggregate.json.aggregate_claim_strength` when available. Older
+accepted outputs without the field still fall back to review files or status
+metadata.
 
 ## Acceptance Checks
 

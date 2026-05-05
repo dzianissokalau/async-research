@@ -196,7 +196,7 @@ python -m async_research_workflow.scripts.validate_transition \
 Use summary first:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking summary \
+async-research cost summary \
   research_ops \
   --monthly-budget-usd 50 \
   --weekly-budget-usd 15
@@ -205,7 +205,7 @@ python -m async_research_workflow.scripts.cost_tracking summary \
 Before any paid promotion, batch, API call, or cloud run:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking budget-check \
+async-research cost budget-check \
   research_ops \
   --item-id TASK-0001 \
   --action "planned paid run" \
@@ -248,7 +248,7 @@ codex exec --json --cd "$RESEARCH_REPO_ROOT" \
 If the event stream contains token usage fields, ingest them:
 
 ```bash
-python -m async_research_workflow.scripts.cost_tracking ingest-usage \
+async-research cost ingest-usage \
   research_ops \
   --usage-file research_ops/tasks/TASK-0001-data-readiness/artifacts/codex_events.jsonl \
   --item-id TASK-0001 \
@@ -395,7 +395,7 @@ python -m async_research_workflow.scripts.data_source_audit upsert \
 Before creating or accepting an experiment plan:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit check-experiment \
+async-research source check-experiment \
   research_ops \
   research_ops/tasks/TASK-0003-repeat-sales-experiment-plan/task.md
 ```
@@ -451,8 +451,7 @@ Before a worker, planner, or discovery scout relies on a prior accepted task as
 a current fact, check the artifact:
 
 ```bash
-python -m async_research_workflow.scripts.update_accepted_outputs_index \
-  check-memory-use research_ops <artifact-path>
+async-research accepted check-memory-use research_ops <artifact-path>
 ```
 
 If it fails with `stale_accepted_memory_reuse`, create a bounded revalidation

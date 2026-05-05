@@ -114,8 +114,8 @@ validate them with `human_decision_log.py check` and transition validation
 rather than a JSON schema.
 
 Metrics snapshots are JSONL records in `research_ops/metrics_history.jsonl`.
-Create and summarize them with `metrics_history.py`; do not hand-edit previous
-JSONL rows.
+Create them through the metrics snapshot helper and summarize them with
+`async-research metrics summarize`; do not hand-edit previous JSONL rows.
 
 Review panel aggregate JSON is written by `aggregate_reviews.py` and must validate against `review_panel.schema.json` before it can route the task.
 

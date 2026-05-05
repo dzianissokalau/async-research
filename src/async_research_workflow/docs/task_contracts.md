@@ -112,7 +112,7 @@ async-research accepted update research_ops
 Before promoting a related idea or task, check for overlap:
 
 ```bash
-python -m async_research_workflow.scripts.update_accepted_outputs_index check-duplicate \
+async-research accepted check-duplicate \
   research_ops \
   --title "EPC match readiness"
 ```
@@ -334,7 +334,7 @@ Every `status.json` file must include `"schema_version": "1.0"`. Missing or mism
 New `status.json` files should also include `prompt_versions` and `framework_versions`. These are audit fields: accepted outputs must be able to identify which prompts and scoring/review frameworks were used.
 
 `experiment_plan` tasks must include `data_audit_refs` with `DS-0000` source IDs
-that pass `data_source_audit.py check-experiment`. Data-readiness tasks may
+that pass `async-research source check-experiment`. Data-readiness tasks may
 update `research_ops/data_source_audit.md`, but the planner should include that
 file in `allowed_paths` when such updates are expected.
 

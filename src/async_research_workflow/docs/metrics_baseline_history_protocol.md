@@ -47,7 +47,7 @@ python -m async_research_workflow.scripts.metrics_history append-snapshot \
 Summarize monthly trends:
 
 ```bash
-python -m async_research_workflow.scripts.metrics_history summarize \
+async-research metrics summarize \
   research_ops \
   --month 2026-05 \
   --output research_ops/monthly_metrics_trends.md

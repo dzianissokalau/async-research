@@ -150,13 +150,13 @@ Task:
 1. Run async-research accepted update research_ops.
 2. Run async-research accepted revalidation research_ops --write-schedule.
 3. Read research_ops/accepted_outputs_index.md, research_ops/revalidation_schedule.md if present, research_ops/discovery_inbox.md, research_ops/inbox.md, research_ops/queue.md, research_ops/data_source_audit.md if present, research_ops/escalation_policy.md, and research_ops/daily_status.md.
-4. Before promoting an item, run python -m async_research_workflow.scripts.update_accepted_outputs_index check-duplicate research_ops --title "<candidate title>".
-5. Before promoting any item that would trigger paid API/cloud work, run python -m async_research_workflow.scripts.cost_tracking budget-check research_ops --item-id "<candidate-or-task-id>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the item or route it to needs_human.
+4. Before promoting an item, run async-research accepted check-duplicate research_ops --title "<candidate title>".
+5. Before promoting any item that would trigger paid API/cloud work, run async-research cost budget-check research_ops --item-id "<candidate-or-task-id>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the item or route it to needs_human.
 6. Promote at most 3 non-duplicate items into small task folders under research_ops/tasks/.
 7. Each task must be completable in 30-45 minutes unless explicitly marked as a panel or synthesis task.
 8. Write task.md and status.json for each new task; every status.json must include schema_version="1.0", prompt_versions, and framework_versions.
 9. Before promoting a discovery candidate into a task, run async-research idea validate <candidate-json> --ops-dir research_ops. Promote only when idea_evaluation.promotion_readiness.planner_may_promote is true.
-10. For `experiment_plan` tasks, add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run python -m async_research_workflow.scripts.data_source_audit check-experiment research_ops <task-dir>/task.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
+10. For `experiment_plan` tasks, add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run async-research source check-experiment research_ops <task-dir>/task.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
 11. For each new task, run python -m async_research_workflow.scripts.generate_anti_context build research_ops --title "<candidate title>" --task-dir <task-dir>.
 12. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise task.md so the task has a clear new angle, create a revalidation task first, or park it.
 13. Set review_policy.tier based on task type and risk.
@@ -285,13 +285,13 @@ Rules:
 - Do not browse unless allow_browsing=true.
 - Do not run network commands unless allow_network=true.
 - Do not spend paid API/cloud budget unless budget allows it.
-- Before paid API/cloud spend, run `python -m async_research_workflow.scripts.cost_tracking budget-check`; if it exits nonzero, set status to `needs_human`.
-- If an API response includes usage, write it under artifacts/ and run `python -m async_research_workflow.scripts.cost_tracking ingest-usage` before final status validation.
+- Before paid API/cloud spend, run `async-research cost budget-check`; if it exits nonzero, set status to `needs_human`.
+- If an API response includes usage, write it under artifacts/ and run `async-research cost ingest-usage` before final status validation.
 - For `batch_job` tasks, validate `batch_manifest.json` with `python -m async_research_workflow.scripts.batch_lifecycle validate-manifest` before submission and submit with `python -m async_research_workflow.scripts.batch_lifecycle submit` so costs are logged.
 - For `batch_ingest` tasks, use `python -m async_research_workflow.scripts.batch_lifecycle ingest`; do not mark batch outputs trusted unless a reviewer later runs `python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed`.
 - If experiment data audit checks fail, revise the plan to reference ready `DS-0000` entries or set status to `needs_human`; do not proceed silently.
 - Do not mark source-dependent outputs ready for review until unapproved, stale, Tier 3-only, or Tier 4-blocked source issues are resolved or routed to `needs_human`.
-- Accepted evidence should cite audited `DS-*` source IDs; use `python -m async_research_workflow.scripts.data_source_audit check-claim` for high-impact or accepted-evidence claims.
+- Accepted evidence should cite audited `DS-*` source IDs; use `async-research source check-claim` for high-impact or accepted-evidence claims.
 - If exploration framework validation fails, revise the cycle or set status to `needs_human`; do not update discovery_inbox.md.
 - If mission policy validation fails, set status to `needs_human`; do not score candidates or update discovery_inbox.md.
 - If idea-evaluation validation fails, revise the candidate, log the rejection, or set status to `needs_human`; do not update discovery_inbox.md with that candidate.
@@ -351,7 +351,7 @@ Review criteria:
 - For idea discovery, does exploration validation pass, and are duplicate/parked candidates handled?
 - For idea discovery, does each promoted candidate pass `async-research idea validate` and include an `idea_evaluation` record?
 - For experiment plans, do all required data sources reference ready data audit entries?
-- For source-dependent claims, does `python -m async_research_workflow.scripts.data_source_audit check-claim` allow the cited sources for the claim impact?
+- For source-dependent claims, does `async-research source check-claim` allow the cited sources for the claim impact?
 - For experiment plans, does `async-research experiment validate` pass, and are warnings explicitly addressed?
 - For result/evaluation tasks, does the worker output include a structured result summary from `result_summary_template.md`?
 
@@ -551,7 +551,7 @@ Task:
 5. Run python -m async_research_workflow.scripts.metrics_history append-snapshot research_ops --period weekly --label weekly_digest.
 6. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.framework_version_calibration research_ops --output research_ops/monthly_calibration_framework_versions.md.
 7. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.human_decision_log summarize research_ops --output research_ops/monthly_human_decision_summary.md.
-8. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.metrics_history summarize research_ops --output research_ops/monthly_metrics_trends.md.
+8. If this is the final weekly synthesis of the month, run async-research metrics summarize research_ops --output research_ops/monthly_metrics_trends.md.
 9. Write a concise weekly_digest.md update.
 10. Group accepted outputs into themes.
 11. List evidence due for refresh and stale evidence that must not be reused as current fact.
