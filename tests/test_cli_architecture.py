@@ -66,9 +66,16 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertIs(choices["surface"], choices["review-surface"])
 
     def test_build_parser_registers_nested_aliases(self) -> None:
-        accepted_choices = subparser_choices(subparser_choices(cli.build_parser())["accepted"])
+        choices = subparser_choices(cli.build_parser())
+        source_choices = subparser_choices(choices["source"])
+        cost_choices = subparser_choices(choices["cost"])
+        metrics_choices = subparser_choices(choices["metrics"])
+        accepted_choices = subparser_choices(choices["accepted"])
 
-        self.assertEqual(["update", "revalidation", "revalidate"], list(accepted_choices))
+        self.assertEqual(["validate", "freshness", "check-experiment", "check-claim"], list(source_choices))
+        self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
+        self.assertEqual(["append", "summarize"], list(metrics_choices))
+        self.assertEqual(["update", "check-duplicate", "revalidation", "revalidate", "check-memory-use"], list(accepted_choices))
         self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])
 
 

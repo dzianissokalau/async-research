@@ -1,0 +1,248 @@
+"""Regression tests for CLI audit public wrapper promotions."""
+
+from __future__ import annotations
+
+import contextlib
+import csv
+import io
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from async_research_workflow import cli
+
+
+NOW = "2026-05-05T00:00:00Z"
+
+
+def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        code = cli.main([str(arg) for arg in argv])
+    text = stream.getvalue().strip()
+    return code, json.loads(text) if text else {}
+
+
+def write_source_audit(ops_dir: Path) -> None:
+    (ops_dir / "data_source_audit.md").write_text(
+        "\n".join(
+            [
+                "# Data Source Audit Register",
+                "",
+                "Schema version: 1.0",
+                "",
+                "| source_id | source_name | url_or_domain | publisher_owner | source_tier | approval_status | approved_use_cases | blocked_use_cases | freshness_window_days | known_limitations | citation_requirements | last_reviewed | approved_by | review_notes |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| DS-0001 | Test Source | https://example.test | Test Publisher | tier_1_official | approved | experiment_planning; accepted_evidence | none | 365 | none | cite DS-0001 | 2026-05-05 | tests | ready fixture |",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_accepted_index(ops_dir: Path) -> None:
+    (ops_dir / "accepted_outputs_index.md").write_text(
+        "\n".join(
+            [
+                "| accepted_date | task_id | title | key_finding | claim_type | freshness_window_days | next_recheck_date | revalidation_status | source_ids | claim_strength | caveats | followups | supersedes | superseded_by | evidence_link |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| 2025-01-01 | TASK-1001 | Old evidence | Old finding | general | 30 | 2025-02-01 | stale | none | moderate | none | none | none | none | tasks/TASK-1001/worker_output.md |",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_budget_ledger(ops_dir: Path) -> None:
+    with (ops_dir / "cost_ledger.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "date",
+                "item_id",
+                "role",
+                "model_or_tool",
+                "usage_source",
+                "input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "input_usd",
+                "output_usd",
+                "api_usd",
+                "compute_usd",
+                "amount_usd",
+                "human_minutes",
+                "status",
+                "actual",
+                "monthly_budget_usd",
+                "weekly_budget_usd",
+                "notes",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "date": "2026-05-05",
+                "item_id": "COST-0001",
+                "role": "worker",
+                "model_or_tool": "fixture-model",
+                "usage_source": "fixture",
+                "input_tokens": "0",
+                "output_tokens": "0",
+                "total_tokens": "0",
+                "input_usd": "0",
+                "output_usd": "0",
+                "api_usd": "0",
+                "compute_usd": "90",
+                "amount_usd": "90",
+                "human_minutes": "0",
+                "status": "recorded",
+                "actual": "true",
+                "monthly_budget_usd": "100",
+                "weekly_budget_usd": "100",
+                "notes": "budget pressure fixture",
+            }
+        )
+
+
+class CliAuditSurfaceTests(unittest.TestCase):
+    def init_ops(self, root: Path) -> Path:
+        ops_dir = root / "research_ops"
+        code, payload = run_cli_json(["init", ops_dir, "--force"])
+        self.assertEqual(cli.SUCCESS, code, payload)
+        self.assertTrue(payload["ok"])
+        return ops_dir
+
+    def test_cost_ingest_usage_dry_run_preserves_ledger_and_write_appends_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            usage = Path(tmp) / "usage.json"
+            usage.write_text(json.dumps({"usage": {"input_tokens": 1000, "output_tokens": 2000}}), encoding="utf-8")
+            ledger = ops_dir / "cost_ledger.csv"
+            before = ledger.read_text(encoding="utf-8")
+
+            code, dry = run_cli_json(
+                [
+                    "cost",
+                    "ingest-usage",
+                    ops_dir,
+                    "--usage-file",
+                    usage,
+                    "--item-id",
+                    "TASK-3001",
+                    "--role",
+                    "worker",
+                    "--model",
+                    "fixture-model",
+                    "--api-usd",
+                    "0.03",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertEqual("dry_run_usage_ingested", dry["action"])
+            self.assertEqual(before, ledger.read_text(encoding="utf-8"))
+
+            code, written = run_cli_json(
+                [
+                    "cost",
+                    "ingest-usage",
+                    ops_dir,
+                    "--usage-file",
+                    usage,
+                    "--item-id",
+                    "TASK-3001",
+                    "--role",
+                    "worker",
+                    "--model",
+                    "fixture-model",
+                    "--api-usd",
+                    "0.03",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, written)
+            self.assertEqual("usage_ingested", written["action"])
+            self.assertIn("TASK-3001", ledger.read_text(encoding="utf-8"))
+
+    def test_cost_budget_check_preserves_halt_exit_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_budget_ledger(ops_dir)
+
+            code, payload = run_cli_json(
+                [
+                    "cost",
+                    "budget-check",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-3002",
+                    "--action",
+                    "promotion",
+                    "--proposed-api-usd",
+                    "0",
+                    "--proposed-compute-usd",
+                    "0",
+                    "--threshold",
+                    "0.8",
+                ]
+            )
+
+            self.assertEqual(2, code, payload)
+            self.assertTrue(payload["halt"])
+            self.assertEqual("budget_threshold_exceeded", payload["reason"])
+
+    def test_accepted_duplicate_is_advisory_and_memory_use_remains_hard_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_accepted_index(ops_dir)
+
+            code, duplicate = run_cli_json(["accepted", "check-duplicate", ops_dir, "--title", "Old evidence"])
+            self.assertEqual(cli.SUCCESS, code, duplicate)
+            self.assertTrue(duplicate["duplicate_risk"])
+
+            artifact = ops_dir / "tasks" / "TASK-3003-new-work" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("This proposed output relies on TASK-1001 as current evidence.\n", encoding="utf-8")
+            code, memory = run_cli_json(["accepted", "check-memory-use", ops_dir, artifact, "--now", NOW])
+
+            self.assertEqual(2, code, memory)
+            self.assertFalse(memory["ok"])
+            self.assertEqual("stale_accepted_memory_reuse", memory["reason"])
+
+    def test_source_experiment_and_claim_checks_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            plan = ops_dir / "tasks" / "TASK-3004-plan" / "task.md"
+            plan.parent.mkdir(parents=True)
+            plan.write_text("Data Source Audit: DS-0001\n", encoding="utf-8")
+
+            code, experiment = run_cli_json(["source", "check-experiment", ops_dir, plan])
+            self.assertEqual(cli.SUCCESS, code, experiment)
+            self.assertTrue(experiment["ok"])
+            self.assertEqual(["DS-0001"], experiment["data_audit_refs"])
+
+            code, claim = run_cli_json(["source", "check-claim", ops_dir, plan, "--use-case", "accepted_evidence"])
+            self.assertEqual(cli.SUCCESS, code, claim)
+            self.assertTrue(claim["ok"])
+            self.assertEqual([], claim["blocked"])
+
+    def test_metrics_summarize_outputs_json_and_optional_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            output = Path(tmp) / "metrics.md"
+
+            code, payload = run_cli_json(["metrics", "summarize", ops_dir, "--output", output])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(str(output), payload["output"])
+            self.assertTrue(output.exists())
+            self.assertIn("Metrics Trend Summary", output.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

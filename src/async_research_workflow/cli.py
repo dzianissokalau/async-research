@@ -270,9 +270,162 @@ def add_common_ops(parser: argparse.ArgumentParser, default: str = "research_ops
     )
 
 
+def add_required_ops(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+
+
 def add_command(subparsers, *args, **kwargs) -> argparse.ArgumentParser:
     kwargs.setdefault("formatter_class", HelpFormatter)
     return subparsers.add_parser(*args, **kwargs)
+
+
+def add_budget_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--monthly-budget-usd", type=float, help="Override or seed the monthly budget in USD.")
+    parser.add_argument("--weekly-budget-usd", type=float, help="Override or seed the weekly budget in USD.")
+
+
+def optional_path(flag: str, value: Path | None) -> list[str]:
+    return [flag, str(value)] if value else []
+
+
+def optional_text(flag: str, value: str | None) -> list[str]:
+    return [flag, value] if value else []
+
+
+def optional_number(flag: str, value: float | None) -> list[str]:
+    return [flag, str(value)] if value is not None else []
+
+
+def budget_option_values(args: argparse.Namespace) -> list[str]:
+    return optional_number("--monthly-budget-usd", args.monthly_budget_usd) + optional_number("--weekly-budget-usd", args.weekly_budget_usd)
+
+
+def run_source_check_experiment_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_source_audit",
+        [
+            "check-experiment",
+            str(args.ops_dir),
+            str(args.experiment_plan),
+            "--claim-impact",
+            args.claim_impact,
+        ],
+    )
+
+
+def run_source_check_claim_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_source_audit",
+        [
+            "check-claim",
+            str(args.ops_dir),
+            str(args.artifact),
+            "--use-case",
+            args.use_case,
+            "--claim-impact",
+            args.claim_impact,
+        ]
+        + (["--allow-tier4-explicit"] if args.allow_tier4_explicit else []),
+    )
+
+
+def run_cost_summary_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "cost_tracking",
+        ["summary", str(args.ops_dir)]
+        + optional_path("--ledger", args.ledger)
+        + budget_option_values(args),
+    )
+
+
+def run_cost_ingest_usage_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "cost_tracking",
+        [
+            "ingest-usage",
+            str(args.ops_dir),
+            "--usage-file",
+            str(args.usage_file),
+            "--item-id",
+            args.item_id,
+            "--role",
+            args.role,
+            "--model",
+            args.model,
+            "--input-usd-per-1m",
+            str(args.input_usd_per_1m),
+            "--output-usd-per-1m",
+            str(args.output_usd_per_1m),
+            "--compute-usd",
+            str(args.compute_usd),
+            "--human-minutes",
+            str(args.human_minutes),
+            "--status",
+            args.status,
+        ]
+        + optional_number("--api-usd", args.api_usd)
+        + optional_text("--notes", args.notes)
+        + optional_text("--date", args.date)
+        + optional_path("--ledger", args.ledger)
+        + (["--dry-run"] if args.dry_run else [])
+        + budget_option_values(args),
+    )
+
+
+def run_cost_budget_check_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "cost_tracking",
+        [
+            "budget-check",
+            str(args.ops_dir),
+            "--item-id",
+            args.item_id,
+            "--action",
+            args.action,
+            "--proposed-api-usd",
+            str(args.proposed_api_usd),
+            "--proposed-compute-usd",
+            str(args.proposed_compute_usd),
+            "--threshold",
+            str(args.threshold),
+        ]
+        + optional_path("--ledger", args.ledger)
+        + budget_option_values(args),
+    )
+
+
+def run_metrics_summarize_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "metrics_history",
+        ["summarize", str(args.ops_dir)]
+        + optional_text("--month", args.month)
+        + optional_path("--output", args.output),
+    )
+
+
+def run_accepted_check_duplicate_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "update_accepted_outputs_index",
+        [
+            "check-duplicate",
+            str(args.ops_dir),
+            "--title",
+            args.title,
+            "--threshold",
+            str(args.threshold),
+        ]
+        + optional_path("--index", args.index),
+    )
+
+
+def run_accepted_check_memory_use_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "update_accepted_outputs_index",
+        ["check-memory-use", str(args.ops_dir), str(args.artifact)]
+        + optional_path("--index", args.index)
+        + optional_text("--now", args.now)
+        + (["--allow-stale"] if args.allow_stale else []),
+    )
 
 
 def register_package_commands(subparsers) -> None:
@@ -403,6 +556,28 @@ def register_source_commands(subparsers) -> None:
     )
     add_common_ops(freshness)
     freshness.set_defaults(func=lambda a: module_main("data_source_audit", ["freshness-report", str(a.ops_dir)]))
+    check_experiment = add_command(
+        source_sub,
+        "check-experiment",
+        help="Verify an experiment plan references ready audited sources.",
+        description="Validate that an experiment plan cites source IDs allowed for experiment planning.",
+    )
+    add_required_ops(check_experiment)
+    check_experiment.add_argument("experiment_plan", type=Path, help="Experiment task or artifact to scan for DS-* source references.")
+    check_experiment.add_argument("--claim-impact", choices=["low", "medium", "high"], default="medium", help="Impact level used while assessing cited sources.")
+    check_experiment.set_defaults(func=run_source_check_experiment_command)
+    check_claim = add_command(
+        source_sub,
+        "check-claim",
+        help="Verify an artifact cites sources allowed for its claim use.",
+        description="Validate that an artifact's cited DS-* sources are allowed for the selected use case and impact.",
+    )
+    add_required_ops(check_claim)
+    check_claim.add_argument("artifact", type=Path, help="Artifact to scan for DS-* source references.")
+    check_claim.add_argument("--use-case", choices=["discovery", "experiment_planning", "accepted_evidence", "context"], default="accepted_evidence", help="Source use case to validate.")
+    check_claim.add_argument("--claim-impact", choices=["low", "medium", "high"], default="medium", help="Claim impact level to validate.")
+    check_claim.add_argument("--allow-tier4-explicit", action="store_true", help="Allow explicitly cited tier-4 sources when policy permits.")
+    check_claim.set_defaults(func=run_source_check_claim_command)
 
 
 def register_cost_commands(subparsers) -> None:
@@ -420,7 +595,47 @@ def register_cost_commands(subparsers) -> None:
         description="Print aggregate spend, usage, and budget information from cost_ledger.csv.",
     )
     add_common_ops(cost_summary)
-    cost_summary.set_defaults(func=lambda a: module_main("cost_tracking", ["summary", str(a.ops_dir)]))
+    cost_summary.add_argument("--ledger", type=Path, help="Override the default research_ops/cost_ledger.csv path.")
+    add_budget_options(cost_summary)
+    cost_summary.set_defaults(func=run_cost_summary_command)
+    ingest = add_command(
+        cost_sub,
+        "ingest-usage",
+        help="Append actual API usage to cost_ledger.csv.",
+        description="Aggregate token usage from a JSON/JSONL response artifact and append a cost ledger row.",
+    )
+    add_common_ops(ingest)
+    ingest.add_argument("--usage-file", type=Path, required=True, help="JSON or JSONL usage artifact to aggregate.")
+    ingest.add_argument("--item-id", required=True, help="Task, idea, batch, or decision identifier for the ledger row.")
+    ingest.add_argument("--role", required=True, help="Actor or workflow role responsible for the usage.")
+    ingest.add_argument("--model", required=True, help="Model or tool name responsible for the usage.")
+    ingest.add_argument("--input-usd-per-1m", type=float, default=0.0, help="Input-token price per 1M tokens.")
+    ingest.add_argument("--output-usd-per-1m", type=float, default=0.0, help="Output-token price per 1M tokens.")
+    ingest.add_argument("--api-usd", type=float, help="Explicit API cost override in USD.")
+    ingest.add_argument("--compute-usd", type=float, default=0.0, help="Additional compute cost in USD.")
+    ingest.add_argument("--human-minutes", type=float, default=0.0, help="Human time associated with the usage.")
+    ingest.add_argument("--status", default="completed", help="Status stored on the ledger row.")
+    ingest.add_argument("--notes", help="Notes stored on the ledger row.")
+    ingest.add_argument("--date", help="ISO date/time stored on the ledger row.")
+    ingest.add_argument("--ledger", type=Path, help="Override the default research_ops/cost_ledger.csv path.")
+    ingest.add_argument("--dry-run", action="store_true", help="Print the row without writing cost_ledger.csv.")
+    add_budget_options(ingest)
+    ingest.set_defaults(func=run_cost_ingest_usage_command)
+    budget = add_command(
+        cost_sub,
+        "budget-check",
+        help="Exit nonzero when projected spend crosses a threshold.",
+        description="Project a proposed cost against monthly and weekly budgets before promotion or expensive work.",
+    )
+    add_common_ops(budget)
+    budget.add_argument("--item-id", required=True, help="Task, idea, batch, or decision identifier being checked.")
+    budget.add_argument("--action", default="expensive_task", help="Action being gated.")
+    budget.add_argument("--proposed-api-usd", type=float, default=0.0, help="Proposed API cost in USD.")
+    budget.add_argument("--proposed-compute-usd", type=float, default=0.0, help="Proposed compute cost in USD.")
+    budget.add_argument("--threshold", type=float, default=0.8, help="Budget usage ratio at or above which work is halted.")
+    budget.add_argument("--ledger", type=Path, help="Override the default research_ops/cost_ledger.csv path.")
+    add_budget_options(budget)
+    budget.set_defaults(func=run_cost_budget_check_command)
 
 
 def register_metrics_commands(subparsers) -> None:
@@ -441,6 +656,16 @@ def register_metrics_commands(subparsers) -> None:
     metrics_append.add_argument("--label", default="manual", help="Label stored with the snapshot.")
     metrics_append.add_argument("--update-weekly-digest", action="store_true", help="Refresh the autonomy metrics section in weekly_digest.md.")
     metrics_append.set_defaults(func=lambda a: module_main("metrics_history", ["append-snapshot", str(a.ops_dir), "--label", a.label] + (["--update-weekly-digest"] if a.update_weekly_digest else [])))
+    metrics_summarize = add_command(
+        metrics_sub,
+        "summarize",
+        help="Summarize metric trends from history.",
+        description="Summarize baseline and metrics_history.jsonl trends, optionally writing a Markdown report.",
+    )
+    add_common_ops(metrics_summarize)
+    metrics_summarize.add_argument("--month", help="Limit or label the summary month.")
+    metrics_summarize.add_argument("--output", type=Path, help="Write a Markdown summary to this path.")
+    metrics_summarize.set_defaults(func=run_metrics_summarize_command)
 
 
 def register_accepted_commands(subparsers) -> None:
@@ -459,6 +684,17 @@ def register_accepted_commands(subparsers) -> None:
     )
     add_common_ops(accepted_update)
     accepted_update.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["update", str(a.ops_dir)]))
+    accepted_duplicate = add_command(
+        accepted_sub,
+        "check-duplicate",
+        help="Check whether a proposed title overlaps accepted memory.",
+        description="Report duplicate risk against accepted_outputs_index.md while preserving advisory exit-code behavior.",
+    )
+    add_common_ops(accepted_duplicate)
+    accepted_duplicate.add_argument("--title", required=True, help="Proposed title to compare with accepted outputs.")
+    accepted_duplicate.add_argument("--index", type=Path, help="Override the default accepted_outputs_index.md path.")
+    accepted_duplicate.add_argument("--threshold", type=float, default=0.35, help="Similarity threshold used to report duplicate risk.")
+    accepted_duplicate.set_defaults(func=run_accepted_check_duplicate_command)
     accepted_reval = add_command(
         accepted_sub,
         "revalidation",
@@ -469,6 +705,18 @@ def register_accepted_commands(subparsers) -> None:
     add_common_ops(accepted_reval)
     accepted_reval.add_argument("--write-schedule", action="store_true", help="Write research_ops/revalidation_schedule.md.")
     accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
+    accepted_memory = add_command(
+        accepted_sub,
+        "check-memory-use",
+        help="Fail if an artifact cites stale accepted memory.",
+        description="Scan an artifact for TASK-* references and block reuse of stale accepted memory.",
+    )
+    add_required_ops(accepted_memory)
+    accepted_memory.add_argument("artifact", type=Path, help="Artifact to scan for accepted-memory task references.")
+    accepted_memory.add_argument("--index", type=Path, help="Override the default accepted_outputs_index.md path.")
+    accepted_memory.add_argument("--now", help="Override current time for deterministic freshness checks, ISO-8601.")
+    accepted_memory.add_argument("--allow-stale", action="store_true", help="Report stale refs without failing the gate.")
+    accepted_memory.set_defaults(func=run_accepted_check_memory_use_command)
 
 
 def register_review_commands(subparsers) -> None:
