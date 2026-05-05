@@ -17,7 +17,7 @@ async-research schema-check research_ops
 async-research readiness research_ops --dry-run
 async-research surface update research_ops
 async-research surface validate research_ops
-python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research escalation scan-needs-human research_ops
 async-research source freshness research_ops
 async-research health research_ops --dry-run
 async-research cost summary research_ops
@@ -60,7 +60,7 @@ not delete queue rows by hand.
 When a task may require human judgment, run:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/TASK-0001-data-readiness \
   --ops-dir research_ops
 ```
@@ -68,7 +68,7 @@ python -m async_research_workflow.scripts.escalation_policy evaluate \
 If it exits `2`, do not continue automated work. Apply the stop state with:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/TASK-0001-data-readiness \
   --ops-dir research_ops \
   --apply
@@ -79,7 +79,7 @@ available decisions, default safe action, retry behavior, and ledger update
 behavior. Validate that invariant with:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research escalation scan-needs-human research_ops
 ```
 
 ## Back Up Before Automation
@@ -498,7 +498,7 @@ async-research surface update research_ops
 async-research surface validate research_ops
 async-research schema-check research_ops
 async-research readiness research_ops --dry-run
-python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research escalation scan-needs-human research_ops
 async-research source freshness research_ops
 async-research accepted revalidation research_ops --write-schedule
 async-research queue discovery-gate research_ops --max-active 10

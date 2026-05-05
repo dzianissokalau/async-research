@@ -266,7 +266,7 @@ Task:
 10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
 11. For `idea_discovery` tasks, run `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
 12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
-13. Before moving the task forward, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
+13. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
 14. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
 15. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
 16. Run async-research schema-check research_ops.
@@ -298,7 +298,7 @@ Rules:
 - If experiment framework validation fails, revise the plan or set status to `needs_human`; do not mark it `awaiting_review`.
 - Stop after the task is complete or blocked.
 - If task scope is too large, write why and set needs_human.
-- Never set `needs_human` with a vague reason; use `escalation_policy.py --apply` or write the same structured `human_gate` fields.
+- Never set `needs_human` with a vague reason; use `async-research escalation evaluate --apply` or write the same structured `human_gate` fields.
 
 Final response:
 - Task ID handled.
@@ -329,7 +329,7 @@ Task:
 7. If tier is 0 or 1, write reviews/primary.md with reviewer_role, decision, claim_strength, confidence, prompt_version="primary_reviewer_v1.0", and framework_versions.result_acceptance.
 8. If tier is 2 or 3, write reviews/primary.md with the same structured metadata and set status to panel_review unless all required reviews are already present.
 9. If the output needs a higher review tier before it can be accepted, run python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
-10. Before accepting, rejecting, or routing to revision/human, run python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
+10. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
 11. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
 12. If the review decision is needs_revision, do not edit status.json by hand. Run python -m async_research_workflow.scripts.revision_counter request <task-dir> --reviewer primary.
 13. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.

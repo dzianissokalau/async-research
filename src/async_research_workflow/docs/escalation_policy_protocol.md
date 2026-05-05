@@ -15,7 +15,7 @@ or reviewer to continue safely.
 The policy is executable through:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/TASK-0001 \
   --ops-dir research_ops
 ```
@@ -23,7 +23,7 @@ python -m async_research_workflow.scripts.escalation_policy evaluate \
 Use `--apply` when the scheduler or worker should write the stop state:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/TASK-0001 \
   --ops-dir research_ops \
   --apply
@@ -58,7 +58,7 @@ Every `needs_human` task must include:
 Validate existing human gates with:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy scan-needs-human research_ops
+async-research escalation scan-needs-human research_ops
 ```
 
 ## Trigger Table
@@ -86,8 +86,8 @@ Workers and reviewers must read the local policy file:
 research_ops/escalation_policy.md
 ```
 
-They must run `escalation_policy.py evaluate` before moving a risky task forward.
-If it exits `2`, they must stop and leave the task in `needs_human`.
+They must run `async-research escalation evaluate` before moving a risky task
+forward. If it exits `2`, they must stop and leave the task in `needs_human`.
 
 ## Resolution
 

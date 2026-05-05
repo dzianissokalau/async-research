@@ -512,6 +512,32 @@ def run_decision_summarize_command(args: argparse.Namespace) -> int:
     )
 
 
+def escalation_evaluate_options(args: argparse.Namespace) -> list[str]:
+    return (
+        optional_path("--ops-dir", args.ops_dir)
+        + (["--apply"] if args.apply else [])
+        + optional_text("--now", args.now)
+        + ["--source-freshness-days", str(args.source_freshness_days)]
+        + ["--reviewer-disagreement-threshold", str(args.reviewer_disagreement_threshold)]
+        + ["--confidence-threshold", str(args.confidence_threshold)]
+    )
+
+
+def run_escalation_list_command(args: argparse.Namespace) -> int:
+    return module_main("escalation_policy", ["list"])
+
+
+def run_escalation_scan_needs_human_command(args: argparse.Namespace) -> int:
+    return module_main("escalation_policy", ["scan-needs-human", str(args.ops_dir)])
+
+
+def run_escalation_evaluate_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "escalation_policy",
+        ["evaluate", str(args.task_dir)] + escalation_evaluate_options(args),
+    )
+
+
 def register_package_commands(subparsers) -> None:
     version = add_command(
         subparsers,
@@ -700,6 +726,47 @@ def register_decision_commands(subparsers) -> None:
     summarize.add_argument("--month", help="Only include decision rows whose date starts with YYYY-MM.")
     summarize.add_argument("--output", type=Path, help="Write a Markdown summary to this path.")
     summarize.set_defaults(func=run_decision_summarize_command)
+
+
+def register_escalation_commands(subparsers) -> None:
+    escalation = add_command(
+        subparsers,
+        "escalation",
+        help="Inspect and apply deterministic human escalation gates.",
+        description="List escalation policy triggers, validate structured needs_human gates, and evaluate one task.",
+    )
+    escalation_sub = escalation.add_subparsers(dest="escalation_command", required=True)
+    list_cmd = add_command(
+        escalation_sub,
+        "list",
+        help="List escalation policy triggers.",
+        description="Print the packaged deterministic escalation policy trigger table as JSON.",
+    )
+    list_cmd.set_defaults(func=run_escalation_list_command)
+    scan = add_command(
+        escalation_sub,
+        "scan-needs-human",
+        help="Validate structured needs_human gates.",
+        description="Read task status files and verify structured needs_human gates.",
+        epilog="Exits 0 when structured gates are valid, 2 when needs_human gates are incomplete, and 4 when the workspace is missing.",
+    )
+    add_common_ops(scan)
+    scan.set_defaults(func=run_escalation_scan_needs_human_command)
+    evaluate = add_command(
+        escalation_sub,
+        "evaluate",
+        help="Evaluate one task against escalation policy.",
+        description="Evaluate deterministic escalation triggers for one task; --apply writes a structured needs_human gate when triggers fire.",
+        epilog="Exits 0 when no escalation is needed, 2 when escalation is required or applied, 3 when apply/transition validation fails, and 4 for malformed input.",
+    )
+    evaluate.add_argument("task_dir", type=Path, help="Task directory or status.json path to evaluate.")
+    evaluate.add_argument("--ops-dir", type=Path, help="research_ops directory; inferred from task_dir when omitted.")
+    evaluate.add_argument("--apply", action="store_true", help="Write status=needs_human and a structured human_gate when escalation is required.")
+    evaluate.add_argument("--now", help="Override current time for deterministic source freshness checks.")
+    evaluate.add_argument("--source-freshness-days", type=int, default=90, help="Maximum source freshness age before stale-source escalation.")
+    evaluate.add_argument("--reviewer-disagreement-threshold", type=int, default=2, help="Claim-strength spread that triggers reviewer-disagreement escalation.")
+    evaluate.add_argument("--confidence-threshold", type=float, default=0.85, help="Confidence threshold for high-confidence weak-evidence escalation.")
+    evaluate.set_defaults(func=run_escalation_evaluate_command)
 
 
 def register_source_commands(subparsers) -> None:
@@ -1015,6 +1082,7 @@ COMMAND_REGISTRARS = (
     register_schema_command,
     register_queue_commands,
     register_decision_commands,
+    register_escalation_commands,
     register_source_commands,
     register_cost_commands,
     register_metrics_commands,

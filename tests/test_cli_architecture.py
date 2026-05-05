@@ -25,6 +25,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_schema_command",
                 "register_queue_commands",
                 "register_decision_commands",
+                "register_escalation_commands",
                 "register_source_commands",
                 "register_cost_commands",
                 "register_metrics_commands",
@@ -53,6 +54,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "schema-check",
                 "queue",
                 "decision",
+                "escalation",
                 "source",
                 "cost",
                 "metrics",
@@ -74,12 +76,14 @@ class CliArchitectureTests(unittest.TestCase):
         source_choices = subparser_choices(choices["source"])
         queue_choices = subparser_choices(choices["queue"])
         decision_choices = subparser_choices(choices["decision"])
+        escalation_choices = subparser_choices(choices["escalation"])
         cost_choices = subparser_choices(choices["cost"])
         metrics_choices = subparser_choices(choices["metrics"])
         accepted_choices = subparser_choices(choices["accepted"])
 
         self.assertEqual(["discovery-gate"], list(queue_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
+        self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["validate", "freshness", "check-experiment", "check-claim"], list(source_choices))
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["append", "summarize"], list(metrics_choices))

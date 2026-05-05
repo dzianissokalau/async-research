@@ -214,6 +214,9 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research decision resolve-task research_ops <task-dir> --decision resume --reason "<why>" --approver <name>` | Resolve a `needs_human` task through the decision log. | Task `status.json` and `decisions.md`. | `decisions.md` and task `status.json`; with `--dry-run`, stdout only. |
 | `async-research decision check research_ops --item-id <id>` | Check whether an item has a matching decision row. | `decisions.md`. | JSON to stdout only. |
 | `async-research decision summarize research_ops --output research_ops/monthly_human_decision_summary.md` | Summarize human decisions for calibration. | `decisions.md`. | JSON to stdout; optional Markdown output file. |
+| `async-research escalation list` | List deterministic escalation policy triggers. | Packaged escalation policy. | JSON to stdout only. |
+| `async-research escalation scan-needs-human research_ops` | Verify every `needs_human` task has a structured human gate. | Task `status.json` files. | JSON to stdout only. |
+| `async-research escalation evaluate <task-dir> --ops-dir research_ops` | Evaluate one task against deterministic human-escalation triggers. | Task status/output, task contract, source audit, accepted memory, reviews, and cost ledger. | JSON to stdout; with `--apply`, task `status.json` when escalation is required. |
 | `async-research surface update research_ops` | Refresh the human-facing control surface; alias: `review-surface update`. | Task status, health report, ledgers, cost, accepted memory. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
 | `async-research surface validate research_ops` | Check the rendered human surface for drift; alias: `review-surface validate`. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
 | `async-research source validate research_ops` | Validate the source audit register. | `data_source_audit.md`. | JSON to stdout only. |
@@ -277,6 +280,9 @@ specific diagnostic.
 | `decision check` | `0` matching decision found. | `3` no matching decision row. |
 | `decision resolve-task` | `0` task resolved or dry-run transition printed. | `2` invalid request such as task not in `needs_human`; `3` transition validation failed; `4` malformed task state. |
 | `decision summarize` | `0` summary printed or written. | No command-specific nonzero return from the backing script. |
+| `escalation list` | `0` policy trigger table printed. | No command-specific runtime failures. |
+| `escalation scan-needs-human` | `0` structured gates are valid. | `2` one or more `needs_human` tasks are missing structured gates; `4` workspace is missing. |
+| `escalation evaluate` | `0` no escalation is needed. | `2` escalation is required, or was applied with `--apply`; `3` apply/transition validation failed; `4` malformed or missing task/workspace input. |
 | `surface update` | `0` surface updated. | `4` malformed workspace state or missing required files. |
 | `surface validate` | `0` rendered surface matches workspace state. | `2` validation drift; `4` malformed workspace state or missing required files. |
 | `schema-check` | `0` schema versions pass. | `4` missing, malformed, mismatched, or unreadable versioned artifacts. |

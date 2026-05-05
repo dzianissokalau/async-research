@@ -150,6 +150,26 @@ def write_task_status(ops_dir: Path, task_id: str, status: str) -> Path:
     return task_dir
 
 
+def write_clear_task_contract(task_dir: Path) -> None:
+    (task_dir / "task.md").write_text(
+        "\n".join(
+            [
+                f"# {task_dir.name} Fixture",
+                "",
+                "## Objective",
+                "",
+                "Run one bounded administrative check with explicit scope.",
+                "",
+                "## Scope",
+                "",
+                f"- Work only inside `research_ops/tasks/{task_dir.name}/`.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 class CliAuditSurfaceTests(unittest.TestCase):
     def init_ops(self, root: Path) -> Path:
         ops_dir = root / "research_ops"
@@ -490,6 +510,64 @@ class CliAuditSurfaceTests(unittest.TestCase):
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("ready_for_worker", status["status"])
             self.assertFalse(status["requires_human"])
+
+    def test_escalation_list_and_scan_needs_human_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task_status(ops_dir, "TASK-6001", "needs_human")
+
+            code, listing = run_cli_json(["escalation", "list"])
+            self.assertEqual(cli.SUCCESS, code, listing)
+            self.assertTrue(listing["ok"])
+            self.assertGreater(len(listing["triggers"]), 0)
+
+            code, scan = run_cli_json(["escalation", "scan-needs-human", ops_dir])
+            self.assertEqual(2, code, scan)
+            self.assertFalse(scan["ok"])
+            self.assertEqual("needs_human_scanned", scan["action"])
+            self.assertGreater(scan["error_count"], 0)
+
+    def test_escalation_evaluate_no_trigger_exits_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-6002", "ready_for_worker")
+            write_clear_task_contract(task_dir)
+
+            code, payload = run_cli_json(["escalation", "evaluate", task_dir, "--ops-dir", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("continue", payload["route"])
+            self.assertEqual(0, payload["trigger_count"])
+
+    def test_escalation_evaluate_trigger_without_apply_preserves_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-6003", "ready_for_worker")
+            before = (task_dir / "status.json").read_text(encoding="utf-8")
+
+            code, payload = run_cli_json(["escalation", "evaluate", task_dir, "--ops-dir", ops_dir])
+
+            self.assertEqual(2, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("needs_human", payload["route"])
+            self.assertIn("ambiguous_task_contract", payload["triggered_triggers"])
+            self.assertEqual(before, (task_dir / "status.json").read_text(encoding="utf-8"))
+
+    def test_escalation_evaluate_apply_writes_structured_needs_human_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-6004", "ready_for_worker")
+
+            code, payload = run_cli_json(["escalation", "evaluate", task_dir, "--ops-dir", ops_dir, "--apply"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("escalation_applied", payload["action"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("needs_human", status["status"])
+            self.assertTrue(status["requires_human"])
+            self.assertEqual("ambiguous_task_contract", status["human_gate"]["trigger"])
+            self.assertIn("required_human_decision", status["human_gate"])
 
 
 if __name__ == "__main__":

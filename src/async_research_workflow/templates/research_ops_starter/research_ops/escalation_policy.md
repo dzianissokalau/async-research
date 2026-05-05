@@ -8,7 +8,7 @@ continues a task that may require human judgment.
 Executable gate:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/<TASK-ID> \
   --ops-dir research_ops
 ```
@@ -16,7 +16,7 @@ python -m async_research_workflow.scripts.escalation_policy evaluate \
 Apply a stop route:
 
 ```bash
-python -m async_research_workflow.scripts.escalation_policy evaluate \
+async-research escalation evaluate \
   research_ops/tasks/<TASK-ID> \
   --ops-dir research_ops \
   --apply

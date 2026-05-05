@@ -38,7 +38,7 @@ Write `worker_output.md` with:
 ## Escalation Policy
 
 - Read `research_ops/escalation_policy.md` before moving risky work forward.
-- Run `python -m async_research_workflow.scripts.escalation_policy evaluate <task-dir> --ops-dir research_ops`.
+- Run `async-research escalation evaluate <task-dir> --ops-dir research_ops`.
 - If it exits `2`, rerun with `--apply`, stop, and leave the structured
   `human_gate` for a human decision.
 - Do not set `needs_human` with a vague reason.
