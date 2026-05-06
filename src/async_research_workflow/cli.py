@@ -285,7 +285,23 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
 
 
 def run_acceptance_suite_command(args: argparse.Namespace) -> int:
-    return module_main("run_acceptance_suite", [])
+    argv: list[str] = []
+    if args.work_dir:
+        argv.extend(["--work-dir", str(args.work_dir)])
+    if args.keep_work_dir:
+        argv.append("--keep-work-dir")
+    return module_main("run_acceptance_suite", argv)
+
+
+def run_health_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.monthly_budget_usd is not None:
+        argv.extend(["--monthly-budget-usd", str(args.monthly_budget_usd)])
+    if args.weekly_budget_usd is not None:
+        argv.extend(["--weekly-budget-usd", str(args.weekly_budget_usd)])
+    return module_main("health_check", argv)
 
 
 def run_version(args: argparse.Namespace) -> int:
@@ -800,6 +816,8 @@ def register_package_commands(subparsers) -> None:
         description="Run the durable package acceptance suite against isolated temporary fixtures.",
         epilog="Exits 0 when all checks pass, 1 when any acceptance check fails.",
     )
+    acceptance.add_argument("--work-dir", type=Path, help="Use this fixture directory instead of the default temp path.")
+    acceptance.add_argument("--keep-work-dir", action="store_true", help="Keep isolated fixtures for debugging failed checks.")
     acceptance.set_defaults(func=run_acceptance_suite_command)
 
 
@@ -823,7 +841,9 @@ def register_status_commands(subparsers) -> None:
     )
     add_common_ops(health)
     health.add_argument("--dry-run", action="store_true", help="Print the report without writing health_report.json or daily_status.md.")
-    health.set_defaults(func=lambda a: module_main("health_check", [str(a.ops_dir)] + (["--dry-run"] if a.dry_run else [])))
+    health.add_argument("--monthly-budget-usd", type=float, help="Override the monthly budget used for health budget-pressure checks.")
+    health.add_argument("--weekly-budget-usd", type=float, help="Override the weekly budget used for health budget-pressure checks.")
+    health.set_defaults(func=run_health_command)
 
 
 def register_surface_commands(subparsers) -> None:

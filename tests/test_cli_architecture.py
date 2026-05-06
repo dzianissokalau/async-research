@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import unittest
+from unittest import mock
 
 from async_research_workflow import cli
 
@@ -98,6 +99,43 @@ class CliArchitectureTests(unittest.TestCase):
         for command_name in INTERNAL_ONLY_TOP_LEVEL_COMMANDS:
             with self.subTest(command_name=command_name):
                 self.assertNotIn(command_name, choices)
+
+    def test_acceptance_suite_debug_flags_route_to_public_wrapper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["acceptance-suite", "--work-dir", "/tmp/arw-acceptance", "--keep-work-dir"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "run_acceptance_suite",
+            ["--work-dir", "/tmp/arw-acceptance", "--keep-work-dir"],
+        )
+
+    def test_health_budget_flags_route_to_public_wrapper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(
+                [
+                    "health",
+                    "research_ops",
+                    "--dry-run",
+                    "--monthly-budget-usd",
+                    "100",
+                    "--weekly-budget-usd",
+                    "25",
+                ]
+            )
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "health_check",
+            [
+                "research_ops",
+                "--dry-run",
+                "--monthly-budget-usd",
+                "100.0",
+                "--weekly-budget-usd",
+                "25.0",
+            ],
+        )
 
     def test_build_parser_registers_nested_aliases(self) -> None:
         choices = subparser_choices(cli.build_parser())

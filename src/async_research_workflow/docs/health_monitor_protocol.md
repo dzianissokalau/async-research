@@ -10,18 +10,18 @@ Surface operational problems without relying on daily human babysitting.
 
 The health monitor is independent of worker, reviewer, discovery, and synthesis jobs. It should run daily and report conditions that need human or scheduler attention.
 
-## Required Helper
+## Public Command
 
 Use:
 
-```text
-async_research_workflow/scripts/health_check.py
-```
-
-Run against the operational folder:
-
 ```bash
 async-research health research_ops
+```
+
+Implementation module:
+
+```text
+async_research_workflow/scripts/health_check.py
 ```
 
 The helper writes:
@@ -97,7 +97,7 @@ The health report aggregates these into `checks.cost.input_tokens`,
 Budgets can be passed as flags:
 
 ```bash
-python -m async_research_workflow.scripts.health_check research_ops \
+async-research health research_ops --dry-run \
   --monthly-budget-usd 100 \
   --weekly-budget-usd 25
 ```

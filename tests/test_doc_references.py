@@ -73,6 +73,12 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
     "escalation_policy": re.compile(
         r"(?:python -m\s+async_research_workflow\.scripts\.escalation_policy\s+\\?\s*|escalation_policy\.py\s+)(?:list|scan-needs-human|evaluate)\b|async_research_workflow/scripts/escalation_policy\.py"
     ),
+    "health_check": re.compile(
+        r"python -m\s+async_research_workflow\.scripts\.health_check\b"
+    ),
+    "run_acceptance_suite": re.compile(
+        r"python -m\s+async_research_workflow\.scripts\.run_acceptance_suite\b"
+    ),
 }
 INTERNAL_HELPER_MODULES = (
     "validate_json_artifact",

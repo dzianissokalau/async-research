@@ -96,12 +96,12 @@ Run the durable P0-P3 hardening and framework checks with:
 async-research acceptance-suite
 ```
 
-The suite creates isolated fixtures under `/private/tmp`, exercises the workflow
-helpers, and exits nonzero if a hardening contract regresses. When debugging a
-failed check, use the underlying helper with `--keep-work-dir`:
+The suite creates isolated fixtures under the platform temp directory, exercises
+the workflow helpers, and exits nonzero if a hardening contract regresses. When
+debugging a failed check, keep the fixtures with:
 
 ```bash
-python -m async_research_workflow.scripts.run_acceptance_suite --keep-work-dir
+async-research acceptance-suite --keep-work-dir
 ```
 
 Before spending model budget on unattended jobs, rehearse one scheduled week
