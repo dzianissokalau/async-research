@@ -176,7 +176,7 @@ Last updated: 2026-05-06
 | 0 | Lock product invariants | Complete | Three-layer ownership, source-of-truth, command safety, and v1/v2 promotion boundaries are captured in this roadmap and `idea_catalog_contract.md`. |
 | 1 | Starter files, contracts, and migration safety | Complete | Shipped in `41607c5` with starter `ideas/` files, generated-block templates, docs, and `async-research idea catalog init`. |
 | 1a | Review follow-up hardening | Complete | Shipped in `fa27c32` with dry-run lock warnings, bare dry-run tests, malformed bootstrap tests, and exact marker docs. |
-| 2 | Candidate schema and lifecycle extension | Not started | Next MVP slice. Extend `idea_candidate.schema.json` before parser/validator semantics depend on new fields. |
+| 2 | Candidate schema and lifecycle extension | Complete | Extends `idea_candidate.schema.json` with catalog lifecycle fields, new stored statuses, reference patterns, and schema regression tests. |
 | 3 | Catalog parser and read model | Not started | Build read-only parser for canonical JSON, generated projections, duplicate IDs, stale projections, and cold-start warnings. |
 | 4 | Catalog validator and read-only CLI | Not started | Complete the MVP with `idea catalog validate`, `list`, and `show`. |
 | 5 | Read-only surface integration | Not started | Post-MVP. Add catalog health and throughput to digest/health/readiness without mutating JSON. |

@@ -87,6 +87,44 @@ Future parsers and renderers must use these exact generated-block markers.
 The supported prioritization sections are `RECOMMENDED-PROMOTIONS`, `PARKED`,
 `REJECTED`, and `BLOCKERS`.
 
+## Candidate Lifecycle Fields
+
+Canonical catalog candidates reuse `idea_candidate.schema.json`. The schema
+keeps existing discovery-stage candidates valid while adding optional lifecycle
+metadata for catalog records:
+
+```text
+created_at
+updated_at
+human_priority
+promoted_task_id
+human_gate_reason
+status_reason
+source_discovery_path
+library_refs
+data_refs
+accepted_output_refs
+rejected_idea_refs
+rejected_result_refs
+decision_history
+```
+
+Stored idea statuses are:
+
+```text
+candidate
+promote
+park
+reject
+promoted
+needs_human
+```
+
+Schema validation checks field shape, ID patterns, reference patterns, and
+allowed statuses. Path-aware checks such as `ideas/IDEA-0001.json` matching
+`id = IDEA-0001`, stale references, and conditional lifecycle rules are handled
+by the catalog parser and validator phases.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.
