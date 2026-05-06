@@ -35,26 +35,6 @@ CATALOG_TEMPLATE = f"""# Idea Catalog
 Free-form notes. Tooling must not edit this section.
 """
 
-PRIORITIZATION_TEMPLATE = """# Idea Prioritization
-
-<!-- IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS -->
-
-<!-- IDEA-PRIORITIZATION: PARKED AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: PARKED -->
-
-<!-- IDEA-PRIORITIZATION: REJECTED AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: REJECTED -->
-
-<!-- IDEA-PRIORITIZATION: BLOCKERS AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: BLOCKERS -->
-
-## Notes
-
-Free-form notes. Tooling must not edit this section.
-"""
-
-
 def issue(severity: str, reason: str, path: Path, message: str, **details: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "severity": severity,
@@ -64,6 +44,25 @@ def issue(severity: str, reason: str, path: Path, message: str, **details: Any) 
     }
     payload.update(details)
     return payload
+
+
+def prioritization_markers(section: str) -> tuple[str, str]:
+    return (
+        f"<!-- IDEA-PRIORITIZATION: {section} AUTO-MAINTAINED -->",
+        f"<!-- /IDEA-PRIORITIZATION: {section} -->",
+    )
+
+
+def prioritization_template_section(section: str) -> str:
+    start_marker, end_marker = prioritization_markers(section)
+    return f"{start_marker}\n{end_marker}"
+
+
+PRIORITIZATION_TEMPLATE = (
+    "# Idea Prioritization\n\n"
+    + "\n\n".join(prioritization_template_section(section) for section in PRIORITIZATION_BLOCKS)
+    + "\n\n## Notes\n\nFree-form notes. Tooling must not edit this section.\n"
+)
 
 
 def markdown_cells(line: str) -> list[str]:
@@ -170,6 +169,9 @@ def parse_catalog_projection(path: Path) -> tuple[dict[str, Any], list[dict[str,
 
     try:
         text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        warnings.append(issue("warning", "catalog_projection_read_failed", path, str(exc)))
+        return projection, warnings
     except OSError as exc:
         warnings.append(issue("warning", "catalog_projection_read_failed", path, str(exc)))
         return projection, warnings
@@ -191,13 +193,6 @@ def parse_catalog_projection(path: Path) -> tuple[dict[str, Any], list[dict[str,
     return projection, warnings
 
 
-def prioritization_markers(section: str) -> tuple[str, str]:
-    return (
-        f"<!-- IDEA-PRIORITIZATION: {section} AUTO-MAINTAINED -->",
-        f"<!-- /IDEA-PRIORITIZATION: {section} -->",
-    )
-
-
 def parse_prioritization_projection(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     projection = {
         "path": str(path),
@@ -211,6 +206,9 @@ def parse_prioritization_projection(path: Path) -> tuple[dict[str, Any], list[di
 
     try:
         text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        warnings.append(issue("warning", "prioritization_projection_read_failed", path, str(exc)))
+        return projection, warnings
     except OSError as exc:
         warnings.append(issue("warning", "prioritization_projection_read_failed", path, str(exc)))
         return projection, warnings
@@ -228,6 +226,8 @@ def parse_candidate_json(path: Path) -> tuple[dict[str, Any] | None, dict[str, A
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         return None, issue("failure", "malformed_candidate_json", path, str(exc))
+    except UnicodeDecodeError as exc:
+        return None, issue("failure", "malformed_candidate_json", path, str(exc))
     except OSError as exc:
         return None, issue("failure", "candidate_json_read_failed", path, str(exc))
     if not isinstance(payload, dict):
@@ -238,7 +238,7 @@ def parse_candidate_json(path: Path) -> tuple[dict[str, Any] | None, dict[str, A
 def hard_gate_blocked(payload: dict[str, Any]) -> bool:
     score = payload.get("score")
     if not isinstance(score, dict):
-        return True
+        return False
     gates = score.get("hard_gate_results")
     if not isinstance(gates, list):
         return False
@@ -247,6 +247,8 @@ def hard_gate_blocked(payload: dict[str, Any]) -> bool:
 
 def derived_display_label(payload: dict[str, Any]) -> str:
     status = str(payload.get("status") or "candidate")
+    if status == "candidate" and not isinstance(payload.get("score"), dict):
+        return "raw"
     if status == "candidate" and hard_gate_blocked(payload):
         return "blocked"
     if status == "candidate" and isinstance(payload.get("score"), dict):
@@ -264,7 +266,14 @@ def read_candidate_records(ideas_dir: Path) -> tuple[list[dict[str, Any]], list[
         if error is not None:
             failures.append(error)
             continue
-        assert payload is not None
+        if payload is None:
+            failures.append(issue(
+                "failure",
+                "candidate_json_missing_payload",
+                path,
+                "candidate JSON parser returned neither a payload nor an error",
+            ))
+            continue
         idea_id = str(payload.get("id", "")).strip()
         record = {
             "path": str(path),

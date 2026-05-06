@@ -8,13 +8,20 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow.idea_catalog import CATALOG_TEMPLATE
+from async_research_workflow.idea_catalog import PRIORITIZATION_BLOCKS
 from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
+from async_research_workflow.idea_catalog import prioritization_markers
 from async_research_workflow.idea_catalog import read_catalog
 
 
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def write_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -93,6 +100,35 @@ class IdeaCatalogParserTests(unittest.TestCase):
             self.assertEqual("malformed_candidate_json", model["failures"][0]["reason"])
             self.assertEqual(str(bad_path), model["failures"][0]["path"])
 
+    def test_binary_candidate_json_reports_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_catalog(ops_dir)
+            bad_path = ops_dir / "ideas" / "IDEA-0001.json"
+            write_bytes(bad_path, b"\x80\x81\x82")
+
+            model = read_catalog(ops_dir)
+
+            self.assertFalse(model["ok"])
+            self.assertEqual(0, model["candidate_count"])
+            self.assertEqual("malformed_candidate_json", model["failures"][0]["reason"])
+            self.assertEqual(str(bad_path), model["failures"][0]["path"])
+
+    def test_binary_projection_files_return_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            write_bytes(ops_dir / "ideas" / "idea_catalog.md", b"\x80")
+            write_bytes(ops_dir / "ideas" / "prioritization.md", b"\x81")
+
+            model = read_catalog(ops_dir)
+
+            self.assertTrue(model["ok"])
+            self.assertEqual([], model["failures"])
+            self.assertCountEqual(
+                ["catalog_projection_read_failed", "prioritization_projection_read_failed"],
+                [item["reason"] for item in model["warnings"]],
+            )
+
     def test_duplicate_ids_and_filename_mismatch_are_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"
@@ -159,6 +195,26 @@ Keep this.
 
             self.assertEqual({"candidate": 2, "park": 1}, model["status_counts"])
             self.assertEqual({"blocked": 1, "park": 1, "scored": 1}, model["derived_label_counts"])
+
+    def test_unscored_candidate_is_raw_not_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_catalog(ops_dir)
+            payload = candidate_payload("IDEA-0001")
+            payload.pop("score")
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", payload)
+
+            model = read_catalog(ops_dir)
+
+            self.assertEqual({"candidate": 1}, model["status_counts"])
+            self.assertEqual({"raw": 1}, model["derived_label_counts"])
+            self.assertEqual("raw", model["candidates"][0]["derived_label"])
+
+    def test_prioritization_template_uses_parser_markers(self) -> None:
+        for section in PRIORITIZATION_BLOCKS:
+            start_marker, end_marker = prioritization_markers(section)
+            self.assertIn(start_marker, PRIORITIZATION_TEMPLATE)
+            self.assertIn(end_marker, PRIORITIZATION_TEMPLATE)
 
     def test_prioritization_generated_blocks_are_parsed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

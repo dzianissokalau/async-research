@@ -78,14 +78,15 @@ Derived display labels are computed at render time:
 
 ```text
 raw_inbox = discovery inbox row not captured into canonical JSON
+raw = canonical candidate without a score object
 scored = candidate with score object
 blocked = candidate with failed hard gates or missing required refs
 ```
 
 Do not write derived labels into `IDEA-*.json`. If the Markdown table displays
-`raw_inbox`, `scored`, or `blocked`, those labels are rebuilt from canonical
-JSON or from eligible inbox rows. In v1, a canonical catalog record should be a
-structured idea candidate, not a loose raw note.
+`raw_inbox`, `raw`, `scored`, or `blocked`, those labels are rebuilt from
+canonical JSON or from eligible inbox rows. In v1, a canonical catalog record
+should be a structured idea candidate, not a loose raw note.
 
 Status transition rules:
 

@@ -138,13 +138,14 @@ model containing:
 - filename/JSON ID mismatch warnings
 - stale projection warnings for orphaned Markdown rows and orphaned JSON records
 - stored status counts
-- derived display-label counts such as `scored` and `blocked`
+- derived display-label counts such as `raw`, `scored`, and `blocked`
 - cold-start warnings for workspaces missing `research_ops/ideas/`
 
-The parser reports malformed candidate JSON as a failure with the offending
-path and reason. Stale Markdown projection state is a warning because canonical
-JSON remains authoritative. CLI commands for validation, listing, and showing
-catalog ideas are intentionally deferred to the next phase.
+The parser reports malformed or unreadable candidate JSON as a failure with the
+offending path and reason. Stale or unreadable Markdown projection state is a
+warning because canonical JSON remains authoritative. CLI commands for
+validation, listing, and showing catalog ideas are intentionally deferred to the
+next phase.
 
 ## Safety Rules
 
