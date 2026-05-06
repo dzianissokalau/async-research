@@ -143,9 +143,35 @@ model containing:
 
 The parser reports malformed or unreadable candidate JSON as a failure with the
 offending path and reason. Stale or unreadable Markdown projection state is a
-warning because canonical JSON remains authoritative. CLI commands for
-validation, listing, and showing catalog ideas are intentionally deferred to the
-next phase.
+warning because canonical JSON remains authoritative.
+
+## Validator And CLI
+
+The Phase 4 MVP exposes read-only catalog inspection through:
+
+```bash
+async-research idea catalog validate research_ops
+async-research idea catalog list research_ops [--status STATUS]
+async-research idea catalog show research_ops IDEA-0001
+```
+
+`validate` reads the parser model, validates canonical JSON against
+`idea_candidate.schema.json`, promotes parser warnings that represent invalid
+canonical state to failures, and checks lifecycle gates for promotion, parking,
+rejection, human gates, promoted task references, and optional refs. Empty or
+partially bootstrapped catalogs remain valid with warnings.
+
+Validation exit codes:
+
+- `0`: catalog validation passed
+- `2`: valid shape but unsafe lifecycle, promotion, or reference state
+- `3`: invalid request such as a missing requested idea
+- `4`: malformed catalog state such as malformed JSON, schema failures,
+  duplicate IDs, filename/JSON ID mismatch, or malformed generated blocks
+
+`list` and `show` are read-only inspection commands. `list` summarizes
+canonical JSON records and can filter by stored status. `show` returns the
+canonical payload, derived summary, and advisory validation for that one record.
 
 ## Safety Rules
 

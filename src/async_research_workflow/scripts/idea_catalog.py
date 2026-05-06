@@ -14,6 +14,11 @@ from async_research_workflow.idea_catalog import CATALOG_TEMPLATE
 from async_research_workflow.idea_catalog import IDEAS_DIR
 from async_research_workflow.idea_catalog import PRIORITIZATION_FILE
 from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
+from async_research_workflow.idea_catalog import STORED_STATUSES
+from async_research_workflow.idea_catalog import catalog_list_report
+from async_research_workflow.idea_catalog import catalog_show_report
+from async_research_workflow.idea_catalog import catalog_validation_exit_code
+from async_research_workflow.idea_catalog import catalog_validation_report
 
 
 SUCCESS = 0
@@ -189,6 +194,28 @@ def run_init(args: argparse.Namespace) -> int:
     return SUCCESS
 
 
+def run_validate(args: argparse.Namespace) -> int:
+    report = catalog_validation_report(args.ops_dir)
+    print_json(report)
+    return catalog_validation_exit_code(report)
+
+
+def run_list(args: argparse.Namespace) -> int:
+    report = catalog_list_report(args.ops_dir, args.status)
+    print_json(report)
+    return SUCCESS if report["ok"] else MALFORMED
+
+
+def run_show(args: argparse.Namespace) -> int:
+    report = catalog_show_report(args.ops_dir, args.idea_id)
+    print_json(report)
+    if report["ok"]:
+        return SUCCESS
+    if report.get("reason") == "idea_not_found":
+        return INVALID_REQUEST
+    return catalog_validation_exit_code(report)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Initialize and maintain idea catalog workspace files.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -202,6 +229,32 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--dry-run", action="store_true", help="Preview missing files without writing; this is the default.")
     init.add_argument("--write", action="store_true", help="Create only missing idea catalog files.")
     init.set_defaults(func=run_init)
+
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate the durable idea catalog.",
+        description="Read research_ops/ideas and report schema, lifecycle, reference, and projection problems without mutating files.",
+    )
+    validate.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    validate.set_defaults(func=run_validate)
+
+    list_cmd = subparsers.add_parser(
+        "list",
+        help="List canonical idea catalog records.",
+        description="List ideas from canonical research_ops/ideas/IDEA-*.json records without reading Markdown as source of truth.",
+    )
+    list_cmd.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    list_cmd.add_argument("--status", choices=STORED_STATUSES, help="Filter by stored idea status.")
+    list_cmd.set_defaults(func=run_list)
+
+    show = subparsers.add_parser(
+        "show",
+        help="Show one canonical idea catalog record.",
+        description="Show one idea from research_ops/ideas/IDEA-*.json with its derived display summary.",
+    )
+    show.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    show.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    show.set_defaults(func=run_show)
 
     return parser
 

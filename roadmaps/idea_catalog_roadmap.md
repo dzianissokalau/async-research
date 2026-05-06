@@ -179,7 +179,7 @@ Last updated: 2026-05-06
 | 1a | Review follow-up hardening | Complete | Shipped in `fa27c32` with dry-run lock warnings, bare dry-run tests, malformed bootstrap tests, and exact marker docs. |
 | 2 | Candidate schema and lifecycle extension | Complete | Extends `idea_candidate.schema.json` with catalog lifecycle fields, new stored statuses, reference patterns, and schema regression tests. |
 | 3 | Catalog parser and read model | Complete | Adds read-only `async_research_workflow.idea_catalog` parser for canonical JSON, generated projections, duplicate IDs, stale projections, counts, and cold-start warnings. |
-| 4 | Catalog validator and read-only CLI | Not started | Complete the MVP with `idea catalog validate`, `list`, and `show`. |
+| 4 | Catalog validator and read-only CLI | Complete | Completes the MVP with read-only `idea catalog validate`, `list`, and `show`, schema/lifecycle/reference validation, and CLI/README coverage. |
 | 5 | Read-only surface integration | Not started | Post-MVP. Add catalog health and throughput to digest/health/readiness without mutating JSON. |
 | 6 | Explicit capture and maintenance dry run | Not started | Post-MVP. Add explicit inbox/title capture and maintenance proposals in dry-run mode. |
 | 7 | Catalog maintenance write mode | Not started | Post-MVP. Add lock-protected writes, projection regeneration, idempotency, and note preservation. |

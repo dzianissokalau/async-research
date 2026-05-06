@@ -763,6 +763,18 @@ def run_idea_catalog_init_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_idea_catalog_validate_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["validate", str(args.ops_dir)])
+
+
+def run_idea_catalog_list_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["list", str(args.ops_dir)] + optional_text("--status", args.status))
+
+
+def run_idea_catalog_show_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["show", str(args.ops_dir), args.idea_id])
+
+
 def run_review_prepare_context_command(args: argparse.Namespace) -> int:
     return module_main(
         "prepare_review_context",
@@ -1538,6 +1550,32 @@ def register_artifact_commands(subparsers) -> None:
     idea_catalog_init.add_argument("--dry-run", action="store_true", help="Preview missing files without writing; this is the default.")
     idea_catalog_init.add_argument("--write", action="store_true", help="Create only missing idea catalog files.")
     idea_catalog_init.set_defaults(func=run_idea_catalog_init_command)
+    idea_catalog_validate = add_command(
+        idea_catalog_sub,
+        "validate",
+        help="Validate the durable idea catalog.",
+        description="Validate canonical idea JSON, generated projections, lifecycle gates, and references without mutating files.",
+    )
+    add_common_ops(idea_catalog_validate)
+    idea_catalog_validate.set_defaults(func=run_idea_catalog_validate_command)
+    idea_catalog_list = add_command(
+        idea_catalog_sub,
+        "list",
+        help="List canonical idea catalog records.",
+        description="List canonical research_ops/ideas/IDEA-*.json records with stored status and derived display labels.",
+    )
+    add_common_ops(idea_catalog_list)
+    idea_catalog_list.add_argument("--status", choices=("candidate", "promote", "park", "reject", "promoted", "needs_human"), help="Filter by stored idea status.")
+    idea_catalog_list.set_defaults(func=run_idea_catalog_list_command)
+    idea_catalog_show = add_command(
+        idea_catalog_sub,
+        "show",
+        help="Show one canonical idea catalog record.",
+        description="Show one canonical idea JSON record and derived catalog summary without mutating files.",
+    )
+    add_common_ops(idea_catalog_show)
+    idea_catalog_show.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_catalog_show.set_defaults(func=run_idea_catalog_show_command)
 
     experiment = add_command(
         subparsers,

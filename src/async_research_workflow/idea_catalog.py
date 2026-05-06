@@ -7,6 +7,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.validate_json_artifact import load_json
+from async_research_workflow.scripts.validate_json_artifact import validate
+
 
 IDEAS_DIR = "ideas"
 CATALOG_FILE = "idea_catalog.md"
@@ -22,6 +26,36 @@ PRIORITIZATION_BLOCKS = (
     "REJECTED",
     "BLOCKERS",
 )
+STORED_STATUSES = (
+    "candidate",
+    "promote",
+    "park",
+    "reject",
+    "promoted",
+    "needs_human",
+)
+PROMOTABLE_NEXT_TASKS = {"hypothesis_card", "data_readiness", "literature_extract"}
+UNSAFE_DUPLICATE_STATUSES = {"duplicate", "near_duplicate"}
+NONE_MARKERS = {"", "none", "n/a", "na", "tbd", "todo"}
+MALFORMED_WARNING_REASONS = {
+    "duplicate_idea_id",
+    "filename_id_mismatch",
+    "generated_block_missing",
+    "generated_block_malformed",
+    "malformed_markdown_table_row",
+    "catalog_table_missing_idea_id_column",
+}
+MALFORMED_FAILURE_REASONS = {
+    "ops_dir_missing",
+    "ops_dir_not_directory",
+    "ideas_path_not_directory",
+    "malformed_candidate_json",
+    "candidate_json_read_failed",
+    "candidate_json_not_object",
+    "candidate_json_missing_payload",
+    "candidate_schema_validation_failed",
+    "scored_idea_missing_mission_policy_version",
+}
 
 CATALOG_TEMPLATE = f"""# Idea Catalog
 
@@ -34,6 +68,7 @@ CATALOG_TEMPLATE = f"""# Idea Catalog
 
 Free-form notes. Tooling must not edit this section.
 """
+
 
 def issue(severity: str, reason: str, path: Path, message: str, **details: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -371,6 +406,486 @@ def status_counts(records: list[dict[str, Any]]) -> dict[str, int]:
 
 def derived_label_counts(records: list[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(Counter(record["derived_label"] for record in records).items()))
+
+
+def nonempty_text(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().lower() not in NONE_MARKERS
+
+
+def text_contains(path: Path, needle: str) -> bool:
+    if not needle or not path.exists() or not path.is_file():
+        return False
+    try:
+        return needle.lower() in path.read_text(encoding="utf-8").lower()
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def candidate_schema_errors(payload: dict[str, Any]) -> list[dict[str, str]]:
+    schema = load_json(schema_path("idea_candidate.schema.json"))
+    if not isinstance(schema, dict):
+        return [{"path": "$", "message": "idea candidate schema is not an object"}]
+    return [error.to_dict() for error in validate(payload, schema)]
+
+
+def candidate_issue(
+    severity: str,
+    reason: str,
+    record: dict[str, Any],
+    message: str,
+    category: str = "validation",
+    **details: Any,
+) -> dict[str, Any]:
+    path = Path(str(record.get("path", "")))
+    payload = {
+        "candidate_id": record.get("idea_id") or record.get("filename_id"),
+        "category": category,
+        **details,
+    }
+    return issue(severity, reason, path, message, **payload)
+
+
+def warning_as_failure(warning: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **warning,
+        "severity": "failure",
+        "category": "malformed",
+        "message": f"catalog validation treats this parser warning as invalid state: {warning.get('message', '')}",
+    }
+
+
+def failed_gate_names(score: dict[str, Any]) -> list[str]:
+    gates = score.get("hard_gate_results")
+    if not isinstance(gates, list):
+        return []
+    return sorted(
+        str(gate.get("gate"))
+        for gate in gates
+        if isinstance(gate, dict) and gate.get("passed") is not True and str(gate.get("gate", "")).strip()
+    )
+
+
+def numeric_score(score: dict[str, Any], field: str) -> int | float | None:
+    value = score.get(field)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    return None
+
+
+def ref_missing_failure(
+    record: dict[str, Any],
+    reason: str,
+    ref_field: str,
+    ref: str,
+    target: Path,
+    category: str = "validation",
+) -> dict[str, Any]:
+    return candidate_issue(
+        "failure",
+        reason,
+        record,
+        f"{ref_field} reference {ref} was not found in {target}",
+        category=category,
+        ref_field=ref_field,
+        ref=ref,
+        target=str(target),
+    )
+
+
+def task_id_exists(ops_dir: Path, task_id: str) -> bool:
+    if text_contains(ops_dir / "queue.md", task_id):
+        return True
+    if text_contains(ops_dir / "accepted_outputs_index.md", task_id):
+        return True
+
+    tasks_dir = ops_dir / "tasks"
+    if not tasks_dir.exists() or not tasks_dir.is_dir():
+        return False
+    for path in tasks_dir.glob(f"{task_id}*"):
+        if path.is_dir():
+            return True
+    for status_path in tasks_dir.glob("*/status.json"):
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and str(payload.get("id", "")).strip() == task_id:
+            return True
+    return False
+
+
+def reference_issues(record: dict[str, Any], ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    payload = record["payload"]
+    warnings: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+
+    ref_targets = (
+        ("accepted_output_refs", "missing_accepted_output_ref", ops_dir / "accepted_outputs_index.md"),
+        ("rejected_idea_refs", "missing_rejected_idea_ref", ops_dir / "discovery" / "rejected_ideas.md"),
+        ("rejected_result_refs", "missing_rejected_result_ref", ops_dir / "rejected_results.md"),
+        ("data_refs", "missing_data_ref", ops_dir / "data_source_audit.md"),
+    )
+    for field, reason, target in ref_targets:
+        refs = payload.get(field)
+        if not isinstance(refs, list):
+            continue
+        for ref in [str(item).strip() for item in refs if str(item).strip()]:
+            if not text_contains(target, ref):
+                failures.append(ref_missing_failure(record, reason, field, ref, target))
+
+    library_refs = payload.get("library_refs")
+    if isinstance(library_refs, list):
+        library_index = ops_dir / "knowledge" / "knowledge_index.md"
+        for ref in [str(item).strip() for item in library_refs if str(item).strip()]:
+            if not text_contains(library_index, ref):
+                warnings.append(candidate_issue(
+                    "warning",
+                    "library_ref_unresolved",
+                    record,
+                    f"library_refs reference {ref} could not be resolved because the knowledge library is optional in this phase",
+                    ref_field="library_refs",
+                    ref=ref,
+                    target=str(library_index),
+                ))
+
+    cluster_id = str(payload.get("cluster_id", "")).strip()
+    if cluster_id and not text_contains(ops_dir / "discovery" / "clusters.md", cluster_id):
+        failures.append(ref_missing_failure(
+            record,
+            "missing_cluster_ref",
+            "cluster_id",
+            cluster_id,
+            ops_dir / "discovery" / "clusters.md",
+        ))
+
+    return warnings, failures
+
+
+def validate_candidate_record(record: dict[str, Any], ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    payload = record["payload"]
+    status = str(payload.get("status") or "candidate")
+    next_task = str(payload.get("recommended_next_task") or "").strip()
+    score = payload.get("score") if isinstance(payload.get("score"), dict) else None
+    warnings: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+
+    schema_errors = candidate_schema_errors(payload)
+    if schema_errors:
+        failures.append(candidate_issue(
+            "failure",
+            "candidate_schema_validation_failed",
+            record,
+            "candidate JSON failed idea_candidate.schema.json validation",
+            category="malformed",
+            errors=schema_errors,
+        ))
+
+    if score is not None and not nonempty_text(score.get("mission_policy_version")):
+        failures.append(candidate_issue(
+            "failure",
+            "scored_idea_missing_mission_policy_version",
+            record,
+            "scored idea is missing score.mission_policy_version",
+            category="malformed",
+        ))
+
+    if status == "promote":
+        if not nonempty_text(payload.get("kill_reason")):
+            failures.append(candidate_issue(
+                "failure",
+                "promote_missing_kill_reason",
+                record,
+                "promotable idea requires a kill_reason",
+            ))
+        if not nonempty_text(next_task):
+            failures.append(candidate_issue(
+                "failure",
+                "promote_missing_recommended_next_task",
+                record,
+                "promotable idea requires recommended_next_task",
+            ))
+        elif next_task not in PROMOTABLE_NEXT_TASKS:
+            failures.append(candidate_issue(
+                "failure",
+                "promote_unsafe_next_task",
+                record,
+                "promotable idea must route to hypothesis_card, data_readiness, or literature_extract",
+                recommended_next_task=next_task,
+            ))
+
+        duplicate_status = str(payload.get("duplicate_status") or "new")
+        if duplicate_status in UNSAFE_DUPLICATE_STATUSES:
+            failures.append(candidate_issue(
+                "failure",
+                "promote_duplicate_or_near_duplicate",
+                record,
+                "duplicate or near-duplicate idea cannot be promoted",
+                duplicate_status=duplicate_status,
+            ))
+
+    if next_task == "experiment_plan":
+        failures.append(candidate_issue(
+            "failure",
+            "direct_experiment_route_blocked",
+            record,
+            "idea catalog cannot route directly from discovery to experiment_plan",
+            recommended_next_task=next_task,
+        ))
+
+    if score is not None:
+        threshold_fields = ("weighted_total", "promotion_threshold", "killability", "minimum_killability")
+        missing_threshold_fields = [field for field in threshold_fields if numeric_score(score, field) is None]
+        if missing_threshold_fields:
+            target = failures if status == "promote" else warnings
+            target.append(candidate_issue(
+                "failure" if status == "promote" else "warning",
+                "promote_score_threshold_missing" if status == "promote" else "score_threshold_missing",
+                record,
+                "scored idea is missing threshold fields",
+                missing_fields=missing_threshold_fields,
+            ))
+        else:
+            weighted_total = numeric_score(score, "weighted_total")
+            promotion_threshold = numeric_score(score, "promotion_threshold")
+            killability = numeric_score(score, "killability")
+            minimum_killability = numeric_score(score, "minimum_killability")
+            if status == "promote" and weighted_total is not None and promotion_threshold is not None and weighted_total < promotion_threshold:
+                failures.append(candidate_issue(
+                    "failure",
+                    "promote_below_score_threshold",
+                    record,
+                    "promotable idea weighted score is below its recorded promotion threshold",
+                    weighted_total=weighted_total,
+                    promotion_threshold=promotion_threshold,
+                ))
+            if status == "promote" and killability is not None and minimum_killability is not None and killability < minimum_killability:
+                failures.append(candidate_issue(
+                    "failure",
+                    "promote_below_minimum_killability",
+                    record,
+                    "promotable idea killability is below its recorded minimum",
+                    killability=killability,
+                    minimum_killability=minimum_killability,
+                ))
+
+        gates = failed_gate_names(score)
+        if status == "promote" and gates:
+            failures.append(candidate_issue(
+                "failure",
+                "promote_failed_hard_gates",
+                record,
+                "promotable idea has failed hard gates",
+                failed_hard_gates=gates,
+            ))
+
+    if status in {"park", "reject"}:
+        if not nonempty_text(payload.get("status_reason")) and not nonempty_text(payload.get("kill_reason")):
+            failures.append(candidate_issue(
+                "failure",
+                "parked_or_rejected_missing_reason",
+                record,
+                "parked or rejected idea requires status_reason or kill_reason",
+            ))
+        if not nonempty_text(payload.get("revisit_condition")):
+            failures.append(candidate_issue(
+                "failure",
+                "parked_or_rejected_missing_revisit_condition",
+                record,
+                "parked or rejected idea requires a concrete revisit_condition",
+            ))
+
+    if status == "needs_human" and not nonempty_text(payload.get("human_gate_reason")):
+        failures.append(candidate_issue(
+            "failure",
+            "needs_human_missing_human_gate_reason",
+            record,
+            "needs_human idea requires human_gate_reason",
+        ))
+
+    if status == "promoted":
+        promoted_task_id = str(payload.get("promoted_task_id") or "").strip()
+        if not promoted_task_id:
+            failures.append(candidate_issue(
+                "failure",
+                "promoted_missing_promoted_task_id",
+                record,
+                "promoted idea requires promoted_task_id",
+            ))
+        elif not task_id_exists(ops_dir, promoted_task_id):
+            failures.append(candidate_issue(
+                "failure",
+                "stale_promoted_task_id",
+                record,
+                "promoted_task_id was not found in queue.md, tasks/, or accepted_outputs_index.md",
+                promoted_task_id=promoted_task_id,
+            ))
+
+    ref_warnings, ref_failures = reference_issues(record, ops_dir)
+    warnings.extend(ref_warnings)
+    failures.extend(ref_failures)
+    return warnings, failures
+
+
+def catalog_validation_report(ops_dir: Path) -> dict[str, Any]:
+    model = read_catalog(ops_dir)
+    warnings = list(model["warnings"])
+    failures = list(model["failures"])
+
+    for warning in model["warnings"]:
+        if warning.get("reason") in MALFORMED_WARNING_REASONS:
+            failures.append(warning_as_failure(warning))
+
+    if not model["failures"]:
+        for record in model["candidates"]:
+            record_warnings, record_failures = validate_candidate_record(record, ops_dir)
+            warnings.extend(record_warnings)
+            failures.extend(record_failures)
+
+    return {
+        "ok": not failures,
+        "action": "idea_catalog_validated",
+        "ops_dir": model["ops_dir"],
+        "ideas_dir": model["ideas_dir"],
+        "catalog_path": model["catalog_projection"]["path"],
+        "prioritization_path": model["prioritization_projection"]["path"],
+        "candidate_count": model["candidate_count"],
+        "status_counts": model["status_counts"],
+        "derived_label_counts": model["derived_label_counts"],
+        "duplicate_idea_ids": model["duplicate_idea_ids"],
+        "projection_staleness": model["projection_staleness"],
+        "warnings": warnings,
+        "failures": failures,
+    }
+
+
+def catalog_validation_exit_code(report: dict[str, Any]) -> int:
+    failures = report.get("failures", [])
+    if not failures:
+        return 0
+    if any(item.get("category") == "malformed" or item.get("reason") in MALFORMED_FAILURE_REASONS for item in failures):
+        return 4
+    return 2
+
+
+def blockers_for_payload(payload: dict[str, Any]) -> list[str]:
+    score = payload.get("score")
+    if not isinstance(score, dict):
+        return []
+    return failed_gate_names(score)
+
+
+def candidate_summary(record: dict[str, Any]) -> dict[str, Any]:
+    payload = record["payload"]
+    score = payload.get("score") if isinstance(payload.get("score"), dict) else {}
+    return {
+        "idea_id": record["idea_id"],
+        "filename_id": record["filename_id"],
+        "status": record["status"],
+        "derived_label": record["derived_label"],
+        "title": str(payload.get("title") or ""),
+        "weighted_score": score.get("weighted_total") if isinstance(score, dict) else None,
+        "recommended_next_task": payload.get("recommended_next_task"),
+        "human_priority": payload.get("human_priority"),
+        "blockers": blockers_for_payload(payload),
+        "promoted_task_id": payload.get("promoted_task_id"),
+        "updated_at": payload.get("updated_at"),
+        "path": record["path"],
+    }
+
+
+def catalog_list_report(ops_dir: Path, status: str | None = None) -> dict[str, Any]:
+    model = read_catalog(ops_dir)
+    if model["failures"]:
+        return {
+            "ok": False,
+            "action": "idea_catalog_list_failed",
+            "ops_dir": model["ops_dir"],
+            "warnings": model["warnings"],
+            "failures": model["failures"],
+            "ideas": [],
+        }
+    records = model["candidates"]
+    if status:
+        records = [record for record in records if record["status"] == status]
+    ideas = [candidate_summary(record) for record in records]
+    return {
+        "ok": True,
+        "action": "idea_catalog_listed",
+        "ops_dir": model["ops_dir"],
+        "ideas_dir": model["ideas_dir"],
+        "status": status,
+        "candidate_count": len(ideas),
+        "status_counts": model["status_counts"],
+        "derived_label_counts": model["derived_label_counts"],
+        "warnings": model["warnings"],
+        "failures": [],
+        "ideas": ideas,
+    }
+
+
+def catalog_show_report(ops_dir: Path, idea_id: str) -> dict[str, Any]:
+    model = read_catalog(ops_dir)
+    if model["failures"]:
+        return {
+            "ok": False,
+            "action": "idea_catalog_show_failed",
+            "reason": "catalog_read_failed",
+            "ops_dir": model["ops_dir"],
+            "idea_id": idea_id,
+            "warnings": model["warnings"],
+            "failures": model["failures"],
+        }
+
+    matches = [record for record in model["candidates"] if record["idea_id"] == idea_id]
+    if not matches:
+        return {
+            "ok": False,
+            "action": "idea_catalog_show_failed",
+            "reason": "idea_not_found",
+            "ops_dir": model["ops_dir"],
+            "idea_id": idea_id,
+            "warnings": model["warnings"],
+            "failures": [],
+            "next_step": "run async-research idea catalog list to inspect available ideas",
+        }
+    if len(matches) > 1:
+        return {
+            "ok": False,
+            "action": "idea_catalog_show_failed",
+            "reason": "duplicate_idea_id",
+            "ops_dir": model["ops_dir"],
+            "idea_id": idea_id,
+            "warnings": model["warnings"],
+            "failures": [
+                issue(
+                    "failure",
+                    "duplicate_idea_id",
+                    Path(matches[0]["path"]),
+                    f"idea id {idea_id} appears in multiple canonical JSON files",
+                    category="malformed",
+                    idea_id=idea_id,
+                    paths=[record["path"] for record in matches],
+                )
+            ],
+        }
+
+    record = matches[0]
+    record_warnings, record_failures = validate_candidate_record(record, ops_dir)
+    return {
+        "ok": True,
+        "action": "idea_catalog_shown",
+        "ops_dir": model["ops_dir"],
+        "idea_id": idea_id,
+        "summary": candidate_summary(record),
+        "candidate": record["payload"],
+        "warnings": model["warnings"],
+        "failures": [],
+        "validation": {
+            "ok": not record_failures,
+            "warnings": record_warnings,
+            "failures": record_failures,
+        },
+    }
 
 
 def read_catalog(ops_dir: Path) -> dict[str, Any]:
