@@ -87,7 +87,7 @@ class CliHelpTests(unittest.TestCase):
             (["escalation", "evaluate"], ["--apply", "source freshness", "Exits 0 when no escalation is needed"]),
             (["source"], ["data_source_audit.md", "init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"]),
             (["source", "init"], ["canonical source audit register", "--force"]),
-            (["source", "upsert"], ["source audit row", "--source-id", "--approval-status", "--source-tier"]),
+            (["source", "upsert"], ["source audit row", "--source-id", "--approval-status", "--source-tier", "New rows require"]),
             (["source", "validate"], ["source audit rows"]),
             (["source", "freshness"], ["freshness windows"]),
             (["source", "check-experiment"], ["source IDs allowed for experiment planning", "--claim-impact"]),
@@ -139,7 +139,7 @@ class CliHelpTests(unittest.TestCase):
             (["experiment"], ["source readiness", "validate"]),
             (["experiment", "validate"], ["source governance", "--task-dir"]),
             (["benchmark"], ["known-good and known-bad", "Exits 0"]),
-            (["simulate-week"], ["simulated week", "Exits 0"]),
+            (["simulate-week"], ["simulated week", "--work-dir", "--keep-work-dir", "Exits 0"]),
         ]
         for argv, snippets in cases:
             with self.subTest(argv=argv):

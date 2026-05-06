@@ -18,6 +18,7 @@ from async_research_workflow.scripts import (
     autonomy_readiness_gate,
     check_schema_versions,
     recover_status_json,
+    simulate_scheduled_week,
     task_lock,
     update_accepted_outputs_index,
     validate_json_artifact,
@@ -477,6 +478,65 @@ class WorkflowRegressionTests(unittest.TestCase):
             self.assertEqual("accepted", payload["attempted_route"])
             self.assertEqual("single_review", payload["suggested_intermediate_status"])
             self.assertIn("awaiting_review -> single_review", payload["next_step"])
+
+    def test_result_acceptance_uses_accepted_index_freshness_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2011-default-freshness",
+                type="data_readiness",
+                previous_status="panel_review",
+                status="accepted",
+                last_transition_reason="aggregate_reviews_all_required_reviewers_accept",
+                result={
+                    "recommendation": "ready",
+                    "claim_strength": "suggestive",
+                    "key_finding": "Default freshness should match accepted memory index",
+                    "followup_count": 0,
+                },
+            )
+            task_dir.joinpath("worker_output.md").write_text(
+                "Default freshness should match accepted memory index.\n",
+                encoding="utf-8",
+            )
+            write_json(
+                task_dir / "review_panel" / "aggregate.json",
+                {
+                    "aggregate_decision": "accepted",
+                    "aggregate_claim_strength": "suggestive",
+                    "tier": 1,
+                    "required_reviewers": ["primary"],
+                    "reviews": [
+                        {
+                            "reviewer_role": "primary",
+                            "decision": "accept",
+                            "claim_strength": "suggestive",
+                        }
+                    ],
+                    "disagreements": ["none"],
+                },
+            )
+
+            code, payload = run_json(validate_result_acceptance, [task_dir, "--ops-dir", ops_dir, "--write"])
+
+            self.assertEqual(validate_result_acceptance.SUCCESS, code, payload)
+            record = json.loads((task_dir / "review_panel" / "result_acceptance.json").read_text(encoding="utf-8"))
+            self.assertEqual("source_data_readiness", record["accepted_memory"]["claim_type"])
+            self.assertEqual("90", record["accepted_memory"]["freshness_window_days"])
+            self.assertEqual("2026-08-02", record["accepted_memory"]["next_recheck_date"])
+
+    def test_simulation_work_dir_allows_research_ops_name_without_overlap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_ops = root / "source" / "research_ops"
+            separate_work = root / "sim_workspace" / "research_ops" / "nested_sim"
+            source_ops.mkdir(parents=True)
+
+            simulate_scheduled_week.ensure_simulation_work_dir_isolated(separate_work, source_ops)
+
+            with self.assertRaises(simulate_scheduled_week.SimulationFailure):
+                simulate_scheduled_week.ensure_simulation_work_dir_isolated(source_ops / "nested_sim", source_ops)
 
     def test_result_acceptance_writes_evidence_ledger_and_accepted_index(self):
         with tempfile.TemporaryDirectory() as tmp:

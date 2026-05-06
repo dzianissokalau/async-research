@@ -293,6 +293,15 @@ def run_acceptance_suite_command(args: argparse.Namespace) -> int:
     return module_main("run_acceptance_suite", argv)
 
 
+def run_simulate_week_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir)]
+    if args.work_dir:
+        argv.extend(["--work-dir", str(args.work_dir)])
+    if args.keep_work_dir:
+        argv.append("--keep-work-dir")
+    return module_main("simulate_scheduled_week", argv)
+
+
 def run_health_command(args: argparse.Namespace) -> int:
     argv = [str(args.ops_dir)]
     if args.dry_run:
@@ -1053,7 +1062,10 @@ def register_source_commands(subparsers) -> None:
         source_sub,
         "upsert",
         help="Add or update one source audit row.",
-        description="Write a governed source audit row with tier, approval status, use-case, freshness, citation, and reviewer metadata.",
+        description=(
+            "Write a governed source audit row with tier, approval status, use-case, freshness, citation, and reviewer metadata. "
+            "New rows require --source-name, --url-or-domain, and --publisher-owner; omitted governance fields use conservative defaults."
+        ),
         epilog="Exits 0 when the row is written, 2 when the register would be invalid, 3 for invalid source ids or dates, and 4 for malformed registers.",
     )
     add_required_ops(upsert)
@@ -1614,7 +1626,9 @@ def register_benchmark_commands(subparsers) -> None:
         epilog="Exits 0 when the simulated week satisfies all checks, 1 when the simulation fails.",
     )
     add_common_ops(simulate)
-    simulate.set_defaults(func=lambda a: module_main("simulate_scheduled_week", [str(a.ops_dir)]))
+    simulate.add_argument("--work-dir", type=Path, help="Use this isolated simulation directory instead of the default temp path.")
+    simulate.add_argument("--keep-work-dir", action="store_true", help="Keep isolated simulation fixtures for debugging.")
+    simulate.set_defaults(func=run_simulate_week_command)
 
 
 COMMAND_REGISTRARS = (

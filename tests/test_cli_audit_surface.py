@@ -621,6 +621,21 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertTrue(explained["ok"])
             self.assertEqual("DS-0601", explained["source_id"])
 
+    def test_source_upsert_explains_required_fields_for_new_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+
+            code, initialized = run_cli_json(["source", "init", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, initialized)
+
+            code, payload = run_cli_json(["source", "upsert", ops_dir, "--source-id", "DS-0602"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("audit_validation_failed", payload["reason"])
+            self.assertEqual(["--source-name", "--url-or-domain", "--publisher-owner"], payload["required_for_new_source"])
+            self.assertIn("--publisher-owner", payload["next_step"])
+
     def test_batch_lifecycle_commands_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -865,6 +880,10 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertFalse((bundle_dir / "input" / "reviews").exists())
 
             output = bundle_dir / "output" / "reviews" / "primary.md"
+            scaffold = output.read_text(encoding="utf-8")
+            self.assertIn("```json", scaffold)
+            self.assertIn('"reviewer_role": "primary"', scaffold)
+            self.assertIn('"decision": "needs_human"', scaffold)
             output.write_text("Primary review fixture.\n", encoding="utf-8")
             code, installed = run_cli_json(["review", "install-context", bundle_dir])
             self.assertEqual(cli.SUCCESS, code, installed)

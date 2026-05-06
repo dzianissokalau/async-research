@@ -16,6 +16,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Iterable
 
+from async_research_workflow.scripts import review_template
+
 
 SUCCESS = 0
 INVALID = 4
@@ -23,6 +25,22 @@ EXISTS = 5
 
 REVIEWER_ROLES = {"primary", "methodology", "skeptic"}
 ALL_ROLES = REVIEWER_ROLES | {"aggregator"}
+
+
+def seeded_review_template(role: str) -> str:
+    """Return a safe reviewer scaffold that routes to human review if installed unchanged."""
+    payload = review_template.review_payload(
+        argparse.Namespace(
+            role=role,
+            decision="needs_human",
+            claim_strength="none",
+            confidence=0.0,
+            concern=["TODO: replace this scaffold with the actual isolated review before installing."],
+            followup=[],
+            evidence_gap=["Review output scaffold has not been completed."],
+        )
+    )
+    return "```json\n" + json.dumps(payload, indent=2, sort_keys=True) + "\n```\n"
 
 
 def iso_now() -> str:
@@ -117,7 +135,8 @@ def prepare_bundle(task_dir: Path, role: str, bundle_dir: Path, force: bool) -> 
 
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
-        target.write_text("", encoding="utf-8")
+        text = seeded_review_template(role) if role in REVIEWER_ROLES else ""
+        target.write_text(text, encoding="utf-8")
 
     write_manifest(bundle_dir, task_dir, role)
     print_json(

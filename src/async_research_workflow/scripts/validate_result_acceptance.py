@@ -17,6 +17,12 @@ from async_research_workflow.scripts.data_source_audit import (
     SOURCE_REF_PATTERN,
     assess_source_refs,
 )
+from async_research_workflow.scripts.update_accepted_outputs_index import (
+    freshness_window_for,
+    iso_date as accepted_iso_date,
+    next_recheck_date,
+    normalize_claim_type,
+)
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
 
@@ -631,10 +637,14 @@ def build_acceptance_record(
         )
 
     result = status.get("result") if isinstance(status.get("result"), dict) else {}
+    memory_claim_type = normalize_claim_type(result.get("claim_type") or result.get("memory_claim_type"), task_type)
+    accepted_date = accepted_iso_date(result.get("accepted_date") or status.get("updated_at") or status.get("created_at"))
+    freshness_window = freshness_window_for(memory_claim_type, result.get("freshness_window_days") or result.get("freshness_window"))
+    memory_next_recheck = next_recheck_date(accepted_date, freshness_window, result.get("next_recheck_date"))
     accepted_memory = {
-        "claim_type": result.get("claim_type") if isinstance(result.get("claim_type"), str) else status.get("type", "general"),
-        "freshness_window_days": result.get("freshness_window_days", "unspecified"),
-        "next_recheck_date": result.get("next_recheck_date", "unspecified"),
+        "claim_type": memory_claim_type,
+        "freshness_window_days": freshness_window,
+        "next_recheck_date": memory_next_recheck,
         "revalidation_status": result.get("revalidation_status", "current"),
         "supersedes": (
             ", ".join(str(item) for item in result.get("supersedes", []) if str(item).strip()) or "none"

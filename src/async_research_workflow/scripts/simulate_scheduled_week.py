@@ -175,8 +175,6 @@ def is_relative_to(path: Path, parent: Path) -> bool:
 def ensure_simulation_work_dir_isolated(work_dir: Path, source_ops_dir: Path) -> None:
     resolved_work = work_dir.resolve()
     resolved_source = source_ops_dir.resolve()
-    if "research_ops" in resolved_work.parts:
-        raise SimulationFailure(f"simulation work_dir must be outside any research_ops workspace: {work_dir}")
     if resolved_work == resolved_source or is_relative_to(resolved_work, resolved_source) or is_relative_to(resolved_source, resolved_work):
         raise SimulationFailure(
             f"simulation work_dir must not overlap source ops_dir: work_dir={work_dir}, ops_dir={source_ops_dir}"

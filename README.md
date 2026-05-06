@@ -170,7 +170,9 @@ TASK=research_ops/tasks/TASK-0001-example
 async-research schema-check research_ops
 async-research readiness research_ops --dry-run
 
-# Worker writes worker_output.md and updates status.json according to the task contract.
+# Worker writes worker_output.md and updates status.json to awaiting_review.
+# Before aggregation, status.json must record the review-start transition:
+# awaiting_review -> single_review for primary review, or awaiting_review -> panel_review for panel review.
 # Reviewer writes reviews/primary.md, or a full panel writes one isolated review each.
 
 async-research review aggregate "$TASK" --dry-run
@@ -187,6 +189,11 @@ validates result acceptance. Accepted results are written to
 `evidence_ledger.md`; rejected results are written to `rejected_results.md`.
 Running `accepted update` refreshes `accepted_outputs_index.md`, which future
 agents use as reusable but freshness-gated memory.
+
+The review-start transition is intentionally explicit. If reviews exist while a
+task still says `awaiting_review`, `review aggregate` fails closed and returns a
+`suggested_intermediate_status` plus `next_step` so a human or agent can record
+the missing `single_review` or `panel_review` state before rerunning aggregation.
 
 If the aggregate routes to `needs_revision`, send the task back to a bounded
 worker. If it routes to `needs_human`, update the surface and record the decision
@@ -227,7 +234,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
 | `async-research idea catalog show research_ops IDEA-0001` | Show one canonical catalog record. | One canonical idea JSON record plus derived validation summary. | JSON to stdout only; read-only. |
 | `async-research source init research_ops` | Create the source audit register table if needed. | Existing `data_source_audit.md`, if present. | `data_source_audit.md`; with existing file and no `--force`, stdout only. |
-| `async-research source upsert research_ops --source-id DS-0001 ...` | Add or update a governed source row. | `data_source_audit.md`. | `data_source_audit.md`. |
+| `async-research source upsert research_ops --source-id DS-0001 ...` | Add or update a governed source row. New rows require `--source-name`, `--url-or-domain`, and `--publisher-owner`; omitted governance fields use conservative defaults. | `data_source_audit.md`. | `data_source_audit.md`. |
 | `async-research source validate research_ops` | Validate the source audit register. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research source freshness research_ops` | Report stale or due source reviews. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research source check-experiment research_ops <task-or-artifact>` | Gate an experiment plan on audited source readiness. | Experiment plan text and `data_source_audit.md`. | JSON to stdout only. |
@@ -252,14 +259,14 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
 | `async-research accepted check-memory-use research_ops <artifact>` | Gate reuse of stale accepted task memory. | Artifact text and `accepted_outputs_index.md`. | JSON to stdout only. |
 | `async-research anti-context build research_ops --title "<candidate>" --task-dir <task-dir>` | Generate cross-task anti-context for a new task. | Accepted memory, rejected ideas, and rejected/paused task state. | JSON to stdout plus `anti_context.md` and a `task.md` section when `--task-dir` is set. |
-| `async-research review prepare-context <task-dir> --role primary --bundle-dir /tmp/review` | Prepare an isolated review bundle. | Task input files and escalation policy. | Review bundle directory. |
+| `async-research review prepare-context <task-dir> --role primary --bundle-dir /tmp/review` | Prepare an isolated review bundle with a safe `needs_human` review scaffold at the expected output path. | Task input files and escalation policy. | Review bundle directory. |
 | `async-research review install-context /tmp/review` | Install one completed isolated review output. | Review bundle manifest and expected output file. | The matching `reviews/<role>.md` or `review_panel/aggregate.md` in the source task. |
 | `async-research revision request <task-dir> --reviewer primary` | Request a bounded revision without hand-editing status. | Task `status.json`. | Task `status.json`; with `--dry-run`, stdout only. |
 | `async-research revision inspect <task-dir>` | Inspect revision counter fields. | Task `status.json`. | JSON to stdout only. |
 | `async-research revision scan-limits research_ops/tasks` | List tasks that hit revision limits. | Task status files. | JSON to stdout, or Markdown with `--markdown`. |
 | `async-research benchmark` | Run known-good and known-bad autonomy cases. | Packaged benchmark cases and runtime resources. | Isolated temporary fixtures and JSON to stdout. |
 | `async-research acceptance-suite` | Run the package hardening suite. | Packaged resources and isolated fixtures. | Isolated temporary fixtures and JSON to stdout. |
-| `async-research simulate-week research_ops` | Rehearse a scheduled week against an isolated copy. | The provided `research_ops/` workspace. | Temporary simulation copy and JSON to stdout. |
+| `async-research simulate-week research_ops --work-dir /tmp/async-research-sim` | Rehearse a scheduled week against an isolated copy. | The provided `research_ops/` workspace. | Temporary simulation copy and JSON to stdout; with `--keep-work-dir`, the copy is preserved for debugging. |
 
 Validator commands for specific artifact types are also available:
 

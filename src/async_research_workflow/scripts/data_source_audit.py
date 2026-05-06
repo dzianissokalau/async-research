@@ -62,6 +62,11 @@ FIELDS = [
     "approved_by",
     "review_notes",
 ]
+NEW_SOURCE_REQUIRED_FIELDS = {
+    "source_name": "--source-name",
+    "url_or_domain": "--url-or-domain",
+    "publisher_owner": "--publisher-owner",
+}
 LEGACY_FIELDS = [
     "source_id",
     "status",
@@ -556,6 +561,7 @@ def cmd_upsert(args: argparse.Namespace) -> int:
 
     current = row_map(rows)
     source_id = args.source_id
+    new_source = source_id not in current
     row = current.get(
         source_id,
         {
@@ -601,7 +607,22 @@ def cmd_upsert(args: argparse.Namespace) -> int:
 
     errors = validate_rows(schema_version, next_rows)
     if errors:
-        print_json({"ok": False, "reason": "audit_validation_failed", "errors": errors, "path": str(path)})
+        payload = {"ok": False, "reason": "audit_validation_failed", "errors": errors, "path": str(path)}
+        if new_source:
+            missing_new_source_fields = [
+                flag for field, flag in NEW_SOURCE_REQUIRED_FIELDS.items() if not str(row.get(field, "")).strip()
+            ]
+            if missing_new_source_fields:
+                payload.update(
+                    {
+                        "required_for_new_source": missing_new_source_fields,
+                        "next_step": (
+                            "rerun source upsert with --source-name, --url-or-domain, and --publisher-owner; "
+                            "omitted governance fields use conservative defaults"
+                        ),
+                    }
+                )
+        print_json(payload)
         return VALIDATION_FAILED
 
     atomic_write_text(path, format_rows(next_rows))
@@ -723,7 +744,11 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     init.add_argument("--force", action="store_true")
     init.set_defaults(func=cmd_init)
 
-    upsert = subparsers.add_parser("upsert", help="Add or update a data source audit entry")
+    upsert = subparsers.add_parser(
+        "upsert",
+        help="Add or update a data source audit entry",
+        epilog="New source rows require --source-name, --url-or-domain, and --publisher-owner.",
+    )
     upsert.add_argument("ops_dir", type=Path)
     upsert.add_argument("--source-id", required=True)
     upsert.add_argument("--status", choices=sorted(STATUSES), help="Deprecated alias for --approval-status.")
