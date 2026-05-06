@@ -167,6 +167,26 @@ Delivery boundary:
   dashboard read views.
 - V2: promotion write mode that mutates `inbox.md`, `queue.md`, or task folders.
 
+## Progress
+
+Last updated: 2026-05-06
+
+| Phase | Step | Status | Evidence / Notes |
+| ---: | --- | --- | --- |
+| 0 | Lock product invariants | Complete | Three-layer ownership, source-of-truth, command safety, and v1/v2 promotion boundaries are captured in this roadmap and `idea_catalog_contract.md`. |
+| 1 | Starter files, contracts, and migration safety | Complete | Shipped in `41607c5` with starter `ideas/` files, generated-block templates, docs, and `async-research idea catalog init`. |
+| 1a | Review follow-up hardening | Complete | Shipped in `fa27c32` with dry-run lock warnings, bare dry-run tests, malformed bootstrap tests, and exact marker docs. |
+| 2 | Candidate schema and lifecycle extension | Not started | Next MVP slice. Extend `idea_candidate.schema.json` before parser/validator semantics depend on new fields. |
+| 3 | Catalog parser and read model | Not started | Build read-only parser for canonical JSON, generated projections, duplicate IDs, stale projections, and cold-start warnings. |
+| 4 | Catalog validator and read-only CLI | Not started | Complete the MVP with `idea catalog validate`, `list`, and `show`. |
+| 5 | Read-only surface integration | Not started | Post-MVP. Add catalog health and throughput to digest/health/readiness without mutating JSON. |
+| 6 | Explicit capture and maintenance dry run | Not started | Post-MVP. Add explicit inbox/title capture and maintenance proposals in dry-run mode. |
+| 7 | Catalog maintenance write mode | Not started | Post-MVP. Add lock-protected writes, projection regeneration, idempotency, and note preservation. |
+| 8 | Promotion dry run | Not started | Post-MVP. Produce one bounded task proposal without editing `queue.md` or task folders. |
+| 9 | Planner promotion behavior | Not started | Post-MVP. Teach planner docs/prompts to use catalog promotion proposals safely. |
+| 10 | Dashboard read-only view | Not started | Post-MVP. Add read-only portfolio views after backend state stabilizes. |
+| V2 | Promotion write mode | Deferred | Only after dry-run promotion has usage history and transactional queue/task writes are designed. |
+
 ## Framework Integration
 
 Existing artifacts:
