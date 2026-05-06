@@ -125,6 +125,27 @@ allowed statuses. Path-aware checks such as `ideas/IDEA-0001.json` matching
 `id = IDEA-0001`, stale references, and conditional lifecycle rules are handled
 by the catalog parser and validator phases.
 
+## Read Model
+
+The read-only catalog parser lives in `async_research_workflow.idea_catalog`.
+It reads `research_ops/ideas/` without mutating files and returns a deterministic
+model containing:
+
+- canonical `ideas/IDEA-*.json` records
+- parsed generated blocks from `ideas/idea_catalog.md`
+- parsed generated blocks from `ideas/prioritization.md`
+- duplicate canonical idea IDs
+- filename/JSON ID mismatch warnings
+- stale projection warnings for orphaned Markdown rows and orphaned JSON records
+- stored status counts
+- derived display-label counts such as `scored` and `blocked`
+- cold-start warnings for workspaces missing `research_ops/ideas/`
+
+The parser reports malformed candidate JSON as a failure with the offending
+path and reason. Stale Markdown projection state is a warning because canonical
+JSON remains authoritative. CLI commands for validation, listing, and showing
+catalog ideas are intentionally deferred to the next phase.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

@@ -9,46 +9,17 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from async_research_workflow.idea_catalog import CATALOG_FILE
+from async_research_workflow.idea_catalog import CATALOG_TEMPLATE
+from async_research_workflow.idea_catalog import IDEAS_DIR
+from async_research_workflow.idea_catalog import PRIORITIZATION_FILE
+from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
+
 
 SUCCESS = 0
 VALIDATION_FAILED = 2
 INVALID_REQUEST = 3
 MALFORMED = 4
-
-IDEAS_DIR = "ideas"
-CATALOG_FILE = "idea_catalog.md"
-PRIORITIZATION_FILE = "prioritization.md"
-
-CATALOG_TEMPLATE = """# Idea Catalog
-
-<!-- IDEA-CATALOG: AUTO-MAINTAINED - DO NOT EDIT INSIDE THIS BLOCK -->
-| idea_id | status | title | weighted_score | next_task | blockers | promoted_task_id | updated_at |
-| --- | --- | --- | ---: | --- | --- | --- | --- |
-<!-- /IDEA-CATALOG -->
-
-## Notes
-
-Free-form notes. Tooling must not edit this section.
-"""
-
-PRIORITIZATION_TEMPLATE = """# Idea Prioritization
-
-<!-- IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS -->
-
-<!-- IDEA-PRIORITIZATION: PARKED AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: PARKED -->
-
-<!-- IDEA-PRIORITIZATION: REJECTED AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: REJECTED -->
-
-<!-- IDEA-PRIORITIZATION: BLOCKERS AUTO-MAINTAINED -->
-<!-- /IDEA-PRIORITIZATION: BLOCKERS -->
-
-## Notes
-
-Free-form notes. Tooling must not edit this section.
-"""
 
 STARTER_FILES = (
     (Path(IDEAS_DIR) / CATALOG_FILE, CATALOG_TEMPLATE),
