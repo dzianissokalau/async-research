@@ -13,11 +13,22 @@ reflects the current repo state.
 
 ```bash
 async-research schema-check research_ops
+async-research idea catalog init research_ops --dry-run
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research surface update research_ops
 async-research surface validate research_ops
 ```
+
+## Idea Catalog
+
+`discovery_inbox.md` is the short-lived buffer for rough discoveries.
+`ideas/` is the durable portfolio surface for cataloged ideas. The generated
+blocks in `ideas/idea_catalog.md` and `ideas/prioritization.md` are maintained
+by tooling in later phases; keep manual notes outside those blocks.
+
+Catalog maintenance must not edit `queue.md` or create task folders. A planner
+or human-approved helper turns catalog ideas into bounded execution tasks.
 
 ## First Setup Steps
 

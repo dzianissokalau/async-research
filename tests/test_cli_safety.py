@@ -225,6 +225,8 @@ class InitSafetyTests(unittest.TestCase):
             self.assertEqual(payload["template"], "generic")
             self.assertEqual(payload["target_dir"], str(target))
             self.assertTrue((target / "queue.md").exists())
+            self.assertTrue((target / "ideas" / "idea_catalog.md").exists())
+            self.assertTrue((target / "ideas" / "prioritization.md").exists())
             self.assertTrue((target / "metrics_baseline.json").exists())
             self.assertTrue((target / "metrics_history.jsonl").exists())
             self.assertTrue((target / "tasks" / ".gitkeep").exists())
@@ -248,6 +250,8 @@ class InitSafetyTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(payload["template"], "real-estate")
             self.assertTrue((target / "tasks" / "TASK-0001-data-readiness" / "status.json").exists())
+            self.assertTrue((target / "ideas" / "idea_catalog.md").exists())
+            self.assertTrue((target / "ideas" / "prioritization.md").exists())
             self.assertTrue((target / "health_report.json").exists())
 
 

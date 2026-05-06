@@ -754,6 +754,15 @@ def run_anti_context_build_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_idea_catalog_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["init", str(args.ops_dir)]
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
 def run_review_prepare_context_command(args: argparse.Namespace) -> int:
     return module_main(
         "prepare_review_context",
@@ -1488,8 +1497,8 @@ def register_artifact_commands(subparsers) -> None:
     idea = add_command(
         subparsers,
         "idea",
-        help="Score or validate idea artifacts.",
-        description="Score idea candidates and validate idea-evaluation JSON artifacts.",
+        help="Score, validate, or manage idea artifacts.",
+        description="Score idea candidates, validate idea-evaluation JSON artifacts, and initialize the durable idea catalog.",
     )
     idea_sub = idea.add_subparsers(dest="idea_command", required=True)
     idea_score = add_command(
@@ -1511,6 +1520,24 @@ def register_artifact_commands(subparsers) -> None:
     idea_validate.add_argument("idea_json", type=Path, help="Idea-evaluation JSON file.")
     idea_validate.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     idea_validate.set_defaults(func=lambda a: module_main("validate_idea_evaluation", [str(a.idea_json), "--ops-dir", str(a.ops_dir)]))
+    idea_catalog = add_command(
+        idea_sub,
+        "catalog",
+        help="Initialize or inspect the durable idea catalog.",
+        description="Manage the durable idea catalog in research_ops/ideas, separate from discovery_inbox.md and queue.md.",
+    )
+    idea_catalog_sub = idea_catalog.add_subparsers(dest="idea_catalog_command", required=True)
+    idea_catalog_init = add_command(
+        idea_catalog_sub,
+        "init",
+        help="Add missing idea catalog starter files.",
+        description="Preview or create missing research_ops/ideas starter files without overwriting existing files.",
+        epilog="Without --write, this command is a dry run and reports the exact files it would add.",
+    )
+    add_common_ops(idea_catalog_init)
+    idea_catalog_init.add_argument("--dry-run", action="store_true", help="Preview missing files without writing; this is the default.")
+    idea_catalog_init.add_argument("--write", action="store_true", help="Create only missing idea catalog files.")
+    idea_catalog_init.set_defaults(func=run_idea_catalog_init_command)
 
     experiment = add_command(
         subparsers,

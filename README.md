@@ -119,6 +119,9 @@ research_ops/
   README.md
   inbox.md
   discovery_inbox.md
+  ideas/
+    idea_catalog.md
+    prioritization.md
   queue.md
   daily_status.md
   weekly_digest.md
@@ -219,6 +222,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research escalation evaluate <task-dir> --ops-dir research_ops` | Evaluate one task against deterministic human-escalation triggers. | Task status/output, task contract, source audit, accepted memory, reviews, and cost ledger. | JSON to stdout; with `--apply`, task `status.json` when escalation is required. |
 | `async-research surface update research_ops` | Refresh the human-facing control surface; alias: `review-surface update`. | Task status, health report, ledgers, cost, accepted memory. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
 | `async-research surface validate research_ops` | Check the rendered human surface for drift; alias: `review-surface validate`. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
+| `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research source init research_ops` | Create the source audit register table if needed. | Existing `data_source_audit.md`, if present. | `data_source_audit.md`; with existing file and no `--force`, stdout only. |
 | `async-research source upsert research_ops --source-id DS-0001 ...` | Add or update a governed source row. | `data_source_audit.md`. | `data_source_audit.md`. |
 | `async-research source validate research_ops` | Validate the source audit register. | `data_source_audit.md`. | JSON to stdout only. |
@@ -258,6 +262,7 @@ Validator commands for specific artifact types are also available:
 
 ```bash
 async-research exploration validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
+async-research idea catalog init research_ops --dry-run
 async-research idea score <idea-json> --ops-dir research_ops
 async-research idea validate <idea-json> --ops-dir research_ops
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
@@ -340,6 +345,7 @@ specific diagnostic.
 | `revision inspect` and `revision scan-limits` | `0` revision state reported. | `2` revision/status validation failed; `4` malformed schema or status input. |
 | `result-acceptance` | `0` gates passed. | `2` result-acceptance gates failed; `4` malformed task, aggregate, or source state. |
 | `exploration validate` | `0` artifact passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
+| `idea catalog init` | `0` missing catalog files reported or created. | `2` catalog lock or concurrent creation blocked writes; `3` invalid flags; `4` malformed workspace path or write failure. |
 | `idea score` and `idea validate` | `0` score/validation passed. | `2` validation failed; `3` invalid request; `4` malformed idea artifact. |
 | `experiment validate` | `0` experiment output passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
 | `benchmark` | `0` benchmark passed. | `1` benchmark failed. |
@@ -366,6 +372,7 @@ clean environment, and reruns installed CLI smokes.
 - [Package docs index](src/async_research_workflow/docs/README.md)
 - [Workflow blueprint](src/async_research_workflow/docs/workflow_blueprint.md)
 - [Task contracts](src/async_research_workflow/docs/task_contracts.md)
+- [Idea catalog contract](src/async_research_workflow/docs/idea_catalog_contract.md)
 - [Operational readiness runbook](src/async_research_workflow/docs/operational_readiness_runbook.md)
 - [Generic starter README](src/async_research_workflow/templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example README](src/async_research_workflow/templates/research_ops_starter/research_ops/README.md)

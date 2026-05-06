@@ -150,6 +150,8 @@ class CliArchitectureTests(unittest.TestCase):
         anti_context_choices = subparser_choices(choices["anti-context"])
         review_choices = subparser_choices(choices["review"])
         revision_choices = subparser_choices(choices["revision"])
+        idea_choices = subparser_choices(choices["idea"])
+        idea_catalog_choices = subparser_choices(idea_choices["catalog"])
 
         self.assertEqual(["discovery-gate"], list(queue_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
@@ -163,6 +165,8 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["build"], list(anti_context_choices))
         self.assertEqual(["prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))
+        self.assertEqual(["score", "validate", "catalog"], list(idea_choices))
+        self.assertEqual(["init"], list(idea_catalog_choices))
         self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])
 
 
