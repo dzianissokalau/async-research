@@ -13,13 +13,13 @@ The workflow should not rediscover the same accepted finding or repeat a known f
 Use:
 
 ```text
-async_research_workflow/scripts/generate_anti_context.py
+async-research anti-context build
 ```
 
 Build anti-context for a proposed task:
 
 ```bash
-python -m async_research_workflow.scripts.generate_anti_context build \
+async-research anti-context build \
   research_ops \
   --title "EPC premium during energy shocks" \
   --task-dir research_ops/tasks/TASK-0007-epc-premium-energy-shocks
@@ -77,7 +77,7 @@ Before promoting an inbox or discovery item into a task folder:
 
 1. refresh the accepted outputs index
 2. create the task folder and draft `task.md`
-3. run `generate_anti_context.py build ... --task-dir <task-dir>`
+3. run `async-research anti-context build ... --task-dir <task-dir>`
 4. revise task scope if the anti-context shows the idea is duplicate or repeats a known failure
 5. leave the anti-context section in `task.md`
 

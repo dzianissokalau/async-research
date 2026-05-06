@@ -157,7 +157,7 @@ Task:
 8. Write task.md and status.json for each new task; every status.json must include schema_version="1.0", prompt_versions, and framework_versions.
 9. Before promoting a discovery candidate into a task, run async-research idea validate <candidate-json> --ops-dir research_ops. Promote only when idea_evaluation.promotion_readiness.planner_may_promote is true.
 10. For `experiment_plan` tasks, add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run async-research source check-experiment research_ops <task-dir>/task.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
-11. For each new task, run python -m async_research_workflow.scripts.generate_anti_context build research_ops --title "<candidate title>" --task-dir <task-dir>.
+11. For each new task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir>.
 12. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise task.md so the task has a clear new angle, create a revalidation task first, or park it.
 13. Set review_policy.tier based on task type and risk.
 14. Update queue.md and daily_status.md.
@@ -262,7 +262,7 @@ Task:
 6. Work only inside the task's allowed_paths.
 7. Complete exactly one task.
 8. Write worker_output.md.
-9. For `data_readiness` tasks, update research_ops/data_source_audit.md with `python -m async_research_workflow.scripts.data_source_audit upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
+9. For `data_readiness` tasks, update research_ops/data_source_audit.md with `async-research source upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
 10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
 11. For `idea_discovery` tasks, run `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
 12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
@@ -287,8 +287,8 @@ Rules:
 - Do not spend paid API/cloud budget unless budget allows it.
 - Before paid API/cloud spend, run `async-research cost budget-check`; if it exits nonzero, set status to `needs_human`.
 - If an API response includes usage, write it under artifacts/ and run `async-research cost ingest-usage` before final status validation.
-- For `batch_job` tasks, validate `batch_manifest.json` with `python -m async_research_workflow.scripts.batch_lifecycle validate-manifest` before submission and submit with `python -m async_research_workflow.scripts.batch_lifecycle submit` so costs are logged.
-- For `batch_ingest` tasks, use `python -m async_research_workflow.scripts.batch_lifecycle ingest`; do not mark batch outputs trusted unless a reviewer later runs `python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed`.
+- For `batch_job` tasks, validate `batch_manifest.json` with `async-research batch validate-manifest` before submission and submit with `async-research batch submit` so costs are logged.
+- For `batch_ingest` tasks, use `async-research batch ingest`; do not mark batch outputs trusted unless a reviewer later runs `async-research batch mark-reviewed`.
 - If experiment data audit checks fail, revise the plan to reference ready `DS-0000` entries or set status to `needs_human`; do not proceed silently.
 - Do not mark source-dependent outputs ready for review until unapproved, stale, Tier 3-only, or Tier 4-blocked source issues are resolved or routed to `needs_human`.
 - Accepted evidence should cite audited `DS-*` source IDs; use `async-research source check-claim` for high-impact or accepted-evidence claims.
@@ -331,7 +331,7 @@ Task:
 9. If the output needs a higher review tier before it can be accepted, run python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
 10. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
 11. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
-12. If the review decision is needs_revision, do not edit status.json by hand. Run python -m async_research_workflow.scripts.revision_counter request <task-dir> --reviewer primary.
+12. If the review decision is needs_revision, do not edit status.json by hand. Run async-research revision request <task-dir> --reviewer primary.
 13. Run python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
 14. Run async-research schema-check research_ops.
 15. Run python -m async_research_workflow.scripts.validate_transition <task-dir>.
@@ -364,7 +364,7 @@ Rules:
 - Every review JSON block must include prompt_version and framework_versions.result_acceptance.
 - Do not accept claims above the cap allowed by `result_acceptance_v1.0`.
 - Do not read other reviewers' files before writing your own review.
-- Do not request revisions without using revision_counter.py.
+- Do not request revisions without using `async-research revision request`.
 - Do not hand-edit review_policy for escalation; use `python -m async_research_workflow.scripts.escalate_review_tier`.
 - Do not change status without setting previous_status and last_transition_reason.
 - Do not remove prompt_versions or framework_versions.
@@ -383,7 +383,7 @@ Final response:
 ```text
 You are the methodology reviewer for a low-cost async research workflow.
 
-Repository root: <isolated review bundle created by prepare_review_context.py>
+Repository root: <isolated review bundle created by async-research review prepare-context>
 Operational folder: input and output inside the isolated bundle
 
 Task:
@@ -418,7 +418,7 @@ Final response:
 ```text
 You are the skeptic reviewer for a low-cost async research workflow.
 
-Repository root: <isolated review bundle created by prepare_review_context.py>
+Repository root: <isolated review bundle created by async-research review prepare-context>
 Operational folder: input and output inside the isolated bundle
 
 Task:
@@ -452,7 +452,7 @@ Final response:
 ```text
 You are the narrative review aggregator for a low-cost async research workflow.
 
-Repository root: <aggregator bundle created by prepare_review_context.py>
+Repository root: <aggregator bundle created by async-research review prepare-context>
 Operational folder: input and output inside the isolated bundle
 
 Task:
@@ -518,7 +518,7 @@ python -m async_research_workflow.scripts.escalate_review_tier apply \
 Prepare reviewer bundles before running specialist reviewers:
 
 ```bash
-python -m async_research_workflow.scripts.prepare_review_context prepare \
+async-research review prepare-context \
   research_ops/tasks/TASK-0001 \
   --role methodology \
   --bundle-dir /tmp/review-TASK-0001-methodology \
@@ -528,7 +528,7 @@ python -m async_research_workflow.scripts.prepare_review_context prepare \
 After the reviewer writes its output, install only that output:
 
 ```bash
-python -m async_research_workflow.scripts.prepare_review_context install \
+async-research review install-context \
   /tmp/review-TASK-0001-methodology \
   --force
 ```
@@ -547,7 +547,7 @@ Task:
 1. Run async-research accepted update research_ops.
 2. Run async-research accepted revalidation research_ops --write-schedule.
 3. Read accepted_outputs_index.md, revalidation_schedule.md if present, queue.md, daily_status.md, and all tasks accepted since the last weekly_digest.md entry.
-4. Run python -m async_research_workflow.scripts.revision_counter scan-limits research_ops/tasks --markdown.
+4. Run async-research revision scan-limits research_ops/tasks --markdown.
 5. Run python -m async_research_workflow.scripts.metrics_history append-snapshot research_ops --period weekly --label weekly_digest.
 6. If this is the final weekly synthesis of the month, run python -m async_research_workflow.scripts.framework_version_calibration research_ops --output research_ops/monthly_calibration_framework_versions.md.
 7. If this is the final weekly synthesis of the month, run async-research decision summarize research_ops --output research_ops/monthly_human_decision_summary.md.

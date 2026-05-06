@@ -334,17 +334,17 @@ Batch outputs are untrusted until review marks them trusted.
 Check a manifest:
 
 ```bash
-python -m async_research_workflow.scripts.batch_lifecycle trust-status \
+async-research batch trust-status \
   research_ops/batches/BATCH-0001/batch_manifest.json
 ```
 
 Normal lifecycle:
 
 ```bash
-python -m async_research_workflow.scripts.batch_lifecycle validate-manifest \
+async-research batch validate-manifest \
   research_ops/batches/BATCH-0001/batch_manifest.json
 
-python -m async_research_workflow.scripts.batch_lifecycle ingest \
+async-research batch ingest \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --ingest-task-id TASK-0302 \
   --ingested-file artifacts/ingested.jsonl
@@ -353,7 +353,7 @@ python -m async_research_workflow.scripts.batch_lifecycle ingest \
 After a reviewer accepts the ingest task:
 
 ```bash
-python -m async_research_workflow.scripts.batch_lifecycle mark-reviewed \
+async-research batch mark-reviewed \
   research_ops/batches/BATCH-0001/batch_manifest.json \
   --review-task-id TASK-0303
 ```
@@ -367,14 +367,14 @@ auditing untrusted output.
 Initialize or validate the register:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit init research_ops
+async-research source init research_ops
 async-research source validate research_ops
 ```
 
 Approve or update a source:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit upsert \
+async-research source upsert \
   research_ops \
   --source-id DS-0001 \
   --approval-status approved_with_caveats \
@@ -460,7 +460,7 @@ task or route the item to `needs_human`.
 If result acceptance fails:
 
 - lower claim strength if the evidence cap is exceeded
-- request a bounded revision with `revision_counter.py request`
+- request a bounded revision with `async-research revision request`
 - route to `needs_human` for public/high-stakes or strong claims
 - reject if required artifacts are missing and cannot be recovered
 

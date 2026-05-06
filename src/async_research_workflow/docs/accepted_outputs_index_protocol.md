@@ -157,9 +157,9 @@ async-research accepted check-duplicate \
 
 The helper returns matching accepted rows and a `duplicate_risk` flag. A duplicate risk does not always reject the task, but it must be mentioned in the planner note or task context.
 
-For full P2 anti-context, use `generate_anti_context.py` after creating the task
-folder. It combines accepted-output overlap with rejected ideas and rejected
-task failure modes.
+For full P2 anti-context, use `async-research anti-context build` after
+creating the task folder. It combines accepted-output overlap with rejected
+ideas and rejected task failure modes.
 
 ## Scheduler Placement
 

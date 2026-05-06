@@ -38,7 +38,7 @@ Whenever a reviewer requests revision, the task result claim strength is marked 
 
 This is done by:
 
-- `revision_counter.py request`
+- `async-research revision request`
 - `aggregate_reviews.py` when the deterministic route is `needs_revision`
 - `aggregate_reviews.py` when a revision request exceeds the limit and routes to `needs_human`
 

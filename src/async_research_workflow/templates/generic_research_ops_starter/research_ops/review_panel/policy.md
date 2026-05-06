@@ -19,7 +19,7 @@ workspace. Detailed rules live in
 - Required reviewer files must include `prompt_version` and
   `framework_versions.result_acceptance`.
 - Methodology and skeptic reviewers must use isolated bundles from
-  `prepare_review_context.py`.
+  `async-research review prepare-context`.
 - `aggregate_reviews.py` computes deterministic review routes.
 - Strong, public, high-stakes, expensive, or sensitive-data claims require a
   human gate before acceptance.

@@ -253,7 +253,7 @@ Requirement:
 Implementation status:
 
 - documented in `async_research_workflow/reviewer_isolation_protocol.md`
-- helper script added at `async_research_workflow/scripts/prepare_review_context.py`
+- isolated review context is now exposed through `async-research review prepare-context`
 - specialist reviewer prompts updated to run inside isolated bundles
 - aggregator prompt updated to run inside an aggregator bundle that includes all reviews
 
@@ -324,7 +324,7 @@ Default:
 Implementation status:
 
 - task status schema updated with `revision_count`, `max_revisions`, and `revision_limit_hit`
-- helper script added at `async_research_workflow/scripts/revision_counter.py`
+- revision counter is now exposed through `async-research revision`
 - documented in `async_research_workflow/revision_counter_protocol.md`
 - reviewer and weekly synthesizer prompts updated to use revision counters
 
@@ -663,7 +663,7 @@ Implementation status:
 
 - `aggregate_reviews.py` rejects reviews missing `claim_strength`
 - `aggregate_reviews.py` writes `aggregate_claim_strength` from the current review pass
-- `revision_counter.py` and revision aggregation routes clear stale `result.claim_strength`
+- `async-research revision` and revision aggregation routes clear stale `result.claim_strength`
 - accepted outputs prefer current `aggregate_claim_strength`
 - protocol documented in `async_research_workflow/claim_strength_re_evaluation_protocol.md`
 
@@ -689,7 +689,7 @@ Acceptance tests:
 
 Implementation status:
 
-- anti-context helper added at `async_research_workflow/scripts/generate_anti_context.py`
+- anti-context generation is now exposed through `async-research anti-context build`
 - planner prompt runs the helper for each promoted task
 - worker prompt reads `anti_context.md` and must address do-not-repeat warnings
 - task template includes a Cross-Task Anti-Context section
@@ -739,7 +739,7 @@ Implementation status:
 
 - task status schema includes `batch_job` and `batch_ingest`
 - batch manifest schema added at `async_research_workflow/schemas/batch_manifest.schema.json`
-- lifecycle helper added at `async_research_workflow/scripts/batch_lifecycle.py`
+- batch lifecycle is now exposed through `async-research batch`
 - schema-version checks scan `research_ops/batches/*/batch_manifest.json`
 - protocol documented in `async_research_workflow/batch_job_lifecycle_protocol.md`
 
@@ -827,7 +827,7 @@ Acceptance tests:
 Implementation status:
 
 - data source audit protocol documented in `async_research_workflow/data_source_audit_register_protocol.md`
-- markdown register helper added at `async_research_workflow/scripts/data_source_audit.py`
+- markdown register authoring is now exposed through `async-research source`
 - task status schema allows `data_audit_refs`
 - planner, worker, and reviewer prompts require audit checks for `experiment_plan` tasks
 - discovery may use plausible data paths but experiments require ready audited sources

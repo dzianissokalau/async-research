@@ -36,6 +36,26 @@ DECISION_CHOICES = (
     "resume",
 )
 RESOLUTION_STATUS_CHOICES = ("paused", "ready_for_worker", "rejected")
+SOURCE_TIER_CHOICES = (
+    "tier_1_official",
+    "tier_2_institutional",
+    "tier_3_media",
+    "tier_4_untrusted",
+)
+SOURCE_APPROVAL_STATUS_CHOICES = (
+    "approved",
+    "approved_with_caveats",
+    "blocked",
+    "candidate",
+    "deprecated",
+    "explicitly_approved",
+    "restricted",
+    "unknown",
+)
+SOURCE_STATUS_CHOICES = SOURCE_APPROVAL_STATUS_CHOICES + ("available", "usable_with_caveats")
+SOURCE_USE_CASE_CHOICES = ("discovery", "experiment_planning", "accepted_evidence", "context")
+CLAIM_IMPACT_CHOICES = ("low", "medium", "high")
+REVIEW_CONTEXT_ROLE_CHOICES = ("aggregator", "methodology", "primary", "skeptic")
 
 
 class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
@@ -320,6 +340,37 @@ def budget_option_values(args: argparse.Namespace) -> list[str]:
     return optional_number("--monthly-budget-usd", args.monthly_budget_usd) + optional_number("--weekly-budget-usd", args.weekly_budget_usd)
 
 
+def source_upsert_options(args: argparse.Namespace) -> list[str]:
+    return (
+        ["--source-id", args.source_id]
+        + optional_text("--status", args.status)
+        + optional_text("--approval-status", args.approval_status)
+        + optional_text("--source-name", args.source_name)
+        + optional_text("--url-or-domain", args.url_or_domain)
+        + optional_text("--publisher-owner", args.publisher_owner)
+        + optional_text("--source-tier", args.source_tier)
+        + optional_text("--approved-use-cases", args.approved_use_cases)
+        + optional_text("--blocked-use-cases", args.blocked_use_cases)
+        + optional_text("--freshness-window-days", args.freshness_window_days)
+        + optional_text("--known-limitations", args.known_limitations)
+        + optional_text("--citation-requirements", args.citation_requirements)
+        + optional_text("--last-reviewed", args.last_reviewed)
+        + optional_text("--approved-by", args.approved_by)
+        + optional_text("--review-notes", args.review_notes)
+    )
+
+
+def run_source_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_source_audit",
+        ["init", str(args.ops_dir)] + (["--force"] if args.force else []),
+    )
+
+
+def run_source_upsert_command(args: argparse.Namespace) -> int:
+    return module_main("data_source_audit", ["upsert", str(args.ops_dir)] + source_upsert_options(args))
+
+
 def run_source_check_experiment_command(args: argparse.Namespace) -> int:
     return module_main(
         "data_source_audit",
@@ -340,6 +391,22 @@ def run_source_check_claim_command(args: argparse.Namespace) -> int:
             "check-claim",
             str(args.ops_dir),
             str(args.artifact),
+            "--use-case",
+            args.use_case,
+            "--claim-impact",
+            args.claim_impact,
+        ]
+        + (["--allow-tier4-explicit"] if args.allow_tier4_explicit else []),
+    )
+
+
+def run_source_explain_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_source_audit",
+        [
+            "explain",
+            str(args.ops_dir),
+            args.source_id,
             "--use-case",
             args.use_case,
             "--claim-impact",
@@ -535,6 +602,161 @@ def run_escalation_evaluate_command(args: argparse.Namespace) -> int:
     return module_main(
         "escalation_policy",
         ["evaluate", str(args.task_dir)] + escalation_evaluate_options(args),
+    )
+
+
+def batch_common_write_options(args: argparse.Namespace) -> list[str]:
+    return ["--dry-run"] if args.dry_run else []
+
+
+def run_batch_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        [
+            "init",
+            str(args.ops_dir),
+            "--batch-id",
+            args.batch_id,
+            "--prompt-template",
+            args.prompt_template,
+            "--model",
+            args.model,
+            "--expected-output-schema",
+            args.expected_output_schema,
+            "--ingest-path",
+            args.ingest_path,
+            "--estimated-api-usd",
+            str(args.estimated_api_usd),
+            "--estimated-compute-usd",
+            str(args.estimated_compute_usd),
+        ]
+        + repeated_option("--input-file", args.input_file)
+        + optional_text("--source-task-id", args.source_task_id)
+        + optional_path("--manifest", args.manifest)
+        + batch_common_write_options(args),
+    )
+
+
+def run_batch_validate_manifest_command(args: argparse.Namespace) -> int:
+    return module_main("batch_lifecycle", ["validate-manifest", str(args.manifest)])
+
+
+def run_batch_submit_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        [
+            "submit",
+            str(args.manifest),
+            "--provider-batch-id",
+            args.provider_batch_id,
+            "--api-usd",
+            str(args.api_usd),
+            "--compute-usd",
+            str(args.compute_usd),
+        ]
+        + optional_path("--ops-dir", args.ops_dir)
+        + batch_common_write_options(args),
+    )
+
+
+def run_batch_complete_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        ["complete", str(args.manifest)]
+        + repeated_option("--output-file", args.output_file)
+        + batch_common_write_options(args),
+    )
+
+
+def run_batch_ingest_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        ["ingest", str(args.manifest), "--ingest-task-id", args.ingest_task_id]
+        + repeated_option("--ingested-file", args.ingested_file)
+        + batch_common_write_options(args),
+    )
+
+
+def run_batch_mark_reviewed_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        ["mark-reviewed", str(args.manifest), "--review-task-id", args.review_task_id]
+        + batch_common_write_options(args),
+    )
+
+
+def run_batch_trust_status_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "batch_lifecycle",
+        ["trust-status", str(args.manifest)] + (["--allow-untrusted"] if args.allow_untrusted else []),
+    )
+
+
+def revision_schema_prefix(args: argparse.Namespace) -> list[str]:
+    return optional_path("--schema", args.schema)
+
+
+def run_revision_defaults_command(args: argparse.Namespace) -> int:
+    return module_main("revision_counter", ["defaults", "--tier", str(args.tier)])
+
+
+def run_revision_request_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "revision_counter",
+        revision_schema_prefix(args)
+        + ["request", str(args.task_dir), "--reviewer", args.reviewer, "--reason", args.reason]
+        + (["--dry-run"] if args.dry_run else []),
+    )
+
+
+def run_revision_inspect_command(args: argparse.Namespace) -> int:
+    return module_main("revision_counter", revision_schema_prefix(args) + ["inspect", str(args.task_dir)])
+
+
+def run_revision_scan_limits_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "revision_counter",
+        ["scan-limits", str(args.tasks_dir)] + (["--markdown"] if args.markdown else []),
+    )
+
+
+def run_anti_context_build_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "generate_anti_context",
+        [
+            "build",
+            str(args.ops_dir),
+            "--title",
+            args.title,
+            "--threshold",
+            str(args.threshold),
+            "--max-items",
+            str(args.max_items),
+        ]
+        + optional_path("--task-dir", args.task_dir)
+        + optional_path("--output", args.output),
+    )
+
+
+def run_review_prepare_context_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prepare_review_context",
+        [
+            "prepare",
+            str(args.task_dir),
+            "--role",
+            args.role,
+            "--bundle-dir",
+            str(args.bundle_dir),
+        ]
+        + (["--force"] if args.force else []),
+    )
+
+
+def run_review_install_context_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prepare_review_context",
+        ["install", str(args.bundle_dir)] + (["--force"] if args.force else []),
     )
 
 
@@ -773,10 +995,43 @@ def register_source_commands(subparsers) -> None:
     source = add_command(
         subparsers,
         "source",
-        help="Validate or report source-governance state.",
-        description="Inspect data_source_audit.md for validity and source freshness.",
+        help="Author, validate, or report source-governance state.",
+        description="Maintain and inspect data_source_audit.md for source approval, allowed use, and freshness.",
     )
     source_sub = source.add_subparsers(dest="source_command", required=True)
+    init = add_command(
+        source_sub,
+        "init",
+        help="Create data_source_audit.md if needed.",
+        description="Create the canonical source audit register table, preserving an existing file unless --force is passed.",
+    )
+    add_common_ops(init)
+    init.add_argument("--force", action="store_true", help="Replace an existing data_source_audit.md register.")
+    init.set_defaults(func=run_source_init_command)
+    upsert = add_command(
+        source_sub,
+        "upsert",
+        help="Add or update one source audit row.",
+        description="Write a governed source audit row with tier, approval status, use-case, freshness, citation, and reviewer metadata.",
+        epilog="Exits 0 when the row is written, 2 when the register would be invalid, 3 for invalid source ids or dates, and 4 for malformed registers.",
+    )
+    add_required_ops(upsert)
+    upsert.add_argument("--source-id", required=True, help="Stable source id such as DS-0001.")
+    upsert.add_argument("--status", choices=sorted(SOURCE_STATUS_CHOICES), help="Deprecated status alias; prefer --approval-status.")
+    upsert.add_argument("--approval-status", choices=sorted(SOURCE_APPROVAL_STATUS_CHOICES), help="Governance approval status for this source.")
+    upsert.add_argument("--source-name", "--name", dest="source_name", help="Human-readable source name.")
+    upsert.add_argument("--url-or-domain", "--location", dest="url_or_domain", help="URL, path, table, API, bucket, or domain.")
+    upsert.add_argument("--publisher-owner", "--owner", dest="publisher_owner", help="Publisher, owner, or responsible team.")
+    upsert.add_argument("--source-tier", choices=sorted(SOURCE_TIER_CHOICES), help="Governance tier for this source.")
+    upsert.add_argument("--approved-use-cases", help="Semicolon- or comma-separated use cases this source may support.")
+    upsert.add_argument("--blocked-use-cases", help="Semicolon- or comma-separated use cases this source must not support.")
+    upsert.add_argument("--freshness-window-days", help="Positive number of days before the source review is stale.")
+    upsert.add_argument("--known-limitations", help="Known caveats or limits.")
+    upsert.add_argument("--citation-requirements", help="Required citation details for downstream use.")
+    upsert.add_argument("--last-reviewed", "--last-checked", dest="last_reviewed", help="Review date in YYYY-MM-DD format.")
+    upsert.add_argument("--approved-by", help="Human, task, or review that approved the row.")
+    upsert.add_argument("--review-notes", "--readiness-notes", dest="review_notes", help="Latest governance or readiness notes.")
+    upsert.set_defaults(func=run_source_upsert_command)
     validate = add_command(
         source_sub,
         "validate",
@@ -815,6 +1070,18 @@ def register_source_commands(subparsers) -> None:
     check_claim.add_argument("--claim-impact", choices=["low", "medium", "high"], default="medium", help="Claim impact level to validate.")
     check_claim.add_argument("--allow-tier4-explicit", action="store_true", help="Allow explicitly cited tier-4 sources when policy permits.")
     check_claim.set_defaults(func=run_source_check_claim_command)
+    explain = add_command(
+        source_sub,
+        "explain",
+        help="Explain whether one source is allowed for a use case.",
+        description="Explain source approval, tier, freshness, and use-case decisions for one DS-* id.",
+    )
+    add_required_ops(explain)
+    explain.add_argument("source_id", help="Source id to explain, such as DS-0001.")
+    explain.add_argument("--use-case", choices=SOURCE_USE_CASE_CHOICES, default="experiment_planning", help="Source use case to explain.")
+    explain.add_argument("--claim-impact", choices=CLAIM_IMPACT_CHOICES, default="medium", help="Claim impact level to assess.")
+    explain.add_argument("--allow-tier4-explicit", action="store_true", help="Allow explicitly approved tier-4 sources when policy permits.")
+    explain.set_defaults(func=run_source_explain_command)
 
 
 def register_cost_commands(subparsers) -> None:
@@ -873,6 +1140,101 @@ def register_cost_commands(subparsers) -> None:
     budget.add_argument("--ledger", type=Path, help="Override the default research_ops/cost_ledger.csv path.")
     add_budget_options(budget)
     budget.set_defaults(func=run_cost_budget_check_command)
+
+
+def add_batch_dry_run(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--dry-run", action="store_true", help="Validate and print the action without writing files.")
+
+
+def register_batch_commands(subparsers) -> None:
+    batch = add_command(
+        subparsers,
+        "batch",
+        help="Manage batch_manifest.json lifecycle.",
+        description="Manage the batch_manifest.json lifecycle: create, validate, submit, ingest, review, and trust-check first-class batch manifests.",
+    )
+    batch_sub = batch.add_subparsers(dest="batch_command", required=True)
+    init = add_command(
+        batch_sub,
+        "init",
+        help="Create a draft batch manifest.",
+        description="Create a draft batch manifest at research_ops/batches/<batch-id>/batch_manifest.json with untrusted output state.",
+    )
+    add_required_ops(init)
+    init.add_argument("--batch-id", required=True, help="Batch id such as BATCH-0001.")
+    init.add_argument("--input-file", action="append", required=True, help="Input file for the batch. Repeat for multiple inputs.")
+    init.add_argument("--prompt-template", required=True, help="Prompt template or prompt identifier used for the batch.")
+    init.add_argument("--model", required=True, help="Model or provider tool for the batch.")
+    init.add_argument("--expected-output-schema", required=True, help="Expected output schema name or path.")
+    init.add_argument("--ingest-path", required=True, help="Destination path where reviewed output may later be ingested.")
+    init.add_argument("--source-task-id", help="Source task that created or requested the batch.")
+    init.add_argument("--estimated-api-usd", type=float, default=0.0, help="Estimated API spend in USD.")
+    init.add_argument("--estimated-compute-usd", type=float, default=0.0, help="Estimated compute spend in USD.")
+    init.add_argument("--manifest", type=Path, help="Override the default manifest path.")
+    add_batch_dry_run(init)
+    init.set_defaults(func=run_batch_init_command)
+    validate = add_command(
+        batch_sub,
+        "validate-manifest",
+        help="Validate batch manifest schema and lifecycle invariants.",
+        description="Validate one batch_manifest.json and lifecycle invariants without mutating it.",
+    )
+    validate.add_argument("manifest", type=Path, help="batch_manifest.json path to validate.")
+    validate.set_defaults(func=run_batch_validate_manifest_command)
+    submit = add_command(
+        batch_sub,
+        "submit",
+        help="Mark a batch submitted and log estimated cost.",
+        description="Move a draft/validated batch to submitted, keep output untrusted, and log estimated cost unless --dry-run is used.",
+    )
+    submit.add_argument("manifest", type=Path, help="batch_manifest.json path to submit.")
+    submit.add_argument("--ops-dir", type=Path, help="research_ops directory; inferred from the manifest path when omitted.")
+    submit.add_argument("--provider-batch-id", required=True, help="Provider batch id assigned by the external system.")
+    submit.add_argument("--api-usd", type=float, required=True, help="Estimated API cost in USD.")
+    submit.add_argument("--compute-usd", type=float, required=True, help="Estimated compute cost in USD.")
+    add_batch_dry_run(submit)
+    submit.set_defaults(func=run_batch_submit_command)
+    complete = add_command(
+        batch_sub,
+        "complete",
+        help="Record provider output files while keeping them untrusted.",
+        description="Move a submitted batch to completed with output_trust=untrusted.",
+    )
+    complete.add_argument("manifest", type=Path, help="batch_manifest.json path to complete.")
+    complete.add_argument("--output-file", action="append", required=True, help="Provider output file. Repeat for multiple files.")
+    add_batch_dry_run(complete)
+    complete.set_defaults(func=run_batch_complete_command)
+    ingest = add_command(
+        batch_sub,
+        "ingest",
+        help="Record ingested output files pending review.",
+        description="Move a completed batch to ingested with output_trust=ingested_pending_review.",
+    )
+    ingest.add_argument("manifest", type=Path, help="batch_manifest.json path to ingest.")
+    ingest.add_argument("--ingest-task-id", required=True, help="Task id responsible for ingesting outputs.")
+    ingest.add_argument("--ingested-file", action="append", required=True, help="Ingested output artifact. Repeat for multiple files.")
+    add_batch_dry_run(ingest)
+    ingest.set_defaults(func=run_batch_ingest_command)
+    reviewed = add_command(
+        batch_sub,
+        "mark-reviewed",
+        help="Mark ingested batch outputs as reviewed and trusted.",
+        description="Move an ingested batch to reviewed and trusted with output_trust=reviewed after human/reviewer acceptance.",
+    )
+    reviewed.add_argument("manifest", type=Path, help="batch_manifest.json path to mark reviewed.")
+    reviewed.add_argument("--review-task-id", required=True, help="Task id that reviewed the ingested outputs.")
+    add_batch_dry_run(reviewed)
+    reviewed.set_defaults(func=run_batch_mark_reviewed_command)
+    trust = add_command(
+        batch_sub,
+        "trust-status",
+        help="Report whether batch outputs are trusted.",
+        description="Return nonzero until lifecycle_status=reviewed and output_trust=reviewed, unless --allow-untrusted is set.",
+        epilog="Exits 0 when outputs are trusted, 2 when outputs are still untrusted, and 4 for malformed manifests.",
+    )
+    trust.add_argument("manifest", type=Path, help="batch_manifest.json path to check.")
+    trust.add_argument("--allow-untrusted", action="store_true", help="Report untrusted state without failing the command.")
+    trust.set_defaults(func=run_batch_trust_status_command)
 
 
 def register_metrics_commands(subparsers) -> None:
@@ -956,14 +1318,57 @@ def register_accepted_commands(subparsers) -> None:
     accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
 
 
+def register_anti_context_commands(subparsers) -> None:
+    anti_context = add_command(
+        subparsers,
+        "anti-context",
+        help="Generate cross-task anti-context for new tasks.",
+        description="Build anti_context.md from accepted memory, rejected ideas, and rejected task failure modes.",
+    )
+    anti_sub = anti_context.add_subparsers(dest="anti_context_command", required=True)
+    build = add_command(
+        anti_sub,
+        "build",
+        help="Build anti-context for a proposed task title.",
+        description="Build anti-context for a proposed task, printing Markdown as JSON and optionally updating task.md.",
+    )
+    add_required_ops(build)
+    build.add_argument("--title", required=True, help="Proposed task or candidate title to compare with prior memory.")
+    build.add_argument("--task-dir", type=Path, help="Task directory to receive anti_context.md and a task.md section.")
+    build.add_argument("--output", type=Path, help="Write the anti-context Markdown to this path instead of a task folder.")
+    build.add_argument("--threshold", type=float, default=0.2, help="Similarity threshold for accepted/rejected matches.")
+    build.add_argument("--max-items", type=int, default=3, help="Maximum accepted and rejected matches to include.")
+    build.set_defaults(func=run_anti_context_build_command)
+
+
 def register_review_commands(subparsers) -> None:
     review = add_command(
         subparsers,
         "review",
-        help="Aggregate isolated reviewer notes.",
-        description="Route reviewed tasks based on independent review files and policy.",
+        help="Prepare, install, or aggregate isolated reviewer notes.",
+        description="Prepare isolated review bundles, install completed outputs, and aggregate review files.",
     )
     review_sub = review.add_subparsers(dest="review_command", required=True)
+    prepare = add_command(
+        review_sub,
+        "prepare-context",
+        help="Prepare an isolated reviewer or aggregator bundle.",
+        description="Copy task inputs into an isolated reviewer bundle; reviewer bundles exclude sibling reviews and aggregator bundles include them.",
+    )
+    prepare.add_argument("task_dir", type=Path, help="Task directory to bundle.")
+    prepare.add_argument("--role", required=True, choices=REVIEW_CONTEXT_ROLE_CHOICES, help="Reviewer role for the bundle.")
+    prepare.add_argument("--bundle-dir", required=True, type=Path, help="Bundle directory to create.")
+    prepare.add_argument("--force", action="store_true", help="Replace an existing bundle directory.")
+    prepare.set_defaults(func=run_review_prepare_context_command)
+    install = add_command(
+        review_sub,
+        "install-context",
+        help="Install one completed isolated review output.",
+        description="Copy only the completed isolated review output from a review bundle back into the source task.",
+    )
+    install.add_argument("bundle_dir", type=Path, help="Prepared bundle containing manifest.json and output/.")
+    install.add_argument("--force", action="store_true", help="Replace an existing target review output.")
+    install.set_defaults(func=run_review_install_context_command)
     aggregate = add_command(
         review_sub,
         "aggregate",
@@ -973,6 +1378,58 @@ def register_review_commands(subparsers) -> None:
     aggregate.add_argument("task_dir", type=Path, help="Task directory containing status.json and reviews/.")
     aggregate.add_argument("--dry-run", action="store_true", help="Validate and preview routing without writing aggregate/status files.")
     aggregate.set_defaults(func=lambda a: module_main("aggregate_reviews", [str(a.task_dir)] + (["--dry-run"] if a.dry_run else [])))
+
+
+def add_revision_schema_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--schema", type=Path, help="Override the canonical task_status schema.")
+
+
+def register_revision_commands(subparsers) -> None:
+    revision = add_command(
+        subparsers,
+        "revision",
+        help="Inspect or apply bounded revision counters.",
+        description="Manage bounded revision counters: request revisions, inspect revision state, and report tasks that hit revision limits.",
+    )
+    revision_sub = revision.add_subparsers(dest="revision_command", required=True)
+    defaults = add_command(
+        revision_sub,
+        "defaults",
+        help="Print default max revisions for a review tier.",
+        description="Show the default max revisions for a review tier.",
+    )
+    defaults.add_argument("--tier", type=int, choices=[0, 1, 2, 3], required=True, help="Review tier to inspect.")
+    defaults.set_defaults(func=run_revision_defaults_command)
+    request = add_command(
+        revision_sub,
+        "request",
+        help="Request a bounded task revision.",
+        description="Request a bounded task revision by incrementing revision_count and routing safely.",
+    )
+    request.add_argument("task_dir", type=Path, help="Task directory or status.json path.")
+    request.add_argument("--reviewer", default="reviewer", help="Reviewer requesting the revision.")
+    request.add_argument("--reason", default="reviewer_requested_revision", help="Transition reason recorded on the task.")
+    request.add_argument("--dry-run", action="store_true", help="Validate and print the transition without writing status.json.")
+    add_revision_schema_option(request)
+    request.set_defaults(func=run_revision_request_command)
+    inspect = add_command(
+        revision_sub,
+        "inspect",
+        help="Inspect revision fields for one task.",
+        description="Validate and print revision fields: revision_count, max_revisions, and revision_limit_hit.",
+    )
+    inspect.add_argument("task_dir", type=Path, help="Task directory or status.json path.")
+    add_revision_schema_option(inspect)
+    inspect.set_defaults(func=run_revision_inspect_command)
+    scan = add_command(
+        revision_sub,
+        "scan-limits",
+        help="List tasks that hit revision limits.",
+        description="Scan task status files for revision-limit hits, printing JSON by default or Markdown with --markdown.",
+    )
+    scan.add_argument("tasks_dir", type=Path, help="research_ops/tasks directory to scan.")
+    scan.add_argument("--markdown", action="store_true", help="Print a Markdown table instead of JSON.")
+    scan.set_defaults(func=run_revision_scan_limits_command)
 
 
 def register_result_command(subparsers) -> None:
@@ -1085,9 +1542,12 @@ COMMAND_REGISTRARS = (
     register_escalation_commands,
     register_source_commands,
     register_cost_commands,
+    register_batch_commands,
     register_metrics_commands,
     register_accepted_commands,
+    register_anti_context_commands,
     register_review_commands,
+    register_revision_commands,
     register_result_command,
     register_artifact_commands,
     register_benchmark_commands,

@@ -569,6 +569,189 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual("ambiguous_task_contract", status["human_gate"]["trigger"])
             self.assertIn("required_human_decision", status["human_gate"])
 
+    def test_source_authoring_commands_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+
+            code, initialized = run_cli_json(["source", "init", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, initialized)
+            self.assertEqual("initialized", initialized["action"])
+
+            code, upserted = run_cli_json(
+                [
+                    "source",
+                    "upsert",
+                    ops_dir,
+                    "--source-id",
+                    "DS-0601",
+                    "--approval-status",
+                    "approved",
+                    "--source-name",
+                    "Fixture Source",
+                    "--url-or-domain",
+                    "https://example.test/source",
+                    "--publisher-owner",
+                    "Fixture Publisher",
+                    "--source-tier",
+                    "tier_1_official",
+                    "--approved-use-cases",
+                    "experiment_planning; accepted_evidence",
+                    "--blocked-use-cases",
+                    "none",
+                    "--freshness-window-days",
+                    "365",
+                    "--known-limitations",
+                    "none",
+                    "--citation-requirements",
+                    "cite DS-0601",
+                    "--last-reviewed",
+                    "2026-05-05",
+                    "--approved-by",
+                    "tests",
+                    "--review-notes",
+                    "ready fixture",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, upserted)
+            self.assertEqual("upserted", upserted["action"])
+
+            code, explained = run_cli_json(["source", "explain", ops_dir, "DS-0601"])
+            self.assertEqual(cli.SUCCESS, code, explained)
+            self.assertTrue(explained["ok"])
+            self.assertEqual("DS-0601", explained["source_id"])
+
+    def test_batch_lifecycle_commands_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            manifest = ops_dir / "batches" / "BATCH-0601" / "batch_manifest.json"
+
+            code, dry = run_cli_json(
+                [
+                    "batch",
+                    "init",
+                    ops_dir,
+                    "--batch-id",
+                    "BATCH-0601",
+                    "--input-file",
+                    "research_ops/batches/BATCH-0601/input.jsonl",
+                    "--prompt-template",
+                    "fixture_prompt_v1",
+                    "--model",
+                    "fixture-model",
+                    "--expected-output-schema",
+                    "fixture.schema.json",
+                    "--ingest-path",
+                    "research_ops/batches/BATCH-0601/ingested.jsonl",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertEqual("dry_run_initialized", dry["action"])
+            self.assertFalse(manifest.exists())
+
+            code, written = run_cli_json(
+                [
+                    "batch",
+                    "init",
+                    ops_dir,
+                    "--batch-id",
+                    "BATCH-0601",
+                    "--input-file",
+                    "research_ops/batches/BATCH-0601/input.jsonl",
+                    "--prompt-template",
+                    "fixture_prompt_v1",
+                    "--model",
+                    "fixture-model",
+                    "--expected-output-schema",
+                    "fixture.schema.json",
+                    "--ingest-path",
+                    "research_ops/batches/BATCH-0601/ingested.jsonl",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, written)
+            self.assertTrue(manifest.exists())
+
+            code, valid = run_cli_json(["batch", "validate-manifest", manifest])
+            self.assertEqual(cli.SUCCESS, code, valid)
+            self.assertEqual("draft", valid["lifecycle_status"])
+
+            code, trust = run_cli_json(["batch", "trust-status", manifest])
+            self.assertEqual(2, code, trust)
+            self.assertFalse(trust["trusted"])
+
+    def test_anti_context_build_writes_task_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_accepted_index(ops_dir)
+            task_dir = ops_dir / "tasks" / "TASK-0602-anti-context"
+            task_dir.mkdir(parents=True)
+
+            code, payload = run_cli_json(
+                [
+                    "anti-context",
+                    "build",
+                    ops_dir,
+                    "--title",
+                    "Old evidence follow-up",
+                    "--task-dir",
+                    task_dir,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertTrue((task_dir / "anti_context.md").exists())
+            self.assertIn("Cross-Task Anti-Context", (task_dir / "task.md").read_text(encoding="utf-8"))
+
+    def test_review_context_prepare_and_install_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-0603", "awaiting_review")
+            write_clear_task_contract(task_dir)
+            (task_dir / "worker_output.md").write_text("Fixture output.\n", encoding="utf-8")
+            (task_dir / "reviews").mkdir()
+            (task_dir / "reviews" / "methodology.md").write_text("Existing sibling review.\n", encoding="utf-8")
+            bundle_dir = Path(tmp) / "review-bundle"
+
+            code, prepared = run_cli_json(
+                [
+                    "review",
+                    "prepare-context",
+                    task_dir,
+                    "--role",
+                    "primary",
+                    "--bundle-dir",
+                    bundle_dir,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, prepared)
+            self.assertFalse((bundle_dir / "input" / "reviews").exists())
+
+            output = bundle_dir / "output" / "reviews" / "primary.md"
+            output.write_text("Primary review fixture.\n", encoding="utf-8")
+            code, installed = run_cli_json(["review", "install-context", bundle_dir])
+            self.assertEqual(cli.SUCCESS, code, installed)
+            self.assertTrue((task_dir / "reviews" / "primary.md").exists())
+
+    def test_revision_request_dry_run_and_write_use_public_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-0604", "single_review")
+            before = (task_dir / "status.json").read_text(encoding="utf-8")
+
+            code, dry = run_cli_json(["revision", "request", task_dir, "--reviewer", "primary", "--dry-run"])
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertEqual("dry_run_revision_request", dry["action"])
+            self.assertEqual(before, (task_dir / "status.json").read_text(encoding="utf-8"))
+
+            code, applied = run_cli_json(["revision", "request", task_dir, "--reviewer", "primary"])
+            self.assertEqual(cli.SUCCESS, code, applied)
+            self.assertEqual("revision_request_applied", applied["action"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("needs_revision", status["status"])
+            self.assertEqual(1, status["revision_count"])
+
 
 if __name__ == "__main__":
     unittest.main()

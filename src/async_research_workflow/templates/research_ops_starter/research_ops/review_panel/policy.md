@@ -21,7 +21,7 @@ workspace. Detailed rules live in
 - Required reviewer files must include `prompt_version` and
   `framework_versions.result_acceptance`.
 - Methodology and skeptic reviewers must use isolated bundles from
-  `prepare_review_context.py`.
+  `async-research review prepare-context`.
 - `aggregate_reviews.py` is the only component allowed to compute the final
   deterministic review route.
 - Strong, public, high-stakes, expensive, or sensitive-data claims require a

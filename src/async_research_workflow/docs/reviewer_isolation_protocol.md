@@ -40,13 +40,14 @@ Aggregator bundles include all reviews.
 Use:
 
 ```text
-async_research_workflow/scripts/prepare_review_context.py
+async-research review prepare-context
+async-research review install-context
 ```
 
 Prepare a methodology reviewer bundle:
 
 ```bash
-python -m async_research_workflow.scripts.prepare_review_context prepare \
+async-research review prepare-context \
   research_ops/tasks/TASK-0001 \
   --role methodology \
   --bundle-dir /tmp/review-TASK-0001-methodology \
@@ -64,7 +65,7 @@ Write output/reviews/methodology.md.
 Install the completed review:
 
 ```bash
-python -m async_research_workflow.scripts.prepare_review_context install \
+async-research review install-context \
   /tmp/review-TASK-0001-methodology \
   --force
 ```
@@ -72,7 +73,7 @@ python -m async_research_workflow.scripts.prepare_review_context install \
 Prepare an aggregator bundle:
 
 ```bash
-python -m async_research_workflow.scripts.prepare_review_context prepare \
+async-research review prepare-context \
   research_ops/tasks/TASK-0001 \
   --role aggregator \
   --bundle-dir /tmp/review-TASK-0001-aggregator \

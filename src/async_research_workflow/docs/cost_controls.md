@@ -130,7 +130,7 @@ Use Batch API for:
 - embedding or summary jobs
 - low-priority nightly evaluations
 
-Batch jobs must use `batch_lifecycle.py` and `batch_manifest.json`. Provider
+Batch jobs must use `async-research batch` and `batch_manifest.json`. Provider
 outputs remain untrusted until a `batch_ingest` task ingests them and a reviewer
 marks the manifest reviewed.
 
@@ -228,7 +228,7 @@ If the command exits nonzero, route to `needs_human`.
 
 The point is not accounting perfection. The point is noticing runaway categories early.
 
-Batch submission uses `batch_lifecycle.py submit`, which appends rows with
+Batch submission uses `async-research batch submit`, which appends rows with
 `amount_usd`, `api_usd`, and `compute_usd` so health checks and metrics history
 can include batch spend.
 

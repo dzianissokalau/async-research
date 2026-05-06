@@ -46,13 +46,13 @@ Tier 3 returns to human review after one revision because disagreement between m
 Use:
 
 ```text
-async_research_workflow/scripts/revision_counter.py
+async-research revision
 ```
 
 Request a revision:
 
 ```bash
-python -m async_research_workflow.scripts.revision_counter request \
+async-research revision request \
   research_ops/tasks/TASK-0001 \
   --reviewer primary
 ```
@@ -81,14 +81,14 @@ If `revision_count >= max_revisions`, the helper:
 Inspect one task:
 
 ```bash
-python -m async_research_workflow.scripts.revision_counter inspect \
+async-research revision inspect \
   research_ops/tasks/TASK-0001
 ```
 
 Report tasks that hit revision limits:
 
 ```bash
-python -m async_research_workflow.scripts.revision_counter scan-limits \
+async-research revision scan-limits \
   research_ops/tasks \
   --markdown
 ```
@@ -97,7 +97,7 @@ python -m async_research_workflow.scripts.revision_counter scan-limits \
 
 Reviewers must not set `status = needs_revision` by hand.
 
-If a reviewer wants another worker pass, it must use `revision_counter.py request`. If the helper routes to `needs_human`, the reviewer must not override it.
+If a reviewer wants another worker pass, it must use `async-research revision request`. If the helper routes to `needs_human`, the reviewer must not override it.
 
 ## Weekly Synthesis Rule
 
@@ -111,5 +111,5 @@ The revision counter layer is considered implemented when:
 - first revision request under the limit routes to `needs_revision`
 - revision request at or over the limit routes to `needs_human`
 - `max_revisions` cannot be unbounded by schema
-- reviewer prompts use `revision_counter.py` for revision requests
+- reviewer prompts use `async-research revision request` for revision requests
 - weekly synthesizer prompt reports tasks that hit revision limits

@@ -23,7 +23,7 @@ research_ops/data_source_audit.md
 Initialize it with:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit init research_ops
+async-research source init research_ops
 ```
 
 The register is a markdown table with schema version `1.0` and these fields:
@@ -94,7 +94,7 @@ Tier rules:
 Add or update an entry:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit upsert \
+async-research source upsert \
   research_ops \
   --source-id DS-0001 \
   --approval-status approved \
@@ -139,7 +139,7 @@ async-research source check-claim \
 Explain one source decision:
 
 ```bash
-python -m async_research_workflow.scripts.data_source_audit explain \
+async-research source explain \
   research_ops \
   DS-0001 \
   --use-case experiment_planning

@@ -204,7 +204,7 @@ Recommended routing:
 - Batch low-priority reviews weekly.
 - Use local or cheap models for schema and citation-presence checks.
 - Use model diversity only at gates.
-- Use `revision_counter.py` for every `needs_revision` decision.
+- Use `async-research revision request` for every `needs_revision` decision.
 - Stop after the task reaches `max_revisions` unless a human approves more.
 - Restate `claim_strength` on every review pass.
 - Treat prior `status.result.claim_strength` as stale after any revision request.

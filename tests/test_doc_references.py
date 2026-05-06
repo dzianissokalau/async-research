@@ -47,7 +47,19 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
         r"(?:async_research_workflow/scripts/update_accepted_outputs_index\.py|update_accepted_outputs_index\.py\b)"
     ),
     "data_source_audit": re.compile(
-        r"(?:python -m\s+async_research_workflow\.scripts\.data_source_audit\s+\\?\s*|data_source_audit\.py\s+)(?:check-experiment|check-claim)\b"
+        r"(?:python -m\s+async_research_workflow\.scripts\.data_source_audit\s+\\?\s*|data_source_audit\.py\s+)(?:init|upsert|check-experiment|check-claim|explain|freshness-report)\b"
+    ),
+    "batch_lifecycle": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.batch_lifecycle\s+\\?\s*|batch_lifecycle\.py\s+)(?:init|validate-manifest|submit|complete|ingest|mark-reviewed|trust-status)\b"
+    ),
+    "revision_counter": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.revision_counter\s+\\?\s*|revision_counter\.py\s+)(?:defaults|request|inspect|scan-limits)\b"
+    ),
+    "generate_anti_context": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.generate_anti_context\s+\\?\s*|generate_anti_context\.py\s+)build\b"
+    ),
+    "prepare_review_context": re.compile(
+        r"(?:python -m\s+async_research_workflow\.scripts\.prepare_review_context\s+\\?\s*|prepare_review_context\.py\s+)(?:prepare|install)\b"
     ),
     "metrics_history": re.compile(
         r"(?:python -m\s+async_research_workflow\.scripts\.metrics_history\s+\\?\s*|metrics_history\.py\s+)summarize\b"
