@@ -527,7 +527,21 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
 
     status_code, status_errors = validate_status(updated_status)
     if status_code != SUCCESS:
-        print_json({"ok": False, "reason": "status_validation_failed", "errors": status_errors, "task_dir": str(task_dir)})
+        payload = {"ok": False, "reason": "status_validation_failed", "errors": status_errors, "task_dir": str(task_dir)}
+        if status.get("status") == "awaiting_review" and route in {"accepted", "needs_revision", "paused", "rejected"}:
+            intermediate = "single_review" if tier <= 1 else "panel_review"
+            payload.update(
+                {
+                    "current_status": "awaiting_review",
+                    "attempted_route": route,
+                    "suggested_intermediate_status": intermediate,
+                    "next_step": (
+                        f"record the review-start transition awaiting_review -> {intermediate}, "
+                        "validate status, then rerun async-research review aggregate"
+                    ),
+                }
+            )
+        print_json(payload)
         return status_code
 
     result_acceptance: Optional[dict[str, Any]] = None

@@ -87,6 +87,33 @@ STOPWORDS = {
     "this",
     "with",
 }
+METADATA_KEYS = {
+    "schema_version",
+    "framework_version",
+    "framework_versions",
+    "prompt_version",
+    "prompt_versions",
+    "reviewer_role",
+    "decision",
+    "claim_strength",
+    "confidence",
+    "updated_at",
+    "created_at",
+    "model",
+    "model_tier",
+}
+RESULT_SUMMARY_KEYS = {
+    "result_id",
+    "run_id",
+    "primary_metric",
+    "baseline_results",
+    "candidate_results",
+    "validation_split_results",
+    "robustness_results",
+    "leakage_check_results",
+    "claim_strength",
+    "recommended_decision",
+}
 
 
 def utc_now() -> datetime:
@@ -278,6 +305,101 @@ def read_json(path: Path) -> Optional[dict[str, Any]]:
     return payload if isinstance(payload, dict) else None
 
 
+def extract_json_objects(text: str) -> list[dict[str, Any]]:
+    objects: list[dict[str, Any]] = []
+    for match in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL):
+        candidate = match.group(1).strip()
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            objects.append(payload)
+    return objects
+
+
+def looks_like_result_summary(payload: dict[str, Any]) -> bool:
+    if payload.get("framework_version") == "result_acceptance_v1.0":
+        return True
+    return len(RESULT_SUMMARY_KEYS & set(payload)) >= 4
+
+
+def load_result_summary(task_dir: Path) -> Optional[dict[str, Any]]:
+    artifact_summary = read_json(task_dir / "artifacts" / "result_summary.json")
+    if artifact_summary and looks_like_result_summary(artifact_summary):
+        return artifact_summary
+    worker_output = task_dir / "worker_output.md"
+    if not worker_output.exists():
+        return None
+    for payload in extract_json_objects(worker_output.read_text(encoding="utf-8")):
+        if looks_like_result_summary(payload):
+            return payload
+    return None
+
+
+def compact_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def metadata_key(line: str) -> str:
+    if ":" not in line:
+        return ""
+    key = line.split(":", 1)[0].strip().lower().replace("-", "_").replace(" ", "_")
+    return key
+
+
+def is_metadata_line(line: str) -> bool:
+    key = metadata_key(line)
+    return key in METADATA_KEYS
+
+
+def useful_key_finding(value: Any) -> str:
+    text = compact_text(value)
+    if not text:
+        return ""
+    if is_metadata_line(text):
+        return ""
+    if text.startswith("|") or set(text) <= {"-", " "}:
+        return ""
+    return re.sub(r"^[-*]\s+", "", text)
+
+
+def normalize_followup_text(value: Any) -> str:
+    if isinstance(value, dict):
+        value = value.get("reason") or value.get("title") or value.get("task") or ""
+    text = compact_text(value)
+    text = re.sub(r"^[-*]\s+", "", text)
+    text = re.sub(r"^(?:TASK|FOLLOW-?UP)\s*:\s*", "", text, flags=re.IGNORECASE)
+    text = text.strip(" ;.")
+    if text.lower() in {"none", "n/a", "na", "not applicable", "no follow-ups", "no followups"}:
+        return ""
+    return text
+
+
+def followup_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def append_followup(target: list[str], seen: set[str], value: Any) -> None:
+    text = normalize_followup_text(value)
+    if not text:
+        return
+    key = followup_key(text)
+    if not key or key in seen:
+        return
+    target.append(text)
+    seen.add(key)
+
+
+def append_followups(target: list[str], seen: set[str], values: Any) -> None:
+    if isinstance(values, list):
+        for value in values:
+            append_followup(target, seen, value)
+    elif isinstance(values, str):
+        for value in re.split(r"[;\n]", values):
+            append_followup(target, seen, value)
+
+
 def markdown_escape(value: Any) -> str:
     text = str(value if value is not None else "").replace("\n", " ").strip()
     text = re.sub(r"\s+", " ", text)
@@ -389,7 +511,9 @@ def first_summary_line(worker_output: Path) -> str:
             continue
         if set(line) <= {"-", " "}:
             continue
-        return re.sub(r"^[-*]\s+", "", line)
+        finding = useful_key_finding(line)
+        if finding:
+            return finding
     return "accepted output"
 
 
@@ -407,6 +531,45 @@ def parse_followups(worker_output: Path) -> list[str]:
         if in_followups and line.startswith(("-", "*")):
             followups.append(re.sub(r"^[-*]\s+", "", line))
     return followups
+
+
+def key_finding_for_task(status: dict[str, Any], task_dir: Path, summary: Optional[dict[str, Any]]) -> str:
+    result = result_object(status)
+    for value in (
+        result.get("key_finding"),
+        summary.get("claim") if isinstance(summary, dict) else None,
+        summary.get("candidate_results") if isinstance(summary, dict) else None,
+    ):
+        finding = useful_key_finding(value)
+        if finding:
+            return finding
+    finding = first_summary_line(task_dir / "worker_output.md")
+    if finding != "accepted output":
+        return finding
+    return useful_key_finding(status.get("title")) or "accepted output"
+
+
+def followups_for_task(
+    status: dict[str, Any],
+    task_dir: Path,
+    summary: Optional[dict[str, Any]],
+    acceptance: Optional[dict[str, Any]],
+) -> str:
+    result = result_object(status)
+    followups: list[str] = []
+    seen: set[str] = set()
+    if isinstance(summary, dict):
+        append_followups(followups, seen, summary.get("follow_up_tasks"))
+    append_followups(followups, seen, result.get("followups"))
+    if isinstance(acceptance, dict):
+        append_followups(followups, seen, acceptance.get("followups"))
+    append_followups(followups, seen, parse_followups(task_dir / "worker_output.md"))
+    if followups:
+        return "; ".join(followups)
+    followup_count = result.get("followup_count")
+    if isinstance(followup_count, int) and followup_count > 0:
+        return f"{followup_count} follow-ups proposed"
+    return "none"
 
 
 def result_value(status: dict[str, Any], key: str) -> Any:
@@ -444,35 +607,15 @@ def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Op
     current = now or utc_now()
     worker_output = task_dir / "worker_output.md"
     result = result_object(status)
-    followups_value = result.get("followups")
-    if isinstance(followups_value, list):
-        followups = "; ".join(str(item).strip() for item in followups_value if str(item).strip()) or "none"
-    else:
-        acceptance = read_json(task_dir / "review_panel" / "result_acceptance.json")
-        acceptance_followups = acceptance.get("followups") if isinstance(acceptance, dict) else None
-        parsed_from_acceptance = []
-        if isinstance(acceptance_followups, list):
-            for item in acceptance_followups:
-                if isinstance(item, dict) and str(item.get("reason", "")).strip():
-                    parsed_from_acceptance.append(str(item["reason"]).strip())
-                elif str(item).strip():
-                    parsed_from_acceptance.append(str(item).strip())
-        parsed_followups = parsed_from_acceptance or parse_followups(worker_output)
-        followup_count = result.get("followup_count")
-        if parsed_followups:
-            followups = "; ".join(parsed_followups)
-        elif isinstance(followup_count, int) and followup_count > 0:
-            followups = f"{followup_count} follow-ups proposed"
-        else:
-            followups = "none"
+    summary = load_result_summary(task_dir)
+    acceptance = read_json(task_dir / "review_panel" / "result_acceptance.json")
+    followups = followups_for_task(status, task_dir, summary, acceptance)
 
     evidence_link = result.get("evidence_link")
     if not isinstance(evidence_link, str) or not evidence_link.strip():
         evidence_link = task_relative_link(ops_dir, worker_output if worker_output.exists() else task_dir)
 
-    key_finding = result.get("key_finding")
-    if not isinstance(key_finding, str) or not key_finding.strip():
-        key_finding = first_summary_line(worker_output)
+    key_finding = key_finding_for_task(status, task_dir, summary)
 
     claim_strength = result.get("claim_strength")
     if claim_strength not in CLAIM_ORDER:

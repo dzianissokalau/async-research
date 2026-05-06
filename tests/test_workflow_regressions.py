@@ -331,6 +331,153 @@ class WorkflowRegressionTests(unittest.TestCase):
             blocker = next(item for item in payload["blockers"] if item["check"] == "budget_pressure")
             self.assertEqual(0.9, blocker["details"]["cost"]["monthly_usage_ratio"])
 
+    def test_accepted_update_ignores_worker_metadata_when_extracting_key_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2008-metadata-finding",
+                previous_status="panel_review",
+                status="accepted",
+                last_transition_reason="aggregate_reviews_all_required_reviewers_accept",
+                result={
+                    "recommendation": "ready",
+                    "claim_strength": "suggestive",
+                    "followup_count": 0,
+                },
+            )
+            task_dir.joinpath("worker_output.md").write_text(
+                "\n".join(
+                    [
+                        "prompt_version: worker_v1.0",
+                        "framework_versions: result_acceptance_v1.0",
+                        "",
+                        "## Summary",
+                        "",
+                        "- Address normalization methodology is ready for DS-0001 experiment planning.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_json(update_accepted_outputs_index, ["update", ops_dir, "--now", NOW])
+
+            self.assertEqual(update_accepted_outputs_index.SUCCESS, code, payload)
+            rows = update_accepted_outputs_index.read_index_rows(ops_dir / "accepted_outputs_index.md")
+            row = next(item for item in rows if item["task_id"] == "TASK-2008")
+            self.assertEqual("Address normalization methodology is ready for DS-0001 experiment planning.", row["key_finding"])
+            self.assertNotIn("prompt_version", row["key_finding"])
+
+    def test_accepted_update_deduplicates_and_normalizes_followups(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2009-followup-dedupe",
+                previous_status="panel_review",
+                status="accepted",
+                last_transition_reason="aggregate_reviews_all_required_reviewers_accept",
+                result={
+                    "recommendation": "ready",
+                    "claim_strength": "suggestive",
+                    "key_finding": "Address normalization work is ready for reuse",
+                    "followups": [
+                        "Draft address normalization methodology",
+                        "TASK: Draft address normalization methodology.",
+                    ],
+                },
+            )
+            task_dir.joinpath("worker_output.md").write_text(
+                "\n".join(
+                    [
+                        "Address normalization work is ready for reuse.",
+                        "",
+                        "## Follow-ups",
+                        "",
+                        "- TASK: Draft address normalization methodology.",
+                        "- TASK: Pin DS-0002 series IDs in experiment_plan artifact.",
+                        "- Add a freshness check to surface DS-0003 provisional periods.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            write_json(
+                task_dir / "review_panel" / "result_acceptance.json",
+                {
+                    "followups": [
+                        {
+                            "reason": "Draft address normalization methodology",
+                            "required_artifact": "methodology note",
+                            "priority": 3,
+                            "human_approval_needed": False,
+                            "required_before_memo_use": False,
+                        },
+                        {
+                            "reason": "TASK: Pin DS-0002 series IDs in experiment_plan artifact",
+                            "required_artifact": "experiment plan",
+                            "priority": 3,
+                            "human_approval_needed": False,
+                            "required_before_memo_use": False,
+                        },
+                    ]
+                },
+            )
+
+            code, payload = run_json(update_accepted_outputs_index, ["update", ops_dir, "--now", NOW])
+
+            self.assertEqual(update_accepted_outputs_index.SUCCESS, code, payload)
+            rows = update_accepted_outputs_index.read_index_rows(ops_dir / "accepted_outputs_index.md")
+            row = next(item for item in rows if item["task_id"] == "TASK-2009")
+            followups = row["followups"]
+            self.assertEqual(1, followups.count("Draft address normalization methodology"))
+            self.assertEqual(1, followups.count("Pin DS-0002 series IDs in experiment_plan artifact"))
+            self.assertIn("Add a freshness check to surface DS-0003 provisional periods", followups)
+            self.assertNotIn("TASK:", followups)
+
+    def test_review_aggregate_explains_missing_review_state_transition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2010-awaiting-review-friction",
+                previous_status="in_progress",
+                status="awaiting_review",
+                last_transition_reason="worker_submitted_for_review",
+                result={
+                    "recommendation": "ready",
+                    "claim_strength": "suggestive",
+                    "key_finding": "Reviewable output is present",
+                },
+            )
+            task_dir.joinpath("worker_output.md").write_text("Reviewable output is present.\n", encoding="utf-8")
+            write_json(
+                task_dir / "reviews" / "primary.md",
+                {
+                    "reviewer_role": "primary",
+                    "decision": "accept",
+                    "claim_strength": "suggestive",
+                    "prompt_version": "primary_reviewer_v1.0",
+                    "framework_versions": {"result_acceptance": "result_acceptance_v1.0"},
+                    "main_concerns": [],
+                    "required_followups": [],
+                    "evidence_gaps": [],
+                    "escalate_to_tier": None,
+                    "escalation_reason": None,
+                    "confidence": 0.8,
+                },
+            )
+
+            code, payload = run_json(aggregate_reviews, [task_dir, "--dry-run"])
+
+            self.assertEqual(aggregate_reviews.VALIDATION_FAILED, code, payload)
+            self.assertEqual("status_validation_failed", payload["reason"])
+            self.assertEqual("awaiting_review", payload["current_status"])
+            self.assertEqual("accepted", payload["attempted_route"])
+            self.assertEqual("single_review", payload["suggested_intermediate_status"])
+            self.assertIn("awaiting_review -> single_review", payload["next_step"])
+
     def test_result_acceptance_writes_evidence_ledger_and_accepted_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
