@@ -2,10 +2,10 @@
 
 All notable changes to `async-research-workflow` are tracked here.
 
-The project is pre-release. Until tagged releases begin, `main` may contain
-alpha hardening work that still reports package version `0.1.0a1`.
+The project is pre-release. Alpha versions are intended for careful dogfooding
+while the public CLI and workflow contracts harden.
 
-## Unreleased
+## 0.1.0a2 - 2026-05-06
 
 - Hardened `starter-smoke` and `init` safety behavior.
 - Added a generic default starter and kept the real-estate starter as an
@@ -22,6 +22,9 @@ alpha hardening work that still reports package version `0.1.0a1`.
   groups without changing public command behavior.
 - Recorded docs packaging policy and added footprint/resource regression tests
   for packaged protocol docs.
+- Completed CLI Audit 0-7 by promoting public-worthy wrappers, documenting
+  permanent internal helpers, and adding regression guards against CLI/doc
+  drift.
 
 ## 0.1.0a1 - 2026-05-03
 
