@@ -138,6 +138,8 @@ If the output is not safe to accept at the current tier but does not need immedi
 
 Run:
 
+Use the advanced/internal tier-escalation helper:
+
 ```bash
 python -m async_research_workflow.scripts.escalate_review_tier apply \
   research_ops/tasks/TASK-0001 \

@@ -78,7 +78,10 @@ If a lock is stale:
 
 Do not delete stale locks immediately. Renaming preserves forensic evidence.
 
-## Helper Script
+## Advanced/Internal Helper Script
+
+Task locking is an advanced/internal helper primitive used by workers and
+schedulers. It is not exposed as a public `async-research` command.
 
 Use:
 
@@ -86,7 +89,7 @@ Use:
 async_research_workflow/scripts/task_lock.py
 ```
 
-Acquire:
+Advanced/internal acquire:
 
 ```bash
 python -m async_research_workflow.scripts.task_lock acquire \
@@ -95,7 +98,7 @@ python -m async_research_workflow.scripts.task_lock acquire \
   --stale-minutes 60
 ```
 
-Release:
+Advanced/internal release:
 
 ```bash
 python -m async_research_workflow.scripts.task_lock release \
@@ -103,7 +106,7 @@ python -m async_research_workflow.scripts.task_lock release \
   --owner "$RESEARCH_WORKER_OWNER"
 ```
 
-Status:
+Advanced/internal status:
 
 ```bash
 python -m async_research_workflow.scripts.task_lock status \

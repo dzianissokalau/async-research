@@ -42,7 +42,7 @@ dimensions in:
 async_research_workflow/mission_policy.json
 ```
 
-That file is validated by:
+That file is validated by the advanced/internal mission policy helper:
 
 ```bash
 python -m async_research_workflow.scripts.validate_mission_policy \
@@ -59,6 +59,9 @@ Mission scoring has two executable layers:
 2. Score candidate ideas against that policy.
 
 Required commands:
+
+The policy validation command is an advanced/internal helper; the scoring
+command is public:
 
 ```bash
 python -m async_research_workflow.scripts.validate_mission_policy \

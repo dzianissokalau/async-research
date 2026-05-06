@@ -62,15 +62,18 @@ The main cost reduction comes from:
 30. [Scheduler And Prompts](./scheduler_and_prompts.md)
 31. [Cost Controls](./cost_controls.md)
 32. [Async Research Console Specification](./async_research_console_spec.md)
-33. [Dashboard Delivery Roadmap](../../../roadmaps/dashboard_delivery_roadmap.md)
-34. [Implementation Plan](./implementation_plan.md)
-35. [Sources](./sources.md)
+33. [Internal Helper Boundary](./internal_helper_boundary.md)
+34. [Dashboard Delivery Roadmap](../../../roadmaps/dashboard_delivery_roadmap.md)
+35. [Implementation Plan](./implementation_plan.md)
+36. [Sources](./sources.md)
 
 ## Package Resources
 
 Use the `async-research` CLI for supported workflow operations. Advanced helpers
 remain importable as `python -m async_research_workflow.scripts.<module>` when a
-CLI wrapper does not exist yet.
+CLI wrapper does not exist yet. See the
+[internal helper boundary](./internal_helper_boundary.md) for helpers that
+deliberately remain advanced/internal even though they are importable.
 
 Packaged resources:
 

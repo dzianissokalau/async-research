@@ -33,7 +33,7 @@ Write `worker_output.md` with:
 - Default: Tier 1 primary review.
 - Escalate to Tier 2 for experiment plans and result summaries.
 - Escalate to Tier 3 for final memos, moderate/strong claims, or public/high-stakes use.
-- Reviewers escalate with `python -m async_research_workflow.scripts.escalate_review_tier`; do not hand-edit review tiers.
+- Reviewers escalate with the advanced/internal helper `python -m async_research_workflow.scripts.escalate_review_tier`; do not hand-edit review tiers.
 
 ## Escalation Policy
 
@@ -54,7 +54,7 @@ Write `worker_output.md` with:
   `async_research_workflow/schemas/exploration_cycle.schema.json`, and pass
   `async-research exploration validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
   before updating the discovery inbox.
-- For scored idea candidates, run
+- For scored idea candidates, run the advanced/internal helper
   `python -m async_research_workflow.scripts.validate_mission_policy`,
   `async-research idea score`, and `async-research idea validate` before adding
   candidates to the discovery inbox or planner queue.

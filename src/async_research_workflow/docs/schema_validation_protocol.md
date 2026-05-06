@@ -10,7 +10,10 @@ Prevent malformed or schema-invalid JSON artifacts from silently entering the as
 
 State transition validation checks whether a status move is legal. Schema validation checks whether the JSON artifact itself is well formed and has the required fields, types, enums, patterns, and bounds.
 
-## Required Validator
+## Advanced/Internal Validator
+
+The generic JSON validator is an advanced/internal helper. Public workflows
+should prefer artifact-specific `async-research` gates when one exists.
 
 Use:
 
@@ -39,9 +42,9 @@ constraints this helper does not check. If the workflow later needs advanced
 schema features, add validator support first or replace it with a pinned
 `jsonschema` dependency.
 
-## Validate Commands
+## Advanced/Internal Validate Commands
 
-Task status:
+Advanced/internal task status validation:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
@@ -49,7 +52,7 @@ python -m async_research_workflow.scripts.validate_json_artifact \
   research_ops/tasks/TASK-0001/status.json
 ```
 
-Idea candidate:
+Advanced/internal idea-candidate validation:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
@@ -57,7 +60,7 @@ python -m async_research_workflow.scripts.validate_json_artifact \
   research_ops/discovery/IDEA-0001.json
 ```
 
-Review panel output:
+Advanced/internal review-panel validation:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
@@ -84,11 +87,14 @@ Any agent writing JSON must:
 
 For `status.json`, agents must run both:
 
+Advanced/internal status validation helpers:
+
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
   --schema async_research_workflow/schemas/task_status.schema.json \
   <task-dir>/status.json
 
+# advanced/internal transition helper
 python -m async_research_workflow.scripts.validate_transition \
   <task-dir>
 ```
@@ -155,6 +161,8 @@ If validation fails:
 Use this wrapper when `status.json` is malformed, missing, schema-invalid, or has
 an invalid transition:
 
+Advanced/internal recovery helper:
+
 ```bash
 python -m async_research_workflow.scripts.recover_status_json \
   research_ops/tasks/TASK-0001
@@ -178,6 +186,8 @@ only for this recovery reason.
 After Codex writes task artifacts, validate the changed JSON files before opening a pull request.
 
 Example for a known task:
+
+Advanced/internal schema helper:
 
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \

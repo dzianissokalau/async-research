@@ -19,7 +19,12 @@ research_ops/metrics_history.jsonl
 
 `metrics_history.jsonl` stores one JSON object per snapshot. Do not rewrite old lines; append a new snapshot instead.
 
-## Required Helper
+## Advanced/Internal Helper
+
+Metrics baseline initialization and weekly-period snapshots are advanced/internal
+helper operations. Public users should use `async-research init` for baseline
+creation and `async-research metrics append/summarize` for normal snapshots and
+summaries.
 
 Use:
 
@@ -27,7 +32,7 @@ Use:
 async_research_workflow/scripts/metrics_history.py
 ```
 
-Initialize the baseline:
+Advanced/internal baseline initialization:
 
 ```bash
 python -m async_research_workflow.scripts.metrics_history init \
@@ -35,7 +40,7 @@ python -m async_research_workflow.scripts.metrics_history init \
   --label initial_baseline
 ```
 
-Append the weekly digest snapshot:
+Advanced/internal weekly digest snapshot:
 
 ```bash
 python -m async_research_workflow.scripts.metrics_history append-snapshot \
@@ -71,6 +76,8 @@ The helper records:
 | `revision_loops` | sum of `revision_count` across task statuses |
 
 `human_minutes` is an estimate unless supplied explicitly:
+
+Advanced/internal weekly snapshot helper:
 
 ```bash
 python -m async_research_workflow.scripts.metrics_history append-snapshot \

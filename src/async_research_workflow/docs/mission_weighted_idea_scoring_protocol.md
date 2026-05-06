@@ -26,7 +26,8 @@ real_estate_research_v1.0
 
 The policy defines stable weights, hard gates, promotion thresholds, and budget-mode thresholds. Agents may propose policy changes, but they must not silently change these values.
 
-Validate the policy before scheduled scoring:
+Validate the policy before scheduled scoring with the advanced/internal mission
+policy helper:
 
 ```bash
 python -m async_research_workflow.scripts.validate_mission_policy \

@@ -101,6 +101,8 @@ Reviewers may include `escalate_to_tier` and `escalation_reason` in their struct
 
 The scheduler should then run:
 
+Use the advanced/internal tier-escalation helper:
+
 ```bash
 python -m async_research_workflow.scripts.escalate_review_tier apply \
   research_ops/tasks/TASK-0001 \

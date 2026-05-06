@@ -82,6 +82,8 @@ Every reviewer must include prompt/framework version metadata in its review JSON
 
 Run monthly, or before reviewing prompt/framework quality:
 
+Use the advanced/internal framework calibration helper:
+
 ```bash
 python -m async_research_workflow.scripts.framework_version_calibration \
   research_ops \

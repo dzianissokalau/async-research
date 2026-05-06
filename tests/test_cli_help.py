@@ -167,6 +167,27 @@ class CliHelpTests(unittest.TestCase):
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
 
+    def test_readme_documents_internal_helper_boundary(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        normalized = " ".join(readme.split())
+        for snippet in [
+            "## Internal Helper Boundary",
+            "`async-research` is the public user interface",
+            "Direct `python -m async_research_workflow.scripts.<module>` calls are advanced/internal helper usage",
+            "`validate_json_artifact`",
+            "`validate_transition`",
+            "`validate_mission_policy`",
+            "`task_lock`",
+            "`recover_status_json`",
+            "`review_template`",
+            "`framework_version_calibration`",
+            "`escalate_review_tier`",
+            "`metrics_history init`",
+            "`decision_log`",
+            "`version_metadata`",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
+
 
 if __name__ == "__main__":
     unittest.main()

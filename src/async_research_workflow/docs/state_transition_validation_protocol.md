@@ -60,7 +60,11 @@ synthesized -> terminal
 
 Unchanged status is allowed only when a role writes supporting artifacts without routing the task, such as a methodology reviewer writing `reviews/methodology.md` while the task remains in `panel_review`.
 
-## Helper Script
+## Advanced/Internal Helper Script
+
+Transition validation is an advanced/internal helper primitive. Public users
+should normally move state through workflow commands such as `decision`,
+`revision`, and `review aggregate`.
 
 Use:
 
@@ -68,21 +72,21 @@ Use:
 async_research_workflow/scripts/validate_transition.py
 ```
 
-Validate one task:
+Advanced/internal validation for one task:
 
 ```bash
 python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001/status.json
 ```
 
-Validate a task folder:
+Advanced/internal validation for a task folder:
 
 ```bash
 python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001
 ```
 
-List the allowed transition table:
+Advanced/internal transition table listing:
 
 ```bash
 python -m async_research_workflow.scripts.validate_transition --list
@@ -172,6 +176,8 @@ async-research decision resolve-task \
 ## GitHub Actions Guidance
 
 After a worker or reviewer step, validate changed task statuses before creating a pull request:
+
+Advanced/internal transition helper:
 
 ```bash
 python -m async_research_workflow.scripts.validate_transition \

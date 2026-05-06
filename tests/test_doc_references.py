@@ -74,6 +74,22 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
         r"(?:python -m\s+async_research_workflow\.scripts\.escalation_policy\s+\\?\s*|escalation_policy\.py\s+)(?:list|scan-needs-human|evaluate)\b|async_research_workflow/scripts/escalation_policy\.py"
     ),
 }
+INTERNAL_HELPER_MODULES = (
+    "validate_json_artifact",
+    "validate_transition",
+    "validate_mission_policy",
+    "task_lock",
+    "recover_status_json",
+    "review_template",
+    "framework_version_calibration",
+    "escalate_review_tier",
+)
+INTERNAL_HELPER_DIRECT_INVOCATION_RE = re.compile(
+    r"python -m\s+async_research_workflow\.scripts\.(?:"
+    + "|".join(re.escape(name) for name in INTERNAL_HELPER_MODULES)
+    + r"|metrics_history)\b"
+)
+INTERNAL_HELPER_LABELS = ("advanced/internal", "internal helper", "advanced helper")
 
 
 def iter_documentation_files() -> list[Path]:
@@ -89,6 +105,13 @@ def iter_documentation_files() -> list[Path]:
 
 def clean_reference(raw: str) -> str:
     return raw.rstrip("`'\".,:;)]}")
+
+
+def has_internal_helper_label(lines: list[str], index: int) -> bool:
+    start = max(0, index - 4)
+    end = min(len(lines), index + 2)
+    context = "\n".join(lines[start:end]).lower()
+    return any(label in context for label in INTERNAL_HELPER_LABELS)
 
 
 class DocumentationReferenceTests(unittest.TestCase):
@@ -146,6 +169,17 @@ class DocumentationReferenceTests(unittest.TestCase):
                 for match in pattern.finditer(text):
                     line = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path.relative_to(ROOT)}:{line} -> advanced {module_name} invocation")
+
+        self.assertEqual([], failures)
+
+    def test_direct_internal_helper_invocations_are_labeled(self) -> None:
+        failures: list[str] = []
+        for path in iter_documentation_files():
+            text = path.read_text(encoding="utf-8")
+            lines = text.splitlines()
+            for index, line in enumerate(lines):
+                if INTERNAL_HELPER_DIRECT_INVOCATION_RE.search(line) and not has_internal_helper_label(lines, index):
+                    failures.append(f"{path.relative_to(ROOT)}:{index + 1} -> unlabeled internal helper invocation")
 
         self.assertEqual([], failures)
 

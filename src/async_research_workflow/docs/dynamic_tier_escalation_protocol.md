@@ -10,7 +10,10 @@ Let a reviewer route a task to a higher review tier without waiting for human in
 
 Escalation is for cases where the worker output is plausible enough to continue, but the current review tier is too weak for the risk in the output.
 
-## Required Helper
+## Advanced/Internal Helper
+
+Dynamic tier escalation remains an advanced/internal helper. Public escalation
+checks use the `async-research escalation` command group.
 
 Use:
 
@@ -18,7 +21,7 @@ Use:
 async_research_workflow/scripts/escalate_review_tier.py
 ```
 
-Example:
+Advanced/internal example:
 
 ```bash
 python -m async_research_workflow.scripts.escalate_review_tier apply \

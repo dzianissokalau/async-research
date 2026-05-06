@@ -263,6 +263,25 @@ async-research idea validate <idea-json> --ops-dir research_ops
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 ```
 
+## Internal Helper Boundary
+
+`async-research` is the public user interface. Direct
+`python -m async_research_workflow.scripts.<module>` calls are advanced/internal
+helper usage and should appear only where the packaged docs explicitly label
+them that way.
+
+The permanent internal helpers are `validate_json_artifact`,
+`validate_transition`, `validate_mission_policy`, `task_lock`,
+`recover_status_json`, `review_template`, `framework_version_calibration`,
+`escalate_review_tier`, `metrics_history init`, `decision_log`, and
+`version_metadata`. Operators should prefer public workflow commands and
+artifact-specific gates such as `schema-check`, `exploration validate`,
+`idea validate`, `experiment validate`, `result-acceptance`, `decision`,
+`revision`, `review aggregate`, and `metrics append/summarize`.
+
+See the [internal helper boundary](src/async_research_workflow/docs/internal_helper_boundary.md)
+for the maintained public/internal split.
+
 ## Exit Code Contract
 
 `async-research --help` and subcommand help exit `0`. Command-line usage errors

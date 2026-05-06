@@ -33,6 +33,9 @@ Discovery entries are not execution tasks. The planner must promote them into `r
 Before a candidate is added to the discovery inbox or promoted into a task, run
 mission policy validation, mission scoring, and idea-evaluation validation:
 
+Mission policy validation is an advanced/internal helper. The scoring and
+idea-validation commands are public:
+
 ```bash
 python -m async_research_workflow.scripts.validate_mission_policy \
   async_research_workflow/mission_policy.json
@@ -319,11 +322,14 @@ Every status change must record:
 
 After changing `status.json`, run:
 
+The generic schema and transition validators are advanced/internal helpers:
+
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
   --schema async_research_workflow/schemas/task_status.schema.json \
   research_ops/tasks/TASK-0001/status.json
 
+# advanced/internal transition helper
 python -m async_research_workflow.scripts.validate_transition research_ops/tasks/TASK-0001
 ```
 
@@ -362,6 +368,8 @@ routes to revision or human review; it must not advance to `run_analysis`.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
+
+Use the advanced/internal recovery helper:
 
 ```bash
 python -m async_research_workflow.scripts.recover_status_json research_ops/tasks/TASK-0001
@@ -539,6 +547,8 @@ Escalate to Tier 3 when:
 - expensive experiments would be triggered
 
 Reviewers should not hand-edit `review_policy` when they need a higher tier. They should run:
+
+Use the advanced/internal tier-escalation helper:
 
 ```bash
 python -m async_research_workflow.scripts.escalate_review_tier apply \

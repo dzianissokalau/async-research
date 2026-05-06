@@ -8,6 +8,21 @@ import unittest
 from async_research_workflow import cli
 
 
+INTERNAL_ONLY_TOP_LEVEL_COMMANDS = [
+    "validate-json-artifact",
+    "validate-transition",
+    "validate-mission-policy",
+    "task-lock",
+    "recover-status-json",
+    "review-template",
+    "framework-version-calibration",
+    "escalate-review-tier",
+    "decision-log",
+    "version-metadata",
+    "metrics-init",
+]
+
+
 def subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
@@ -77,6 +92,13 @@ class CliArchitectureTests(unittest.TestCase):
         )
         self.assertIs(choices["surface"], choices["review-surface"])
 
+    def test_internal_helpers_are_not_public_top_level_commands(self) -> None:
+        choices = subparser_choices(cli.build_parser())
+
+        for command_name in INTERNAL_ONLY_TOP_LEVEL_COMMANDS:
+            with self.subTest(command_name=command_name):
+                self.assertNotIn(command_name, choices)
+
     def test_build_parser_registers_nested_aliases(self) -> None:
         choices = subparser_choices(cli.build_parser())
         source_choices = subparser_choices(choices["source"])
@@ -98,6 +120,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["init", "validate-manifest", "submit", "complete", "ingest", "mark-reviewed", "trust-status"], list(batch_choices))
         self.assertEqual(["append", "summarize"], list(metrics_choices))
+        self.assertNotIn("init", metrics_choices)
         self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
         self.assertEqual(["build"], list(anti_context_choices))
         self.assertEqual(["prepare-context", "install-context", "aggregate"], list(review_choices))

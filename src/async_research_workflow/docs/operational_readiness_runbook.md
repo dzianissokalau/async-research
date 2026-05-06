@@ -105,6 +105,8 @@ automation until the owner decides whether those edits are safe.
 
 Use this only when `status.json` is malformed or cannot be parsed:
 
+Use the advanced/internal status recovery helper:
+
 ```bash
 python -m async_research_workflow.scripts.recover_status_json \
   research_ops/tasks/TASK-0001-data-readiness
@@ -119,11 +121,14 @@ The recovery wrapper:
 
 After recovery:
 
+Validate with advanced/internal schema and transition helpers:
+
 ```bash
 python -m async_research_workflow.scripts.validate_json_artifact \
   research_ops/tasks/TASK-0001-data-readiness/status.json \
   --schema async_research_workflow/schemas/task_status.schema.json
 
+# advanced/internal transition helper
 python -m async_research_workflow.scripts.validate_transition \
   research_ops/tasks/TASK-0001-data-readiness
 ```
@@ -138,6 +143,8 @@ Use this when a local Codex app, cron, launchd, or CLI worker is killed before
 it can release a task lock or commit its outputs.
 
 First inspect the repo and task lock without changing anything:
+
+The lock inspection command is an advanced/internal helper:
 
 ```bash
 git status --short
@@ -185,6 +192,8 @@ Common decisions:
 | public/high-stakes claim approved | `approve_public` or `approve_high_stakes` | `ready_for_worker` |
 
 Then verify:
+
+Use the advanced/internal transition helper:
 
 ```bash
 python -m async_research_workflow.scripts.validate_transition \

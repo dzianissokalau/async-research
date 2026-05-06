@@ -39,7 +39,8 @@ async-research exploration validate \
 ```
 
 For every candidate JSON that may be promoted or added to the discovery inbox,
-run:
+run the advanced/internal mission policy helper, then the public score and
+validation commands:
 
 ```bash
 python -m async_research_workflow.scripts.validate_mission_policy \
@@ -63,7 +64,7 @@ If a candidate is strong enough to promote, append a row to
 - Each candidate has decision impact, data availability, killability,
   feasibility, reuse potential, novelty, robustness risk, and cost rationale.
 - The exploration cycle passes `validate_exploration_cycle.py`.
-- The active mission policy passes `validate_mission_policy.py`.
+- The active mission policy passes the advanced/internal `validate_mission_policy.py` helper.
 - Every promoted or inbox-added candidate passes `validate_idea_evaluation.py`.
 - Novelty does not dominate weak data or weak killability.
 - Candidates that need unaudited data route to `data_readiness` first.
