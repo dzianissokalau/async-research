@@ -71,6 +71,14 @@ def schema_errors(candidate: dict) -> list[dict]:
 
 
 class IdeaCatalogSchemaTests(unittest.TestCase):
+    def test_status_enums_are_identical_across_schema(self) -> None:
+        schema = load_json(schema_path("idea_candidate.schema.json"))
+        top_statuses = schema["properties"]["status"]["enum"]
+        history_properties = schema["properties"]["decision_history"]["items"]["properties"]
+
+        self.assertEqual(top_statuses, history_properties["from_status"]["enum"])
+        self.assertEqual(top_statuses, history_properties["to_status"]["enum"])
+
     def test_old_shape_candidate_without_lifecycle_fields_still_validates(self) -> None:
         self.assertEqual([], schema_errors(valid_candidate()))
 
@@ -127,7 +135,7 @@ class IdeaCatalogSchemaTests(unittest.TestCase):
 
         errors = schema_errors(candidate)
 
-        self.assertEqual(
+        self.assertCountEqual(
             ["$.library_refs[0]", "$.data_refs[0]", "$.accepted_output_refs[0]"],
             [error["path"] for error in errors],
         )
