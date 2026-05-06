@@ -680,6 +680,142 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(2, code, trust)
             self.assertFalse(trust["trusted"])
 
+    def test_batch_write_dry_runs_preserve_manifest_and_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            manifest = ops_dir / "batches" / "BATCH-0605" / "batch_manifest.json"
+            ledger = ops_dir / "cost_ledger.csv"
+            code, initialized = run_cli_json(
+                [
+                    "batch",
+                    "init",
+                    ops_dir,
+                    "--batch-id",
+                    "BATCH-0605",
+                    "--input-file",
+                    "research_ops/batches/BATCH-0605/input.jsonl",
+                    "--prompt-template",
+                    "fixture_prompt_v1",
+                    "--model",
+                    "fixture-model",
+                    "--expected-output-schema",
+                    "fixture.schema.json",
+                    "--ingest-path",
+                    "research_ops/batches/BATCH-0605/ingested.jsonl",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, initialized)
+
+            manifest_before = manifest.read_text(encoding="utf-8")
+            ledger_before = ledger.read_text(encoding="utf-8")
+            code, submit_dry = run_cli_json(
+                [
+                    "batch",
+                    "submit",
+                    manifest,
+                    "--provider-batch-id",
+                    "provider-batch-0605",
+                    "--api-usd",
+                    "1.25",
+                    "--compute-usd",
+                    "0.50",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, submit_dry)
+            self.assertEqual("dry_run_submitted", submit_dry["action"])
+            self.assertEqual(manifest_before, manifest.read_text(encoding="utf-8"))
+            self.assertEqual(ledger_before, ledger.read_text(encoding="utf-8"))
+
+            code, submitted = run_cli_json(
+                [
+                    "batch",
+                    "submit",
+                    manifest,
+                    "--provider-batch-id",
+                    "provider-batch-0605",
+                    "--api-usd",
+                    "1.25",
+                    "--compute-usd",
+                    "0.50",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, submitted)
+            self.assertEqual("submitted", submitted["action"])
+
+            manifest_before = manifest.read_text(encoding="utf-8")
+            code, complete_dry = run_cli_json(
+                [
+                    "batch",
+                    "complete",
+                    manifest,
+                    "--output-file",
+                    "research_ops/batches/BATCH-0605/provider_output.jsonl",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, complete_dry)
+            self.assertEqual("dry_run_completed", complete_dry["action"])
+            self.assertEqual(manifest_before, manifest.read_text(encoding="utf-8"))
+
+            code, completed = run_cli_json(
+                [
+                    "batch",
+                    "complete",
+                    manifest,
+                    "--output-file",
+                    "research_ops/batches/BATCH-0605/provider_output.jsonl",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, completed)
+            self.assertEqual("completed", completed["action"])
+
+            manifest_before = manifest.read_text(encoding="utf-8")
+            code, ingest_dry = run_cli_json(
+                [
+                    "batch",
+                    "ingest",
+                    manifest,
+                    "--ingest-task-id",
+                    "TASK-0605",
+                    "--ingested-file",
+                    "research_ops/batches/BATCH-0605/ingested.jsonl",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, ingest_dry)
+            self.assertEqual("dry_run_ingested", ingest_dry["action"])
+            self.assertEqual(manifest_before, manifest.read_text(encoding="utf-8"))
+
+            code, ingested = run_cli_json(
+                [
+                    "batch",
+                    "ingest",
+                    manifest,
+                    "--ingest-task-id",
+                    "TASK-0605",
+                    "--ingested-file",
+                    "research_ops/batches/BATCH-0605/ingested.jsonl",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, ingested)
+            self.assertEqual("ingested", ingested["action"])
+
+            manifest_before = manifest.read_text(encoding="utf-8")
+            code, reviewed_dry = run_cli_json(
+                [
+                    "batch",
+                    "mark-reviewed",
+                    manifest,
+                    "--review-task-id",
+                    "TASK-0606",
+                    "--dry-run",
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, reviewed_dry)
+            self.assertEqual("dry_run_reviewed", reviewed_dry["action"])
+            self.assertEqual(manifest_before, manifest.read_text(encoding="utf-8"))
+
     def test_anti_context_build_writes_task_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
