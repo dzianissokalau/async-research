@@ -57,6 +57,36 @@ async-research idea catalog init research_ops --write
 
 The initializer must not overwrite existing catalog files or manual notes.
 
+## Generated Block Markers
+
+Future parsers and renderers must use these exact generated-block markers.
+
+`idea_catalog.md` has one generated table block:
+
+```text
+<!-- IDEA-CATALOG: AUTO-MAINTAINED - DO NOT EDIT INSIDE THIS BLOCK -->
+<!-- /IDEA-CATALOG -->
+```
+
+`prioritization.md` has one generated block for each planning section:
+
+```text
+<!-- IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS AUTO-MAINTAINED -->
+<!-- /IDEA-PRIORITIZATION: RECOMMENDED-PROMOTIONS -->
+
+<!-- IDEA-PRIORITIZATION: PARKED AUTO-MAINTAINED -->
+<!-- /IDEA-PRIORITIZATION: PARKED -->
+
+<!-- IDEA-PRIORITIZATION: REJECTED AUTO-MAINTAINED -->
+<!-- /IDEA-PRIORITIZATION: REJECTED -->
+
+<!-- IDEA-PRIORITIZATION: BLOCKERS AUTO-MAINTAINED -->
+<!-- /IDEA-PRIORITIZATION: BLOCKERS -->
+```
+
+The supported prioritization sections are `RECOMMENDED-PROMOTIONS`, `PARKED`,
+`REJECTED`, and `BLOCKERS`.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

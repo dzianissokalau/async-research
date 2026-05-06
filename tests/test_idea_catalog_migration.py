@@ -21,6 +21,18 @@ def run_cli_json(argv: list[str]) -> tuple[int, dict]:
 
 
 class IdeaCatalogMigrationTests(unittest.TestCase):
+    def test_bare_invocation_defaults_to_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+
+            code, payload = run_cli_json(["idea", "catalog", "init", str(ops_dir)])
+
+            self.assertEqual(cli.SUCCESS, code)
+            self.assertEqual("idea_catalog_init_planned", payload["action"])
+            self.assertTrue(payload["dry_run"])
+            self.assertFalse((ops_dir / "ideas").exists())
+
     def test_dry_run_reports_missing_files_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"
@@ -36,6 +48,19 @@ class IdeaCatalogMigrationTests(unittest.TestCase):
                 [change["relative_path"] for change in payload["would_write"]],
             )
             self.assertFalse((ops_dir / "ideas").exists())
+
+    def test_dry_run_warns_when_catalog_lock_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            lock_dir = ops_dir / "ideas" / "LOCK"
+            lock_dir.mkdir(parents=True)
+
+            code, payload = run_cli_json(["idea", "catalog", "init", str(ops_dir)])
+
+            self.assertEqual(cli.SUCCESS, code)
+            self.assertEqual("idea_catalog_init_planned", payload["action"])
+            self.assertEqual("catalog_locked", payload["warnings"][0]["reason"])
+            self.assertIn("will be refused", payload["warnings"][0]["message"])
 
     def test_write_adds_missing_files_and_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -109,6 +134,28 @@ class IdeaCatalogMigrationTests(unittest.TestCase):
 
             self.assertEqual(idea_catalog.INVALID_REQUEST, code)
             self.assertEqual("conflicting_flags", payload["reason"])
+
+    def test_missing_ops_dir_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "missing" / "research_ops"
+
+            code, payload = run_cli_json(["idea", "catalog", "init", str(ops_dir)])
+
+            self.assertEqual(idea_catalog.MALFORMED, code)
+            self.assertEqual("idea_catalog_init_failed", payload["action"])
+            self.assertEqual("ops_dir_missing", payload["failures"][0]["reason"])
+
+    def test_ideas_path_as_file_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            (ops_dir / "ideas").write_text("not a directory\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["idea", "catalog", "init", str(ops_dir), "--write"])
+
+            self.assertEqual(idea_catalog.MALFORMED, code)
+            self.assertEqual("idea_catalog_init_failed", payload["action"])
+            self.assertEqual("ideas_path_not_directory", payload["failures"][0]["reason"])
 
 
 if __name__ == "__main__":

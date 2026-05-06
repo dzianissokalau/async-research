@@ -140,6 +140,7 @@ def run_init(args: argparse.Namespace) -> int:
     planned, existing, failures = init_plan(ops_dir)
     ideas_dir = ops_dir / IDEAS_DIR
     lock_dir = ideas_dir / "LOCK"
+    warnings: list[dict[str, Any]] = []
 
     if failures:
         print_json({
@@ -165,6 +166,12 @@ def run_init(args: argparse.Namespace) -> int:
         return VALIDATION_FAILED
 
     if dry_run:
+        if lock_dir.exists():
+            warnings.append({
+                "reason": "catalog_locked",
+                "message": "ideas/LOCK exists; --write will be refused until the lock is removed",
+                "path": str(lock_dir),
+            })
         print_json({
             "ok": True,
             "action": "idea_catalog_init_planned",
@@ -173,6 +180,7 @@ def run_init(args: argparse.Namespace) -> int:
             "dry_run": True,
             "would_write": planned,
             "existing_files": existing,
+            "warnings": warnings,
             "changed": bool(planned),
         })
         return SUCCESS
