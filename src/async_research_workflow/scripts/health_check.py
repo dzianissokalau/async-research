@@ -551,7 +551,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 "failures": idea_catalog["failures"],
             },
         )
-    elif idea_catalog["stale_projection_warnings"]:
+    if idea_catalog["stale_projection_warnings"]:
         add_alert(
             alerts,
             "warning",

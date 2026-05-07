@@ -5,11 +5,15 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_END
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_START
+from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import human_review_surface
@@ -29,6 +33,11 @@ def run_json(entrypoint, argv: list[str | Path]) -> tuple[int, dict]:
 def write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
 
 
 def valid_score() -> dict:
@@ -145,6 +154,8 @@ class IdeaCatalogSurfaceTests(unittest.TestCase):
             catalog_alert = next(item for item in health["alerts"] if item["check"] == "idea_catalog_state")
             self.assertEqual("warning", catalog_alert["severity"])
             self.assertEqual(4, catalog_alert["details"]["validation_exit_code"])
+            stale_alert = next(item for item in health["alerts"] if item["check"] == "idea_catalog_projection_stale")
+            self.assertEqual("warning", stale_alert["severity"])
             self.assertEqual(before, idea_snapshot(ops_dir))
 
             code, readiness = run_json(
@@ -164,7 +175,86 @@ class IdeaCatalogSurfaceTests(unittest.TestCase):
             self.assertEqual("safe_with_warnings", readiness["decision"])
             warning = next(item for item in readiness["warnings"] if item["check"] == "idea_catalog_state")
             self.assertEqual(4, warning["details"]["validation_exit_code"])
+            stale_warning = next(item for item in readiness["warnings"] if item["check"] == "idea_catalog_projection_stale")
+            self.assertEqual("warning", stale_warning["severity"])
             self.assertEqual(before, idea_snapshot(ops_dir))
+
+    def test_stale_projection_warning_fires_without_validation_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_json(ops_dir / "ideas" / "IDEA-7005.json", valid_candidate("IDEA-7005"))
+            write_text(
+                ops_dir / "ideas" / "idea_catalog.md",
+                "\n".join(
+                    [
+                        "# Idea Catalog",
+                        "",
+                        CATALOG_BLOCK_START,
+                        "| idea_id | status | title |",
+                        "| --- | --- | --- |",
+                        "| IDEA-9999 | candidate | stale projection row |",
+                        CATALOG_BLOCK_END,
+                        "",
+                    ]
+                ),
+            )
+            before = idea_snapshot(ops_dir)
+
+            health_args = health_check.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", NOW])
+            health = health_check.build_report(health_args)
+            self.assertFalse(any(item["check"] == "idea_catalog_state" for item in health["alerts"]))
+            stale_alert = next(item for item in health["alerts"] if item["check"] == "idea_catalog_projection_stale")
+            self.assertEqual("warning", stale_alert["severity"])
+
+            code, readiness = run_json(
+                autonomy_readiness_gate,
+                [
+                    ops_dir,
+                    "--dry-run",
+                    "--no-daily-status",
+                    "--now",
+                    NOW,
+                    "--metrics-stale-hours",
+                    "100000",
+                ],
+            )
+
+            self.assertEqual(autonomy_readiness_gate.WARNINGS, code, readiness)
+            self.assertEqual("safe_with_warnings", readiness["decision"])
+            self.assertFalse(any(item["check"] == "idea_catalog_state" for item in readiness["warnings"]))
+            stale_warning = next(item for item in readiness["warnings"] if item["check"] == "idea_catalog_projection_stale")
+            self.assertEqual("warning", stale_warning["severity"])
+            self.assertEqual(before, idea_snapshot(ops_dir))
+
+    def test_cold_start_catalog_surface_renders_zero_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            shutil.rmtree(ops_dir / "ideas")
+
+            code, payload = run_json(human_review_surface, ["update", ops_dir, "--now", NOW])
+
+            self.assertEqual(human_review_surface.SUCCESS, code, payload)
+            weekly = (ops_dir / "weekly_digest.md").read_text(encoding="utf-8")
+            daily = (ops_dir / "daily_status.md").read_text(encoding="utf-8")
+            self.assertIn("## Idea Catalog Surface", weekly)
+            self.assertIn("- Catalog ideas: 0", weekly)
+            self.assertIn("Stored statuses: candidate: 0, promote: 0", weekly)
+            self.assertIn("- Top recommended promotions: none", weekly)
+            self.assertIn("- Catalog ideas: 0", daily)
+
+    def test_governance_metadata_failure_is_not_data_or_evidence_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = valid_candidate("IDEA-7006")
+            candidate["score"]["mission_policy_version"] = ""
+            write_json(ops_dir / "ideas" / "IDEA-7006.json", candidate)
+
+            summary = catalog_surface_summary(ops_dir)
+
+            failure_reasons = {item["reason"] for item in summary["failures"]}
+            gap_reasons = {item["reason"] for item in summary["data_or_evidence_gap_issues"]}
+            self.assertIn("scored_idea_missing_mission_policy_version", failure_reasons)
+            self.assertNotIn("scored_idea_missing_mission_policy_version", gap_reasons)
 
 
 if __name__ == "__main__":

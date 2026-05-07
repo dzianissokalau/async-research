@@ -659,7 +659,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "run idea catalog validate and repair canonical JSON or projection state before promoting ideas",
             )
         )
-    elif idea_catalog["stale_projection_warnings"]:
+    if idea_catalog["stale_projection_warnings"]:
         warnings.append(
             issue(
                 "warning",

@@ -81,7 +81,6 @@ DATA_OR_EVIDENCE_GAP_REASONS = {
     "promote_score_threshold_missing",
     "promote_unsafe_next_task",
     "score_threshold_missing",
-    "scored_idea_missing_mission_policy_version",
 }
 
 CATALOG_TEMPLATE = f"""# Idea Catalog
