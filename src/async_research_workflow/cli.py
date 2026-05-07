@@ -818,7 +818,9 @@ def run_idea_promote_command(args: argparse.Namespace) -> int:
         "idea_catalog",
         ["promote", str(args.ops_dir), args.idea_id]
         + optional_text("--task-type", args.task_type)
+        + optional_text("--preflight-hash", args.preflight_hash)
         + (["--allow-duplicate"] if args.allow_duplicate else [])
+        + (["--human-override"] if args.human_override else [])
         + (["--dry-run"] if args.dry_run else [])
         + (["--write"] if args.write else []),
     )
@@ -1624,16 +1626,18 @@ def register_artifact_commands(subparsers) -> None:
     idea_promote = add_command(
         idea_sub,
         "promote",
-        help="Preview one catalog idea promotion task.",
+        help="Preview or write one catalog idea promotion proposal.",
         description="Produce one bounded promotion task proposal from a canonical catalog idea without editing queue.md or task folders.",
-        epilog="Phase 8 promotion is dry-run only. Write mode is deferred to V2.",
+        epilog="V2.2 write mode appends a planner-facing proposal reference to inbox.md and the selected idea only. It never creates task folders or edits queue.md.",
     )
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
     idea_promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
     idea_promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
+    idea_promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
+    idea_promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk proposal writes.")
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
-    idea_promote.add_argument("--write", action="store_true", help="Reserved for V2; refused in Phase 8.")
+    idea_promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; never creates task folders or edits queue.md in V2.2.")
     idea_promote.set_defaults(func=run_idea_promote_command)
     idea_park = add_command(
         idea_sub,

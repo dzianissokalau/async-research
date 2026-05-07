@@ -304,7 +304,8 @@ async-research idea promote research_ops IDEA-0001 --task-type data_readiness --
 The command reads one canonical catalog idea, validates catalog state, checks
 status, lifecycle, score gates, hard gates, duplicate status, data refs, and
 task-type eligibility, then prints at most one bounded task proposal. It never
-edits `queue.md`, never creates task folders, and refuses `--write` until V2.
+edits `queue.md` or creates task folders. In Phase 8 it refused `--write`;
+V2.2 proposal write behavior is specified below.
 
 Allowed proposal task types are `literature_extract`, `data_readiness`,
 `hypothesis_card`, and `experiment_plan`. Without an override, thin evidence
@@ -320,8 +321,8 @@ content for a planner to turn into real task files manually.
 
 ## Phase 9 Planner Promotion Behavior
 
-Phase 9 keeps promotion write mode disabled, but teaches the planner how to use
-dry-run proposals safely.
+Phase 9 kept promotion write mode disabled at the v1 boundary, but taught the
+planner how to use dry-run proposals safely.
 
 The planner-controlled path is:
 
@@ -394,13 +395,21 @@ The dashboard summary distinguishes issue volume from the capped blocker list:
 `displayed_blocker_count` reports how many entries were included in
 `sections.top_blockers` after applying `--max-blockers`.
 
-## V2.1 Promotion Write Contract And Preflight
+## V2 Promotion Write Contract And Preflight
 
-V2.1 is a design and test-preflight slice. It does not enable promotion write
-mode. Until V2.2 ships, `async-research idea promote ... --write` continues to
-refuse mutation and `--dry-run` remains the only executable promotion behavior.
+V2.1 was a design and test-preflight slice. V2.2 enables proposal write mode
+only: operators must run `async-research idea promote ... --dry-run`, copy the
+returned `promotion_preflight_hash`, then run `async-research idea promote ...
+--write --preflight-hash <hash>`.
 
-Promotion write mode is split into two later write slices:
+V2.2 `--write` appends one planner-facing proposal reference to
+`research_ops/inbox.md`, updates the selected canonical idea with
+`promotion_proposal_refs`, `latest_promotion_proposal_id`, and a
+`decision_history` entry, and regenerates idea projections. It does not create
+task folders, append `queue.md`, set `promoted_task_id`, or mutate source or
+accepted-output ledgers.
+
+Promotion write mode remains split into two write slices:
 
 | Slice | May mutate | Must not mutate |
 | --- | --- | --- |
@@ -458,6 +467,12 @@ score object, recommended next task, duplicate status, refs, kill reason, and
 the dry-run proposal task type. If any of those fields change between dry-run
 and write, the write must refuse with `reason=promotion_preflight_changed` and
 tell the operator to rerun `--dry-run`.
+
+V2.2 duplicate handling is intentionally conservative: a second proposal write
+with the same idempotency key must refuse with
+`reason=duplicate_promotion_proposal`; an inbox row with a matching idempotency
+key but no idea proposal reference must refuse with
+`reason=promotion_proposal_recovery_required`.
 
 Rollback boundaries:
 

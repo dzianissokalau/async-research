@@ -154,7 +154,7 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual("hypothesis_card", override_payload["proposal"]["task_type"])
             self.assertEqual("explicit_task_type_override", override_payload["proposal"]["route_reason"])
 
-    def test_promote_blocks_invalid_status_failed_gates_and_write_mode(self) -> None:
+    def test_promote_blocks_invalid_status_and_failed_gates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             parked = promotable_candidate("IDEA-7303", "Parked idea")
@@ -184,10 +184,6 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
                     for item in blocked_payload["blockers"]
                 )
             )
-
-            write_code, write_payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7304", "--write"])
-            self.assertEqual(3, write_code, write_payload)
-            self.assertEqual("promotion_write_deferred_to_v2", write_payload["reason"])
 
     def test_promote_candidate_status_uses_lifecycle_recommendation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

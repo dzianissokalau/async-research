@@ -25,21 +25,21 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight shipped; proposal and task write implementations remain deferred until transactional tests exist. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight and V2.2 proposal write mode shipped; task creation write mode remains deferred until transactional tests exist. |",
                 "| V2.1 | Contract and preflight design | Complete |",
-                "| V2.2 | Proposal write mode | Planned |",
+                "| V2.2 | Proposal write mode | Complete |",
                 "| V2.6 | Task creation write mode | Planned |",
             ],
         )
 
-    def test_contract_keeps_v21_design_only(self) -> None:
+    def test_contract_documents_v22_proposal_write_only(self) -> None:
         self.assert_doc_contains(
             CONTRACT,
             [
-                "V2.1 is a design and test-preflight slice. It does not enable promotion write mode.",
-                "Until V2.2 ships, `async-research idea promote ... --write` continues to refuse mutation",
-                "`--dry-run` remains the only executable promotion behavior",
-                "Promotion write mode is outside v1. In V2.1 it is still design-only",
+                "V2.1 was a design and test-preflight slice. V2.2 enables proposal write mode only",
+                "operators must run `async-research idea promote ... --dry-run`, copy the returned `promotion_preflight_hash`",
+                "--write --preflight-hash <hash>",
+                "It does not create task folders, append `queue.md`, set `promoted_task_id`, or mutate source or accepted-output ledgers.",
             ],
         )
 

@@ -92,12 +92,33 @@ class IdeaCatalogSchemaTests(unittest.TestCase):
 
     def test_lifecycle_refs_and_decision_history_validate(self) -> None:
         candidate = valid_candidate()
+        preflight_hash = "a" * 64
+        proposal_id = "PROMO-IDEA-0001-data-readiness-aaaaaaaaaaaa"
         candidate.update(
             {
                 "created_at": "2026-05-06T10:00:00Z",
                 "updated_at": "2026-05-06T10:30:00Z",
                 "human_priority": 2,
                 "promoted_task_id": "TASK-0001",
+                "latest_promotion_proposal_id": proposal_id,
+                "promotion_proposal_refs": [
+                    {
+                        "proposal_id": proposal_id,
+                        "transaction_id": "PROMO-TX-20260507T123456-IDEA-0001-aaaaaaaaaaaa",
+                        "idempotency_key": f"IDEA-0001:data_readiness:{preflight_hash}",
+                        "promotion_preflight_hash": preflight_hash,
+                        "inbox_ref": f"inbox.md#{proposal_id}",
+                        "idea_id": "IDEA-0001",
+                        "task_type": "data_readiness",
+                        "proposed_task_slug": "TASK-PROPOSED-IDEA-0001-data-readiness",
+                        "created_at": "2026-05-07T12:34:56Z",
+                        "status": "proposal_written",
+                        "policy_version": "catalog_promotion_proposal_write_v2.2",
+                        "dry_run_policy_version": "catalog_promotion_dry_run_v1.0",
+                        "human_override": False,
+                        "duplicate_allowed": False,
+                    }
+                ],
                 "human_gate_reason": "needs owner decision on geography",
                 "status_reason": "score and hard gates passed",
                 "source_discovery_path": "research_ops/discovery/IDEA-0001.json",
@@ -119,6 +140,41 @@ class IdeaCatalogSchemaTests(unittest.TestCase):
         )
 
         self.assertEqual([], schema_errors(candidate))
+
+    def test_invalid_promotion_proposal_ref_fails_schema_validation(self) -> None:
+        candidate = valid_candidate()
+        candidate["latest_promotion_proposal_id"] = "TASK-0001"
+        candidate["promotion_proposal_refs"] = [
+            {
+                "proposal_id": "PROMO-IDEA-0001-data-readiness-aaaaaaaaaaaa",
+                "transaction_id": "TX-1",
+                "idempotency_key": "IDEA-0001:data_readiness:not-a-hash",
+                "promotion_preflight_hash": "not-a-hash",
+                "inbox_ref": "queue.md#TASK-0001",
+                "idea_id": "IDEA-0001",
+                "task_type": "task_write",
+                "proposed_task_slug": "TASK-0001",
+                "created_at": "2026-05-07",
+                "status": "queued",
+            }
+        ]
+
+        errors = schema_errors(candidate)
+
+        self.assertEqual(
+            [
+                "$.latest_promotion_proposal_id",
+                "$.promotion_proposal_refs[0].transaction_id",
+                "$.promotion_proposal_refs[0].idempotency_key",
+                "$.promotion_proposal_refs[0].promotion_preflight_hash",
+                "$.promotion_proposal_refs[0].inbox_ref",
+                "$.promotion_proposal_refs[0].task_type",
+                "$.promotion_proposal_refs[0].proposed_task_slug",
+                "$.promotion_proposal_refs[0].created_at",
+                "$.promotion_proposal_refs[0].status",
+            ],
+            [error["path"] for error in errors],
+        )
 
     def test_optional_refs_can_be_absent(self) -> None:
         candidate = valid_candidate()

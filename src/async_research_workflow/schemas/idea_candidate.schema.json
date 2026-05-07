@@ -54,6 +54,89 @@
       "type": "string",
       "pattern": "^TASK-[0-9]{4}$"
     },
+    "latest_promotion_proposal_id": {
+      "type": "string",
+      "pattern": "^PROMO-IDEA-[0-9]{4}-[a-z0-9-]+-[0-9a-f]{12}$"
+    },
+    "promotion_proposal_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "transaction_id",
+          "idempotency_key",
+          "promotion_preflight_hash",
+          "inbox_ref",
+          "idea_id",
+          "task_type",
+          "proposed_task_slug",
+          "created_at",
+          "status"
+        ],
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "pattern": "^PROMO-IDEA-[0-9]{4}-[a-z0-9-]+-[0-9a-f]{12}$"
+          },
+          "transaction_id": {
+            "type": "string",
+            "pattern": "^PROMO-TX-[0-9]{8}T[0-9]{6}-IDEA-[0-9]{4}-[0-9a-f]{12}$"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^IDEA-[0-9]{4}:(hypothesis_card|data_readiness|literature_extract|experiment_plan):[0-9a-f]{64}$"
+          },
+          "promotion_preflight_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "inbox_ref": {
+            "type": "string",
+            "pattern": "^inbox\\.md#PROMO-IDEA-[0-9]{4}-[a-z0-9-]+-[0-9a-f]{12}$"
+          },
+          "idea_id": {
+            "type": "string",
+            "pattern": "^IDEA-[0-9]{4}$"
+          },
+          "task_type": {
+            "type": "string",
+            "enum": [
+              "hypothesis_card",
+              "data_readiness",
+              "literature_extract",
+              "experiment_plan"
+            ]
+          },
+          "proposed_task_slug": {
+            "type": "string",
+            "pattern": "^TASK-PROPOSED-IDEA-[0-9]{4}-[a-z0-9-]+$"
+          },
+          "created_at": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposal_written"
+            ]
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "dry_run_policy_version": {
+            "type": "string"
+          },
+          "human_override": {
+            "type": "boolean"
+          },
+          "duplicate_allowed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
     "human_gate_reason": {
       "type": "string"
     },

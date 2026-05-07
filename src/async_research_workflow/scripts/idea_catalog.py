@@ -8,6 +8,7 @@ import copy
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -63,6 +64,9 @@ CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
 CATALOG_LOCK_TTL = timedelta(minutes=30)
 TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
 PROMOTION_DRY_RUN_POLICY_VERSION = "catalog_promotion_dry_run_v1.0"
+PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_proposal_write_v2.2"
+INBOX_FILE = "inbox.md"
+INBOX_TEMPLATE = "# Inbox\n\n| item | source | notes |\n| --- | --- | --- |\n"
 TASK_LIMITS = {
     "literature_extract": {"max_minutes": 45, "max_turns": 4, "review_tier": 1},
     "data_readiness": {"max_minutes": 75, "max_turns": 5, "review_tier": 1},
@@ -1875,6 +1879,46 @@ def promotion_allowed_paths(task_type: str, idea_id: str, proposed_task_slug: st
     return paths
 
 
+def promotion_preflight_payload(payload: dict[str, Any], task_type: str) -> dict[str, Any]:
+    return {
+        "idea_id": payload.get("id"),
+        "status": payload.get("status"),
+        "score": payload.get("score"),
+        "recommended_next_task": payload.get("recommended_next_task"),
+        "duplicate_status": payload.get("duplicate_status"),
+        "refs": {
+            "library_refs": list_field(payload, "library_refs"),
+            "data_refs": list_field(payload, "data_refs"),
+            "accepted_output_refs": list_field(payload, "accepted_output_refs"),
+            "rejected_idea_refs": list_field(payload, "rejected_idea_refs"),
+            "rejected_result_refs": list_field(payload, "rejected_result_refs"),
+        },
+        "kill_reason": payload.get("kill_reason"),
+        "task_type": task_type,
+    }
+
+
+def promotion_preflight_hash(payload: dict[str, Any], task_type: str) -> str:
+    encoded = json.dumps(
+        promotion_preflight_payload(payload, task_type),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def promotion_idempotency_key(idea_id: str, task_type: str, preflight_hash: str) -> str:
+    return f"{idea_id}:{task_type}:{preflight_hash}"
+
+
+def promotion_proposal_id(idea_id: str, task_type: str, preflight_hash: str) -> str:
+    return f"PROMO-{idea_id}-{slugify(task_type)}-{preflight_hash[:12]}"
+
+
+def promotion_transaction_id(now: datetime, idea_id: str, preflight_hash: str) -> str:
+    return f"PROMO-TX-{filename_timestamp(now)}-{idea_id}-{preflight_hash[:12]}"
+
+
 def promotion_task_proposal(
     ops_dir: Path,
     record: dict[str, Any],
@@ -1972,8 +2016,8 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         return INVALID_REQUEST, {
             "ok": False,
             "action": "idea_promotion_refused",
-            "reason": "promotion_write_deferred_to_v2",
-            "message": "Phase 8 promotion is dry-run only and never edits queue.md or task folders.",
+            "reason": "internal_write_routing_error",
+            "message": "promotion write mode must be handled by promotion_write before building a dry-run plan",
         }
     if not IDEA_ID_PATTERN.match(args.idea_id):
         return INVALID_REQUEST, {
@@ -2017,6 +2061,8 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         }
 
     task_type, route_reason = choose_promotion_task_type(args.ops_dir, record, args.task_type)
+    preflight_hash = promotion_preflight_hash(record["payload"], task_type)
+    idempotency_key = promotion_idempotency_key(args.idea_id, task_type, preflight_hash)
     blockers = promotion_blockers(args.ops_dir, record, task_type, args.allow_duplicate)
     blocking = blocking_items(blockers)
     base = {
@@ -2027,6 +2073,8 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         "catalog_summary": candidate_summary(record),
         "selected_task_type": task_type,
         "route_reason": route_reason,
+        "promotion_preflight_hash": preflight_hash,
+        "idempotency_key": idempotency_key,
         "blockers": blockers,
         "would_not_write": [
             {"path": str(args.ops_dir / "queue.md"), "reason": "promotion dry-run never edits queue.md"},
@@ -2051,7 +2099,363 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
     }
 
 
+def existing_promotion_proposal_ref(payload: dict[str, Any], idempotency_key: str) -> dict[str, Any] | None:
+    refs = payload.get("promotion_proposal_refs")
+    if not isinstance(refs, list):
+        return None
+    for ref in refs:
+        if isinstance(ref, dict) and ref.get("idempotency_key") == idempotency_key:
+            return ref
+    return None
+
+
+def inbox_contains_idempotency_key(ops_dir: Path, idempotency_key: str) -> bool:
+    inbox_path = ops_dir / INBOX_FILE
+    if not inbox_path.exists():
+        return False
+    try:
+        return idempotency_key in inbox_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def inbox_proposal_row(proposal_ref: dict[str, Any], proposal: dict[str, Any]) -> list[Any]:
+    notes = (
+        f"promotion proposal; transaction_id={proposal_ref['transaction_id']}; "
+        f"idempotency_key={proposal_ref['idempotency_key']}; "
+        f"task_type={proposal_ref['task_type']}; "
+        f"proposed_task_slug={proposal_ref['proposed_task_slug']}; "
+        f"title={proposal.get('title')}"
+    )
+    return [
+        proposal_ref["proposal_id"],
+        f"ideas/{proposal_ref['idea_id']}.json",
+        notes,
+    ]
+
+
+def append_inbox_proposal(ops_dir: Path, proposal_ref: dict[str, Any], proposal: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    inbox_path = ops_dir / INBOX_FILE
+    try:
+        content = inbox_path.read_bytes() if inbox_path.exists() else INBOX_TEMPLATE.encode("utf-8")
+    except OSError as exc:
+        return {}, {
+            "severity": "failure",
+            "reason": "inbox_read_failed",
+            "message": str(exc),
+            "path": str(inbox_path),
+            "category": "malformed",
+        }
+
+    if content and not content.endswith(b"\n"):
+        content += b"\n"
+    row = "| " + " | ".join(markdown_cell(value) for value in inbox_proposal_row(proposal_ref, proposal)) + " |\n"
+    try:
+        changed = atomic_write_bytes(inbox_path, content + row.encode("utf-8"))
+    except OSError as exc:
+        return {}, {
+            "severity": "failure",
+            "reason": "inbox_append_failed",
+            "message": str(exc),
+            "path": str(inbox_path),
+            "category": "malformed",
+        }
+    return {"path": str(inbox_path), "action": "append_promotion_proposal", "changed": changed}, None
+
+
+def updated_payload_with_promotion_proposal(
+    record: dict[str, Any],
+    proposal_ref: dict[str, Any],
+    now: datetime,
+) -> dict[str, Any]:
+    updated = copy.deepcopy(record["payload"])
+    refs = updated.get("promotion_proposal_refs")
+    if not isinstance(refs, list):
+        refs = []
+    refs.append(proposal_ref)
+    updated["promotion_proposal_refs"] = refs
+    updated["latest_promotion_proposal_id"] = proposal_ref["proposal_id"]
+    history = updated.get("decision_history")
+    if not isinstance(history, list):
+        history = []
+    status = str(updated.get("status") or "candidate")
+    history.append(
+        {
+            "at": utc_timestamp(now),
+            "from_status": status,
+            "to_status": status,
+            "reason": f"promotion proposal written to {proposal_ref['inbox_ref']}",
+            "actor": "catalog_promotion_write",
+            "transaction_id": proposal_ref["transaction_id"],
+            "idempotency_key": proposal_ref["idempotency_key"],
+            "proposal_id": proposal_ref["proposal_id"],
+        }
+    )
+    updated["decision_history"] = history
+    updated["updated_at"] = utc_timestamp(now)
+    return updated
+
+
+def write_human_override_blockers(proposal: dict[str, Any]) -> list[dict[str, Any]]:
+    blockers: list[dict[str, Any]] = []
+    task_type = str(proposal.get("task_type") or "")
+    max_minutes = proposal.get("max_minutes")
+    review_tier = proposal.get("status_json_draft", {}).get("review_policy", {}).get("tier")
+    if task_type == "experiment_plan":
+        blockers.append({"reason": "experiment_plan_write_requires_human_override"})
+    if isinstance(review_tier, int) and review_tier >= 2:
+        blockers.append({"reason": "review_tier_write_requires_human_override", "review_tier": review_tier})
+    if isinstance(max_minutes, int) and max_minutes > 75:
+        blockers.append({"reason": "max_minutes_write_requires_human_override", "max_minutes": max_minutes})
+    return blockers
+
+
+def promotion_write(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_promotion_write_refused",
+                "reason": "conflicting_flags",
+                "message": "use either --dry-run or --write, not both",
+            }
+        )
+        return INVALID_REQUEST
+    if not args.preflight_hash:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_promotion_write_refused",
+                "reason": "promotion_preflight_hash_required",
+                "message": "run --dry-run first and pass its promotion_preflight_hash to --preflight-hash",
+            }
+        )
+        return INVALID_REQUEST
+
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_catalog_lock(args.ops_dir, "idea promote --write")
+        dry_args = copy.copy(args)
+        dry_args.write = False
+        plan_code, plan = build_promotion_plan(dry_args)
+        if plan_code != SUCCESS:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "promotion_plan_blocked",
+                    "lock": lock,
+                    "dry_run_plan": plan,
+                    "would_not_write": [
+                        {"path": str(args.ops_dir / "queue.md"), "reason": "proposal write mode never edits queue.md"},
+                        {"path": str(args.ops_dir / "tasks"), "reason": "proposal write mode never creates task folders"},
+                    ],
+                }
+            )
+            return plan_code
+
+        preflight_hash = str(plan["promotion_preflight_hash"])
+        if args.preflight_hash != preflight_hash:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "promotion_preflight_changed",
+                    "message": "candidate promotion inputs changed since dry-run; rerun --dry-run and retry with the new --preflight-hash",
+                    "expected_preflight_hash": args.preflight_hash,
+                    "current_preflight_hash": preflight_hash,
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+
+        proposal = plan["proposal"]
+        human_blockers = write_human_override_blockers(proposal)
+        if human_blockers and not args.human_override:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "human_override_required",
+                    "message": "rerun with --human-override only after recording the required human decision",
+                    "human_override_blockers": human_blockers,
+                    "lock": lock,
+                    "dry_run_plan": plan,
+                }
+            )
+            return VALIDATION_FAILED
+
+        model = read_catalog(args.ops_dir)
+        record = find_catalog_record(model, args.idea_id)
+        if record is None:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "idea_not_found_after_lock",
+                    "idea_id": args.idea_id,
+                    "lock": lock,
+                }
+            )
+            return INVALID_REQUEST
+        idempotency_key = str(plan["idempotency_key"])
+        existing_ref = existing_promotion_proposal_ref(record["payload"], idempotency_key)
+        if existing_ref is not None:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "duplicate_promotion_proposal",
+                    "message": "this idea already records a proposal with the same idempotency key",
+                    "existing_proposal_ref": existing_ref,
+                    "idempotency_key": idempotency_key,
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+        if inbox_contains_idempotency_key(args.ops_dir, idempotency_key):
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_refused",
+                    "reason": "promotion_proposal_recovery_required",
+                    "message": "inbox.md already contains this idempotency key but the idea record does not; inspect the partial proposal before retrying",
+                    "recovery": {
+                        "path": str(args.ops_dir / INBOX_FILE),
+                        "idempotency_key": idempotency_key,
+                    },
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+
+        now = utc_now()
+        proposal_id = promotion_proposal_id(args.idea_id, str(proposal["task_type"]), preflight_hash)
+        transaction_id = promotion_transaction_id(now, args.idea_id, preflight_hash)
+        proposal_ref = {
+            "proposal_id": proposal_id,
+            "transaction_id": transaction_id,
+            "idempotency_key": idempotency_key,
+            "promotion_preflight_hash": preflight_hash,
+            "inbox_ref": f"{INBOX_FILE}#{proposal_id}",
+            "idea_id": args.idea_id,
+            "task_type": proposal["task_type"],
+            "proposed_task_slug": proposal["proposed_task_slug"],
+            "created_at": utc_timestamp(now),
+            "status": "proposal_written",
+            "policy_version": PROMOTION_WRITE_POLICY_VERSION,
+            "dry_run_policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
+            "human_override": bool(args.human_override),
+            "duplicate_allowed": bool(args.allow_duplicate),
+        }
+        updated = updated_payload_with_promotion_proposal(record, proposal_ref, now)
+        idea_path = Path(str(record["path"]))
+        payloads_by_path = {idea_path: updated}
+        records = records_after_payloads(args.ops_dir, model, payloads_by_path)
+        validation_failures = validate_records_for_write(args.ops_dir, records)
+        if validation_failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "proposed_catalog_validation_failed",
+                    "failures": validation_failures,
+                    "dry_run_plan": plan,
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+        try:
+            render_catalog_projection_bytes(args.ops_dir, records)
+            render_prioritization_projection_bytes(args.ops_dir, records)
+        except (OSError, ValueError) as exc:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "generated_projection_render_failed",
+                    "message": str(exc),
+                    "path": str(args.ops_dir / IDEAS_DIR),
+                    "lock": lock,
+                }
+            )
+            return MALFORMED
+
+        inbox_write, inbox_failure = append_inbox_proposal(args.ops_dir, proposal_ref, proposal)
+        if inbox_failure is not None:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "inbox_append_failed",
+                    "failures": [inbox_failure],
+                    "lock": lock,
+                }
+            )
+            return MALFORMED
+
+        files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
+        all_files_written = [inbox_write, *files_written]
+        if failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "post_write_validation_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": failures,
+                    "files_written": all_files_written,
+                    "recovery": {
+                        "reason": "inbox_proposal_may_need_idea_reference_recovery",
+                        "transaction_id": transaction_id,
+                        "idempotency_key": idempotency_key,
+                        "partial_artifact": inbox_write,
+                    },
+                    "dry_run_plan": plan,
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+
+        print_json(
+            {
+                "ok": True,
+                "action": "idea_promotion_proposal_written",
+                "policy_version": PROMOTION_WRITE_POLICY_VERSION,
+                "ops_dir": str(args.ops_dir),
+                "idea_id": args.idea_id,
+                "dry_run": False,
+                "changed": any(item.get("changed", True) for item in all_files_written),
+                "lock": lock,
+                "transaction_id": transaction_id,
+                "idempotency_key": idempotency_key,
+                "promotion_preflight_hash": preflight_hash,
+                "proposal_ref": proposal_ref,
+                "files_written": all_files_written,
+                "dry_run_plan": plan,
+                "validation": {
+                    "ok": validation.get("ok", False),
+                    "candidate_count": validation.get("candidate_count", 0),
+                    "warning_count": len(validation.get("warnings", [])),
+                    "failure_count": len(validation.get("failures", [])),
+                },
+                "would_not_write": [
+                    {"path": str(args.ops_dir / "queue.md"), "reason": "proposal write mode never edits queue.md"},
+                    {"path": str(args.ops_dir / "tasks"), "reason": "proposal write mode never creates task folders"},
+                ],
+            }
+        )
+        return SUCCESS
+    except CatalogLockError as exc:
+        print_json({"ok": False, "action": "idea_promotion_write_refused", **exc.payload})
+        return VALIDATION_FAILED
+    finally:
+        release_catalog_lock(lock)
+
+
 def run_promote(args: argparse.Namespace) -> int:
+    if args.write:
+        return promotion_write(args)
     code, payload = build_promotion_plan(args)
     print_json(payload)
     return code
@@ -2326,8 +2730,10 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")
     promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
     promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
+    promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk proposal writes.")
+    promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
     promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
-    promote.add_argument("--write", action="store_true", help="Reserved for V2; refused in Phase 8.")
+    promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; never creates task folders or edits queue.md in V2.2.")
     promote.set_defaults(func=run_promote)
 
     park = subparsers.add_parser(
