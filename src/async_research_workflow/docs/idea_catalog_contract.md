@@ -240,8 +240,12 @@ new canonical JSON file.
 `idea catalog maintain` reads `discovery_inbox.md`, canonical catalog JSON,
 `accepted_outputs_index.md`, and `discovery/rejected_ideas.md`. It only proposes
 capture for inbox rows with an explicit marker such as `catalog: candidate`;
-unmarked row presence never creates catalog candidates. It also reports
-conservative lifecycle recommendations for existing catalog records.
+unmarked row presence never creates catalog candidates. Unknown marker statuses
+default conservatively to `candidate` and remain visible in the dry-run proposal
+as raw marker metadata so operators can audit the default. It also reports
+conservative lifecycle recommendations for existing catalog records. Status
+update proposals include a `proposed_decision_history_entry` with a write-time
+timestamp placeholder for the eventual write-mode append.
 
 Both commands are read-only in Phase 6. `--write` is accepted only to return a
 clear refusal until Phase 7 write-mode locking and atomic writes ship. These

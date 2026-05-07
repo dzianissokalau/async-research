@@ -111,12 +111,23 @@ def source_report(path: Path) -> dict[str, Any]:
     }
 
 
-def catalog_marker(row: dict[str, Any]) -> str | None:
+def catalog_marker_details(row: dict[str, Any]) -> dict[str, Any] | None:
     match = CATALOG_MARKER_RE.search(combined_row_text(row))
     if not match:
         return None
-    status = match.group(1).lower().strip()
-    return status if status in STORED_STATUSES else "candidate"
+    raw_status = match.group(1).lower().strip()
+    defaulted = raw_status not in STORED_STATUSES
+    return {
+        "status": raw_status if not defaulted else "candidate",
+        "raw_marker": raw_status,
+        "marker_text": match.group(0),
+        "defaulted": defaulted,
+    }
+
+
+def catalog_marker(row: dict[str, Any]) -> str | None:
+    details = catalog_marker_details(row)
+    return str(details["status"]) if details else None
 
 
 def row_idea_id(row: dict[str, Any]) -> str | None:
@@ -315,8 +326,10 @@ def build_capture_plan(
     idea_id: str | None,
     title: str,
     source_row: dict[str, Any] | None = None,
+    model: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    model = read_catalog(ops_dir)
+    if model is None:
+        model = read_catalog(ops_dir)
     row_refs = row_task_refs(source_row) if source_row is not None else set()
     cluster_id = row_cluster_id(source_row) if source_row is not None else None
     duplicate = explicit_duplicate_marker(source_row, title)
@@ -501,6 +514,13 @@ def status_update_change(recommendation: dict[str, Any]) -> dict[str, Any] | Non
         "to_status": target,
         "reason": recommendation["reason"],
         "fields": fields,
+        "proposed_decision_history_entry": {
+            "at": "TO_BE_SET_AT_WRITE_TIME",
+            "from_status": current,
+            "to_status": target,
+            "reason": recommendation["reason"],
+            "actor": "catalog_maintenance_dry_run",
+        },
     }
 
 
@@ -586,8 +606,8 @@ def run_maintain(args: argparse.Namespace) -> int:
     ignored_rows: list[dict[str, Any]] = []
     proposed_changes: list[dict[str, Any]] = []
     for row in inbox_rows:
-        marker = catalog_marker(row)
-        if marker is None:
+        marker_details = catalog_marker_details(row)
+        if marker_details is None:
             ignored_rows.append(
                 {
                     "row_id": row["row_id"],
@@ -598,10 +618,13 @@ def run_maintain(args: argparse.Namespace) -> int:
             )
             continue
         idea_id = row_idea_id(row)
-        plan = build_capture_plan(args.ops_dir, idea_id, row_title(row), row)
+        plan = build_capture_plan(args.ops_dir, idea_id, row_title(row), row, model=model)
         proposal = {
             "row_id": row["row_id"],
-            "catalog_marker": marker,
+            "catalog_marker": marker_details["status"],
+            "raw_catalog_marker": marker_details["raw_marker"],
+            "catalog_marker_text": marker_details["marker_text"],
+            "catalog_marker_defaulted": marker_details["defaulted"],
             "item": row.get("item"),
             "title": row.get("title"),
             **plan,

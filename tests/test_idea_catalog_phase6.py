@@ -7,10 +7,12 @@ import io
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from async_research_workflow import cli
 from async_research_workflow.idea_catalog import candidate_schema_errors
+from async_research_workflow.scripts import idea_catalog as idea_catalog_script
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -152,6 +154,7 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
                         "| item | title | source | status | score | next_task | notes |",
                         "| --- | --- | --- | --- | ---: | --- | --- |",
                         "| row-a | Literature angle | scan | candidate | 5 | literature_extract | catalog: candidate |",
+                        "| IDEA-7108 | Item selector angle | scan | candidate | 5 | data_readiness | catalog: candidate |",
                         "",
                     ]
                 ),
@@ -168,6 +171,14 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("Literature angle", candidate["title"])
             self.assertEqual("literature_extract", candidate["recommended_next_task"])
             self.assertEqual("discovery_inbox.md#row-1", candidate["source_discovery_path"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+            item_code, item_payload = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7108"])
+            self.assertEqual(cli.SUCCESS, item_code, item_payload)
+            item_candidate = item_payload["would_write"][0]["content"]
+            self.assertEqual("IDEA-7108", item_candidate["id"])
+            self.assertEqual("Item selector angle", item_candidate["title"])
+            self.assertEqual("discovery_inbox.md#row-2", item_candidate["source_discovery_path"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
             write_code, write_payload = run_cli_json(
@@ -197,15 +208,22 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
                         "| IDEA-7104 | New catalog idea | scan | candidate | 6 | data_readiness | catalog: candidate |",
                         "| IDEA-7105 | Unmarked idea | scan | candidate | 6 | data_readiness | no marker |",
                         "| IDEA-7106 | Existing catalog idea | scan | candidate | 6 | data_readiness | catalog: candidate |",
+                        "| IDEA-7108 | Unknown marker idea | scan | candidate | 6 | data_readiness | catalog: archive |",
                         "",
                     ]
                 ),
             )
             before = file_snapshot(ops_dir)
 
-            code, payload = run_cli_json(["idea", "catalog", "maintain", ops_dir, "--dry-run"])
+            with mock.patch.object(
+                idea_catalog_script,
+                "read_catalog",
+                wraps=idea_catalog_script.read_catalog,
+            ) as read_catalog:
+                code, payload = run_cli_json(["idea", "catalog", "maintain", ops_dir, "--dry-run"])
 
             self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(1, read_catalog.call_count)
             self.assertEqual("idea_catalog_maintenance_planned", payload["action"])
             self.assertTrue(payload["dry_run"])
             self.assertEqual(before, file_snapshot(ops_dir))
@@ -215,6 +233,10 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("create", by_item["IDEA-7104"]["route"])
             self.assertEqual("update_existing", by_item["IDEA-7106"]["route"])
             self.assertEqual("same_normalized_title", by_item["IDEA-7106"]["reason"])
+            self.assertEqual("candidate", by_item["IDEA-7108"]["catalog_marker"])
+            self.assertEqual("archive", by_item["IDEA-7108"]["raw_catalog_marker"])
+            self.assertEqual("catalog: archive", by_item["IDEA-7108"]["catalog_marker_text"])
+            self.assertTrue(by_item["IDEA-7108"]["catalog_marker_defaulted"])
             proposed_actions = {change["action"] for change in payload["proposed_file_changes"]}
             self.assertIn("create_canonical_idea_json", proposed_actions)
             self.assertIn("update_idea_status", proposed_actions)
@@ -225,6 +247,16 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             )
             self.assertEqual("park", park_change["to_status"])
             self.assertIn("revisit_condition", park_change["fields"])
+            self.assertEqual(
+                {
+                    "at": "TO_BE_SET_AT_WRITE_TIME",
+                    "from_status": "candidate",
+                    "to_status": "park",
+                    "reason": "failed_hard_gates",
+                    "actor": "catalog_maintenance_dry_run",
+                },
+                park_change["proposed_decision_history_entry"],
+            )
             self.assertFalse((ops_dir / "ideas" / "IDEA-7104.json").exists())
             blocked_paths = {item["path"] for item in payload["would_not_write"]}
             self.assertIn(str(ops_dir / "queue.md"), blocked_paths)
