@@ -389,6 +389,11 @@ score dimensions, and candidate rows. The command still returns the validator
 exit code, so malformed or unsafe catalog state can render visibly while
 automation fails closed.
 
+The dashboard summary distinguishes issue volume from the capped blocker list:
+`total_issue_count` reports all validator failures and warnings, while
+`displayed_blocker_count` reports how many entries were included in
+`sections.top_blockers` after applying `--max-blockers`.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

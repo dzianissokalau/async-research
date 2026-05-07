@@ -12,6 +12,8 @@ from pathlib import Path
 from unittest import mock
 
 from async_research_workflow import cli
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_END
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_START
 from async_research_workflow.idea_catalog import CATALOG_TEMPLATE
 from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
 from async_research_workflow.scripts import idea_catalog
@@ -43,6 +45,25 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
 
 def bootstrap_catalog(ops_dir: Path) -> None:
     write_text(ops_dir / "ideas" / "idea_catalog.md", CATALOG_TEMPLATE)
+    write_text(ops_dir / "ideas" / "prioritization.md", PRIORITIZATION_TEMPLATE)
+
+
+def bootstrap_projected_catalog(ops_dir: Path, candidate: dict) -> None:
+    write_text(
+        ops_dir / "ideas" / "idea_catalog.md",
+        f"""# Idea Catalog
+
+{CATALOG_BLOCK_START}
+| idea_id | status | title | weighted_score | next_task | blockers | promoted_task_id | updated_at |
+| --- | --- | ---: | --- | --- | --- | --- | --- |
+| {candidate["id"]} | {candidate.get("status", "candidate")} | {candidate["title"]} | {candidate["score"]["weighted_total"]} | {candidate["recommended_next_task"]} |  |  | {candidate["updated_at"]} |
+{CATALOG_BLOCK_END}
+
+## Notes
+
+Free-form notes. Tooling must not edit this section.
+""",
+    )
     write_text(ops_dir / "ideas" / "prioritization.md", PRIORITIZATION_TEMPLATE)
 
 
@@ -103,6 +124,50 @@ def valid_candidate(candidate_id: str = "IDEA-0001") -> dict:
 
 
 class IdeaCatalogPhase10Tests(unittest.TestCase):
+    def test_dashboard_clean_catalog_returns_exit_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            candidate = valid_candidate("IDEA-0001")
+            bootstrap_projected_catalog(ops_dir, candidate)
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", candidate)
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(0, payload["summary"]["failure_count"])
+            self.assertEqual(0, payload["summary"]["warning_count"])
+            self.assertEqual(1, payload["summary"]["candidate_count"])
+            self.assertEqual(1, payload["summary"]["score_dimension_count"])
+            self.assertEqual(["IDEA-0001"], [item["idea_id"] for item in payload["sections"]["candidate_ideas"]])
+            self.assertEqual(16.5, payload["sections"]["score_dimensions"][0]["weighted_total"])
+
+    def test_dashboard_empty_and_cold_start_catalogs_return_zero_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "empty" / "research_ops"
+            bootstrap_catalog(ops_dir)
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(0, payload["summary"]["candidate_count"])
+            self.assertEqual(0, payload["summary"]["total_issue_count"])
+            self.assertEqual([], payload["sections"]["candidate_ideas"])
+            self.assertEqual([], payload["sections"]["top_blockers"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "cold" / "research_ops"
+            ops_dir.mkdir(parents=True)
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(0, payload["summary"]["candidate_count"])
+            self.assertEqual(1, payload["summary"]["total_issue_count"])
+            self.assertEqual(["catalog_cold_start"], [item["reason"] for item in payload["sections"]["top_blockers"]])
+
     def test_dashboard_renders_required_sections_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"
@@ -196,8 +261,54 @@ class IdeaCatalogPhase10Tests(unittest.TestCase):
 
             self.assertEqual(idea_catalog.VALIDATION_FAILED, code, payload)
             self.assertEqual(1, len(payload["sections"]["top_blockers"]))
-            self.assertGreaterEqual(payload["summary"]["top_blocker_count"], 3)
-            self.assertEqual(1, payload["summary"]["visible_top_blocker_count"])
+            self.assertGreaterEqual(payload["summary"]["total_issue_count"], 3)
+            self.assertEqual(1, payload["summary"]["displayed_blocker_count"])
+
+    def test_dashboard_link_stale_when_promoted_task_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_catalog(ops_dir)
+            promoted = valid_candidate("IDEA-0001")
+            promoted.update({"status": "promoted", "promoted_task_id": "TASK-9999"})
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", promoted)
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.VALIDATION_FAILED, code, payload)
+            self.assertEqual(
+                [{"idea_id": "IDEA-0001", "link_status": "stale", "promoted_task_id": "TASK-9999"}],
+                [
+                    {
+                        "idea_id": item["idea_id"],
+                        "link_status": item["link_status"],
+                        "promoted_task_id": item["promoted_task_id"],
+                    }
+                    for item in payload["sections"]["idea_to_task_links"]
+                ],
+            )
+
+    def test_dashboard_link_unverified_when_promoted_task_on_non_promoted_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_catalog(ops_dir)
+            candidate = valid_candidate("IDEA-0001")
+            candidate["promoted_task_id"] = "TASK-0001"
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", candidate)
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            self.assertEqual(
+                [{"idea_id": "IDEA-0001", "link_status": "unverified_non_promoted_status", "promoted_task_id": "TASK-0001"}],
+                [
+                    {
+                        "idea_id": item["idea_id"],
+                        "link_status": item["link_status"],
+                        "promoted_task_id": item["promoted_task_id"],
+                    }
+                    for item in payload["sections"]["idea_to_task_links"]
+                ],
+            )
 
     def test_public_cli_routes_dashboard_command(self) -> None:
         with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
