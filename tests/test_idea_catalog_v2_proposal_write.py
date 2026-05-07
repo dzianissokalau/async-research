@@ -376,6 +376,36 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             )
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_idea_missing_after_locked_plan_refuses_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7411")
+            preflight_hash, _dry_run = self.dry_run_hash(ops_dir, "IDEA-7411")
+            model_with_idea = idea_catalog_script.read_catalog(ops_dir)
+            model_without_idea = {
+                **model_with_idea,
+                "candidates": [
+                    record for record in model_with_idea["candidates"] if record.get("idea_id") != "IDEA-7411"
+                ],
+            }
+            before = file_snapshot(ops_dir)
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "read_catalog",
+                side_effect=[model_with_idea, model_without_idea],
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7411", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(3, code, payload)
+            self.assertEqual("idea_not_found_after_lock", payload["reason"])
+            self.assertEqual("idea_promotion_write_refused", payload["action"])
+            self.assertEqual("IDEA-7411", payload["idea_id"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_partial_inbox_without_idea_ref_requires_recovery_without_mutating(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -405,6 +435,35 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual("promotion_proposal_recovery_required", payload["reason"])
             self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
             self.assertEqual(str(ops_dir / "inbox.md"), payload["recovery"]["path"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_pre_write_validation_failure_refuses_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7412")
+            preflight_hash, _dry_run = self.dry_run_hash(ops_dir, "IDEA-7412")
+            before = file_snapshot(ops_dir)
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "validate_records_for_write",
+                return_value=[
+                    {
+                        "severity": "failure",
+                        "reason": "forced_pre_write_failure",
+                        "message": "forced by test",
+                    }
+                ],
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7412", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("proposed_catalog_validation_failed", payload["reason"])
+            self.assertEqual("forced_pre_write_failure", payload["failures"][0]["reason"])
+            self.assertNotIn("files_written", payload)
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_post_write_validation_failure_reports_recovery_payload(self) -> None:
