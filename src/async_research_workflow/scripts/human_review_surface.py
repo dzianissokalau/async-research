@@ -17,6 +17,7 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Optional
 
+from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.scripts.cost_tracking import cost_window, ledger_path
 from async_research_workflow.scripts.data_source_audit import source_governance_report
 from async_research_workflow.scripts.decision_log import HEADER as DECISION_HEADER
@@ -371,6 +372,16 @@ def markdown_table(header: list[str], rows: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def format_count_map(counts: dict[str, Any], keys: Iterable[str] | None = None) -> str:
+    selected_keys = list(keys) if keys is not None else sorted(counts)
+    pairs = [
+        f"{key}: {counts.get(key, 0)}"
+        for key in selected_keys
+        if counts.get(key, 0) or keys is not None
+    ]
+    return ", ".join(pairs) if pairs else "none"
+
+
 def task_summary_row(ops_dir: Path, item: dict[str, Any]) -> dict[str, str]:
     payload = item["payload"]
     result = result_object(payload)
@@ -403,6 +414,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
     metrics = latest_metrics_snapshot(ops_dir)
     queue_depth = markdown_table_row_count(ops_dir / "queue.md")
     discovery_depth = markdown_table_row_count(ops_dir / "discovery_inbox.md")
+    catalog = catalog_surface_summary(ops_dir)
     review_minutes = estimate_review_minutes(len(open_human), len(active), len(alerts) + len(malformed))
     return {
         "ops_dir": ops_dir,
@@ -423,6 +435,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "metrics": metrics,
         "queue_depth": queue_depth,
         "discovery_depth": discovery_depth,
+        "catalog": catalog,
         "review_minutes": review_minutes,
         "review_queue_rows": review_queue_rows(ops_dir, items),
     }
@@ -460,6 +473,49 @@ def source_risk_lines(source: dict[str, Any]) -> list[str]:
             )
     if not lines:
         lines.append("- No risky or stale sources reported.")
+    return lines
+
+
+def catalog_daily_lines(catalog: dict[str, Any]) -> list[str]:
+    status_counts_text = format_count_map(
+        catalog["status_counts"],
+        ["candidate", "promote", "park", "reject", "promoted", "needs_human"],
+    )
+    derived_counts_text = format_count_map(
+        catalog["derived_label_counts"],
+        ["raw", "scored", "blocked"],
+    )
+    lines = [
+        f"- Catalog ideas: {catalog['candidate_count']}",
+        f"- Stored statuses: {status_counts_text}",
+        f"- Derived pipeline: {derived_counts_text}",
+        f"- Parked / rejected: {catalog['parked_count']} / {catalog['rejected_count']}",
+        f"- Top recommended promotions: {len(catalog['top_recommended_promotions'])}",
+        f"- Data or evidence gap issues: {len(catalog['data_or_evidence_gap_issues'])}",
+        f"- Stale projection warnings: {len(catalog['stale_projection_warnings'])}",
+    ]
+    if catalog["failure_count"]:
+        lines.append(f"- Catalog validation failures: {catalog['failure_count']}")
+    if catalog["top_recommended_promotions"]:
+        lines.append("- Recommended promotions:")
+        for item in catalog["top_recommended_promotions"][:3]:
+            score = item.get("weighted_score")
+            score_text = "n/a" if score is None else str(score)
+            lines.append(
+                f"  - {item.get('idea_id')}: {normalize_text(item.get('title'))} "
+                f"({score_text}, next {normalize_text(item.get('recommended_next_task'))})"
+            )
+    if catalog["blocked_ideas"]:
+        lines.append("- Blocked ideas:")
+        for item in catalog["blocked_ideas"][:3]:
+            blockers = item.get("blockers") if isinstance(item.get("blockers"), list) else []
+            gap_reasons = [
+                str(gap.get("reason"))
+                for gap in item.get("data_or_evidence_gaps", [])
+                if isinstance(gap, dict) and gap.get("reason")
+            ]
+            reason_text = ", ".join(blockers + gap_reasons) or "catalog validation gap"
+            lines.append(f"  - {item.get('idea_id')}: {normalize_text(item.get('title'))} ({reason_text})")
     return lines
 
 
@@ -560,6 +616,9 @@ def daily_status_markdown(model: dict[str, Any]) -> str:
     else:
         lines.append("- No task statuses found.")
 
+    lines.extend(["", "## Idea Catalog", ""])
+    lines.extend(catalog_daily_lines(model["catalog"]))
+
     lines.extend(["", "## Next Scheduled Tasks", ""])
     next_rows = [task_summary_row(ops_dir, item) for item in model["active"][:8] if item["payload"].get("status") != "needs_human"]
     if next_rows:
@@ -593,11 +652,62 @@ def weekly_surface_section(model: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def weekly_catalog_section(model: dict[str, Any]) -> str:
+    catalog = model["catalog"]
+    validation_state = "ok" if catalog["ok"] else f"{catalog['failure_count']} validation failure(s)"
+    status_counts_text = format_count_map(
+        catalog["status_counts"],
+        ["candidate", "promote", "park", "reject", "promoted", "needs_human"],
+    )
+    derived_counts_text = format_count_map(
+        catalog["derived_label_counts"],
+        ["raw", "scored", "blocked"],
+    )
+    lines = [
+        "## Idea Catalog Surface",
+        "",
+        f"- Catalog validation: {validation_state}",
+        f"- Catalog ideas: {catalog['candidate_count']}",
+        f"- Stored statuses: {status_counts_text}",
+        f"- Derived pipeline: {derived_counts_text}",
+        f"- Parked / rejected: {catalog['parked_count']} / {catalog['rejected_count']}",
+        f"- Data or evidence gap issues: {len(catalog['data_or_evidence_gap_issues'])}",
+        f"- Stale projection warnings: {len(catalog['stale_projection_warnings'])}",
+    ]
+    if catalog["top_recommended_promotions"]:
+        lines.append("- Top recommended promotions:")
+        for item in catalog["top_recommended_promotions"]:
+            score = item.get("weighted_score")
+            score_text = "n/a" if score is None else str(score)
+            lines.append(
+                f"  - {item.get('idea_id')}: {normalize_text(item.get('title'))} "
+                f"({score_text}, next {normalize_text(item.get('recommended_next_task'))})"
+            )
+    else:
+        lines.append("- Top recommended promotions: none")
+    if catalog["blocked_ideas"]:
+        lines.append("- Blocked ideas:")
+        for item in catalog["blocked_ideas"][:5]:
+            blockers = item.get("blockers") if isinstance(item.get("blockers"), list) else []
+            gap_reasons = [
+                str(gap.get("reason"))
+                for gap in item.get("data_or_evidence_gaps", [])
+                if isinstance(gap, dict) and gap.get("reason")
+            ]
+            reason_text = ", ".join(blockers + gap_reasons) or "catalog validation gap"
+            lines.append(f"  - {item.get('idea_id')}: {normalize_text(item.get('title'))} ({reason_text})")
+    else:
+        lines.append("- Blocked ideas: none")
+    if catalog["failure_count"]:
+        lines.append(f"- Catalog validation failures: {catalog['failure_count']}")
+    return "\n".join(lines) + "\n"
+
+
 def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
     path = ops_dir / WEEKLY_NAME
     text = path.read_text(encoding="utf-8") if path.exists() else "# Weekly Digest\n"
-    section = weekly_surface_section(model)
-    pattern = re.compile(r"\n?## Human Review Surface\n.*?(?=\n## |\Z)", re.DOTALL)
+    section = weekly_surface_section(model).rstrip() + "\n\n" + weekly_catalog_section(model).rstrip()
+    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
     stripped = pattern.sub("", text).rstrip()
     updated = stripped + "\n\n" + section.rstrip() + "\n"
     atomic_write_text(path, updated)

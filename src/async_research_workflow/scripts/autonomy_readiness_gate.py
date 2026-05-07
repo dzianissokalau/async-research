@@ -16,6 +16,7 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Optional
 
+from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.scripts.check_schema_versions import (
     DEFAULT_SCHEMA_VERSION,
     scan_schema_versions,
@@ -540,6 +541,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     active = active_tasks(statuses)
     review_queue = review_queue_tasks(statuses)
     cost = scan_cost_ledger(ops_dir / "cost_ledger.csv", args.monthly_budget_usd, args.weekly_budget_usd, now)
+    idea_catalog = catalog_surface_summary(ops_dir)
 
     invalids: list[dict[str, Any]] = []
     human: list[dict[str, Any]] = []
@@ -644,6 +646,29 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     human.extend(source_issues(statuses, ops_dir, now, args.stale_source_days))
     warnings.extend(stale_accepted_evidence_issues(ops_dir, now, args.accepted_output_freshness_days))
     warnings.extend(metrics_snapshot_issues(ops_dir, now, args.metrics_stale_hours))
+    if idea_catalog["failure_count"]:
+        warnings.append(
+            issue(
+                "warning",
+                "idea_catalog_state",
+                f"idea catalog has {idea_catalog['failure_count']} validation failure(s)",
+                {
+                    "validation_exit_code": idea_catalog["validation_exit_code"],
+                    "failures": idea_catalog["failures"],
+                },
+                "run idea catalog validate and repair canonical JSON or projection state before promoting ideas",
+            )
+        )
+    elif idea_catalog["stale_projection_warnings"]:
+        warnings.append(
+            issue(
+                "warning",
+                "idea_catalog_projection_stale",
+                f"idea catalog has {len(idea_catalog['stale_projection_warnings'])} stale projection warning(s)",
+                idea_catalog["stale_projection_warnings"],
+                "refresh or inspect catalog projections before relying on portfolio summaries",
+            )
+        )
 
     decision, exit_code = classify_decision(invalids, human, skips, warnings)
     blockers = invalids + human + skips
@@ -674,6 +699,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "cost": cost,
             "latest_metrics_snapshot": latest_metrics_snapshot(ops_dir),
             "accepted_memory": memory_decay_report(ops_dir, now=now),
+            "idea_catalog": idea_catalog,
         },
         "thresholds": {
             "max_active": args.max_active,

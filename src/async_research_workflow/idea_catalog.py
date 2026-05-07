@@ -56,6 +56,33 @@ MALFORMED_FAILURE_REASONS = {
     "candidate_schema_validation_failed",
     "scored_idea_missing_mission_policy_version",
 }
+STALE_PROJECTION_SURFACE_REASONS = {
+    "catalog_projection_missing",
+    "prioritization_projection_missing",
+    "duplicate_projection_row",
+    "orphaned_projection_row",
+    "orphaned_json_record",
+    "generated_block_missing",
+    "generated_block_malformed",
+    "malformed_markdown_table_row",
+    "catalog_table_missing_idea_id_column",
+}
+DATA_OR_EVIDENCE_GAP_REASONS = {
+    "direct_experiment_route_blocked",
+    "library_ref_unresolved",
+    "missing_accepted_output_ref",
+    "missing_cluster_ref",
+    "missing_data_ref",
+    "missing_rejected_idea_ref",
+    "missing_rejected_result_ref",
+    "needs_human_missing_human_gate_reason",
+    "promote_failed_hard_gates",
+    "promote_missing_recommended_next_task",
+    "promote_score_threshold_missing",
+    "promote_unsafe_next_task",
+    "score_threshold_missing",
+    "scored_idea_missing_mission_policy_version",
+}
 
 CATALOG_TEMPLATE = f"""# Idea Catalog
 
@@ -726,8 +753,7 @@ def validate_candidate_record(record: dict[str, Any], ops_dir: Path) -> tuple[li
     return warnings, failures
 
 
-def catalog_validation_report(ops_dir: Path) -> dict[str, Any]:
-    model = read_catalog(ops_dir)
+def catalog_validation_report_from_model(ops_dir: Path, model: dict[str, Any]) -> dict[str, Any]:
     warnings = [
         warning
         for warning in model["warnings"]
@@ -759,6 +785,10 @@ def catalog_validation_report(ops_dir: Path) -> dict[str, Any]:
         "warnings": warnings,
         "failures": failures,
     }
+
+
+def catalog_validation_report(ops_dir: Path) -> dict[str, Any]:
+    return catalog_validation_report_from_model(ops_dir, read_catalog(ops_dir))
 
 
 def catalog_validation_exit_code(report: dict[str, Any]) -> int:
@@ -793,6 +823,136 @@ def candidate_summary(record: dict[str, Any]) -> dict[str, Any]:
         "promoted_task_id": payload.get("promoted_task_id"),
         "updated_at": payload.get("updated_at"),
         "path": record["path"],
+    }
+
+
+def complete_status_counts(counts: dict[str, int]) -> dict[str, int]:
+    complete = {status: int(counts.get(status, 0)) for status in STORED_STATUSES}
+    for status, count in sorted(counts.items()):
+        if status not in complete:
+            complete[status] = count
+    return complete
+
+
+def complete_pipeline_counts(counts: dict[str, int]) -> dict[str, int]:
+    complete = {label: int(counts.get(label, 0)) for label in ("raw", "scored", "blocked")}
+    for label, count in sorted(counts.items()):
+        if label not in complete:
+            complete[label] = count
+    return complete
+
+
+def surface_issue_summary(item: dict[str, Any]) -> dict[str, Any]:
+    summary = {
+        "reason": item.get("reason"),
+        "candidate_id": item.get("candidate_id"),
+        "path": item.get("path"),
+        "message": item.get("message"),
+    }
+    for field in (
+        "idea_id",
+        "filename_id",
+        "ref_field",
+        "ref",
+        "target",
+        "recommended_next_task",
+        "failed_hard_gates",
+        "missing_fields",
+        "block",
+    ):
+        if field in item:
+            summary[field] = item[field]
+    return {key: value for key, value in summary.items() if value not in (None, "", [])}
+
+
+def issue_is_data_or_evidence_gap(item: dict[str, Any]) -> bool:
+    reason = item.get("reason")
+    if reason in DATA_OR_EVIDENCE_GAP_REASONS:
+        return True
+    gates = item.get("failed_hard_gates")
+    if not isinstance(gates, list):
+        return False
+    evidence_words = ("data", "evidence", "source", "readiness", "accepted")
+    return any(any(word in str(gate).lower() for word in evidence_words) for gate in gates)
+
+
+def promotion_sort_key(record: dict[str, Any]) -> tuple[int, float, str]:
+    summary = candidate_summary(record)
+    priority = summary.get("human_priority")
+    if not isinstance(priority, int) or isinstance(priority, bool):
+        priority = 99
+    weighted = summary.get("weighted_score")
+    if not isinstance(weighted, (int, float)) or isinstance(weighted, bool):
+        weighted = -1.0
+    return priority, -float(weighted), str(summary.get("idea_id") or summary.get("filename_id") or "")
+
+
+def catalog_surface_summary(ops_dir: Path, max_promotions: int = 5) -> dict[str, Any]:
+    """Return a compact read-only catalog summary for operator surfaces."""
+    model = read_catalog(ops_dir)
+    validation = catalog_validation_report_from_model(ops_dir, model)
+    validation_exit_code = catalog_validation_exit_code(validation)
+    records = model["candidates"]
+    status_summary = complete_status_counts(validation["status_counts"])
+    derived_summary = complete_pipeline_counts(validation["derived_label_counts"])
+
+    issues = validation["warnings"] + validation["failures"]
+    stale_projection_warnings = [
+        surface_issue_summary(item)
+        for item in issues
+        if item.get("reason") in STALE_PROJECTION_SURFACE_REASONS
+    ]
+    data_or_evidence_gaps = [
+        surface_issue_summary(item)
+        for item in issues
+        if issue_is_data_or_evidence_gap(item)
+    ]
+
+    gaps_by_candidate: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for gap in data_or_evidence_gaps:
+        candidate_id = str(gap.get("candidate_id") or gap.get("idea_id") or "")
+        if candidate_id:
+            gaps_by_candidate[candidate_id].append(gap)
+
+    blocked_ideas: list[dict[str, Any]] = []
+    for record in sorted(records, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or "")):
+        summary = candidate_summary(record)
+        idea_id = str(summary.get("idea_id") or summary.get("filename_id") or "")
+        gap_reasons = gaps_by_candidate.get(idea_id, [])
+        if summary.get("derived_label") != "blocked" and not gap_reasons:
+            continue
+        blocked_ideas.append(
+            {
+                **summary,
+                "data_or_evidence_gaps": gap_reasons,
+            }
+        )
+
+    top_promotions = [
+        candidate_summary(record)
+        for record in sorted(
+            [record for record in records if record["status"] == "promote"],
+            key=promotion_sort_key,
+        )[:max_promotions]
+    ]
+
+    return {
+        "ok": validation["ok"],
+        "validation_exit_code": validation_exit_code,
+        "candidate_count": validation["candidate_count"],
+        "status_counts": status_summary,
+        "derived_label_counts": derived_summary,
+        "parked_count": status_summary.get("park", 0),
+        "rejected_count": status_summary.get("reject", 0),
+        "blocked_count": derived_summary.get("blocked", 0),
+        "top_recommended_promotions": top_promotions,
+        "blocked_ideas": blocked_ideas,
+        "data_or_evidence_gap_issues": data_or_evidence_gaps,
+        "stale_projection_warnings": stale_projection_warnings,
+        "warning_count": len(validation["warnings"]),
+        "failure_count": len(validation["failures"]),
+        "warnings": [surface_issue_summary(item) for item in validation["warnings"]],
+        "failures": [surface_issue_summary(item) for item in validation["failures"]],
     }
 
 

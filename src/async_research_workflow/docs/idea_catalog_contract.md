@@ -173,6 +173,51 @@ Validation exit codes:
 canonical JSON records and can filter by stored status. `show` returns the
 canonical payload, derived summary, and advisory validation for that one record.
 
+## Operator Flow
+
+Use the three layers deliberately:
+
+1. `discovery_inbox.md` is the cheap discovery buffer. It can contain noisy
+   rows, partial notes, and raw discovery output. Nothing in this file is
+   durable portfolio state until a human or planner explicitly captures it.
+2. `research_ops/ideas/IDEA-*.json` is the durable catalog. Capturing from
+   discovery must create or update canonical JSON with schema-valid candidate
+   fields, source links, score metadata, lifecycle status, and any human gate
+   reason. The JSON record owns status, score, refs, kill criteria, and
+   promotion readiness.
+3. `queue.md` is the execution queue. A catalog idea can move toward execution
+   only through a planner or human-approved helper that produces a bounded task
+   proposal. Read-only catalog surfaces, validation, list/show commands, and
+   surface updates must not edit `queue.md` or task folders.
+
+The practical path is:
+
+```text
+discovery_inbox.md row
+-> explicit capture into ideas/IDEA-0001.json
+-> validate and inspect catalog health
+-> human/planner promotion proposal
+-> queue.md task row only after approval
+```
+
+## Read-Only Surfaces
+
+Phase 5 exposes catalog health without enabling promotion writes:
+
+- `async-research surface update research_ops` adds an Idea Catalog section to
+  `weekly_digest.md` and `daily_status.md`.
+- `async-research health research_ops --dry-run` includes an
+  `checks.idea_catalog` summary and warning-level alerts when catalog validation
+  or projection state needs attention.
+- `async-research readiness research_ops --dry-run` includes the same catalog
+  summary and warning-level issues so autonomous loops can continue with
+  visibility while malformed catalog state is repaired.
+
+These surfaces report stored status counts, derived `raw` / `scored` /
+`blocked` counts, top `promote` ideas from canonical JSON, parked and rejected
+counts, data or evidence gap issues, and stale projection warnings. They are
+strictly read-only with respect to canonical `ideas/IDEA-*.json`.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

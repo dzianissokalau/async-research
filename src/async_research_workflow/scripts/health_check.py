@@ -13,6 +13,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
+from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts.check_schema_versions import (
     DEFAULT_SCHEMA_VERSION,
@@ -441,6 +442,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     schema_versions = scan_schema_versions(ops_dir, args.expected_schema_version)
     source_governance = source_governance_report(ops_dir, now)
     accepted_memory = memory_decay_report(ops_dir, now=now)
+    idea_catalog = catalog_surface_summary(ops_dir)
     cost = scan_cost_ledger(
         ops_dir / "cost_ledger.csv",
         args.monthly_budget_usd,
@@ -538,6 +540,25 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             f"{accepted_memory.get('due_count', 0)} accepted output(s) are due for revalidation soon",
             accepted_memory.get("due_outputs"),
         )
+    if idea_catalog["failure_count"]:
+        add_alert(
+            alerts,
+            "warning",
+            "idea_catalog_state",
+            f"idea catalog has {idea_catalog['failure_count']} validation failure(s)",
+            {
+                "validation_exit_code": idea_catalog["validation_exit_code"],
+                "failures": idea_catalog["failures"],
+            },
+        )
+    elif idea_catalog["stale_projection_warnings"]:
+        add_alert(
+            alerts,
+            "warning",
+            "idea_catalog_projection_stale",
+            f"idea catalog has {len(idea_catalog['stale_projection_warnings'])} stale projection warning(s)",
+            idea_catalog["stale_projection_warnings"],
+        )
 
     monthly_ratio = cost.get("monthly_usage_ratio")
     if monthly_ratio is not None and monthly_ratio >= args.budget_threshold:
@@ -580,6 +601,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "cost": cost,
             "source_governance": source_governance,
             "accepted_memory": accepted_memory,
+            "idea_catalog": idea_catalog,
         },
         "thresholds": {
             "stale_lock_minutes": args.stale_lock_minutes,
