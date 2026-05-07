@@ -55,10 +55,19 @@ TASK_ID_RE = re.compile(r"\bTASK-[0-9]{4}\b")
 CLUSTER_ID_RE = re.compile(r"\bCL-[0-9]{4}\b")
 CATALOG_MARKER_RE = re.compile(r"\bcatalog\s*:\s*([a-z_]+)\b", re.IGNORECASE)
 IDEA_ID_PATTERN = re.compile(r"^IDEA-[0-9]{4}$")
+DATA_SOURCE_REF_RE = re.compile(r"\bDS-[0-9]{4}\b")
 PROMOTABLE_NEXT_TASKS = {"hypothesis_card", "data_readiness", "literature_extract"}
+PROMOTION_TASK_TYPES = ("literature_extract", "data_readiness", "hypothesis_card", "experiment_plan")
 CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
 CATALOG_LOCK_TTL = timedelta(minutes=30)
 TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
+PROMOTION_DRY_RUN_POLICY_VERSION = "catalog_promotion_dry_run_v1.0"
+TASK_LIMITS = {
+    "literature_extract": {"max_minutes": 45, "max_turns": 4, "review_tier": 1},
+    "data_readiness": {"max_minutes": 75, "max_turns": 5, "review_tier": 1},
+    "hypothesis_card": {"max_minutes": 45, "max_turns": 4, "review_tier": 1},
+    "experiment_plan": {"max_minutes": 90, "max_turns": 6, "review_tier": 2},
+}
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -537,6 +546,11 @@ def row_next_task(row: dict[str, Any]) -> str:
 
 def row_task_refs(row: dict[str, Any]) -> set[str]:
     return set(TASK_ID_RE.findall(combined_row_text(row)))
+
+
+def slugify(value: str, fallback: str = "task") -> str:
+    text = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return text or fallback
 
 
 def row_cluster_id(row: dict[str, Any]) -> str | None:
@@ -1670,6 +1684,376 @@ def run_reject(args: argparse.Namespace) -> int:
     return run_status_command(args, "reject")
 
 
+def list_field(payload: dict[str, Any], field: str) -> list[str]:
+    values = payload.get(field)
+    if not isinstance(values, list):
+        return []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def promotion_refs(payload: dict[str, Any]) -> dict[str, list[str]]:
+    return {
+        "data_refs": list_field(payload, "data_refs"),
+        "library_refs": list_field(payload, "library_refs"),
+        "accepted_output_refs": list_field(payload, "accepted_output_refs"),
+        "rejected_idea_refs": list_field(payload, "rejected_idea_refs"),
+        "rejected_result_refs": list_field(payload, "rejected_result_refs"),
+        "evidence_seeds": list_field(payload, "evidence_seeds"),
+    }
+
+
+def evidence_is_thin(payload: dict[str, Any]) -> bool:
+    refs = promotion_refs(payload)
+    return not any(refs.values()) and not str(payload.get("source_discovery_path") or "").strip()
+
+
+def data_refs_are_audited(ops_dir: Path, data_refs: list[str]) -> bool:
+    if not data_refs:
+        return False
+    audit_path = ops_dir / "data_source_audit.md"
+    if not audit_path.exists():
+        return False
+    try:
+        audit_text = audit_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    audited_refs = set(DATA_SOURCE_REF_RE.findall(audit_text))
+    return all(ref in audited_refs for ref in data_refs)
+
+
+def data_plausible_but_unaudited(ops_dir: Path, payload: dict[str, Any]) -> bool:
+    required_data = list_field(payload, "required_data")
+    data_refs = list_field(payload, "data_refs")
+    return bool(required_data) and not data_refs_are_audited(ops_dir, data_refs)
+
+
+def experiment_plan_gates_pass(ops_dir: Path, record: dict[str, Any]) -> bool:
+    payload = record["payload"]
+    data_refs = list_field(payload, "data_refs")
+    return bool(data_refs) and data_refs_are_audited(ops_dir, data_refs) and not hard_gate_blocked(payload)
+
+
+def choose_promotion_task_type(
+    ops_dir: Path,
+    record: dict[str, Any],
+    requested_task_type: str | None,
+) -> tuple[str, str]:
+    if requested_task_type:
+        return requested_task_type, "explicit_task_type_override"
+
+    payload = record["payload"]
+    recommended = str(payload.get("recommended_next_task") or "").strip()
+    if recommended not in PROMOTION_TASK_TYPES:
+        recommended = "data_readiness"
+    if evidence_is_thin(payload):
+        return "literature_extract", "evidence_is_thin"
+    if recommended == "experiment_plan":
+        if experiment_plan_gates_pass(ops_dir, record):
+            return "experiment_plan", "experiment_plan_gates_pass"
+        return "data_readiness", "experiment_plan_requires_data_readiness_first"
+    if data_plausible_but_unaudited(ops_dir, payload):
+        return "data_readiness", "data_plausible_but_unaudited"
+    return recommended, "catalog_recommended_next_task"
+
+
+def promotion_blockers(
+    ops_dir: Path,
+    record: dict[str, Any],
+    task_type: str,
+    allow_duplicate: bool,
+) -> list[dict[str, Any]]:
+    payload = record["payload"]
+    blockers: list[dict[str, Any]] = []
+    status = str(payload.get("status") or "candidate")
+    if status in {"park", "reject", "promoted", "needs_human"}:
+        blockers.append({"reason": "status_not_promotable", "status": status})
+
+    record_warnings, record_failures = validate_candidate_record(record, ops_dir)
+    for failure in record_failures:
+        if allow_duplicate and failure.get("reason") == "promote_duplicate_or_near_duplicate":
+            continue
+        blockers.append(
+            {
+                "reason": "catalog_validation_failure",
+                "failure_reason": failure.get("reason"),
+                "message": failure.get("message"),
+            }
+        )
+
+    lifecycle = lifecycle_recommendation(record, ops_dir)
+    if status == "candidate" and lifecycle.get("recommended_status") != "promote":
+        blockers.append(
+            {
+                "reason": "candidate_not_ready_for_promotion",
+                "recommended_status": lifecycle.get("recommended_status"),
+                "lifecycle_reason": lifecycle.get("reason"),
+            }
+        )
+
+    if hard_gate_blocked(payload):
+        blockers.append({"reason": "failed_hard_gates", "failed_hard_gates": blockers_for_payload(payload)})
+
+    duplicate_status = str(payload.get("duplicate_status") or "new").strip()
+    if duplicate_status in {"duplicate", "near_duplicate"} and not allow_duplicate:
+        blockers.append({"reason": "duplicate_requires_human_override", "duplicate_status": duplicate_status})
+
+    if task_type == "experiment_plan" and not experiment_plan_gates_pass(ops_dir, record):
+        blockers.append(
+            {
+                "reason": "experiment_plan_gates_not_met",
+                "message": "experiment_plan promotion requires audited data_refs and passed hard gates",
+            }
+        )
+
+    # Keep warnings visible without blocking the proposal.
+    for warning in record_warnings:
+        if warning.get("reason") in {"library_ref_unresolved"}:
+            blockers.append(
+                {
+                    "reason": "non_blocking_catalog_warning",
+                    "warning_reason": warning.get("reason"),
+                    "message": warning.get("message"),
+                    "blocking": False,
+                }
+            )
+    return blockers
+
+
+def blocking_items(blockers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [blocker for blocker in blockers if blocker.get("blocking", True) is not False]
+
+
+def promotion_validation_commands(task_type: str, proposed_task_slug: str) -> list[str]:
+    commands = [
+        "async-research idea catalog validate research_ops",
+        "async-research accepted check-duplicate research_ops --title \"<task title>\"",
+    ]
+    if task_type == "experiment_plan":
+        commands.append(
+            f"async-research source check-experiment research_ops research_ops/tasks/{proposed_task_slug}/task.md"
+        )
+        commands.append(
+            f"async-research experiment validate research_ops/tasks/{proposed_task_slug}/worker_output.md --ops-dir research_ops --task-dir research_ops/tasks/{proposed_task_slug}"
+        )
+    if task_type == "data_readiness":
+        commands.append("async-research source validate research_ops")
+    return commands
+
+
+def promotion_scope(task_type: str, payload: dict[str, Any]) -> list[str]:
+    base = [
+        "Create exactly one bounded task from this catalog idea.",
+        "Keep all worker writes inside the proposed task folder unless a listed allowed path permits a specific register update.",
+        "Do not edit queue.md or create task folders from this dry-run output without planner approval.",
+    ]
+    if task_type == "literature_extract":
+        base.append("Extract existing evidence and source leads before any data or experiment work.")
+    elif task_type == "data_readiness":
+        base.append("Verify source availability, access route, caveats, and audit status before experiment planning.")
+    elif task_type == "hypothesis_card":
+        base.append("Turn the idea into a falsifiable hypothesis with minimum viable test and explicit kill criteria.")
+    elif task_type == "experiment_plan":
+        base.append("Draft an experiment plan only using audited data refs and existing passed gates.")
+    if payload.get("source_discovery_path"):
+        base.append(f"Use source discovery context: {payload['source_discovery_path']}.")
+    return base
+
+
+def promotion_allowed_paths(task_type: str, idea_id: str, proposed_task_slug: str) -> list[str]:
+    paths = [
+        f"research_ops/tasks/{proposed_task_slug}/**",
+        f"research_ops/ideas/{idea_id}.json",
+        "research_ops/accepted_outputs_index.md",
+        "research_ops/discovery/rejected_ideas.md",
+        "research_ops/rejected_results.md",
+    ]
+    if task_type in {"data_readiness", "experiment_plan"}:
+        paths.append("research_ops/data_source_audit.md")
+    return paths
+
+
+def promotion_task_proposal(
+    ops_dir: Path,
+    record: dict[str, Any],
+    task_type: str,
+    route_reason: str,
+    blockers: list[dict[str, Any]],
+    allow_duplicate: bool,
+) -> dict[str, Any]:
+    payload = record["payload"]
+    idea_id = str(record["idea_id"])
+    title = str(payload.get("title") or idea_id)
+    task_title = f"{title}: {task_type.replace('_', ' ')}"
+    slug = f"TASK-PROPOSED-{idea_id}-{slugify(task_type)}"
+    limits = TASK_LIMITS[task_type]
+    refs = promotion_refs(payload)
+    objective = (
+        f"Advance catalog idea {idea_id} with one {task_type} task that can be accepted, revised, or killed independently."
+    )
+    status_json_draft = {
+        "schema_version": "1.0",
+        "id": "TASK-PROPOSED",
+        "title": task_title,
+        "type": task_type,
+        "status": "inbox",
+        "priority": payload.get("human_priority") if isinstance(payload.get("human_priority"), int) else 2,
+        "allowed_paths": promotion_allowed_paths(task_type, idea_id, slug),
+        "allow_browsing": task_type in {"literature_extract", "data_readiness"},
+        "allow_code_execution": False,
+        "allow_network": task_type in {"literature_extract", "data_readiness"},
+        "max_minutes": limits["max_minutes"],
+        "max_turns": limits["max_turns"],
+        "review_policy": {
+            "tier": limits["review_tier"],
+            "required_reviewers": ["primary"] if limits["review_tier"] == 1 else ["primary", "methodology"],
+            "panel_required": limits["review_tier"] >= 2,
+            "human_required_for_acceptance": False,
+        },
+        "data_audit_refs": refs["data_refs"],
+        "catalog_idea_id": idea_id,
+    }
+    task_markdown_draft = "\n".join(
+        [
+            f"# TASK-PROPOSED: {task_title}",
+            "",
+            "## Objective",
+            "",
+            objective,
+            "",
+            "## Scope",
+            "",
+            *[f"- {item}" for item in promotion_scope(task_type, payload)],
+            "",
+            "## Required Output",
+            "",
+            "- Worker output that answers the task objective.",
+            "- Explicit assumptions, caveats, and evidence references.",
+            "- Recommendation to accept, revise, park, reject, or promote a follow-up.",
+            "",
+            "## Kill Criteria",
+            "",
+            str(payload.get("kill_reason") or "Kill if the worker cannot define a bounded, evidence-backed next step."),
+        ]
+    )
+    return {
+        "proposed_task_id": "TASK-PROPOSED",
+        "proposed_task_slug": slug,
+        "task_type": task_type,
+        "route_reason": route_reason,
+        "title": task_title,
+        "objective": objective,
+        "scope": promotion_scope(task_type, payload),
+        "required_sources": {
+            "source_discovery_path": payload.get("source_discovery_path"),
+            "library_refs": refs["library_refs"],
+            "accepted_output_refs": refs["accepted_output_refs"],
+            "rejected_idea_refs": refs["rejected_idea_refs"],
+            "rejected_result_refs": refs["rejected_result_refs"],
+            "evidence_seeds": refs["evidence_seeds"],
+        },
+        "data_refs": refs["data_refs"],
+        "allowed_paths": promotion_allowed_paths(task_type, idea_id, slug),
+        "max_minutes": limits["max_minutes"],
+        "max_turns": limits["max_turns"],
+        "kill_reason": payload.get("kill_reason") or "Kill if no bounded test can be defined.",
+        "validation_commands": promotion_validation_commands(task_type, slug),
+        "blockers": blockers,
+        "human_override": {"duplicate_allowed": allow_duplicate},
+        "status_json_draft": status_json_draft,
+        "task_markdown_draft": task_markdown_draft,
+    }
+
+
+def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if args.write:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_promotion_refused",
+            "reason": "promotion_write_deferred_to_v2",
+            "message": "Phase 8 promotion is dry-run only and never edits queue.md or task folders.",
+        }
+    if not IDEA_ID_PATTERN.match(args.idea_id):
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_promotion_failed",
+            "reason": "invalid_idea_id",
+            "idea_id": args.idea_id,
+            "message": "idea id must use IDEA-0000 format",
+        }
+
+    model = read_catalog(args.ops_dir)
+    if model["failures"]:
+        report = catalog_validation_report_from_model(args.ops_dir, model)
+        return catalog_validation_exit_code(report), {
+            "ok": False,
+            "action": "idea_promotion_failed",
+            "reason": "catalog_read_failed",
+            "ops_dir": str(args.ops_dir),
+            "warnings": model["warnings"],
+            "failures": model["failures"],
+        }
+
+    duplicate = duplicate_record_failure(model, args.idea_id)
+    if duplicate is not None:
+        return MALFORMED, {
+            "ok": False,
+            "action": "idea_promotion_failed",
+            "reason": "duplicate_idea_id",
+            "idea_id": args.idea_id,
+            "failures": [duplicate],
+        }
+
+    record = find_catalog_record(model, args.idea_id)
+    if record is None:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_promotion_failed",
+            "reason": "idea_not_found",
+            "idea_id": args.idea_id,
+            "next_step": "run async-research idea catalog list to inspect available ideas",
+        }
+
+    task_type, route_reason = choose_promotion_task_type(args.ops_dir, record, args.task_type)
+    blockers = promotion_blockers(args.ops_dir, record, task_type, args.allow_duplicate)
+    blocking = blocking_items(blockers)
+    base = {
+        "ops_dir": str(args.ops_dir),
+        "idea_id": args.idea_id,
+        "dry_run": True,
+        "changed": False,
+        "catalog_summary": candidate_summary(record),
+        "selected_task_type": task_type,
+        "route_reason": route_reason,
+        "blockers": blockers,
+        "would_not_write": [
+            {"path": str(args.ops_dir / "queue.md"), "reason": "promotion dry-run never edits queue.md"},
+            {"path": str(args.ops_dir / "tasks"), "reason": "promotion dry-run never creates task folders"},
+        ],
+    }
+    if blocking:
+        return VALIDATION_FAILED, {
+            "ok": False,
+            "action": "idea_promotion_blocked",
+            **base,
+            "proposal": None,
+        }
+
+    proposal = promotion_task_proposal(args.ops_dir, record, task_type, route_reason, blockers, args.allow_duplicate)
+    return SUCCESS, {
+        "ok": True,
+        "action": "idea_promotion_planned",
+        "policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
+        **base,
+        "proposal": proposal,
+    }
+
+
+def run_promote(args: argparse.Namespace) -> int:
+    code, payload = build_promotion_plan(args)
+    print_json(payload)
+    return code
+
+
 def init_plan(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     planned: list[dict[str, Any]] = []
     existing: list[dict[str, Any]] = []
@@ -1914,6 +2298,19 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections under research_ops/ideas/LOCK.")
     capture.add_argument("--update-existing", action="store_true", help="Allow write mode to merge captured metadata into an existing same-ID IDEA JSON record.")
     capture.set_defaults(func=run_capture)
+
+    promote = subparsers.add_parser(
+        "promote",
+        help="Preview one catalog idea promotion task.",
+        description="Produce one bounded planner-facing task proposal from a canonical catalog idea without editing queue.md or task folders.",
+    )
+    promote.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")
+    promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
+    promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
+    promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
+    promote.add_argument("--write", action="store_true", help="Reserved for V2; refused in Phase 8.")
+    promote.set_defaults(func=run_promote)
 
     park = subparsers.add_parser(
         "park",

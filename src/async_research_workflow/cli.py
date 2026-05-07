@@ -808,6 +808,17 @@ def run_idea_capture_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_idea_promote_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["promote", str(args.ops_dir), args.idea_id]
+        + optional_text("--task-type", args.task_type)
+        + (["--allow-duplicate"] if args.allow_duplicate else [])
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
 def run_idea_park_command(args: argparse.Namespace) -> int:
     return module_main(
         "idea_catalog",
@@ -1605,6 +1616,20 @@ def register_artifact_commands(subparsers) -> None:
     idea_capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections.")
     idea_capture.add_argument("--update-existing", action="store_true", help="Allow write mode to merge captured metadata into an existing same-ID IDEA JSON record.")
     idea_capture.set_defaults(func=run_idea_capture_command)
+    idea_promote = add_command(
+        idea_sub,
+        "promote",
+        help="Preview one catalog idea promotion task.",
+        description="Produce one bounded promotion task proposal from a canonical catalog idea without editing queue.md or task folders.",
+        epilog="Phase 8 promotion is dry-run only. Write mode is deferred to V2.",
+    )
+    add_common_ops(idea_promote)
+    idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_promote.add_argument("--task-type", choices=["literature_extract", "data_readiness", "hypothesis_card", "experiment_plan"], help="Explicit task type override for the promotion proposal.")
+    idea_promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
+    idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
+    idea_promote.add_argument("--write", action="store_true", help="Reserved for V2; refused in Phase 8.")
+    idea_promote.set_defaults(func=run_idea_promote_command)
     idea_park = add_command(
         idea_sub,
         "park",

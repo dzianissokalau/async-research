@@ -291,6 +291,33 @@ Explicit `park` and `reject` commands require a reason. `park` also requires a
 revisit condition. Status-changing writes append `decision_history` and update
 `updated_at` only when canonical content changes.
 
+## Phase 8 Promotion Dry Run
+
+Phase 8 adds planner-facing promotion proposals without enabling execution
+writes:
+
+```bash
+async-research idea promote research_ops IDEA-0001 --dry-run
+async-research idea promote research_ops IDEA-0001 --task-type data_readiness --dry-run
+```
+
+The command reads one canonical catalog idea, validates catalog state, checks
+status, lifecycle, score gates, hard gates, duplicate status, data refs, and
+task-type eligibility, then prints at most one bounded task proposal. It never
+edits `queue.md`, never creates task folders, and refuses `--write` until V2.
+
+Allowed proposal task types are `literature_extract`, `data_readiness`,
+`hypothesis_card`, and `experiment_plan`. Without an override, thin evidence
+routes to `literature_extract`; plausible but unaudited data routes to
+`data_readiness`; direct `experiment_plan` is allowed only when audited
+`data_refs` exist and hard gates pass. Duplicate or near-duplicate ideas require
+an explicit `--allow-duplicate` human override before a proposal is emitted.
+
+The JSON proposal includes a task id placeholder or slug, task type, title,
+objective, scope, required sources and refs, allowed paths, max minutes, max
+turns, kill reason, validation commands, blockers, and draft task/status
+content for a planner to turn into real task files manually.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.
