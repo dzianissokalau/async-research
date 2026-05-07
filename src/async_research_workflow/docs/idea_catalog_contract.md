@@ -347,12 +347,20 @@ Rules for planner-created tasks:
 - do not create tasks from blocked proposals
 - do not use `--allow-duplicate` without a human decision or explicit planner
   note naming the non-duplicate angle
+- skip ideas that already have a task `status.json` with matching
+  `catalog_idea_id`, unless a human decision or explicit planner note explains
+  the distinct follow-up
 - append `queue.md` only after task files, anti-context, source checks, and
   applicable validation commands are coherent
+- after appending `queue.md`, close the v1 loop with an explicit
+  `async-research idea park ... --reason "promoted to TASK-0001" --revisit ... --write`
+  status update, then rerun catalog validation
 
 Catalog commands own portfolio state and proposal generation. The planner owns
 execution task creation. Catalog maintenance must not become a hidden queue
-writer in v1.
+writer in v1. The park closeout is a temporary v1 planner convention to prevent
+repeat promotion; V2 promotion write mode will replace it with a transactional
+`promoted_task_id` update.
 
 ## Safety Rules
 

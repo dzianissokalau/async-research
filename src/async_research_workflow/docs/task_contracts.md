@@ -94,6 +94,7 @@ Before creating a task from a catalog idea, run:
 
 ```bash
 async-research idea catalog validate research_ops
+async-research idea catalog show research_ops IDEA-0001
 async-research idea promote research_ops IDEA-0001 --dry-run
 ```
 
@@ -101,6 +102,11 @@ Use a proposal only when it returns `action=idea_promotion_planned` and
 `ok=true`. Do not create tasks from blocked proposals. Duplicate or
 near-duplicate ideas require `--allow-duplicate` plus a recorded human decision
 or explicit planner note explaining the new angle.
+
+Before running promotion dry-run, scan `research_ops/tasks/*/status.json` for
+`catalog_idea_id` matching the candidate idea. If a task already references the
+idea, skip the idea unless a recorded human decision or explicit planner note
+explains the different follow-up task type or scope.
 
 When creating the task, replace `TASK-PROPOSED` in
 `proposal.task_markdown_draft` and `proposal.status_json_draft` with the next
@@ -125,6 +131,28 @@ gathering focused. If it routes to `data_readiness`, include source/audit checks
 before experiment planning. If it routes to `experiment_plan`, the referenced
 `DS-0000` data refs must pass `async-research source check-experiment` before
 the queue row is appended.
+
+After appending `queue.md`, close the v1 catalog loop. Until V2 transactional
+promotion write mode exists, use an explicit park status as the temporary
+promotion reference:
+
+```bash
+async-research idea park research_ops IDEA-0001 \
+  --reason "promoted to TASK-0001" \
+  --revisit "revisit if TASK-0001 is rejected, killed, or needs a distinct follow-up" \
+  --dry-run
+
+async-research idea park research_ops IDEA-0001 \
+  --reason "promoted to TASK-0001" \
+  --revisit "revisit if TASK-0001 is rejected, killed, or needs a distinct follow-up" \
+  --write
+
+async-research idea catalog validate research_ops
+```
+
+This is a v1 planner closeout convention, not the V2 promoted-task transaction.
+It prevents the same `promote` idea from being selected again while preserving
+the task reference and revisit condition in the catalog decision history.
 
 ## Exploration Cycle
 

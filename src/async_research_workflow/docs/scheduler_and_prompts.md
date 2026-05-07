@@ -152,20 +152,22 @@ Task:
 3. Run async-research idea catalog init research_ops --dry-run. If starter files are missing, stop with a human setup note unless this run is explicitly allowed to bootstrap them.
 4. Run async-research idea catalog validate research_ops. If it exits 4, stop promotion and surface malformed catalog state. If it exits 2, continue only with ideas whose own promotion dry-run returns ok.
 5. Read research_ops/accepted_outputs_index.md, research_ops/revalidation_schedule.md if present, research_ops/discovery_inbox.md, research_ops/inbox.md, research_ops/queue.md, research_ops/data_source_audit.md if present, research_ops/escalation_policy.md, research_ops/daily_status.md, research_ops/ideas/idea_catalog.md, and research_ops/ideas/prioritization.md.
-6. For discovery inbox rows marked for catalog capture, run async-research idea capture research_ops --from-inbox "<row-id-or-IDEA-ID>" --id "<IDEA-ID>" --dry-run first. Use --write only when the row is explicit, non-ambiguous, and safe under the dry-run proposal. Do not create a task directly from discovery_inbox.md.
-7. Run async-research idea catalog list research_ops --status promote and choose at most 3 ideas, also respecting score.max_promotions_per_week when present.
-8. For each selected idea, run async-research idea promote research_ops <IDEA-ID> --dry-run. If duplicate or near-duplicate promotion is intentional, use --allow-duplicate only when a recorded human decision or explicit planner note explains the new angle.
-9. Treat the promotion dry-run as authoritative. If action is idea_promotion_blocked, do not create a task; list the blockers and required human decisions.
-10. Before creating any proposal that would trigger paid API/cloud work, run async-research cost budget-check research_ops --item-id "<IDEA-ID>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the idea or route it to needs_human.
-11. For a successful proposal, create at most one small task folder under research_ops/tasks/ by replacing TASK-PROPOSED in proposal.task_markdown_draft and proposal.status_json_draft with the next real TASK ID and slug. Preserve proposal task_type, objective, scope, allowed_paths, data_refs, max_minutes, max_turns, kill_reason, validation_commands, and review tier unless a human-approved reason is recorded.
-12. Each task must be completable in 30-45 minutes unless the proposal explicitly allows a longer max_minutes value for panel, synthesis, or experiment-planning work.
-13. Write task.md and status.json for each new task; every status.json must include schema_version="1.0", prompt_versions, framework_versions, catalog_idea_id when promoted from the catalog, and prompt_versions.planner="planner_v1.0".
-14. For `experiment_plan` proposals, create the task only when the promotion dry-run selected task_type=experiment_plan. Add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run async-research source check-experiment research_ops <task-dir>/task.md before appending queue.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
-15. For each new task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir>.
-16. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise task.md so the task has a clear new angle, create a revalidation task first, or park it.
-17. Run the validation commands listed in the promotion proposal where applicable before queue insertion.
-18. Append queue.md only after task.md, status.json, anti_context.md, source checks, and transition/schema checks are coherent.
-19. Update daily_status.md.
+6. For discovery inbox rows the planner selects for catalog capture, including rows marked `catalog: candidate`, run async-research idea capture research_ops --from-inbox "<row-id-or-IDEA-ID>" --id "<IDEA-ID>" --dry-run first. Use --write only when the row is explicit, non-ambiguous, and safe under the dry-run proposal. Do not create a task directly from discovery_inbox.md.
+7. Run async-research idea catalog list research_ops --status promote and choose at most 3 ideas. For selected ideas, inspect async-research idea catalog show research_ops <IDEA-ID> and respect payload.score.max_promotions_per_week when present; use the stricter of that value and the at-most-3 planner limit.
+8. Before running promotion dry-run, scan research_ops/tasks/*/status.json for catalog_idea_id matching the selected IDEA ID. If an existing task already references the idea, skip it unless a recorded human decision or explicit planner note explains the different follow-up task type or scope.
+9. For each selected idea, run async-research idea promote research_ops <IDEA-ID> --dry-run. If duplicate or near-duplicate promotion is intentional, use --allow-duplicate only when a recorded human decision or explicit planner note explains the new angle.
+10. Treat the promotion dry-run as authoritative. If action is idea_promotion_blocked, do not create a task; list the blockers and required human decisions.
+11. Before creating any proposal that would trigger paid API/cloud work, run async-research cost budget-check research_ops --item-id "<IDEA-ID>" --action promotion --proposed-api-usd <estimate> --proposed-compute-usd <estimate>. If it exits nonzero, park the idea or route it to needs_human.
+12. For a successful proposal, create at most one small task folder under research_ops/tasks/ by replacing TASK-PROPOSED in proposal.task_markdown_draft and proposal.status_json_draft with the next real TASK ID and slug. Preserve proposal task_type, objective, scope, allowed_paths, data_refs, max_minutes, max_turns, kill_reason, validation_commands, and review tier unless a human-approved reason is recorded.
+13. Each task must be completable in 30-45 minutes unless the proposal explicitly allows a longer max_minutes value for panel, synthesis, or experiment-planning work.
+14. Write task.md and status.json for each new task; every status.json must include schema_version="1.0", prompt_versions, framework_versions, catalog_idea_id when promoted from the catalog, and prompt_versions.planner="planner_v1.0".
+15. For `experiment_plan` proposals, create the task only when the promotion dry-run selected task_type=experiment_plan. Add a Data Source Audit section to task.md, set status.json data_audit_refs, include async_research_workflow/templates/artifact_templates/experiment_plan_template.md in context, and run async-research source check-experiment research_ops <task-dir>/task.md before appending queue.md. If it fails, create a `data_readiness` task first or route to `needs_human`.
+16. For each new task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir>.
+17. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise task.md so the task has a clear new angle, create a revalidation task first, or park it.
+18. Run the validation commands listed in the promotion proposal where applicable before queue insertion.
+19. Append queue.md only after task.md, status.json, anti_context.md, source checks, and transition/schema checks are coherent.
+20. After appending queue.md, close the v1 catalog loop so the same idea is not promoted again next run. Until V2 transactional promotion writes exist, run async-research idea park research_ops <IDEA-ID> --reason "promoted to <TASK-ID>" --revisit "revisit if <TASK-ID> is rejected, killed, or needs a distinct follow-up" --dry-run, then rerun with --write if the dry-run is safe. Run async-research idea catalog validate research_ops after the status write.
+21. Update daily_status.md.
 
 Rules:
 - Do not work on the tasks yourself.
@@ -173,6 +175,7 @@ Rules:
 - Do not edit existing worker_output.md, reviews/, or review_panel/ files.
 - Do not create execution tasks directly from discovery_inbox.md; capture into the durable idea catalog first.
 - Do not create tasks from blocked `idea promote` proposals.
+- Do not create a second task from the same catalog idea unless an existing task scan, human decision, or explicit planner note proves the new task is a distinct follow-up.
 - Do not use `--allow-duplicate` without a recorded human decision or explicit planner note naming the non-duplicate angle.
 - Do not create tasks requiring paid API/cloud spend unless status.json has requires_human=true.
 - Set prompt_versions.planner="planner_v1.0" and preserve the default prompt/framework version set.
