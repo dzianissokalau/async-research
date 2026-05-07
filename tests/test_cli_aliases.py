@@ -48,6 +48,10 @@ class CliAliasTests(unittest.TestCase):
             alias_code, alias_payload = run_cli_json(["accepted", "revalidate", str(ops_dir)])
 
             self.assertEqual(canonical_code, alias_code)
+            self.assertIn("generated_at", canonical_payload)
+            self.assertIn("generated_at", alias_payload)
+            canonical_payload.pop("generated_at")
+            alias_payload.pop("generated_at")
             self.assertEqual(canonical_payload, alias_payload)
             self.assertTrue(alias_payload["ok"])
 

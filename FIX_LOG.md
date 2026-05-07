@@ -5,6 +5,23 @@ workflow simulations, external reviews, and dogfooding. It is separate from
 `CHANGELOG.md`: the changelog summarizes release-level changes, while this log
 keeps operational context for why a fix was made and how it was verified.
 
+## 2026-05-07 - CLI Alias CI Flake
+
+Commit: `Harden accepted alias timestamp test`
+
+Source: GitHub Actions run `25480701676` on commit `f0d450a`.
+
+### Fixed
+
+| Area | Problem | Resolution | Verification |
+| --- | --- | --- | --- |
+| Accepted-memory alias regression | `test_accepted_revalidate_alias_matches_revalidation_report` compared full JSON payloads from `accepted revalidation` and its `accepted revalidate` alias, including the fresh `generated_at` timestamp. Python 3.11 CI crossed a one-second boundary between invocations and failed even though alias behavior matched. | The regression now asserts both payloads include `generated_at`, then removes that volatile timestamp before comparing the stable alias contract. | Added focused regression coverage and reran the alias test plus full unittest discovery. |
+
+### Verification Run
+
+- `.venv/bin/python -m unittest tests.test_cli_aliases.CliAliasTests.test_accepted_revalidate_alias_matches_revalidation_report`
+- `.venv/bin/python -m unittest discover -s tests`
+
 ## 2026-05-06 - Manus Workflow Simulation Fixes
 
 Commit: `04dc736` (`Harden accepted memory extraction`)
