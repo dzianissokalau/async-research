@@ -105,6 +105,55 @@ class TaskTransactionTests(unittest.TestCase):
             ]
             self.assertEqual(1, len(task_rows))
 
+    def test_queue_identity_uses_first_cell_not_cross_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            write_text(
+                ops_dir / "queue.md",
+                "\n".join(
+                    [
+                        "# Queue",
+                        "",
+                        "| task | priority | status | type | next_runner | notes |",
+                        "| --- | ---: | --- | --- | --- | --- |",
+                        "| [TASK-7504](tasks/TASK-7504-data-readiness/task.md) | 2 | ready_for_worker | data_readiness | worker | target row |",
+                        "| [TASK-7505](tasks/TASK-7505-data-readiness/task.md) | 2 | ready_for_worker | data_readiness | worker | depends on TASK-7504 |",
+                        "",
+                    ]
+                ),
+            )
+
+            removal = task_transaction.remove_queue_row(ops_dir, "TASK-7504")
+            second = task_transaction.append_queue_row_once(ops_dir, queue_row("TASK-7504"))
+
+            queue_text = (ops_dir / "queue.md").read_text(encoding="utf-8")
+            self.assertEqual(1, removal["removed_count"])
+            self.assertIn("TASK-7505", queue_text)
+            self.assertIn("depends on TASK-7504", queue_text)
+            self.assertTrue(second["changed"])
+            task_rows = [line for line in queue_text.splitlines() if line.startswith("|") and "TASK-7505" in line]
+            self.assertEqual(1, len(task_rows))
+
+    def test_queue_contains_task_ignores_notes_only_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            write_text(
+                ops_dir / "queue.md",
+                "\n".join(
+                    [
+                        "# Queue",
+                        "",
+                        "| task | priority | status | type | next_runner | notes |",
+                        "| --- | ---: | --- | --- | --- | --- |",
+                        "| [TASK-7506](tasks/TASK-7506-data-readiness/task.md) | 2 | ready_for_worker | data_readiness | worker | mentions TASK-7507 |",
+                        "",
+                    ]
+                ),
+            )
+
+            self.assertTrue(task_transaction.queue_contains_task(ops_dir, "TASK-7506"))
+            self.assertFalse(task_transaction.queue_contains_task(ops_dir, "TASK-7507"))
+
     def test_queue_append_failure_removes_staged_and_final_task_folder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
@@ -154,6 +203,49 @@ class TaskTransactionTests(unittest.TestCase):
             rollback_actions = {item["action"] for item in payload["rollback"]["actions"]}
             self.assertIn("remove_task_folder", rollback_actions)
             self.assertIn("remove_queue_row", rollback_actions)
+
+    def test_extra_files_are_written_and_unsafe_paths_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+
+            code, payload = task_transaction.write_task_transaction(
+                ops_dir,
+                "TASK-7508-data-readiness",
+                task_markdown("TASK-7508"),
+                valid_status("TASK-7508"),
+                queue_row("TASK-7508"),
+                extra_files={
+                    "anti_context.md": "# Anti-Context\n",
+                    "artifacts/input.txt": b"fixture input\n",
+                },
+            )
+            self.assertEqual(task_transaction.SUCCESS, code, payload)
+            task_dir = ops_dir / "tasks" / "TASK-7508-data-readiness"
+            self.assertEqual("# Anti-Context\n", (task_dir / "anti_context.md").read_text(encoding="utf-8"))
+            self.assertEqual(b"fixture input\n", (task_dir / "artifacts" / "input.txt").read_bytes())
+
+            with self.assertRaises(task_transaction.TaskTransactionError) as context:
+                task_transaction.stage_task_folder(
+                    ops_dir,
+                    "TASK-7509-data-readiness",
+                    task_markdown("TASK-7509"),
+                    valid_status("TASK-7509"),
+                    extra_files={"../escape.txt": "nope"},
+                )
+            self.assertEqual("unsafe_extra_task_file_path", context.exception.payload["reason"])
+            self.assertFalse((ops_dir / "tasks" / "TASK-7509-data-readiness").exists())
+            self.assertEqual([], list((ops_dir / "tasks").glob(".TASK-7509-data-readiness.staging.*")))
+
+    def test_missing_task_markdown_reports_single_read_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            task_dir = ops_dir / "tasks" / "TASK-7510-data-readiness"
+            task_dir.mkdir()
+            write_text(task_dir / "status.json", task_transaction.json_bytes(valid_status("TASK-7510")).decode("utf-8"))
+
+            failures = task_transaction.validate_task_folder(ops_dir, task_dir)
+
+            self.assertEqual(["task_markdown_read_failed"], [item["reason"] for item in failures])
 
 
 if __name__ == "__main__":

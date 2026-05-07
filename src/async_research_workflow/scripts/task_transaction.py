@@ -64,12 +64,25 @@ def queue_path(ops_dir: Path) -> Path:
     return ops_dir / "queue.md"
 
 
+def queue_row_task_id(line: str) -> str | None:
+    stripped = line.lstrip()
+    if not stripped.startswith("|"):
+        return None
+    cells = stripped.split("|")
+    if len(cells) <= 1:
+        return None
+    return task_id_from_text(cells[1])
+
+
 def queue_contains_task(ops_dir: Path, task_id: str) -> bool:
     path = queue_path(ops_dir)
     if not path.exists():
         return False
     try:
-        return task_id in path.read_text(encoding="utf-8")
+        return any(
+            queue_row_task_id(line) == task_id
+            for line in path.read_text(encoding="utf-8").splitlines()
+        )
     except (OSError, UnicodeDecodeError):
         return False
 
@@ -134,7 +147,7 @@ def remove_queue_row(ops_dir: Path, task_id: str) -> dict[str, Any]:
     kept: list[str] = []
     removed = 0
     for line in lines:
-        if line.lstrip().startswith("|") and task_id in line:
+        if queue_row_task_id(line) == task_id:
             removed += 1
             continue
         kept.append(line)
@@ -213,8 +226,8 @@ def validate_task_folder(ops_dir: Path, task_dir: Path) -> list[dict[str, Any]]:
         task_text = task_md.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         failures.append({"reason": "task_markdown_read_failed", "path": str(task_md), "error": str(exc)})
-        task_text = ""
-    if not task_text.strip():
+        task_text = None
+    if task_text is not None and not task_text.strip():
         failures.append({"reason": "task_markdown_empty", "path": str(task_md)})
 
     try:
