@@ -25,9 +25,10 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight and V2.2 proposal write mode shipped; task creation write mode remains deferred until transactional tests exist. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, and V2.3 recovery hardening shipped; task creation write mode remains deferred until transactional helpers exist. |",
                 "| V2.1 | Contract and preflight design | Complete |",
                 "| V2.2 | Proposal write mode | Complete |",
+                "| V2.3 | Proposal write recovery tests | Complete |",
                 "| V2.6 | Task creation write mode | Planned |",
             ],
         )

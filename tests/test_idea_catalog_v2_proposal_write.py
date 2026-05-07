@@ -1,4 +1,4 @@
-"""Regression tests for V2.2 idea promotion proposal write mode."""
+"""Regression tests for V2 proposal-write mode and recovery hardening."""
 
 from __future__ import annotations
 
@@ -7,9 +7,11 @@ import io
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import idea_catalog as idea_catalog_script
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -118,6 +120,24 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
         candidate["data_refs"] = ["DS-0001"]
         write_json(ops_dir / "ideas" / f"{idea_id}.json", candidate)
         return candidate
+
+    def write_catalog_lock(
+        self,
+        ops_dir: Path,
+        started_at: str = "2099-01-01T00:00:00Z",
+        expires_at: str = "2099-01-01T00:30:00Z",
+    ) -> Path:
+        lock_dir = ops_dir / "ideas" / "LOCK"
+        write_json(
+            lock_dir / "owner.json",
+            {
+                "command": "test",
+                "pid": 123,
+                "started_at": started_at,
+                "lock_expires_at": expires_at,
+            },
+        )
+        return lock_dir
 
     def dry_run_hash(self, ops_dir: Path, idea_id: str, *extra: str) -> tuple[str, dict]:
         code, payload = run_cli_json(["idea", "promote", ops_dir, idea_id, "--dry-run", *extra])
@@ -279,6 +299,153 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             )
             self.assertEqual(cli.SUCCESS, written_code, written)
             self.assertTrue(written["proposal_ref"]["human_override"])
+
+    def test_write_refuses_fresh_catalog_lock_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7406")
+            preflight_hash, _dry_run = self.dry_run_hash(ops_dir, "IDEA-7406")
+            self.write_catalog_lock(ops_dir)
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(
+                ["idea", "promote", ops_dir, "IDEA-7406", "--write", "--preflight-hash", preflight_hash]
+            )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("catalog_locked", payload["reason"])
+            self.assertEqual("idea_promotion_write_refused", payload["action"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_write_rotates_stale_lock_and_preserves_queue_and_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7407")
+            preflight_hash, _dry_run = self.dry_run_hash(ops_dir, "IDEA-7407")
+            lock_dir = self.write_catalog_lock(
+                ops_dir,
+                started_at="2000-01-01T00:00:00Z",
+                expires_at="2000-01-01T00:30:00Z",
+            )
+            queue_before = (ops_dir / "queue.md").read_bytes()
+            tasks_before = file_snapshot(ops_dir / "tasks")
+
+            code, payload = run_cli_json(
+                ["idea", "promote", ops_dir, "IDEA-7407", "--write", "--preflight-hash", preflight_hash]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("idea_promotion_proposal_written", payload["action"])
+            self.assertFalse(lock_dir.exists())
+            self.assertTrue(list((ops_dir / "ideas").glob("LOCK.stale.*")))
+            self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
+            self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
+
+    def test_blocked_candidate_refuses_write_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            blocked = self.write_promotable_idea(ops_dir, "IDEA-7408")
+            blocked["status"] = "park"
+            blocked["status_reason"] = "not ready for promotion"
+            blocked["revisit_condition"] = "after a human owner reopens it"
+            write_json(ops_dir / "ideas" / "IDEA-7408.json", blocked)
+            blocked_code, blocked_plan = run_cli_json(["idea", "promote", ops_dir, "IDEA-7408", "--dry-run"])
+            self.assertEqual(2, blocked_code, blocked_plan)
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(
+                [
+                    "idea",
+                    "promote",
+                    ops_dir,
+                    "IDEA-7408",
+                    "--write",
+                    "--preflight-hash",
+                    blocked_plan["promotion_preflight_hash"],
+                ]
+            )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("promotion_plan_blocked", payload["reason"])
+            self.assertEqual("idea_promotion_blocked", payload["dry_run_plan"]["action"])
+            self.assertTrue(
+                any(item["reason"] == "status_not_promotable" for item in payload["dry_run_plan"]["blockers"])
+            )
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_partial_inbox_without_idea_ref_requires_recovery_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7409")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7409")
+            write_text(
+                ops_dir / "inbox.md",
+                "\n".join(
+                    [
+                        "# Inbox",
+                        "",
+                        "| item | source | notes |",
+                        "| --- | --- | --- |",
+                        f"| PROMO-PARTIAL | ideas/IDEA-7409.json | idempotency_key={dry_run['idempotency_key']} |",
+                        "",
+                    ]
+                ),
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(
+                ["idea", "promote", ops_dir, "IDEA-7409", "--write", "--preflight-hash", preflight_hash]
+            )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("promotion_proposal_recovery_required", payload["reason"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertEqual(str(ops_dir / "inbox.md"), payload["recovery"]["path"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_post_write_validation_failure_reports_recovery_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7410")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7410")
+            queue_before = (ops_dir / "queue.md").read_bytes()
+            tasks_before = file_snapshot(ops_dir / "tasks")
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "catalog_validation_report_from_model",
+                return_value={
+                    "ok": False,
+                    "warnings": [],
+                    "failures": [
+                        {
+                            "severity": "failure",
+                            "reason": "forced_post_write_failure",
+                            "message": "forced by test",
+                        }
+                    ],
+                },
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7410", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("post_write_validation_failed", payload["reason"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertIn("transaction_id", payload["recovery"])
+            self.assertEqual("append_promotion_proposal", payload["recovery"]["partial_artifact"]["action"])
+            self.assertTrue(payload["files_written"])
+            self.assertIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            updated = read_json(ops_dir / "ideas" / "IDEA-7410.json")
+            self.assertEqual(dry_run["idempotency_key"], updated["promotion_proposal_refs"][0]["idempotency_key"])
+            self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
+            self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
 
 
 if __name__ == "__main__":
