@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from async_research_workflow import __version__
+from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
 
 
@@ -1577,7 +1578,7 @@ def register_artifact_commands(subparsers) -> None:
         description="List canonical research_ops/ideas/IDEA-*.json records with stored status and derived display labels.",
     )
     add_common_ops(idea_catalog_list)
-    idea_catalog_list.add_argument("--status", choices=("candidate", "promote", "park", "reject", "promoted", "needs_human"), help="Filter by stored idea status.")
+    idea_catalog_list.add_argument("--status", choices=STORED_STATUSES, help="Filter by stored idea status.")
     idea_catalog_list.set_defaults(func=run_idea_catalog_list_command)
     idea_catalog_show = add_command(
         idea_catalog_sub,

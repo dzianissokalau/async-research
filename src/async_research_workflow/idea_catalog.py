@@ -728,18 +728,21 @@ def validate_candidate_record(record: dict[str, Any], ops_dir: Path) -> tuple[li
 
 def catalog_validation_report(ops_dir: Path) -> dict[str, Any]:
     model = read_catalog(ops_dir)
-    warnings = list(model["warnings"])
+    warnings = [
+        warning
+        for warning in model["warnings"]
+        if warning.get("reason") not in MALFORMED_WARNING_REASONS
+    ]
     failures = list(model["failures"])
 
     for warning in model["warnings"]:
         if warning.get("reason") in MALFORMED_WARNING_REASONS:
             failures.append(warning_as_failure(warning))
 
-    if not model["failures"]:
-        for record in model["candidates"]:
-            record_warnings, record_failures = validate_candidate_record(record, ops_dir)
-            warnings.extend(record_warnings)
-            failures.extend(record_failures)
+    for record in model["candidates"]:
+        record_warnings, record_failures = validate_candidate_record(record, ops_dir)
+        warnings.extend(record_warnings)
+        failures.extend(record_failures)
 
     return {
         "ok": not failures,

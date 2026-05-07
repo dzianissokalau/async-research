@@ -151,6 +151,8 @@ class IdeaCatalogValidatorTests(unittest.TestCase):
                 ["duplicate_idea_id", "filename_id_mismatch"],
                 [item["reason"] for item in payload["failures"]],
             )
+            self.assertNotIn("duplicate_idea_id", [item["reason"] for item in payload["warnings"]])
+            self.assertNotIn("filename_id_mismatch", [item["reason"] for item in payload["warnings"]])
 
     def test_malformed_candidate_json_fails_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -162,6 +164,24 @@ class IdeaCatalogValidatorTests(unittest.TestCase):
 
             self.assertEqual(idea_catalog.MALFORMED, code, payload)
             self.assertEqual(["malformed_candidate_json"], [item["reason"] for item in payload["failures"]])
+
+    def test_malformed_json_does_not_hide_validation_on_other_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_catalog(ops_dir)
+            write_text(ops_dir / "ideas" / "IDEA-0001.json", "{not-json\n")
+            candidate = valid_candidate("IDEA-0002")
+            candidate["status"] = "promote"
+            candidate["kill_reason"] = ""
+            write_json(ops_dir / "ideas" / "IDEA-0002.json", candidate)
+
+            code, payload = run_helper_json(["validate", ops_dir])
+
+            self.assertEqual(idea_catalog.MALFORMED, code, payload)
+            self.assertCountEqual(
+                ["malformed_candidate_json", "promote_missing_kill_reason"],
+                [item["reason"] for item in payload["failures"]],
+            )
 
     def test_promote_missing_kill_reason_is_unsafe_promotion_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -272,6 +292,104 @@ class IdeaCatalogValidatorTests(unittest.TestCase):
                 [item["reason"] for item in payload["failures"]],
             )
             self.assertEqual(["library_ref_unresolved"], [item["reason"] for item in payload["warnings"] if item["reason"] == "library_ref_unresolved"])
+
+    def test_lifecycle_validation_branches_are_covered(self) -> None:
+        cases = [
+            (
+                "needs_human_missing_human_gate_reason",
+                {"status": "needs_human"},
+                "needs_human_missing_human_gate_reason",
+                "failures",
+            ),
+            (
+                "parked_or_rejected_missing_reason",
+                {"status": "park", "kill_reason": "", "status_reason": "", "revisit_condition": "wait for data"},
+                "parked_or_rejected_missing_reason",
+                "failures",
+            ),
+            (
+                "parked_or_rejected_missing_revisit_condition",
+                {"status": "reject", "status_reason": "not viable", "revisit_condition": ""},
+                "parked_or_rejected_missing_revisit_condition",
+                "failures",
+            ),
+            (
+                "promote_missing_recommended_next_task",
+                {"status": "promote", "recommended_next_task": ""},
+                "promote_missing_recommended_next_task",
+                "failures",
+            ),
+            (
+                "promote_unsafe_next_task",
+                {"status": "promote", "recommended_next_task": "park"},
+                "promote_unsafe_next_task",
+                "failures",
+            ),
+            (
+                "promote_below_minimum_killability",
+                {"status": "promote", "score": {"killability": 1}},
+                "promote_below_minimum_killability",
+                "failures",
+            ),
+            (
+                "promoted_missing_promoted_task_id",
+                {"status": "promoted"},
+                "promoted_missing_promoted_task_id",
+                "failures",
+            ),
+            (
+                "promote_score_threshold_missing",
+                {"status": "promote", "score": {"weighted_total": None}},
+                "promote_score_threshold_missing",
+                "failures",
+            ),
+            (
+                "score_threshold_missing",
+                {"score": {"weighted_total": None}},
+                "score_threshold_missing",
+                "warnings",
+            ),
+            (
+                "scored_idea_missing_mission_policy_version",
+                {"score": {"mission_policy_version": ""}},
+                "scored_idea_missing_mission_policy_version",
+                "failures",
+            ),
+            (
+                "missing_cluster_ref",
+                {"cluster_id": "CL-9999"},
+                "missing_cluster_ref",
+                "failures",
+            ),
+            (
+                "missing_rejected_idea_ref",
+                {"rejected_idea_refs": ["IDEA-9999"]},
+                "missing_rejected_idea_ref",
+                "failures",
+            ),
+            (
+                "missing_rejected_result_ref",
+                {"rejected_result_refs": ["TASK-9999"]},
+                "missing_rejected_result_ref",
+                "failures",
+            ),
+        ]
+        for name, updates, expected_reason, collection in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    ops_dir = Path(tmp) / "research_ops"
+                    bootstrap_empty_catalog(ops_dir)
+                    candidate = valid_candidate("IDEA-0001")
+                    updates = dict(updates)
+                    score_updates = updates.pop("score", None)
+                    candidate.update(updates)
+                    if score_updates is not None:
+                        candidate["score"].update(score_updates)
+                    write_json(ops_dir / "ideas" / "IDEA-0001.json", candidate)
+
+                    _code, payload = run_helper_json(["validate", ops_dir])
+
+                    self.assertIn(expected_reason, [item["reason"] for item in payload[collection]])
 
     def test_list_and_show_cli_are_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
