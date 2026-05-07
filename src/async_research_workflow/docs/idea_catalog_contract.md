@@ -394,11 +394,89 @@ The dashboard summary distinguishes issue volume from the capped blocker list:
 `displayed_blocker_count` reports how many entries were included in
 `sections.top_blockers` after applying `--max-blockers`.
 
+## V2.1 Promotion Write Contract And Preflight
+
+V2.1 is a design and test-preflight slice. It does not enable promotion write
+mode. Until V2.2 ships, `async-research idea promote ... --write` continues to
+refuse mutation and `--dry-run` remains the only executable promotion behavior.
+
+Promotion write mode is split into two later write slices:
+
+| Slice | May mutate | Must not mutate |
+| --- | --- | --- |
+| Proposal write mode | `research_ops/inbox.md`, the selected `ideas/IDEA-*.json` proposal reference fields, generated idea projections, and `decision_history` for the proposal reference. | `queue.md`, `tasks/`, accepted-output ledgers, source audit rows, and unrelated idea records. |
+| Task creation write mode | One new `tasks/TASK-*/` folder, one `queue.md` row, the selected idea's `promoted_task_id`, generated idea projections, and transaction/audit metadata. | More than one task, unrelated queue rows, unrelated ideas, source audit state, accepted-output ledgers, and manual notes outside generated blocks. |
+
+Required lock ordering:
+
+1. Acquire `research_ops/ideas/LOCK` before re-reading the selected idea for any
+   write-mode promotion slice.
+2. Re-read the idea, recompute the promotion preflight hash, and rerun catalog
+   validation while the catalog lock is held.
+3. Proposal write mode may then prepare an `inbox.md` append transaction; it
+   must commit the inbox append and idea proposal reference together or report a
+   recovery payload that names the partial artifact.
+4. Task creation write mode may then reserve or allocate the task id, stage task
+   files outside the final task path, and validate the staged `task.md` and
+   `status.json` before touching `queue.md`.
+5. Append `queue.md` only after staged task files validate. Update the idea's
+   `promoted_task_id` only after the task folder and queue row are both
+   finalized.
+6. Release `research_ops/ideas/LOCK` last. If a future queue/task lock is added,
+   it must be acquired after the catalog lock and released before the catalog
+   lock to avoid deadlocks.
+
+Task IDs must be allocated by a deterministic reservation rule before task
+files are finalized. A write must refuse when the reserved task id already has
+a task folder, an existing `queue.md` row, or a different idea's
+`promoted_task_id`. Re-running the same write command may be idempotent only
+when the existing task folder, queue row, and idea `promoted_task_id` all match
+the same `catalog_idea_id` and transaction id.
+
+The idempotency key for both write slices is:
+
+```text
+catalog_idea_id + task_type + promotion_preflight_hash
+```
+
+The promotion preflight hash must include at least the selected idea id, status,
+score object, recommended next task, duplicate status, refs, kill reason, and
+the dry-run proposal task type. If any of those fields change between dry-run
+and write, the write must refuse with `reason=promotion_preflight_changed` and
+tell the operator to rerun `--dry-run`.
+
+Rollback boundaries:
+
+- Proposal write mode must not leave an inbox proposal without a matching idea
+  proposal reference unless the response returns an explicit recovery payload.
+- Task creation write mode must remove staged task files if queue append fails.
+- If final validation fails after queue append, the helper must roll back the
+  task folder and queue row together before releasing the catalog lock.
+- If rollback itself fails, the helper must stop, return `needs_human`, and
+  include exact paths, transaction id, and next recovery command suggestions.
+
+Human override is required before a write when any of these are true:
+
+- `--allow-duplicate` is needed for a duplicate or near-duplicate idea.
+- the dry-run proposal routes to `experiment_plan`.
+- the proposal has `review_tier >= 2`, `max_minutes > 75`, or projected spend
+  that fails `async-research cost budget-check`.
+- catalog validation returns failures or blocking promotion reasons.
+- an existing task, queue row, or proposal appears related but does not match
+  the current idempotency key.
+
+Preflight tests for V2.2 and later must cover duplicate retry, stale
+`research_ops/ideas/LOCK`, changed candidate between dry-run and write, partial
+inbox proposal without idea reference, partial task folder without queue row,
+queue row without task folder, stale `promoted_task_id`, existing task folder,
+and rollback failure reporting before any queue or task mutation ships.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.
 - Without `--write`, idea-catalog commands are read-only or dry-run by default.
-- Promotion write mode is outside v1.
+- Promotion write mode is outside v1. In V2.1 it is still design-only; later V2
+  slices must pass the preflight tests before enabling mutation.
 - Direct experiment promotion remains blocked unless existing source and data
   gates pass.
 - Single-writer operation is assumed for mutating catalog commands in v1.

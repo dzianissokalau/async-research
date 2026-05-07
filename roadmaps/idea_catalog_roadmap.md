@@ -186,7 +186,7 @@ Last updated: 2026-05-07
 | 8 | Promotion dry run | Complete | Adds read-only `idea promote` proposals with task-type routing, blocker reporting, duplicate override gating, experiment-plan gate checks, and no `queue.md` or task-folder mutation. |
 | 9 | Planner promotion behavior | Complete | Teaches planner prompts and core docs to move from discovery inbox to durable catalog to dry-run promotion proposal to planner-created task and queue row, preserving v1 safety boundaries. |
 | 10 | Dashboard read-only view | Complete | Adds read-only `idea catalog dashboard` portfolio views for active, parked, promoted, and rejected ideas, top blockers, score dimensions with `unavailable` for missing score artifacts, next tasks, and idea-to-task links. |
-| V2 | Promotion write mode | Deferred | Only after dry-run promotion has usage history and transactional queue/task writes are designed. |
+| V2 | Promotion write mode | In progress | V2.1 contract/preflight shipped; proposal and task write implementations remain deferred until transactional tests exist. |
 
 ## Framework Integration
 
@@ -843,7 +843,7 @@ Implementation steps:
 
 | Step | Slice | Status | Goal | Acceptance / Tests |
 | ---: | --- | --- | --- | --- |
-| V2.1 | Contract and preflight design | Planned | Document exactly what `idea promote --write` may mutate, lock ordering, task ID allocation, idempotency keys, rollback boundaries, and human override rules. | Roadmap and `idea_catalog_contract.md` define proposal-write and task-write boundaries; tests describe duplicate retry, stale lock, changed candidate, and partial-output failure cases before implementation. |
+| V2.1 | Contract and preflight design | Complete | Document exactly what `idea promote --write` may mutate, lock ordering, task ID allocation, idempotency keys, rollback boundaries, and human override rules. | Roadmap and `idea_catalog_contract.md` define proposal-write and task-write boundaries; tests describe duplicate retry, stale lock, changed candidate, and partial-output failure cases before implementation. |
 | V2.2 | Proposal write mode | Planned | Add the first safe `--write` slice: write one planner-facing promotion proposal reference without creating task folders or editing `queue.md`. | `idea promote --write` appends one proposal through a transactional helper, updates the canonical idea with a proposal reference, refuses duplicate proposal writes, preserves generated projection notes, and passes catalog validation after writes. |
 | V2.3 | Proposal write recovery tests | Planned | Harden proposal write mode before any queue mutation exists. | Tests cover lock present, stale lock rotation, duplicate retry, invalid candidate, post-write validation failure, and no mutation of `queue.md` or `tasks/`. |
 | V2.4 | Task transaction helper design | Planned | Build shared helpers for staged task-folder writes, queue append/remove, final validation, and rollback. | Unit tests prove staged files are removed if queue append fails, queue rows are not duplicated on retry, and rollback leaves no partial task folder. |
