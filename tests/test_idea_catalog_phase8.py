@@ -177,10 +177,59 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             blocked_code, blocked_payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7304"])
             self.assertEqual(2, blocked_code, blocked_payload)
             self.assertTrue(any(item["reason"] == "failed_hard_gates" for item in blocked_payload["blockers"]))
+            self.assertFalse(
+                any(
+                    item.get("reason") == "catalog_validation_failure"
+                    and item.get("failure_reason") == "promote_failed_hard_gates"
+                    for item in blocked_payload["blockers"]
+                )
+            )
 
             write_code, write_payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7304", "--write"])
             self.assertEqual(3, write_code, write_payload)
             self.assertEqual("promotion_write_deferred_to_v2", write_payload["reason"])
+
+    def test_promote_candidate_status_uses_lifecycle_recommendation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            ready = promotable_candidate("IDEA-7310", "Candidate ready idea")
+            ready["status"] = "candidate"
+            write_json(ops_dir / "ideas" / "IDEA-7310.json", ready)
+
+            ready_code, ready_payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7310"])
+
+            self.assertEqual(cli.SUCCESS, ready_code, ready_payload)
+            self.assertEqual("idea_promotion_planned", ready_payload["action"])
+            self.assertEqual("literature_extract", ready_payload["proposal"]["task_type"])
+
+    def test_promote_candidate_below_threshold_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            below = promotable_candidate("IDEA-7311", "Candidate below threshold")
+            below["status"] = "candidate"
+            below["score"]["weighted_total"] = 5.0
+            write_json(ops_dir / "ideas" / "IDEA-7311.json", below)
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7311"])
+
+            self.assertEqual(2, code, payload)
+            self.assertTrue(any(item["reason"] == "candidate_not_ready_for_promotion" for item in payload["blockers"]))
+            self.assertIsNone(payload["proposal"])
+
+    def test_promote_routes_plausible_unaudited_data_to_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7312", "Unaudited data idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["library_refs"] = ["LIT-7312"]
+            write_json(ops_dir / "ideas" / "IDEA-7312.json", candidate)
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7312"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            proposal = payload["proposal"]
+            self.assertEqual("data_readiness", proposal["task_type"])
+            self.assertEqual("data_plausible_but_unaudited", proposal["route_reason"])
 
     def test_promote_duplicate_requires_explicit_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

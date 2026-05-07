@@ -37,6 +37,7 @@ STORED_STATUSES = (
     "needs_human",
 )
 PROMOTABLE_NEXT_TASKS = {"hypothesis_card", "data_readiness", "literature_extract"}
+PROMOTION_TASK_TYPES = ("literature_extract", "data_readiness", "hypothesis_card", "experiment_plan")
 UNSAFE_DUPLICATE_STATUSES = {"duplicate", "near_duplicate"}
 NONE_MARKERS = {"", "none", "n/a", "na", "tbd", "todo"}
 MALFORMED_WARNING_REASONS = {

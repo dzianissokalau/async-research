@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from async_research_workflow import __version__
+from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
 
@@ -1625,7 +1626,7 @@ def register_artifact_commands(subparsers) -> None:
     )
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
-    idea_promote.add_argument("--task-type", choices=["literature_extract", "data_readiness", "hypothesis_card", "experiment_plan"], help="Explicit task type override for the promotion proposal.")
+    idea_promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
     idea_promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
     idea_promote.add_argument("--write", action="store_true", help="Reserved for V2; refused in Phase 8.")

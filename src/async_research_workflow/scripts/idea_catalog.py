@@ -24,6 +24,8 @@ from async_research_workflow.idea_catalog import IDEAS_DIR
 from async_research_workflow.idea_catalog import PRIORITIZATION_BLOCKS
 from async_research_workflow.idea_catalog import PRIORITIZATION_FILE
 from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
+from async_research_workflow.idea_catalog import PROMOTABLE_NEXT_TASKS
+from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.idea_catalog import blockers_for_payload
 from async_research_workflow.idea_catalog import candidate_summary
@@ -56,8 +58,6 @@ CLUSTER_ID_RE = re.compile(r"\bCL-[0-9]{4}\b")
 CATALOG_MARKER_RE = re.compile(r"\bcatalog\s*:\s*([a-z_]+)\b", re.IGNORECASE)
 IDEA_ID_PATTERN = re.compile(r"^IDEA-[0-9]{4}$")
 DATA_SOURCE_REF_RE = re.compile(r"\bDS-[0-9]{4}\b")
-PROMOTABLE_NEXT_TASKS = {"hypothesis_card", "data_readiness", "literature_extract"}
-PROMOTION_TASK_TYPES = ("literature_extract", "data_readiness", "hypothesis_card", "experiment_plan")
 CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
 CATALOG_LOCK_TTL = timedelta(minutes=30)
 TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
@@ -1771,6 +1771,8 @@ def promotion_blockers(
     record_warnings, record_failures = validate_candidate_record(record, ops_dir)
     for failure in record_failures:
         if allow_duplicate and failure.get("reason") == "promote_duplicate_or_near_duplicate":
+            continue
+        if failure.get("reason") == "promote_failed_hard_gates":
             continue
         blockers.append(
             {
