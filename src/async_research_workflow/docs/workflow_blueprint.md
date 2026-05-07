@@ -89,7 +89,7 @@ research_ops/
 | --- | --- | --- |
 | Human | all files | none |
 | Discovery Scout | `discovery_inbox.md`, `discovery/`, idea candidate files | `queue.md`, task folders, `data_source_audit.md` |
-| Planner | `queue.md`, new `task.md`, new `status.json`, `daily_status.md` | `worker_output.md`, `reviews/`, `review_panel/` |
+| Planner | `queue.md`, new task folders, `daily_status.md`, catalog writes only through `async-research idea ... --write` commands | `worker_output.md`, `reviews/`, `review_panel/`, hand-edited generated catalog blocks |
 | Worker | `worker_output.md`, `artifacts/`, limited `status.json` fields, `data_source_audit.md` for data-readiness tasks | `queue.md`, other task folders |
 | Primary Reviewer | `reviews/primary.md`, review fields in `status.json`, `daily_status.md` | worker artifacts unless explicitly fixing metadata |
 | Specialist Reviewer | its own file under `reviews/` | other reviewer files before aggregate exists |
@@ -249,7 +249,8 @@ Discovery is allowed to be autonomous, but not allowed to create execution work 
 
 ```text
 source scan -> idea candidates -> dedupe/cluster -> discovery_inbox.md
-            -> planner triage -> inbox.md or queue.md
+            -> planner capture -> ideas/IDEA-*.json
+            -> idea promote --dry-run -> planner-created task -> queue.md
 ```
 
 Default weekly limits:
@@ -257,10 +258,24 @@ Default weekly limits:
 - scan at most 10 sources or repo artifacts
 - generate at most 20 candidates
 - promote at most 5 to `discovery_inbox.md`
-- planner promotes at most 3 to real tasks
+- planner captures selected ideas into the durable catalog before task creation
+- planner promotes at most 3 catalog ideas to real tasks
 - every promoted idea needs a kill reason and a minimum viable test
 
 Discovery candidates should be cheap, skeptical, and disposable.
+
+Planner promotion rule:
+
+1. Run `async-research idea catalog validate research_ops`.
+2. Run `async-research idea promote research_ops IDEA-0001 --dry-run`.
+3. Create a task only when the proposal is successful and unblocked.
+4. Replace `TASK-PROPOSED` with a real task ID, preserve the proposal's task
+   type, scope, allowed paths, limits, kill reason, and validation commands.
+5. Append `queue.md` only after task files, anti-context, source checks, and
+   schema/transition checks are coherent.
+
+Duplicate, blocked, parked, or rejected catalog ideas do not become execution
+tasks without a recorded human decision or explicit planner note.
 
 ## Review Escalation
 

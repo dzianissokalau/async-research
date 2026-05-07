@@ -184,7 +184,7 @@ Last updated: 2026-05-07
 | 6 | Explicit capture and maintenance dry run | Complete | Adds dry-run `idea capture` and `idea catalog maintain` proposals with deterministic duplicate checks, explicit inbox markers, no JSON writes, and no queue/task mutation. |
 | 7 | Catalog maintenance write mode | Complete | Adds lock-protected capture and maintenance writes, explicit park/reject commands, atomic JSON/projection writes, stale-lock recovery, idempotency coverage, and note-preserving generated block regeneration. |
 | 8 | Promotion dry run | Complete | Adds read-only `idea promote` proposals with task-type routing, blocker reporting, duplicate override gating, experiment-plan gate checks, and no `queue.md` or task-folder mutation. |
-| 9 | Planner promotion behavior | Not started | Post-MVP. Teach planner docs/prompts to use catalog promotion proposals safely. |
+| 9 | Planner promotion behavior | Complete | Teaches planner prompts and core docs to move from discovery inbox to durable catalog to dry-run promotion proposal to planner-created task and queue row, preserving v1 safety boundaries. |
 | 10 | Dashboard read-only view | Not started | Post-MVP. Add read-only portfolio views after backend state stabilizes. |
 | V2 | Promotion write mode | Deferred | Only after dry-run promotion has usage history and transactional queue/task writes are designed. |
 

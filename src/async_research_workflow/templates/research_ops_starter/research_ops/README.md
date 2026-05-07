@@ -29,6 +29,18 @@ by tooling in later phases; keep manual notes outside those blocks.
 Catalog maintenance must not edit `queue.md` or create task folders. A planner
 or human-approved helper turns catalog ideas into bounded execution tasks.
 
+Planner promotion should stay catalog-first:
+
+```bash
+async-research idea catalog validate research_ops
+async-research idea catalog list research_ops --status promote
+async-research idea promote research_ops IDEA-0001 --dry-run
+```
+
+Create a task folder only from a successful, unblocked promotion proposal.
+Append `queue.md` only after the task files, anti-context, source checks, and
+listed validation commands are coherent.
+
 ## Starter Cadence
 
 - Run one bounded worker task at a time.

@@ -26,7 +26,9 @@ source scout
   -> cheap scorer
   -> skeptic filter
   -> discovery_inbox.md
-  -> planner triage
+  -> planner capture into ideas/IDEA-*.json
+  -> promotion dry-run proposal
+  -> planner-created task and queue row
 ```
 
 ## Source Classes
@@ -148,6 +150,36 @@ Ideas may use plausible unaudited data paths in `required_data`. Promotion to
 `async-research source check-experiment`; otherwise the next task should be
 `data_readiness`.
 
+## Catalog-To-Queue Promotion
+
+The planner must not turn a discovery inbox row directly into execution work.
+The safe path is:
+
+```bash
+async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry-run
+async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write
+async-research idea catalog validate research_ops
+async-research idea promote research_ops IDEA-0007 --dry-run
+```
+
+Only a successful `idea_promotion_planned` response may become a task folder.
+Blocked promotion proposals remain catalog/planning state and should be parked,
+rejected, repaired, or routed to human review. Duplicate or near-duplicate ideas
+must not become tasks unless `--allow-duplicate` is backed by a human decision
+or explicit planner note describing the different source, geography, mechanism,
+or decision use.
+
+The promotion proposal chooses the cheapest safe next task:
+
+- thin evidence -> `literature_extract`
+- plausible but unaudited data -> `data_readiness`
+- bounded hypothesis work -> `hypothesis_card`
+- `experiment_plan` only when audited data refs and hard gates already pass
+
+The planner creates task files from the dry-run proposal and appends `queue.md`
+only after task files, anti-context, source checks, and listed validation
+commands are coherent.
+
 ## Weekly Discovery Limits
 
 Default:
@@ -156,7 +188,7 @@ Default:
 - generate at most 20 raw candidates
 - keep at most 10 after dedupe
 - write at most 5 to `discovery_inbox.md`
-- planner promotes at most 3 into task folders
+- planner promotes at most 3 catalog ideas into task folders
 - no direct experiment tasks from discovery
 
 These limits are quality controls, not merely cost controls.

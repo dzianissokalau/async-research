@@ -26,7 +26,9 @@ Example:
 | IDEA-0007 | candidate | 19.5 | real_estate_research_v1.0 | EPC premium during energy shocks | EPC, PPD, energy CPI | London flats 2018-2025 | reject if EPC-sale matching is weak | data_readiness |
 ```
 
-Discovery entries are not execution tasks. The planner must promote them into `research_ops/inbox.md` or `queue.md`.
+Discovery entries are not execution tasks. The planner must capture promising
+entries into the durable idea catalog before creating `research_ops/inbox.md`
+or `queue.md` execution work.
 
 ## Idea Evaluation
 
@@ -71,6 +73,58 @@ routes fail closed.
 `score_idea_candidate.py` refuses invalid mission policies. Direct
 `experiment_plan` requests are rerouted to `data_readiness` before idea
 evaluation.
+
+## Catalog Promotion Proposal
+
+The durable planner path is:
+
+```text
+discovery_inbox.md
+-> async-research idea capture ... --write
+-> research_ops/ideas/IDEA-0001.json
+-> async-research idea promote research_ops IDEA-0001 --dry-run
+-> planner-created TASK folder
+-> queue.md row
+```
+
+The promotion command is a dry-run proposal in v1. It must not create task
+folders or edit `queue.md`; the planner owns those execution writes.
+
+Before creating a task from a catalog idea, run:
+
+```bash
+async-research idea catalog validate research_ops
+async-research idea promote research_ops IDEA-0001 --dry-run
+```
+
+Use a proposal only when it returns `action=idea_promotion_planned` and
+`ok=true`. Do not create tasks from blocked proposals. Duplicate or
+near-duplicate ideas require `--allow-duplicate` plus a recorded human decision
+or explicit planner note explaining the new angle.
+
+When creating the task, replace `TASK-PROPOSED` in
+`proposal.task_markdown_draft` and `proposal.status_json_draft` with the next
+real task ID and slug. Preserve these proposal fields unless a human-approved
+reason is recorded:
+
+- `task_type`
+- `objective`
+- `scope`
+- `allowed_paths`
+- `data_refs`
+- `max_minutes`
+- `max_turns`
+- `kill_reason`
+- `validation_commands`
+- `review_policy`
+
+Append the `queue.md` row only after `task.md`, `status.json`, `anti_context.md`,
+source checks, and applicable proposal validation commands pass. If the
+proposal routes to `literature_extract`, keep the task cheap and evidence
+gathering focused. If it routes to `data_readiness`, include source/audit checks
+before experiment planning. If it routes to `experiment_plan`, the referenced
+`DS-0000` data refs must pass `async-research source check-experiment` before
+the queue row is appended.
 
 ## Exploration Cycle
 

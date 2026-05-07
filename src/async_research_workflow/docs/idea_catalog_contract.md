@@ -318,6 +318,42 @@ objective, scope, required sources and refs, allowed paths, max minutes, max
 turns, kill reason, validation commands, blockers, and draft task/status
 content for a planner to turn into real task files manually.
 
+## Phase 9 Planner Promotion Behavior
+
+Phase 9 keeps promotion write mode disabled, but teaches the planner how to use
+dry-run proposals safely.
+
+The planner-controlled path is:
+
+```text
+discovery_inbox.md
+-> async-research idea capture ... --write
+-> ideas/IDEA-0001.json
+-> async-research idea promote research_ops IDEA-0001 --dry-run
+-> planner-created task folder
+-> queue.md row
+```
+
+Rules for planner-created tasks:
+
+- promote few ideas, normally at most 3 catalog ideas per planner run
+- create the cheapest killable next task that the proposal selects
+- use `literature_extract` when evidence is thin
+- use `data_readiness` when data is plausible but unaudited
+- create `experiment_plan` only when the proposal selects it and listed source
+  checks pass
+- preserve proposal scope, allowed paths, limits, kill reason, validation
+  commands, and review tier unless a human-approved reason is recorded
+- do not create tasks from blocked proposals
+- do not use `--allow-duplicate` without a human decision or explicit planner
+  note naming the non-duplicate angle
+- append `queue.md` only after task files, anti-context, source checks, and
+  applicable validation commands are coherent
+
+Catalog commands own portfolio state and proposal generation. The planner owns
+execution task creation. Catalog maintenance must not become a hidden queue
+writer in v1.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.
