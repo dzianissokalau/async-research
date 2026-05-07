@@ -484,13 +484,22 @@ Rollback boundaries:
 - If rollback itself fails, the helper must stop, return `needs_human`, and
   include exact paths, transaction id, and next recovery command suggestions.
 
-Human override is required before a write when any of these are true:
+Human override rules are slice-specific.
+
+For V2.2 proposal write mode, human override is required when any of these are
+true:
 
 - `--allow-duplicate` is needed for a duplicate or near-duplicate idea.
 - the dry-run proposal routes to `experiment_plan`.
-- the proposal has `review_tier >= 2`, `max_minutes > 75`, or projected spend
-  that fails `async-research cost budget-check`.
+- the proposal has `review_tier >= 2` or `max_minutes > 75`.
 - catalog validation returns failures or blocking promotion reasons.
+
+V2.2 has no projected spend, task creation, or queue mutation, so it does not
+run `async-research cost budget-check` or fuzzy related task/queue matching
+inside proposal write mode. Before V2.6 task creation write mode ships, human
+override must also be required when any of these are true:
+
+- projected spend fails `async-research cost budget-check`.
 - an existing task, queue row, or proposal appears related but does not match
   the current idempotency key.
 

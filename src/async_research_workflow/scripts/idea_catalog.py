@@ -2201,6 +2201,8 @@ def write_human_override_blockers(proposal: dict[str, Any]) -> list[dict[str, An
     task_type = str(proposal.get("task_type") or "")
     max_minutes = proposal.get("max_minutes")
     review_tier = proposal.get("status_json_draft", {}).get("review_policy", {}).get("tier")
+    # V2.2 proposal writes do not create tasks or spend budget.
+    # V2.6 task-write should add budget and queue gates here.
     if task_type == "experiment_plan":
         blockers.append({"reason": "experiment_plan_write_requires_human_override"})
     if isinstance(review_tier, int) and review_tier >= 2:
