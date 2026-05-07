@@ -9,3 +9,4 @@ docs.
 - [Knowledge Library Roadmap](./knowledge_library_roadmap.md)
 - [Data Foundations Roadmap](./data_foundations_roadmap.md)
 - [Idea Catalog Roadmap](./idea_catalog_roadmap.md)
+- [Hypothesis Testing Framework Roadmap](./hypothesis_testing_framework_roadmap.md)
