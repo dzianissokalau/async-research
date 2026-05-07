@@ -345,6 +345,8 @@ Rules for planner-created tasks:
   checks pass
 - preserve proposal scope, allowed paths, limits, kill reason, validation
   commands, and review tier unless a human-approved reason is recorded
+- use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the
+  reserved task identity for V2.5-or-newer proposals
 - do not create tasks from blocked proposals
 - do not use `--allow-duplicate` without a human decision or explicit planner
   note naming the non-duplicate angle
@@ -442,12 +444,20 @@ Required lock ordering:
    it must be acquired after the catalog lock and released before the catalog
    lock to avoid deadlocks.
 
-Task IDs must be allocated by a deterministic reservation rule before task
-files are finalized. A write must refuse when the reserved task id already has
-a task folder, an existing `queue.md` row, or a different idea's
-`promoted_task_id`. Re-running the same write command may be idempotent only
-when the existing task folder, queue row, and idea `promoted_task_id` all match
-the same `catalog_idea_id`, idempotency key, and transaction id.
+V2.5 defines the deterministic task-id reservation rule before task files are
+finalized. The reserved TASK ID reuses the selected IDEA numeric suffix:
+`IDEA-7501 -> TASK-7501`, with a task folder slug such as
+`TASK-7501-data-readiness`. Promotion dry-run and proposal write payloads expose
+this identity as `task_identity`, `proposal.proposed_task_id`, and
+`proposal.proposed_task_slug`.
+
+A write must refuse when the reserved task id already has a task folder, an
+existing `queue.md` row, an accepted-output row, a different idea's
+`promoted_task_id`, or a stale/existing `promoted_task_id` on the selected idea.
+Queue checks must match the task cell, not arbitrary note text. Re-running the
+same write command may be idempotent only when the existing task folder, queue
+row, and idea `promoted_task_id` all match the same `catalog_idea_id`,
+idempotency key, and transaction id.
 
 The idempotency key for both write slices is:
 

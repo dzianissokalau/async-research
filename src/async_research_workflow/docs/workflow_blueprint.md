@@ -269,8 +269,11 @@ Planner promotion rule:
 1. Run `async-research idea catalog validate research_ops`.
 2. Run `async-research idea promote research_ops IDEA-0001 --dry-run`.
 3. Create a task only when the proposal is successful and unblocked.
-4. Replace `TASK-PROPOSED` with a real task ID, preserve the proposal's task
-   type, scope, allowed paths, limits, kill reason, and validation commands.
+4. Use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the
+   reserved task identity, preserving the proposal's task type, scope, allowed
+   paths, limits, kill reason, and validation commands. Older proposals that
+   still contain `TASK-PROPOSED` must be resolved to one real task ID before
+   queue insertion.
 5. Append `queue.md` only after task files, anti-context, source checks, and
    schema/transition checks are coherent.
 

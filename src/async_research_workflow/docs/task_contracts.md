@@ -108,10 +108,12 @@ Before running promotion dry-run, scan `research_ops/tasks/*/status.json` for
 idea, skip the idea unless a recorded human decision or explicit planner note
 explains the different follow-up task type or scope.
 
-When creating the task, replace `TASK-PROPOSED` in
-`proposal.task_markdown_draft` and `proposal.status_json_draft` with the next
-real task ID and slug. Preserve these proposal fields unless a human-approved
-reason is recorded:
+When creating the task, use `proposal.proposed_task_id` and
+`proposal.proposed_task_slug` as the reserved task identity. New V2.5 proposals
+derive the TASK ID from the IDEA numeric suffix. For older proposals, replace
+`TASK-PROPOSED` in `proposal.task_markdown_draft` and
+`proposal.status_json_draft` with the next real task ID and slug. Preserve these
+proposal fields unless a human-approved reason is recorded:
 
 - `task_type`
 - `objective`

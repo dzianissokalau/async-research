@@ -124,7 +124,8 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             proposal = payload["proposal"]
             self.assertEqual("data_readiness", proposal["task_type"])
             self.assertEqual("catalog_recommended_next_task", proposal["route_reason"])
-            self.assertEqual("TASK-PROPOSED-IDEA-7301-data-readiness", proposal["proposed_task_slug"])
+            self.assertEqual("TASK-7301-data-readiness", proposal["proposed_task_slug"])
+            self.assertEqual("TASK-7301", proposal["proposed_task_id"])
             self.assertEqual(["DS-0001"], proposal["data_refs"])
             self.assertIn("max_minutes", proposal)
             self.assertIn("max_turns", proposal)

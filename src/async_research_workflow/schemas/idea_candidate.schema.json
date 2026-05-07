@@ -110,7 +110,7 @@
           },
           "proposed_task_slug": {
             "type": "string",
-            "pattern": "^TASK-PROPOSED-IDEA-[0-9]{4}-[a-z0-9-]+$"
+            "pattern": "^(TASK-PROPOSED-IDEA-[0-9]{4}|TASK-[0-9]{4})-[a-z0-9-]+$"
           },
           "created_at": {
             "type": "string",

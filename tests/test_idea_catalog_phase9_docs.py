@@ -33,6 +33,7 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "Do not create a task directly from discovery_inbox.md",
                 "Treat the promotion dry-run as authoritative",
                 "If action is idea_promotion_blocked, do not create a task",
+                "using proposal.proposed_task_id and proposal.proposed_task_slug",
                 "replacing TASK-PROPOSED in proposal.task_markdown_draft and proposal.status_json_draft",
                 "Append queue.md only after task.md, status.json, anti_context.md, source checks, and transition/schema checks are coherent",
                 "close the v1 catalog loop so the same idea is not promoted again next run",
@@ -56,6 +57,7 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "The promotion command is a dry-run proposal in v1",
                 "Do not create tasks from blocked proposals",
                 "scan `research_ops/tasks/*/status.json` for `catalog_idea_id` matching the candidate idea",
+                "use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
                 "Append the `queue.md` row only after `task.md`, `status.json`, `anti_context.md`, source checks, and applicable proposal validation commands pass",
                 "After appending `queue.md`, close the v1 catalog loop",
                 "This is a v1 planner closeout convention, not the V2 promoted-task transaction",
@@ -78,6 +80,7 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "idea promote --dry-run -> planner-created task -> queue.md",
                 "Run `async-research idea promote research_ops IDEA-0001 --dry-run`",
                 "Duplicate, blocked, parked, or rejected catalog ideas do not become execution tasks",
+                "Use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
             ],
         )
         self.assert_doc_contains(

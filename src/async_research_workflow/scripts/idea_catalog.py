@@ -43,6 +43,7 @@ from async_research_workflow.idea_catalog import prioritization_markers
 from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
 from async_research_workflow.idea_catalog import validate_candidate_record
+from async_research_workflow.scripts import task_transaction
 
 
 SUCCESS = 0
@@ -64,7 +65,8 @@ CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
 CATALOG_LOCK_TTL = timedelta(minutes=30)
 TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
 PROMOTION_DRY_RUN_POLICY_VERSION = "catalog_promotion_dry_run_v1.0"
-PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_proposal_write_v2.2"
+PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_proposal_write_v2.5"
+TASK_ID_RESERVATION_POLICY_VERSION = "catalog_task_id_reservation_v2.5"
 INBOX_FILE = "inbox.md"
 INBOX_TEMPLATE = "# Inbox\n\n| item | source | notes |\n| --- | --- | --- |\n"
 TASK_LIMITS = {
@@ -1911,6 +1913,182 @@ def promotion_idempotency_key(idea_id: str, task_type: str, preflight_hash: str)
     return f"{idea_id}:{task_type}:{preflight_hash}"
 
 
+def reserved_promotion_task_id(idea_id: str) -> str:
+    return f"TASK-{idea_id.removeprefix('IDEA-')}"
+
+
+def reserved_promotion_task_slug(idea_id: str, task_type: str) -> str:
+    return f"{reserved_promotion_task_id(idea_id)}-{slugify(task_type)}"
+
+
+def file_contains_text(path: Path, needle: str) -> bool:
+    try:
+        return path.exists() and needle in path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def task_status_payloads_for_id(ops_dir: Path, task_id: str) -> list[dict[str, Any]]:
+    tasks_dir = ops_dir / "tasks"
+    if not tasks_dir.exists() or not tasks_dir.is_dir():
+        return []
+    matches: list[dict[str, Any]] = []
+    for status_path in sorted(tasks_dir.glob("*/status.json")):
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and str(payload.get("id") or "").strip() == task_id:
+            matches.append(
+                {
+                    "task_dir": str(status_path.parent),
+                    "status_path": str(status_path),
+                    "payload": payload,
+                }
+            )
+    return matches
+
+
+def task_folder_paths_for_id(ops_dir: Path, task_id: str) -> list[str]:
+    tasks_dir = ops_dir / "tasks"
+    if not tasks_dir.exists() or not tasks_dir.is_dir():
+        return []
+    paths = {
+        str(path)
+        for path in tasks_dir.glob(f"{task_id}*")
+        if path.is_dir()
+    }
+    paths.update(item["task_dir"] for item in task_status_payloads_for_id(ops_dir, task_id))
+    return sorted(paths)
+
+
+def task_id_is_visible(ops_dir: Path, task_id: str) -> bool:
+    return (
+        bool(task_folder_paths_for_id(ops_dir, task_id))
+        or task_transaction.queue_contains_task(ops_dir, task_id)
+        or file_contains_text(ops_dir / "accepted_outputs_index.md", task_id)
+    )
+
+
+def promotion_task_claims(model: dict[str, Any], task_id: str, selected_idea_id: str) -> list[dict[str, Any]]:
+    claims: list[dict[str, Any]] = []
+    for record in model["candidates"]:
+        idea_id = str(record.get("idea_id") or "").strip()
+        if idea_id == selected_idea_id:
+            continue
+        payload = record.get("payload", {})
+        if str(payload.get("promoted_task_id") or "").strip() == task_id:
+            claims.append(
+                {
+                    "idea_id": idea_id,
+                    "path": record.get("path"),
+                    "status": payload.get("status") or "candidate",
+                }
+            )
+    return claims
+
+
+def promotion_task_identity(
+    ops_dir: Path,
+    model: dict[str, Any],
+    record: dict[str, Any],
+    task_type: str,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    idea_id = str(record["idea_id"])
+    task_id = reserved_promotion_task_id(idea_id)
+    task_dir_name = reserved_promotion_task_slug(idea_id, task_type)
+    task_folder_paths = task_folder_paths_for_id(ops_dir, task_id)
+    queue_row_present = task_transaction.queue_contains_task(ops_dir, task_id)
+    accepted_output_present = file_contains_text(ops_dir / "accepted_outputs_index.md", task_id)
+    status_payloads = task_status_payloads_for_id(ops_dir, task_id)
+    blockers: list[dict[str, Any]] = []
+
+    if task_folder_paths:
+        blockers.append(
+            {
+                "reason": "reserved_task_folder_exists",
+                "task_id": task_id,
+                "paths": task_folder_paths,
+            }
+        )
+    if queue_row_present:
+        blockers.append(
+            {
+                "reason": "reserved_queue_row_exists",
+                "task_id": task_id,
+                "path": str(ops_dir / "queue.md"),
+            }
+        )
+    if accepted_output_present:
+        blockers.append(
+            {
+                "reason": "reserved_accepted_output_exists",
+                "task_id": task_id,
+                "path": str(ops_dir / "accepted_outputs_index.md"),
+            }
+        )
+
+    other_claims = promotion_task_claims(model, task_id, idea_id)
+    if other_claims:
+        blockers.append(
+            {
+                "reason": "reserved_task_id_claimed_by_other_idea",
+                "task_id": task_id,
+                "claims": other_claims,
+            }
+        )
+
+    selected_promoted_task_id = str(record["payload"].get("promoted_task_id") or "").strip()
+    if selected_promoted_task_id:
+        visible = task_id_is_visible(ops_dir, selected_promoted_task_id)
+        if not visible:
+            blockers.append(
+                {
+                    "reason": "stale_promoted_task_id",
+                    "promoted_task_id": selected_promoted_task_id,
+                    "path": record.get("path"),
+                }
+            )
+        elif selected_promoted_task_id == task_id:
+            blockers.append(
+                {
+                    "reason": "selected_idea_already_has_promoted_task_id",
+                    "promoted_task_id": selected_promoted_task_id,
+                    "path": record.get("path"),
+                }
+            )
+        else:
+            blockers.append(
+                {
+                    "reason": "selected_idea_has_different_promoted_task_id",
+                    "reserved_task_id": task_id,
+                    "promoted_task_id": selected_promoted_task_id,
+                    "path": record.get("path"),
+                }
+            )
+
+    return {
+        "policy_version": TASK_ID_RESERVATION_POLICY_VERSION,
+        "reservation_rule": "TASK id reuses the selected IDEA numeric suffix",
+        "idea_id": idea_id,
+        "task_type": task_type,
+        "task_id": task_id,
+        "task_dir_name": task_dir_name,
+        "idempotency_key": idempotency_key,
+        "status": "available" if not blockers else "blocked",
+        "blockers": blockers,
+        "existing": {
+            "task_folder_paths": task_folder_paths,
+            "queue_row_present": queue_row_present,
+            "accepted_output_present": accepted_output_present,
+            "other_promoted_task_id_claims": other_claims,
+            "status_payload_paths": [item["status_path"] for item in status_payloads],
+            "selected_promoted_task_id": selected_promoted_task_id or None,
+        },
+    }
+
+
 def promotion_proposal_id(idea_id: str, task_type: str, preflight_hash: str) -> str:
     return f"PROMO-{idea_id}-{slugify(task_type)}-{preflight_hash[:12]}"
 
@@ -1926,12 +2104,14 @@ def promotion_task_proposal(
     route_reason: str,
     blockers: list[dict[str, Any]],
     allow_duplicate: bool,
+    task_identity: dict[str, Any],
 ) -> dict[str, Any]:
     payload = record["payload"]
     idea_id = str(record["idea_id"])
     title = str(payload.get("title") or idea_id)
     task_title = f"{title}: {task_type.replace('_', ' ')}"
-    slug = f"TASK-PROPOSED-{idea_id}-{slugify(task_type)}"
+    task_id = str(task_identity["task_id"])
+    slug = str(task_identity["task_dir_name"])
     limits = TASK_LIMITS[task_type]
     refs = promotion_refs(payload)
     objective = (
@@ -1939,7 +2119,7 @@ def promotion_task_proposal(
     )
     status_json_draft = {
         "schema_version": "1.0",
-        "id": "TASK-PROPOSED",
+        "id": task_id,
         "title": task_title,
         "type": task_type,
         "status": "inbox",
@@ -1958,10 +2138,16 @@ def promotion_task_proposal(
         },
         "data_audit_refs": refs["data_refs"],
         "catalog_idea_id": idea_id,
+        "catalog_promotion": {
+            "catalog_idea_id": idea_id,
+            "idempotency_key": task_identity["idempotency_key"],
+            "reserved_task_id": task_id,
+            "reservation_policy": TASK_ID_RESERVATION_POLICY_VERSION,
+        },
     }
     task_markdown_draft = "\n".join(
         [
-            f"# TASK-PROPOSED: {task_title}",
+            f"# {task_id}: {task_title}",
             "",
             "## Objective",
             "",
@@ -1983,8 +2169,9 @@ def promotion_task_proposal(
         ]
     )
     return {
-        "proposed_task_id": "TASK-PROPOSED",
+        "proposed_task_id": task_id,
         "proposed_task_slug": slug,
+        "task_identity": task_identity,
         "task_type": task_type,
         "route_reason": route_reason,
         "title": task_title,
@@ -2064,6 +2251,8 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
     preflight_hash = promotion_preflight_hash(record["payload"], task_type)
     idempotency_key = promotion_idempotency_key(args.idea_id, task_type, preflight_hash)
     blockers = promotion_blockers(args.ops_dir, record, task_type, args.allow_duplicate)
+    task_identity = promotion_task_identity(args.ops_dir, model, record, task_type, idempotency_key)
+    blockers.extend(task_identity["blockers"])
     blocking = blocking_items(blockers)
     base = {
         "ops_dir": str(args.ops_dir),
@@ -2075,6 +2264,7 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         "route_reason": route_reason,
         "promotion_preflight_hash": preflight_hash,
         "idempotency_key": idempotency_key,
+        "task_identity": task_identity,
         "blockers": blockers,
         "would_not_write": [
             {"path": str(args.ops_dir / "queue.md"), "reason": "promotion dry-run never edits queue.md"},
@@ -2089,7 +2279,15 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
             "proposal": None,
         }
 
-    proposal = promotion_task_proposal(args.ops_dir, record, task_type, route_reason, blockers, args.allow_duplicate)
+    proposal = promotion_task_proposal(
+        args.ops_dir,
+        record,
+        task_type,
+        route_reason,
+        blockers,
+        args.allow_duplicate,
+        task_identity,
+    )
     return SUCCESS, {
         "ok": True,
         "action": "idea_promotion_planned",
@@ -2201,7 +2399,7 @@ def write_human_override_blockers(proposal: dict[str, Any]) -> list[dict[str, An
     task_type = str(proposal.get("task_type") or "")
     max_minutes = proposal.get("max_minutes")
     review_tier = proposal.get("status_json_draft", {}).get("review_policy", {}).get("tier")
-    # V2.2 proposal writes do not create tasks or spend budget.
+    # V2.5 proposal writes reserve a task id but do not create tasks or spend budget.
     # V2.6 task-write should add budget and queue gates here.
     if task_type == "experiment_plan":
         blockers.append({"reason": "experiment_plan_write_requires_human_override"})
@@ -2735,7 +2933,7 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk proposal writes.")
     promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
     promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
-    promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; never creates task folders or edits queue.md in V2.2.")
+    promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; reserves a task id but never creates task folders or edits queue.md in V2.5.")
     promote.set_defaults(func=run_promote)
 
     park = subparsers.add_parser(

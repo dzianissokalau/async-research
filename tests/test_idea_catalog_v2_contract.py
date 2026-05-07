@@ -25,11 +25,12 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, and V2.4 task transaction helpers shipped; task creation write mode remains deferred until task-id rules exist. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, and V2.5 task-id reservation rules shipped; task creation write mode remains deferred until the V2.6 transaction exists. |",
                 "| V2.1 | Contract and preflight design | Complete |",
                 "| V2.2 | Proposal write mode | Complete |",
                 "| V2.3 | Proposal write recovery tests | Complete |",
                 "| V2.4 | Task transaction helper design | Complete |",
+                "| V2.5 | Task ID and idempotency rules | Complete |",
                 "| V2.6 | Task creation write mode | Planned |",
             ],
         )
@@ -76,6 +77,10 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
                 "Re-read the idea, recompute the promotion preflight hash, and rerun catalog validation while the catalog lock is held.",
                 "Append `queue.md` only after staged task files validate.",
                 "Update the idea's `promoted_task_id` only after the task folder and queue row are both finalized.",
+                "The reserved TASK ID reuses the selected IDEA numeric suffix",
+                "`IDEA-7501 -> TASK-7501`",
+                "`proposal.proposed_task_id`",
+                "Queue checks must match the task cell, not arbitrary note text.",
                 "catalog_idea_id + task_type + promotion_preflight_hash",
                 "same `catalog_idea_id`, idempotency key, and transaction id.",
                 "The transaction id is generated at write time after the idempotency key is computed.",
