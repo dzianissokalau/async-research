@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from datetime import datetime
+from datetime import timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -294,6 +296,40 @@ def parse_candidate_json(path: Path) -> tuple[dict[str, Any] | None, dict[str, A
     if not isinstance(payload, dict):
         return None, issue("failure", "candidate_json_not_object", path, "candidate JSON must be an object")
     return payload, None
+
+
+def parse_lock_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def catalog_lock_warning(lock_dir: Path) -> dict[str, Any] | None:
+    if not lock_dir.exists():
+        return None
+    owner_path = lock_dir / "owner.json"
+    owner: dict[str, Any] = {}
+    try:
+        payload = json.loads(owner_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            owner = payload
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        owner = {}
+    expires_at = parse_lock_timestamp(owner.get("lock_expires_at"))
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    stale = expires_at is not None and expires_at <= now
+    return issue(
+        "warning",
+        "catalog_lock_stale" if stale else "catalog_lock_present",
+        lock_dir,
+        "research_ops/ideas/LOCK is stale and may be moved by the next write command"
+        if stale
+        else "research_ops/ideas/LOCK is present; write commands will refuse until it expires or is released",
+        owner=owner,
+    )
 
 
 def hard_gate_blocked(payload: dict[str, Any]) -> bool:
@@ -1089,6 +1125,10 @@ def read_catalog(ops_dir: Path) -> dict[str, Any]:
     elif not ideas_dir.is_dir():
         failures.append(issue("failure", "ideas_path_not_directory", ideas_dir, "research_ops/ideas must be a directory"))
     else:
+        lock_warning = catalog_lock_warning(ideas_dir / "LOCK")
+        if lock_warning is not None:
+            warnings.append(lock_warning)
+
         records, record_warnings, record_failures = read_candidate_records(ideas_dir)
         warnings.extend(record_warnings)
         failures.extend(record_failures)

@@ -4,25 +4,39 @@
 from __future__ import annotations
 
 import argparse
+import copy
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import sys
 from typing import Any
 
 from async_research_workflow.idea_catalog import CATALOG_FILE
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_END
+from async_research_workflow.idea_catalog import CATALOG_BLOCK_START
 from async_research_workflow.idea_catalog import CATALOG_TEMPLATE
 from async_research_workflow.idea_catalog import IDEAS_DIR
+from async_research_workflow.idea_catalog import PRIORITIZATION_BLOCKS
 from async_research_workflow.idea_catalog import PRIORITIZATION_FILE
 from async_research_workflow.idea_catalog import PRIORITIZATION_TEMPLATE
 from async_research_workflow.idea_catalog import STORED_STATUSES
+from async_research_workflow.idea_catalog import blockers_for_payload
 from async_research_workflow.idea_catalog import candidate_summary
 from async_research_workflow.idea_catalog import catalog_list_report
 from async_research_workflow.idea_catalog import catalog_show_report
 from async_research_workflow.idea_catalog import catalog_validation_exit_code
 from async_research_workflow.idea_catalog import catalog_validation_report
+from async_research_workflow.idea_catalog import catalog_validation_report_from_model
+from async_research_workflow.idea_catalog import derived_display_label
 from async_research_workflow.idea_catalog import hard_gate_blocked
 from async_research_workflow.idea_catalog import markdown_cells
+from async_research_workflow.idea_catalog import prioritization_markers
+from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
 from async_research_workflow.idea_catalog import validate_candidate_record
 
@@ -43,10 +57,372 @@ CATALOG_MARKER_RE = re.compile(r"\bcatalog\s*:\s*([a-z_]+)\b", re.IGNORECASE)
 IDEA_ID_PATTERN = re.compile(r"^IDEA-[0-9]{4}$")
 PROMOTABLE_NEXT_TASKS = {"hypothesis_card", "data_readiness", "literature_extract"}
 CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
+CATALOG_LOCK_TTL = timedelta(minutes=30)
+TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
 
 
 def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+class CatalogLockError(RuntimeError):
+    def __init__(self, payload: dict[str, Any]):
+        super().__init__(str(payload.get("reason", "catalog_lock_error")))
+        self.payload = payload
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def utc_timestamp(now: datetime | None = None) -> str:
+    value = now or utc_now()
+    return value.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def filename_timestamp(now: datetime | None = None) -> str:
+    return utc_timestamp(now).replace("-", "").replace(":", "").replace("Z", "")
+
+
+def parse_utc_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def read_lock_owner(lock_dir: Path) -> dict[str, Any]:
+    owner_path = lock_dir / "owner.json"
+    try:
+        payload = json.loads(owner_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def stale_lock_target(lock_dir: Path, now: datetime) -> Path:
+    base = lock_dir.with_name(f"LOCK.stale.{filename_timestamp(now)}")
+    target = base
+    index = 1
+    while target.exists():
+        target = lock_dir.with_name(f"{base.name}.{index}")
+        index += 1
+    return target
+
+
+def acquire_catalog_lock(ops_dir: Path, command: str) -> dict[str, Any]:
+    ideas_dir = ops_dir / IDEAS_DIR
+    if not ideas_dir.exists():
+        raise CatalogLockError(
+            {
+                "ok": False,
+                "reason": "ideas_dir_missing",
+                "message": "run async-research idea catalog init before write mode",
+                "path": str(ideas_dir),
+            }
+        )
+    if not ideas_dir.is_dir():
+        raise CatalogLockError(
+            {
+                "ok": False,
+                "reason": "ideas_path_not_directory",
+                "message": "research_ops/ideas must be a directory",
+                "path": str(ideas_dir),
+            }
+        )
+
+    lock_dir = ideas_dir / "LOCK"
+    now = utc_now()
+    try:
+        lock_dir.mkdir()
+    except FileExistsError:
+        owner = read_lock_owner(lock_dir)
+        expires_at = parse_utc_timestamp(owner.get("lock_expires_at"))
+        if expires_at is None or expires_at > now:
+            raise CatalogLockError(
+                {
+                    "ok": False,
+                    "reason": "catalog_locked",
+                    "message": "another idea catalog write transaction owns research_ops/ideas/LOCK",
+                    "lock_dir": str(lock_dir),
+                    "owner": owner,
+                }
+            )
+        stale_target = stale_lock_target(lock_dir, now)
+        try:
+            lock_dir.rename(stale_target)
+            lock_dir.mkdir()
+        except OSError as exc:
+            raise CatalogLockError(
+                {
+                    "ok": False,
+                    "reason": "catalog_lock_stale_rotation_failed",
+                    "message": "stale catalog lock could not be moved before retry",
+                    "lock_dir": str(lock_dir),
+                    "stale_target": str(stale_target),
+                    "error": str(exc),
+                }
+            ) from exc
+    except OSError as exc:
+        raise CatalogLockError(
+            {
+                "ok": False,
+                "reason": "catalog_lock_create_failed",
+                "message": "could not acquire research_ops/ideas/LOCK",
+                "lock_dir": str(lock_dir),
+                "error": str(exc),
+            }
+        ) from exc
+
+    owner = {
+        "command": command,
+        "pid": os.getpid(),
+        "started_at": utc_timestamp(now),
+        "lock_expires_at": utc_timestamp(now + CATALOG_LOCK_TTL),
+    }
+    try:
+        (lock_dir / "owner.json").write_text(json.dumps(owner, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as exc:
+        shutil.rmtree(lock_dir, ignore_errors=True)
+        raise CatalogLockError(
+            {
+                "ok": False,
+                "reason": "catalog_lock_owner_write_failed",
+                "message": "catalog lock was acquired but owner.json could not be written",
+                "lock_dir": str(lock_dir),
+                "error": str(exc),
+            }
+        ) from exc
+    return {"lock_dir": str(lock_dir), "owner": owner}
+
+
+def release_catalog_lock(lock: dict[str, Any] | None) -> None:
+    if not lock:
+        return
+    lock_dir = Path(str(lock["lock_dir"]))
+    shutil.rmtree(lock_dir, ignore_errors=True)
+
+
+def markdown_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    text = " ".join(str(value).split())
+    return text.replace("|", "\\|")
+
+
+def score_cell(value: Any) -> str:
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, (int, float)):
+        return str(value)
+    return ""
+
+
+def generated_block(start_marker: str, rows: list[list[Any]], headers: list[str]) -> str:
+    lines = [start_marker, "| " + " | ".join(headers) + " |"]
+    separators = ["---:" if header.endswith("_score") else "---" for header in headers]
+    lines.append("| " + " | ".join(separators) + " |")
+    for row in rows:
+        lines.append("| " + " | ".join(markdown_cell(value) for value in row) + " |")
+    return "\n".join(lines)
+
+
+def render_catalog_block(records: list[dict[str, Any]]) -> str:
+    headers = ["idea_id", "status", "title", "weighted_score", "next_task", "blockers", "promoted_task_id", "updated_at"]
+    rows = []
+    for record in sorted(records, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or "")):
+        summary = candidate_summary(record)
+        rows.append(
+            [
+                summary["idea_id"],
+                summary["status"],
+                summary["title"],
+                score_cell(summary["weighted_score"]),
+                summary.get("recommended_next_task") or "",
+                ", ".join(summary["blockers"]),
+                summary.get("promoted_task_id") or "",
+                summary.get("updated_at") or "",
+            ]
+        )
+    return generated_block(CATALOG_BLOCK_START, rows, headers) + "\n" + CATALOG_BLOCK_END
+
+
+def prioritization_records(section: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if section == "RECOMMENDED-PROMOTIONS":
+        return sorted([record for record in records if record["status"] == "promote"], key=promotion_sort_key)
+    if section == "PARKED":
+        return sorted([record for record in records if record["status"] == "park"], key=lambda item: str(item["idea_id"]))
+    if section == "REJECTED":
+        return sorted([record for record in records if record["status"] == "reject"], key=lambda item: str(item["idea_id"]))
+    if section == "BLOCKERS":
+        return sorted(
+            [
+                record
+                for record in records
+                if blockers_for_payload(record["payload"]) or record["status"] == "needs_human"
+            ],
+            key=lambda item: str(item["idea_id"]),
+        )
+    return []
+
+
+def render_prioritization_block(section: str, records: list[dict[str, Any]]) -> str:
+    start_marker, end_marker = prioritization_markers(section)
+    headers = ["idea_id", "status", "title", "weighted_score", "next_task", "reason", "updated_at"]
+    rows = []
+    for record in prioritization_records(section, records):
+        payload = record["payload"]
+        summary = candidate_summary(record)
+        reason = payload.get("status_reason") or payload.get("human_gate_reason") or ", ".join(summary["blockers"])
+        rows.append(
+            [
+                summary["idea_id"],
+                summary["status"],
+                summary["title"],
+                score_cell(summary["weighted_score"]),
+                summary.get("recommended_next_task") or "",
+                reason or "",
+                summary.get("updated_at") or "",
+            ]
+        )
+    return generated_block(start_marker, rows, headers) + "\n" + end_marker
+
+
+def replace_generated_block(content: bytes, start_marker: str, end_marker: str, replacement: str) -> bytes:
+    start = start_marker.encode("utf-8")
+    end = end_marker.encode("utf-8")
+    start_index = content.find(start)
+    end_index = content.find(end)
+    if start_index == -1 or end_index == -1 or end_index < start_index:
+        raise ValueError("generated_block_missing_or_malformed")
+    end_index += len(end)
+    return content[:start_index] + replacement.encode("utf-8") + content[end_index:]
+
+
+def projection_base_bytes(path: Path, template: str) -> bytes:
+    if path.exists():
+        return path.read_bytes()
+    return template.encode("utf-8")
+
+
+def render_catalog_projection_bytes(ops_dir: Path, records: list[dict[str, Any]]) -> bytes:
+    path = ops_dir / IDEAS_DIR / CATALOG_FILE
+    content = projection_base_bytes(path, CATALOG_TEMPLATE)
+    return replace_generated_block(content, CATALOG_BLOCK_START, CATALOG_BLOCK_END, render_catalog_block(records))
+
+
+def render_prioritization_projection_bytes(ops_dir: Path, records: list[dict[str, Any]]) -> bytes:
+    path = ops_dir / IDEAS_DIR / PRIORITIZATION_FILE
+    content = projection_base_bytes(path, PRIORITIZATION_TEMPLATE)
+    for section in PRIORITIZATION_BLOCKS:
+        start_marker, end_marker = prioritization_markers(section)
+        content = replace_generated_block(content, start_marker, end_marker, render_prioritization_block(section, records))
+    return content
+
+
+def atomic_write_bytes(path: Path, content: bytes) -> bool:
+    if path.exists() and path.read_bytes() == content:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    temp_path.write_bytes(content)
+    temp_path.replace(path)
+    return True
+
+
+def json_bytes(payload: dict[str, Any]) -> bytes:
+    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def record_for_payload(ops_dir: Path, payload: dict[str, Any], path: Path | None = None) -> dict[str, Any]:
+    idea_id = str(payload.get("id") or "").strip()
+    target = path or (ops_dir / IDEAS_DIR / f"{idea_id}.json")
+    return {
+        "path": str(target),
+        "filename_id": target.stem,
+        "idea_id": idea_id,
+        "status": str(payload.get("status") or "candidate"),
+        "derived_label": derived_display_label(payload),
+        "payload": payload,
+    }
+
+
+def records_after_payloads(ops_dir: Path, model: dict[str, Any], payloads_by_path: dict[Path, dict[str, Any]]) -> list[dict[str, Any]]:
+    records_by_path: dict[str, dict[str, Any]] = {
+        str(record["path"]): {
+            **record,
+            "payload": copy.deepcopy(record["payload"]),
+        }
+        for record in model["candidates"]
+    }
+    for path, payload in payloads_by_path.items():
+        records_by_path[str(path)] = record_for_payload(ops_dir, payload, path)
+    return sorted(records_by_path.values(), key=lambda item: str(item.get("idea_id") or item.get("filename_id") or ""))
+
+
+def validate_records_for_write(ops_dir: Path, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    failures: list[dict[str, Any]] = []
+    for record in records:
+        _warnings, record_failures = validate_candidate_record(record, ops_dir)
+        failures.extend(record_failures)
+    return failures
+
+
+def write_catalog_outputs(
+    ops_dir: Path,
+    model: dict[str, Any],
+    payloads_by_path: dict[Path, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    records = records_after_payloads(ops_dir, model, payloads_by_path)
+    validation_failures = validate_records_for_write(ops_dir, records)
+    if validation_failures:
+        return [], validation_failures, {}
+
+    try:
+        catalog_bytes = render_catalog_projection_bytes(ops_dir, records)
+        prioritization_bytes = render_prioritization_projection_bytes(ops_dir, records)
+    except (OSError, ValueError) as exc:
+        return [], [
+            {
+                "severity": "failure",
+                "reason": "generated_projection_render_failed",
+                "message": str(exc),
+                "path": str(ops_dir / IDEAS_DIR),
+                "category": "malformed",
+            }
+        ], {}
+
+    files_written: list[dict[str, Any]] = []
+    try:
+        for path in sorted(payloads_by_path):
+            changed = atomic_write_bytes(path, json_bytes(payloads_by_path[path]))
+            if changed:
+                files_written.append({"path": str(path), "action": "write_canonical_idea_json"})
+
+        projection_paths = {
+            ops_dir / IDEAS_DIR / CATALOG_FILE: catalog_bytes,
+            ops_dir / IDEAS_DIR / PRIORITIZATION_FILE: prioritization_bytes,
+        }
+        for path, content in projection_paths.items():
+            changed = atomic_write_bytes(path, content)
+            if changed:
+                files_written.append({"path": str(path), "action": "regenerate_projection"})
+    except OSError as exc:
+        return files_written, [
+            {
+                "severity": "failure",
+                "reason": "catalog_write_failed",
+                "message": str(exc),
+                "path": str(ops_dir / IDEAS_DIR),
+                "category": "malformed",
+            }
+        ], {}
+
+    post_model = read_catalog(ops_dir)
+    validation = catalog_validation_report_from_model(ops_dir, post_model)
+    return files_written, validation.get("failures", []), validation
 
 
 def normalize_title(value: Any) -> str:
@@ -515,7 +891,7 @@ def status_update_change(recommendation: dict[str, Any]) -> dict[str, Any] | Non
         "reason": recommendation["reason"],
         "fields": fields,
         "proposed_decision_history_entry": {
-            "at": "TO_BE_SET_AT_WRITE_TIME",
+            "at": TIMESTAMP_PLACEHOLDER,
             "from_status": current,
             "to_status": target,
             "reason": recommendation["reason"],
@@ -524,61 +900,229 @@ def status_update_change(recommendation: dict[str, Any]) -> dict[str, Any] | Non
     }
 
 
-def run_capture(args: argparse.Namespace) -> int:
-    if args.write:
-        print_json(
-            {
-                "ok": False,
-                "action": "idea_capture_refused",
-                "reason": "write_mode_deferred_to_phase_7",
-                "message": "Phase 6 capture is dry-run only; rerun with --dry-run and apply manually if desired.",
-            }
-        )
-        return INVALID_REQUEST
+def apply_status_update(
+    payload: dict[str, Any],
+    target_status: str,
+    reason: str,
+    revisit_condition: str | None,
+    actor: str,
+    now: datetime,
+) -> tuple[dict[str, Any], bool]:
+    updated = copy.deepcopy(payload)
+    before = copy.deepcopy(updated)
+    current_status = str(updated.get("status") or "candidate")
+    updated["status"] = target_status
+    updated["status_reason"] = reason
+
+    if target_status == "needs_human":
+        updated["human_gate_reason"] = f"catalog maintenance write recommends human review: {reason}"
+    if target_status == "park":
+        updated["revisit_condition"] = revisit_condition or "Revisit after a human reviews this catalog status."
+    if target_status == "reject":
+        updated["revisit_condition"] = revisit_condition or "Reopen only if a human records a new decision."
+
+    if updated == before:
+        return updated, False
+
+    history = updated.get("decision_history")
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "at": utc_timestamp(now),
+            "from_status": current_status,
+            "to_status": target_status,
+            "reason": reason,
+            "actor": actor,
+        }
+    )
+    updated["decision_history"] = history
+    updated["updated_at"] = utc_timestamp(now)
+    return updated, True
+
+
+def find_catalog_record(model: dict[str, Any], idea_id: str) -> dict[str, Any] | None:
+    matches = [record for record in model["candidates"] if record["idea_id"] == idea_id]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def duplicate_record_failure(model: dict[str, Any], idea_id: str) -> dict[str, Any] | None:
+    matches = [record for record in model["candidates"] if record["idea_id"] == idea_id]
+    if len(matches) <= 1:
+        return None
+    return {
+        "severity": "failure",
+        "reason": "duplicate_idea_id",
+        "message": f"idea id {idea_id} appears in multiple canonical JSON files",
+        "idea_id": idea_id,
+        "paths": [record["path"] for record in matches],
+        "category": "malformed",
+    }
+
+
+def capture_source_and_plan(args: argparse.Namespace, model: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     source_row, source_warnings, source_code = capture_source_from_args(args)
     if source_code != SUCCESS:
-        print_json(
-            {
-                "ok": False,
-                "action": "idea_capture_failed",
-                "ops_dir": str(args.ops_dir),
-                "failures": source_warnings,
-            }
-        )
-        return source_code
+        return source_code, {
+            "ok": False,
+            "action": "idea_capture_failed",
+            "ops_dir": str(args.ops_dir),
+            "failures": source_warnings,
+        }
 
     title = row_title(source_row) if source_row is not None else str(args.title or "").strip()
     if not title:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_capture_failed",
+            "ops_dir": str(args.ops_dir),
+            "failures": [
+                {
+                    "reason": "missing_title",
+                    "message": "provide a non-empty --title or capture an inbox row with a title",
+                }
+            ],
+        }
+    idea_id = args.idea_id or (row_idea_id(source_row) if source_row is not None else None)
+    plan = build_capture_plan(args.ops_dir, idea_id, title, source_row, model=model)
+    return SUCCESS, {
+        "source_row": source_row,
+        "source_warnings": source_warnings,
+        "input": {
+            "from_inbox": args.from_inbox,
+            "title": args.title,
+            "idea_id": args.idea_id,
+        },
+        **plan,
+    }
+
+
+def capture_write(args: argparse.Namespace) -> int:
+    if args.dry_run:
         print_json(
             {
                 "ok": False,
                 "action": "idea_capture_failed",
-                "ops_dir": str(args.ops_dir),
-                "failures": [
-                    {
-                        "reason": "missing_title",
-                        "message": "provide a non-empty --title or capture an inbox row with a title",
-                    }
-                ],
+                "reason": "conflicting_flags",
+                "message": "use either --dry-run or --write, not both",
             }
         )
         return INVALID_REQUEST
-    idea_id = args.idea_id or (row_idea_id(source_row) if source_row is not None else None)
-    plan = build_capture_plan(args.ops_dir, idea_id, title, source_row)
+
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_catalog_lock(args.ops_dir, "idea capture --write")
+        model = read_catalog(args.ops_dir)
+        if model["failures"]:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_capture_write_failed",
+                    "reason": "catalog_read_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "lock": lock,
+                    "warnings": model["warnings"],
+                    "failures": model["failures"],
+                }
+            )
+            return catalog_validation_exit_code(catalog_validation_report_from_model(args.ops_dir, model))
+
+        source_code, payload = capture_source_and_plan(args, model)
+        if source_code != SUCCESS:
+            print_json(payload)
+            return source_code
+        if payload["route"] != "create" or not payload.get("would_write"):
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_capture_write_refused",
+                    "reason": "capture_write_requires_create_plan",
+                    "ops_dir": str(args.ops_dir),
+                    "dry_run_plan": payload,
+                }
+            )
+            return INVALID_REQUEST
+
+        change = payload["would_write"][0]
+        target_path = Path(str(change["path"]))
+        if target_path.exists() and not args.update_existing:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_capture_write_refused",
+                    "reason": "target_idea_exists",
+                    "message": "refusing to overwrite existing canonical idea without --update-existing",
+                    "path": str(target_path),
+                }
+            )
+            return VALIDATION_FAILED
+
+        now = utc_now()
+        candidate = copy.deepcopy(change["content"])
+        candidate.setdefault("created_at", utc_timestamp(now))
+        candidate["updated_at"] = utc_timestamp(now)
+        payloads_by_path = {target_path: candidate}
+        files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
+        if failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_capture_write_failed",
+                    "reason": "post_write_validation_failed" if files_written else "proposed_catalog_validation_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": failures,
+                    "files_written": files_written,
+                }
+            )
+            return VALIDATION_FAILED
+
+        print_json(
+            {
+                "ok": True,
+                "action": "idea_capture_written",
+                "ops_dir": str(args.ops_dir),
+                "dry_run": False,
+                "changed": bool(files_written),
+                "lock": lock,
+                "files_written": files_written,
+                "candidate": candidate,
+                "validation": {
+                    "ok": validation.get("ok", False),
+                    "candidate_count": validation.get("candidate_count", 0),
+                    "warning_count": len(validation.get("warnings", [])),
+                    "failure_count": len(validation.get("failures", [])),
+                },
+                "would_not_write": [
+                    {"path": str(args.ops_dir / "queue.md"), "reason": "catalog capture write mode never edits queue.md"},
+                    {"path": str(args.ops_dir / "tasks"), "reason": "catalog capture write mode never creates task folders"},
+                ],
+            }
+        )
+        return SUCCESS
+    except CatalogLockError as exc:
+        print_json({"ok": False, "action": "idea_capture_write_refused", **exc.payload})
+        return VALIDATION_FAILED
+    finally:
+        release_catalog_lock(lock)
+
+
+def run_capture(args: argparse.Namespace) -> int:
+    if args.write:
+        return capture_write(args)
+    model = read_catalog(args.ops_dir)
+    source_code, payload = capture_source_and_plan(args, model)
+    if source_code != SUCCESS:
+        print_json(payload)
+        return source_code
     print_json(
         {
             "ok": True,
             "action": "idea_capture_planned",
             "ops_dir": str(args.ops_dir),
             "dry_run": True,
-            "input": {
-                "from_inbox": args.from_inbox,
-                "title": args.title,
-                "idea_id": args.idea_id,
-            },
-            "source_row": source_row,
-            "source_warnings": source_warnings,
-            **plan,
+            **payload,
             "would_not_write": [
                 {"path": str(args.ops_dir / "queue.md"), "reason": "catalog capture dry-run never edits queue.md"},
                 {"path": str(args.ops_dir / "tasks"), "reason": "catalog capture dry-run never creates task folders"},
@@ -588,20 +1132,10 @@ def run_capture(args: argparse.Namespace) -> int:
     return SUCCESS
 
 
-def run_maintain(args: argparse.Namespace) -> int:
-    if args.write:
-        print_json(
-            {
-                "ok": False,
-                "action": "idea_catalog_maintenance_refused",
-                "reason": "write_mode_deferred_to_phase_7",
-                "message": "Phase 6 maintenance is dry-run only; rerun with --dry-run to inspect proposals.",
-            }
-        )
-        return INVALID_REQUEST
-
-    inbox_rows, inbox_warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md")
-    model = read_catalog(args.ops_dir)
+def build_maintenance_plan(ops_dir: Path, model: dict[str, Any] | None = None) -> dict[str, Any]:
+    inbox_rows, inbox_warnings = parse_markdown_table_rows(ops_dir / "discovery_inbox.md")
+    if model is None:
+        model = read_catalog(ops_dir)
     proposals: list[dict[str, Any]] = []
     ignored_rows: list[dict[str, Any]] = []
     proposed_changes: list[dict[str, Any]] = []
@@ -618,7 +1152,7 @@ def run_maintain(args: argparse.Namespace) -> int:
             )
             continue
         idea_id = row_idea_id(row)
-        plan = build_capture_plan(args.ops_dir, idea_id, row_title(row), row, model=model)
+        plan = build_capture_plan(ops_dir, idea_id, row_title(row), row, model=model)
         proposal = {
             "row_id": row["row_id"],
             "catalog_marker": marker_details["status"],
@@ -632,45 +1166,414 @@ def run_maintain(args: argparse.Namespace) -> int:
         proposals.append(proposal)
         proposed_changes.extend(proposal_without_content(change) for change in plan["would_write"])
 
-    recommendations = [lifecycle_recommendation(record, args.ops_dir) for record in model["candidates"]]
+    recommendations = [lifecycle_recommendation(record, ops_dir) for record in model["candidates"]]
     for recommendation in recommendations:
         change = status_update_change(recommendation)
         if change is not None:
             proposed_changes.append(change)
 
+    return {
+        "sources_read": {
+            "discovery_inbox": {
+                "path": str(ops_dir / "discovery_inbox.md"),
+                "row_count": len(inbox_rows),
+                "warnings": inbox_warnings,
+            },
+            "canonical_ideas": {
+                "path": str(ops_dir / IDEAS_DIR),
+                "candidate_count": model["candidate_count"],
+                "warnings": model["warnings"],
+                "failures": model["failures"],
+            },
+            "accepted_outputs_index": source_report(ops_dir / "accepted_outputs_index.md"),
+            "rejected_ideas": source_report(ops_dir / "discovery" / "rejected_ideas.md"),
+        },
+        "inbox_capture_proposals": proposals,
+        "ignored_inbox_rows": ignored_rows,
+        "catalog_recommendations": recommendations,
+        "proposed_file_changes": proposed_changes,
+        "changed": bool(proposed_changes),
+    }
+
+
+def maintenance_payloads_from_plan(
+    ops_dir: Path,
+    model: dict[str, Any],
+    plan: dict[str, Any],
+    now: datetime,
+    update_existing: bool = False,
+) -> tuple[dict[Path, dict[str, Any]], list[dict[str, Any]]]:
+    failures: list[dict[str, Any]] = []
+    payloads_by_path: dict[Path, dict[str, Any]] = {}
+
+    for proposal in plan["inbox_capture_proposals"]:
+        if proposal.get("route") != "create":
+            continue
+        candidate = copy.deepcopy(proposal["proposal"]["candidate"])
+        candidate.setdefault("created_at", utc_timestamp(now))
+        candidate["updated_at"] = utc_timestamp(now)
+        path = ops_dir / IDEAS_DIR / f"{candidate['id']}.json"
+        if path.exists() and not update_existing:
+            failures.append(
+                {
+                    "severity": "failure",
+                    "reason": "target_idea_exists",
+                    "message": "refusing to overwrite existing canonical idea without --update-existing",
+                    "path": str(path),
+                    "idea_id": candidate["id"],
+                }
+            )
+            continue
+        payloads_by_path[path] = candidate
+
+    records_by_id = {record["idea_id"]: record for record in model["candidates"]}
+    for change in plan["proposed_file_changes"]:
+        if change.get("action") != "update_idea_status":
+            continue
+        idea_id = str(change["idea_id"])
+        record = records_by_id.get(idea_id)
+        duplicate = duplicate_record_failure(model, idea_id)
+        if duplicate is not None:
+            failures.append(duplicate)
+            continue
+        if record is None:
+            failures.append(
+                {
+                    "severity": "failure",
+                    "reason": "idea_not_found",
+                    "message": "maintenance proposed a status update for a missing idea",
+                    "idea_id": idea_id,
+                    "path": change.get("path"),
+                }
+            )
+            continue
+        fields = change.get("fields", {})
+        updated, changed = apply_status_update(
+            record["payload"],
+            str(change["to_status"]),
+            str(change["reason"]),
+            fields.get("revisit_condition") if isinstance(fields, dict) else None,
+            "catalog_maintenance_write",
+            now,
+        )
+        if changed:
+            payloads_by_path[Path(str(record["path"]))] = updated
+
+    return payloads_by_path, failures
+
+
+def maintain_write(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_catalog_maintenance_failed",
+                "reason": "conflicting_flags",
+                "message": "use either --dry-run or --write, not both",
+            }
+        )
+        return INVALID_REQUEST
+
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_catalog_lock(args.ops_dir, "idea catalog maintain --write")
+        model = read_catalog(args.ops_dir)
+        if model["failures"]:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_catalog_maintenance_write_failed",
+                    "reason": "catalog_read_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "lock": lock,
+                    "warnings": model["warnings"],
+                    "failures": model["failures"],
+                }
+            )
+            return catalog_validation_exit_code(catalog_validation_report_from_model(args.ops_dir, model))
+
+        plan = build_maintenance_plan(args.ops_dir, model)
+        payloads_by_path, plan_failures = maintenance_payloads_from_plan(
+            args.ops_dir,
+            model,
+            plan,
+            utc_now(),
+            update_existing=args.update_existing,
+        )
+        if plan_failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_catalog_maintenance_write_failed",
+                    "reason": "unsafe_maintenance_write",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": plan_failures,
+                    "dry_run_plan": plan,
+                }
+            )
+            return VALIDATION_FAILED
+
+        files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
+        if failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_catalog_maintenance_write_failed",
+                    "reason": "post_write_validation_failed" if files_written else "proposed_catalog_validation_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": failures,
+                    "files_written": files_written,
+                    "dry_run_plan": plan,
+                }
+            )
+            return VALIDATION_FAILED
+
+        print_json(
+            {
+                "ok": True,
+                "action": "idea_catalog_maintenance_written",
+                "ops_dir": str(args.ops_dir),
+                "dry_run": False,
+                "changed": bool(files_written),
+                "lock": lock,
+                "files_written": files_written,
+                **plan,
+                "validation": {
+                    "ok": validation.get("ok", False),
+                    "candidate_count": validation.get("candidate_count", 0),
+                    "warning_count": len(validation.get("warnings", [])),
+                    "failure_count": len(validation.get("failures", [])),
+                },
+                "would_not_write": [
+                    {"path": str(args.ops_dir / "queue.md"), "reason": "maintenance write mode never edits queue.md"},
+                    {"path": str(args.ops_dir / "tasks"), "reason": "maintenance write mode never creates task folders"},
+                ],
+            }
+        )
+        return SUCCESS
+    except CatalogLockError as exc:
+        print_json({"ok": False, "action": "idea_catalog_maintenance_write_refused", **exc.payload})
+        return VALIDATION_FAILED
+    finally:
+        release_catalog_lock(lock)
+
+
+def run_maintain(args: argparse.Namespace) -> int:
+    if args.write:
+        return maintain_write(args)
+
+    plan = build_maintenance_plan(args.ops_dir)
     print_json(
         {
             "ok": True,
             "action": "idea_catalog_maintenance_planned",
             "ops_dir": str(args.ops_dir),
             "dry_run": True,
-            "sources_read": {
-                "discovery_inbox": {
-                    "path": str(args.ops_dir / "discovery_inbox.md"),
-                    "row_count": len(inbox_rows),
-                    "warnings": inbox_warnings,
-                },
-                "canonical_ideas": {
-                    "path": str(args.ops_dir / IDEAS_DIR),
-                    "candidate_count": model["candidate_count"],
-                    "warnings": model["warnings"],
-                    "failures": model["failures"],
-                },
-                "accepted_outputs_index": source_report(args.ops_dir / "accepted_outputs_index.md"),
-                "rejected_ideas": source_report(args.ops_dir / "discovery" / "rejected_ideas.md"),
-            },
-            "inbox_capture_proposals": proposals,
-            "ignored_inbox_rows": ignored_rows,
-            "catalog_recommendations": recommendations,
-            "proposed_file_changes": proposed_changes,
+            **plan,
             "would_not_write": [
                 {"path": str(args.ops_dir / "queue.md"), "reason": "maintenance dry-run never edits queue.md"},
                 {"path": str(args.ops_dir / "tasks"), "reason": "maintenance dry-run never creates task folders"},
             ],
-            "changed": bool(proposed_changes),
         }
     )
     return SUCCESS
+
+
+def status_change_plan(
+    ops_dir: Path,
+    model: dict[str, Any],
+    idea_id: str,
+    target_status: str,
+    reason: str,
+    revisit_condition: str | None,
+    actor: str,
+    now: datetime,
+) -> tuple[int, dict[str, Any], dict[Path, dict[str, Any]]]:
+    if not IDEA_ID_PATTERN.match(idea_id):
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_status_change_failed",
+            "reason": "invalid_idea_id",
+            "idea_id": idea_id,
+            "message": "idea id must use IDEA-0000 format",
+        }, {}
+    duplicate = duplicate_record_failure(model, idea_id)
+    if duplicate is not None:
+        return MALFORMED, {
+            "ok": False,
+            "action": "idea_status_change_failed",
+            "reason": "duplicate_idea_id",
+            "idea_id": idea_id,
+            "failures": [duplicate],
+        }, {}
+    record = find_catalog_record(model, idea_id)
+    if record is None:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_status_change_failed",
+            "reason": "idea_not_found",
+            "idea_id": idea_id,
+            "next_step": "run async-research idea catalog list to inspect available ideas",
+        }, {}
+
+    updated, changed = apply_status_update(record["payload"], target_status, reason, revisit_condition, actor, now)
+    change = {
+        "action": "update_idea_status",
+        "path": record["path"],
+        "idea_id": idea_id,
+        "from_status": record["status"],
+        "to_status": target_status,
+        "reason": reason,
+        "fields": {
+            "status": target_status,
+            "status_reason": reason,
+            "revisit_condition": updated.get("revisit_condition"),
+        },
+        "proposed_decision_history_entry": {
+            "at": utc_timestamp(now) if changed else TIMESTAMP_PLACEHOLDER,
+            "from_status": str(record["payload"].get("status") or "candidate"),
+            "to_status": target_status,
+            "reason": reason,
+            "actor": actor,
+        },
+    }
+    payloads_by_path = {Path(str(record["path"])): updated} if changed else {}
+    return SUCCESS, {
+        "ok": True,
+        "action": "idea_status_change_planned",
+        "ops_dir": str(ops_dir),
+        "idea_id": idea_id,
+        "dry_run": True,
+        "changed": changed,
+        "proposed_file_changes": [change] if changed else [],
+        "proposal": change,
+    }, payloads_by_path
+
+
+def run_status_command(args: argparse.Namespace, target_status: str) -> int:
+    if target_status == "park" and not args.revisit:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_status_change_failed",
+                "reason": "missing_revisit_condition",
+                "message": "parked ideas require --revisit",
+            }
+        )
+        return INVALID_REQUEST
+    if not args.reason:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_status_change_failed",
+                "reason": "missing_status_reason",
+                "message": f"{target_status} requires --reason",
+            }
+        )
+        return INVALID_REQUEST
+    if args.write and args.dry_run:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_status_change_failed",
+                "reason": "conflicting_flags",
+                "message": "use either --dry-run or --write, not both",
+            }
+        )
+        return INVALID_REQUEST
+
+    if not args.write:
+        model = read_catalog(args.ops_dir)
+        code, payload, _changes = status_change_plan(
+            args.ops_dir,
+            model,
+            args.idea_id,
+            target_status,
+            args.reason,
+            args.revisit,
+            "catalog_status_dry_run",
+            utc_now(),
+        )
+        print_json(payload)
+        return code
+
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_catalog_lock(args.ops_dir, f"idea {target_status} --write")
+        model = read_catalog(args.ops_dir)
+        if model["failures"]:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_status_change_write_failed",
+                    "reason": "catalog_read_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "warnings": model["warnings"],
+                    "failures": model["failures"],
+                }
+            )
+            return catalog_validation_exit_code(catalog_validation_report_from_model(args.ops_dir, model))
+        code, payload, payloads_by_path = status_change_plan(
+            args.ops_dir,
+            model,
+            args.idea_id,
+            target_status,
+            args.reason,
+            args.revisit,
+            "catalog_status_write",
+            utc_now(),
+        )
+        if code != SUCCESS:
+            print_json(payload)
+            return code
+        files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
+        if failures:
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_status_change_write_failed",
+                    "reason": "post_write_validation_failed" if files_written else "proposed_catalog_validation_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": failures,
+                    "files_written": files_written,
+                    "dry_run_plan": payload,
+                }
+            )
+            return VALIDATION_FAILED
+        print_json(
+            {
+                **payload,
+                "action": "idea_status_change_written",
+                "dry_run": False,
+                "changed": bool(files_written),
+                "lock": lock,
+                "files_written": files_written,
+                "validation": {
+                    "ok": validation.get("ok", False),
+                    "candidate_count": validation.get("candidate_count", 0),
+                    "warning_count": len(validation.get("warnings", [])),
+                    "failure_count": len(validation.get("failures", [])),
+                },
+                "would_not_write": [
+                    {"path": str(args.ops_dir / "queue.md"), "reason": "idea status write mode never edits queue.md"},
+                    {"path": str(args.ops_dir / "tasks"), "reason": "idea status write mode never creates task folders"},
+                ],
+            }
+        )
+        return SUCCESS
+    except CatalogLockError as exc:
+        print_json({"ok": False, "action": "idea_status_change_write_refused", **exc.payload})
+        return VALIDATION_FAILED
+    finally:
+        release_catalog_lock(lock)
+
+
+def run_park(args: argparse.Namespace) -> int:
+    return run_status_command(args, "park")
+
+
+def run_reject(args: argparse.Namespace) -> int:
+    return run_status_command(args, "reject")
 
 
 def init_plan(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -895,26 +1798,54 @@ def build_parser() -> argparse.ArgumentParser:
 
     maintain = subparsers.add_parser(
         "maintain",
-        help="Preview catalog maintenance proposals.",
-        description="Read discovery_inbox.md and canonical ideas, then print conservative dry-run capture and lifecycle proposals without mutating files.",
+        help="Preview or write catalog maintenance proposals.",
+        description="Read discovery_inbox.md and canonical ideas, then plan or apply conservative capture and lifecycle maintenance.",
     )
     maintain.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     maintain.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
-    maintain.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    maintain.add_argument("--write", action="store_true", help="Apply safe maintenance changes under research_ops/ideas/LOCK.")
+    maintain.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target when a create plan races with an existing file.")
     maintain.set_defaults(func=run_maintain)
 
     capture = subparsers.add_parser(
         "capture",
-        help="Preview explicit discovery-to-catalog capture.",
-        description="Build one dry-run canonical IDEA JSON proposal from a discovery inbox row or explicit title without mutating files.",
+        help="Preview or write explicit discovery-to-catalog capture.",
+        description="Build or write one canonical IDEA JSON record from a discovery inbox row or explicit title.",
     )
     capture.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     capture.add_argument("--from-inbox", help="Discovery inbox item id or row-N selector to capture explicitly.")
     capture.add_argument("--id", dest="idea_id", help="Canonical IDEA-0000 id for the proposed catalog record.")
     capture.add_argument("--title", help="Title for an explicit title-only capture proposal.")
     capture.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
-    capture.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections under research_ops/ideas/LOCK.")
+    capture.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target.")
     capture.set_defaults(func=run_capture)
+
+    park = subparsers.add_parser(
+        "park",
+        help="Preview or write an explicit catalog park decision.",
+        description="Move one canonical catalog idea to park with a reason and revisit condition.",
+    )
+    park.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    park.add_argument("idea_id", help="Canonical IDEA-0000 id to park.")
+    park.add_argument("--reason", required=True, help="Reason for parking the idea.")
+    park.add_argument("--revisit", required=True, help="Concrete condition for revisiting the parked idea.")
+    park.add_argument("--dry-run", action="store_true", help="Preview the status change without writing; this is the default.")
+    park.add_argument("--write", action="store_true", help="Apply the status change under research_ops/ideas/LOCK.")
+    park.set_defaults(func=run_park)
+
+    reject = subparsers.add_parser(
+        "reject",
+        help="Preview or write an explicit catalog rejection.",
+        description="Move one canonical catalog idea to reject with a reason.",
+    )
+    reject.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    reject.add_argument("idea_id", help="Canonical IDEA-0000 id to reject.")
+    reject.add_argument("--reason", required=True, help="Reason for rejecting the idea.")
+    reject.add_argument("--revisit", help="Optional reopen condition; a conservative default is used when omitted.")
+    reject.add_argument("--dry-run", action="store_true", help="Preview the status change without writing; this is the default.")
+    reject.add_argument("--write", action="store_true", help="Apply the status change under research_ops/ideas/LOCK.")
+    reject.set_defaults(func=run_reject)
 
     return parser
 

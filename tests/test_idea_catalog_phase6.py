@@ -181,11 +181,11 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("discovery_inbox.md#row-2", item_candidate["source_discovery_path"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
-            write_code, write_payload = run_cli_json(
-                ["idea", "capture", ops_dir, "--from-inbox", "row-1", "--id", "IDEA-7102", "--write"]
+            conflict_code, conflict_payload = run_cli_json(
+                ["idea", "capture", ops_dir, "--from-inbox", "row-1", "--id", "IDEA-7102", "--dry-run", "--write"]
             )
-            self.assertEqual(3, write_code, write_payload)
-            self.assertEqual("write_mode_deferred_to_phase_7", write_payload["reason"])
+            self.assertEqual(3, conflict_code, conflict_payload)
+            self.assertEqual("conflicting_flags", conflict_payload["reason"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_maintenance_dry_run_ignores_unmarked_rows_and_routes_duplicates_conservatively(self) -> None:

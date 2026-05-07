@@ -252,6 +252,36 @@ clear refusal until Phase 7 write-mode locking and atomic writes ship. These
 commands must not edit `queue.md`, task folders, canonical idea JSON, generated
 Markdown projections, or manual notes.
 
+## Phase 7 Catalog Write Mode
+
+Phase 7 enables explicit write mode for safe catalog maintenance:
+
+```bash
+async-research idea capture research_ops --from-inbox IDEA-0001 --write
+async-research idea catalog maintain research_ops --write
+async-research idea park research_ops IDEA-0001 --reason "..." --revisit "..." --write
+async-research idea reject research_ops IDEA-0001 --reason "..." --write
+```
+
+Write mode acquires `research_ops/ideas/LOCK/` with an `owner.json` containing
+the command, process id, start time, and lock expiry before reading catalog
+state. Fresh locks refuse writers. Expired locks may be moved to
+`LOCK.stale.<timestamp>` before retrying. The lock is released only after
+canonical JSON writes, generated projection writes, and post-write validation.
+
+Writers use temp-file-plus-atomic-rename for canonical JSON and generated
+Markdown projection files. They preserve bytes outside generated blocks in
+`idea_catalog.md` and `prioritization.md`, regenerate generated blocks from
+canonical JSON, and run catalog validation after writes. Capture write mode
+refuses duplicate or ambiguous capture plans and will not overwrite an existing
+`IDEA-*.json` target unless explicitly allowed. Maintenance write mode applies
+only deterministic create/status proposals; promotion remains a catalog status
+recommendation and never mutates `queue.md`.
+
+Explicit `park` and `reject` commands require a reason. `park` also requires a
+revisit condition. Status-changing writes append `decision_history` and update
+`updated_at` only when canonical content changes.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

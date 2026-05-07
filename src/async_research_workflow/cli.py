@@ -790,7 +790,8 @@ def run_idea_catalog_maintain_command(args: argparse.Namespace) -> int:
         "idea_catalog",
         ["maintain", str(args.ops_dir)]
         + (["--dry-run"] if args.dry_run else [])
-        + (["--write"] if args.write else []),
+        + (["--write"] if args.write else [])
+        + (["--update-existing"] if args.update_existing else []),
     )
 
 
@@ -801,6 +802,29 @@ def run_idea_capture_command(args: argparse.Namespace) -> int:
         + optional_text("--from-inbox", args.from_inbox)
         + optional_text("--id", args.idea_id)
         + optional_text("--title", args.title)
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else [])
+        + (["--update-existing"] if args.update_existing else []),
+    )
+
+
+def run_idea_park_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["park", str(args.ops_dir), args.idea_id]
+        + optional_text("--reason", args.reason)
+        + optional_text("--revisit", args.revisit)
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
+def run_idea_reject_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["reject", str(args.ops_dir), args.idea_id]
+        + optional_text("--reason", args.reason)
+        + optional_text("--revisit", args.revisit)
         + (["--dry-run"] if args.dry_run else [])
         + (["--write"] if args.write else []),
     )
@@ -1569,17 +1593,44 @@ def register_artifact_commands(subparsers) -> None:
     idea_capture = add_command(
         idea_sub,
         "capture",
-        help="Preview discovery-to-catalog capture.",
-        description="Build one dry-run canonical IDEA JSON proposal from discovery_inbox.md or an explicit title without mutating files.",
-        epilog="Phase 6 is dry-run only. Write mode is reserved for Phase 7.",
+        help="Preview or write discovery-to-catalog capture.",
+        description="Build or write one canonical IDEA JSON record from discovery_inbox.md or an explicit title.",
+        epilog="Write mode uses research_ops/ideas/LOCK and regenerates generated catalog projections without editing queue.md.",
     )
     add_common_ops(idea_capture)
     idea_capture.add_argument("--from-inbox", help="Discovery inbox item id or row-N selector to capture explicitly.")
     idea_capture.add_argument("--id", dest="idea_id", help="Canonical IDEA-0000 id for the proposed catalog record.")
     idea_capture.add_argument("--title", help="Title for an explicit title-only capture proposal.")
     idea_capture.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
-    idea_capture.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    idea_capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections.")
+    idea_capture.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target.")
     idea_capture.set_defaults(func=run_idea_capture_command)
+    idea_park = add_command(
+        idea_sub,
+        "park",
+        help="Park one catalog idea.",
+        description="Move one canonical catalog idea to park with a reason, revisit condition, decision history, and regenerated projections.",
+    )
+    add_common_ops(idea_park)
+    idea_park.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_park.add_argument("--reason", required=True, help="Reason for parking the idea.")
+    idea_park.add_argument("--revisit", required=True, help="Concrete condition for revisiting the idea.")
+    idea_park.add_argument("--dry-run", action="store_true", help="Preview the status change without writing; this is the default.")
+    idea_park.add_argument("--write", action="store_true", help="Apply the status change under research_ops/ideas/LOCK.")
+    idea_park.set_defaults(func=run_idea_park_command)
+    idea_reject = add_command(
+        idea_sub,
+        "reject",
+        help="Reject one catalog idea.",
+        description="Move one canonical catalog idea to reject with a reason, decision history, and regenerated projections.",
+    )
+    add_common_ops(idea_reject)
+    idea_reject.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_reject.add_argument("--reason", required=True, help="Reason for rejecting the idea.")
+    idea_reject.add_argument("--revisit", help="Optional reopen condition; a conservative default is used when omitted.")
+    idea_reject.add_argument("--dry-run", action="store_true", help="Preview the status change without writing; this is the default.")
+    idea_reject.add_argument("--write", action="store_true", help="Apply the status change under research_ops/ideas/LOCK.")
+    idea_reject.set_defaults(func=run_idea_reject_command)
     idea_catalog = add_command(
         idea_sub,
         "catalog",
@@ -1627,13 +1678,14 @@ def register_artifact_commands(subparsers) -> None:
     idea_catalog_maintain = add_command(
         idea_catalog_sub,
         "maintain",
-        help="Preview catalog maintenance proposals.",
-        description="Read discovery_inbox.md, accepted/rejected refs, and canonical idea JSON to print conservative dry-run maintenance proposals.",
-        epilog="Phase 6 maintenance never edits queue.md, task folders, or canonical idea JSON.",
+        help="Preview or write catalog maintenance proposals.",
+        description="Read discovery_inbox.md, accepted/rejected refs, and canonical idea JSON to plan or apply conservative maintenance.",
+        epilog="Write mode uses research_ops/ideas/LOCK, regenerates projections, and never edits queue.md or task folders.",
     )
     add_common_ops(idea_catalog_maintain)
     idea_catalog_maintain.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
-    idea_catalog_maintain.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    idea_catalog_maintain.add_argument("--write", action="store_true", help="Apply safe maintenance changes and regenerate generated catalog projections.")
+    idea_catalog_maintain.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target if a create plan races with an existing file.")
     idea_catalog_maintain.set_defaults(func=run_idea_catalog_maintain_command)
 
     experiment = add_command(
