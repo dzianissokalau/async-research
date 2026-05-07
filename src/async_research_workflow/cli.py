@@ -1603,7 +1603,7 @@ def register_artifact_commands(subparsers) -> None:
     idea_capture.add_argument("--title", help="Title for an explicit title-only capture proposal.")
     idea_capture.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
     idea_capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections.")
-    idea_capture.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target.")
+    idea_capture.add_argument("--update-existing", action="store_true", help="Allow write mode to merge captured metadata into an existing same-ID IDEA JSON record.")
     idea_capture.set_defaults(func=run_idea_capture_command)
     idea_park = add_command(
         idea_sub,

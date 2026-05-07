@@ -65,6 +65,15 @@ def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def post_write_failure_context(files_written: list[dict[str, Any]]) -> dict[str, Any]:
+    if not files_written:
+        return {}
+    return {
+        "warning": "files were written before post-write validation detected a failure; no automatic rollback was attempted",
+        "next_step": "run async-research idea catalog validate to inspect catalog state before retrying",
+    }
+
+
 class CatalogLockError(RuntimeError):
     def __init__(self, payload: dict[str, Any]):
         super().__init__(str(payload.get("reason", "catalog_lock_error")))
@@ -999,6 +1008,75 @@ def capture_source_and_plan(args: argparse.Namespace, model: dict[str, Any]) -> 
     }
 
 
+def capture_update_existing_payload(
+    ops_dir: Path,
+    model: dict[str, Any],
+    plan: dict[str, Any],
+    now: datetime,
+) -> tuple[int, dict[str, Any], dict[Path, dict[str, Any]]]:
+    idea_id = str(plan.get("proposal", {}).get("idea_id") or "").strip()
+    if plan.get("route") != "update_existing" or plan.get("reason") != "same_idea_id" or not IDEA_ID_PATTERN.match(idea_id):
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_capture_write_refused",
+            "reason": "capture_update_existing_requires_same_id",
+            "message": "--update-existing only merges captured metadata into an existing same-ID catalog record",
+            "dry_run_plan": plan,
+        }, {}
+    duplicate = duplicate_record_failure(model, idea_id)
+    if duplicate is not None:
+        return MALFORMED, {
+            "ok": False,
+            "action": "idea_capture_write_refused",
+            "reason": "duplicate_idea_id",
+            "failures": [duplicate],
+            "dry_run_plan": plan,
+        }, {}
+    record = find_catalog_record(model, idea_id)
+    if record is None:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_capture_write_refused",
+            "reason": "idea_not_found",
+            "idea_id": idea_id,
+            "dry_run_plan": plan,
+        }, {}
+
+    updated = copy.deepcopy(record["payload"])
+    before = copy.deepcopy(updated)
+    title = str(plan.get("proposal", {}).get("title") or "").strip()
+    if title:
+        updated["title"] = title
+    source_row = plan.get("source_row")
+    if isinstance(source_row, dict):
+        updated["source_discovery_path"] = f"discovery_inbox.md#{source_row['row_id']}"
+        updated["recommended_next_task"] = row_next_task(source_row)
+
+    if updated != before:
+        updated["updated_at"] = utc_timestamp(now)
+
+    payloads_by_path = {Path(str(record["path"])): updated} if updated != before else {}
+    return SUCCESS, {
+        "ok": True,
+        "action": "idea_capture_update_existing_planned",
+        "ops_dir": str(ops_dir),
+        "idea_id": idea_id,
+        "dry_run": True,
+        "changed": bool(payloads_by_path),
+        "proposal": {
+            "action": "merge_capture_metadata_into_existing_idea",
+            "path": record["path"],
+            "idea_id": idea_id,
+            "fields": {
+                key: updated.get(key)
+                for key in ("title", "source_discovery_path", "recommended_next_task", "updated_at")
+                if updated.get(key) != before.get(key)
+            },
+        },
+        "dry_run_plan": plan,
+    }, payloads_by_path
+
+
 def capture_write(args: argparse.Namespace) -> int:
     if args.dry_run:
         print_json(
@@ -1033,37 +1111,49 @@ def capture_write(args: argparse.Namespace) -> int:
         if source_code != SUCCESS:
             print_json(payload)
             return source_code
-        if payload["route"] != "create" or not payload.get("would_write"):
+        now = utc_now()
+        if payload["route"] == "create" and payload.get("would_write"):
+            change = payload["would_write"][0]
+            target_path = Path(str(change["path"]))
+            if target_path.exists() and not args.update_existing:
+                print_json(
+                    {
+                        "ok": False,
+                        "action": "idea_capture_write_refused",
+                        "reason": "target_idea_exists",
+                        "message": "refusing to overwrite existing canonical idea without --update-existing",
+                        "path": str(target_path),
+                    }
+                )
+                return VALIDATION_FAILED
+
+            candidate = copy.deepcopy(change["content"])
+            candidate.setdefault("created_at", utc_timestamp(now))
+            candidate["updated_at"] = utc_timestamp(now)
+            payloads_by_path = {target_path: candidate}
+            write_plan = payload
+        elif args.update_existing and payload["route"] == "update_existing":
+            update_code, update_payload, payloads_by_path = capture_update_existing_payload(args.ops_dir, model, payload, now)
+            if update_code != SUCCESS:
+                print_json(update_payload)
+                return update_code
+            candidate = next(iter(payloads_by_path.values()), None)
+            if candidate is None:
+                existing = find_catalog_record(model, str(update_payload["idea_id"]))
+                candidate = copy.deepcopy(existing["payload"]) if existing is not None else {}
+            write_plan = update_payload
+        else:
             print_json(
                 {
                     "ok": False,
                     "action": "idea_capture_write_refused",
                     "reason": "capture_write_requires_create_plan",
                     "ops_dir": str(args.ops_dir),
+                    "message": "capture write mode creates new ideas by default; use --update-existing only for same-ID metadata merges",
                     "dry_run_plan": payload,
                 }
             )
             return INVALID_REQUEST
-
-        change = payload["would_write"][0]
-        target_path = Path(str(change["path"]))
-        if target_path.exists() and not args.update_existing:
-            print_json(
-                {
-                    "ok": False,
-                    "action": "idea_capture_write_refused",
-                    "reason": "target_idea_exists",
-                    "message": "refusing to overwrite existing canonical idea without --update-existing",
-                    "path": str(target_path),
-                }
-            )
-            return VALIDATION_FAILED
-
-        now = utc_now()
-        candidate = copy.deepcopy(change["content"])
-        candidate.setdefault("created_at", utc_timestamp(now))
-        candidate["updated_at"] = utc_timestamp(now)
-        payloads_by_path = {target_path: candidate}
         files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
         if failures:
             print_json(
@@ -1074,6 +1164,7 @@ def capture_write(args: argparse.Namespace) -> int:
                     "ops_dir": str(args.ops_dir),
                     "failures": failures,
                     "files_written": files_written,
+                    **post_write_failure_context(files_written),
                 }
             )
             return VALIDATION_FAILED
@@ -1088,6 +1179,7 @@ def capture_write(args: argparse.Namespace) -> int:
                 "lock": lock,
                 "files_written": files_written,
                 "candidate": candidate,
+                "write_plan": write_plan,
                 "validation": {
                     "ok": validation.get("ok", False),
                     "candidate_count": validation.get("candidate_count", 0),
@@ -1324,6 +1416,7 @@ def maintain_write(args: argparse.Namespace) -> int:
                     "failures": failures,
                     "files_written": files_written,
                     "dry_run_plan": plan,
+                    **post_write_failure_context(files_written),
                 }
             )
             return VALIDATION_FAILED
@@ -1537,6 +1630,7 @@ def run_status_command(args: argparse.Namespace, target_status: str) -> int:
                     "failures": failures,
                     "files_written": files_written,
                     "dry_run_plan": payload,
+                    **post_write_failure_context(files_written),
                 }
             )
             return VALIDATION_FAILED
@@ -1818,7 +1912,7 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--title", help="Title for an explicit title-only capture proposal.")
     capture.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
     capture.add_argument("--write", action="store_true", help="Create the canonical IDEA JSON and regenerate projections under research_ops/ideas/LOCK.")
-    capture.add_argument("--update-existing", action="store_true", help="Allow write mode to replace an existing IDEA JSON target.")
+    capture.add_argument("--update-existing", action="store_true", help="Allow write mode to merge captured metadata into an existing same-ID IDEA JSON record.")
     capture.set_defaults(func=run_capture)
 
     park = subparsers.add_parser(

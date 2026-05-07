@@ -268,15 +268,24 @@ the command, process id, start time, and lock expiry before reading catalog
 state. Fresh locks refuse writers. Expired locks may be moved to
 `LOCK.stale.<timestamp>` before retrying. The lock is released only after
 canonical JSON writes, generated projection writes, and post-write validation.
+Concurrent stale-lock recovery attempts are fail-safe but not queued; one writer
+may win and another may need to retry.
 
 Writers use temp-file-plus-atomic-rename for canonical JSON and generated
 Markdown projection files. They preserve bytes outside generated blocks in
 `idea_catalog.md` and `prioritization.md`, regenerate generated blocks from
 canonical JSON, and run catalog validation after writes. Capture write mode
-refuses duplicate or ambiguous capture plans and will not overwrite an existing
-`IDEA-*.json` target unless explicitly allowed. Maintenance write mode applies
-only deterministic create/status proposals; promotion remains a catalog status
-recommendation and never mutates `queue.md`.
+refuses duplicate or ambiguous capture plans. By default it creates only new
+ideas. With `--update-existing`, it may merge captured title, inbox source path,
+and recommended next task into an existing same-ID catalog record; it still
+refuses duplicate-title or otherwise ambiguous overwrite attempts. Maintenance
+write mode applies only deterministic create/status proposals; promotion remains
+a catalog status recommendation and never mutates `queue.md`.
+
+Post-write validation failures do not automatically roll back files that were
+already written. Failure responses include the written paths and direct the
+operator to run `async-research idea catalog validate` before retrying so the
+on-disk state can be inspected.
 
 Explicit `park` and `reject` commands require a reason. `park` also requires a
 revisit condition. Status-changing writes append `decision_history` and update

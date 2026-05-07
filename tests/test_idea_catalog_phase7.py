@@ -8,9 +8,11 @@ import json
 import re
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import idea_catalog as idea_catalog_script
 
 
 TIMESTAMP_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
@@ -187,6 +189,128 @@ class IdeaCatalogPhase7Tests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, rerun_code, rerun)
             self.assertFalse(rerun["changed"])
             self.assertEqual([], rerun["files_written"])
+
+    def test_conflicting_write_flags_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            capture_code, capture = run_cli_json(
+                ["idea", "capture", ops_dir, "--title", "Conflicted", "--id", "IDEA-7206", "--dry-run", "--write"]
+            )
+            self.assertEqual(3, capture_code, capture)
+            self.assertEqual("conflicting_flags", capture["reason"])
+
+            maintain_code, maintain = run_cli_json(["idea", "catalog", "maintain", ops_dir, "--dry-run", "--write"])
+            self.assertEqual(3, maintain_code, maintain)
+            self.assertEqual("conflicting_flags", maintain["reason"])
+
+    def test_capture_write_refuses_duplicate_routes_even_with_update_existing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_json(ops_dir / "ideas" / "IDEA-7207.json", valid_candidate("IDEA-7207", "Duplicate capture title"))
+
+            code, payload = run_cli_json(
+                ["idea", "capture", ops_dir, "--title", "Duplicate capture title", "--id", "IDEA-7208", "--write"]
+            )
+            self.assertEqual(3, code, payload)
+            self.assertEqual("capture_write_requires_create_plan", payload["reason"])
+
+            update_code, update_payload = run_cli_json(
+                [
+                    "idea",
+                    "capture",
+                    ops_dir,
+                    "--title",
+                    "Duplicate capture title",
+                    "--id",
+                    "IDEA-7208",
+                    "--write",
+                    "--update-existing",
+                ]
+            )
+            self.assertEqual(3, update_code, update_payload)
+            self.assertEqual("capture_update_existing_requires_same_id", update_payload["reason"])
+            self.assertFalse((ops_dir / "ideas" / "IDEA-7208.json").exists())
+
+    def test_capture_update_existing_merges_same_id_metadata_only_when_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            existing = valid_candidate("IDEA-7209", "Existing title")
+            write_json(ops_dir / "ideas" / "IDEA-7209.json", existing)
+            write_text(
+                ops_dir / "discovery_inbox.md",
+                "\n".join(
+                    [
+                        "# Discovery Inbox",
+                        "",
+                        "| item | title | source | status | score | next_task | notes |",
+                        "| --- | --- | --- | --- | ---: | --- | --- |",
+                        "| IDEA-7209 | Updated capture title | scan | candidate | 5 | literature_extract | catalog: candidate |",
+                        "",
+                    ]
+                ),
+            )
+
+            refused_code, refused = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7209", "--write"])
+            self.assertEqual(3, refused_code, refused)
+            self.assertEqual("capture_write_requires_create_plan", refused["reason"])
+            unchanged = json.loads((ops_dir / "ideas" / "IDEA-7209.json").read_text(encoding="utf-8"))
+            self.assertEqual("Existing title", unchanged["title"])
+
+            code, payload = run_cli_json(
+                ["idea", "capture", ops_dir, "--from-inbox", "IDEA-7209", "--write", "--update-existing"]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["changed"])
+            updated = json.loads((ops_dir / "ideas" / "IDEA-7209.json").read_text(encoding="utf-8"))
+            self.assertEqual("Updated capture title", updated["title"])
+            self.assertEqual("discovery_inbox.md#row-1", updated["source_discovery_path"])
+            self.assertEqual("literature_extract", updated["recommended_next_task"])
+            self.assertEqual("candidate", updated["status"])
+            self.assertEqual(16.5, updated["score"]["weighted_total"])
+            self.assertRegex(updated["updated_at"], TIMESTAMP_RE)
+            self.assertIn("Updated capture title", (ops_dir / "ideas" / "idea_catalog.md").read_text(encoding="utf-8"))
+
+    def test_post_write_validation_failure_reports_written_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_text(
+                ops_dir / "discovery_inbox.md",
+                "\n".join(
+                    [
+                        "# Discovery Inbox",
+                        "",
+                        "| item | title | source | status | score | next_task | notes |",
+                        "| --- | --- | --- | --- | ---: | --- | --- |",
+                        "| IDEA-7210 | Post validation failure | scan | candidate | 5 | data_readiness | catalog: candidate |",
+                        "",
+                    ]
+                ),
+            )
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "catalog_validation_report_from_model",
+                return_value={
+                    "ok": False,
+                    "warnings": [],
+                    "failures": [
+                        {
+                            "severity": "failure",
+                            "reason": "forced_post_write_failure",
+                            "message": "forced by test",
+                        }
+                    ],
+                },
+            ):
+                code, payload = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7210", "--write"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("post_write_validation_failed", payload["reason"])
+            self.assertIn("files were written before post-write validation", payload["warning"])
+            self.assertIn("idea catalog validate", payload["next_step"])
+            self.assertTrue(payload["files_written"])
+            self.assertTrue((ops_dir / "ideas" / "IDEA-7210.json").exists())
 
     def test_status_writes_respect_locks_and_recover_stale_locks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
