@@ -55,6 +55,17 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
             ],
         )
 
+    def test_contract_defines_cli_evolution_for_write_slices(self) -> None:
+        self.assert_doc_contains(
+            CONTRACT,
+            [
+                "CLI evolution is staged.",
+                "In V2.2, `idea promote --write` performs proposal writes only and does not create task folders or edit `queue.md`.",
+                "In V2.6, `idea promote --write` composes proposal write and task creation write in one invocation under one catalog lock acquisition.",
+                "If later implementation chooses separate flags instead, this contract and its tests must be updated before runtime code changes.",
+            ],
+        )
+
     def test_contract_defines_lock_order_idempotency_and_changed_candidate_rule(self) -> None:
         self.assert_doc_contains(
             CONTRACT,
@@ -64,6 +75,11 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
                 "Append `queue.md` only after staged task files validate.",
                 "Update the idea's `promoted_task_id` only after the task folder and queue row are both finalized.",
                 "catalog_idea_id + task_type + promotion_preflight_hash",
+                "same `catalog_idea_id`, idempotency key, and transaction id.",
+                "The transaction id is generated at write time after the idempotency key is computed.",
+                "Proposal write mode must persist it in the idea `decision_history` entry and the `inbox.md` proposal metadata.",
+                "Task creation write mode must also persist it in task `status.json` and queue row metadata or notes.",
+                "Recovery payloads and rollback messages must include both the transaction id and the idempotency key.",
                 "If any of those fields change between dry-run and write, the write must refuse with `reason=promotion_preflight_changed`",
             ],
         )

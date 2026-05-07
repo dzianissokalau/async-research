@@ -407,6 +407,13 @@ Promotion write mode is split into two later write slices:
 | Proposal write mode | `research_ops/inbox.md`, the selected `ideas/IDEA-*.json` proposal reference fields, generated idea projections, and `decision_history` for the proposal reference. | `queue.md`, `tasks/`, accepted-output ledgers, source audit rows, and unrelated idea records. |
 | Task creation write mode | One new `tasks/TASK-*/` folder, one `queue.md` row, the selected idea's `promoted_task_id`, generated idea projections, and transaction/audit metadata. | More than one task, unrelated queue rows, unrelated ideas, source audit state, accepted-output ledgers, and manual notes outside generated blocks. |
 
+CLI evolution is staged. In V2.2, `idea promote --write` performs proposal
+writes only and does not create task folders or edit `queue.md`. In V2.6,
+`idea promote --write` composes proposal write and task creation write in one
+invocation under one catalog lock acquisition. If later implementation chooses
+separate flags instead, this contract and its tests must be updated before
+runtime code changes.
+
 Required lock ordering:
 
 1. Acquire `research_ops/ideas/LOCK` before re-reading the selected idea for any
@@ -431,13 +438,20 @@ files are finalized. A write must refuse when the reserved task id already has
 a task folder, an existing `queue.md` row, or a different idea's
 `promoted_task_id`. Re-running the same write command may be idempotent only
 when the existing task folder, queue row, and idea `promoted_task_id` all match
-the same `catalog_idea_id` and transaction id.
+the same `catalog_idea_id`, idempotency key, and transaction id.
 
 The idempotency key for both write slices is:
 
 ```text
 catalog_idea_id + task_type + promotion_preflight_hash
 ```
+
+The transaction id is generated at write time after the idempotency key is
+computed. Proposal write mode must persist it in the idea `decision_history`
+entry and the `inbox.md` proposal metadata. Task creation write mode must also
+persist it in task `status.json` and queue row metadata or notes. Recovery
+payloads and rollback messages must include both the transaction id and the
+idempotency key.
 
 The promotion preflight hash must include at least the selected idea id, status,
 score object, recommended next task, duplicate status, refs, kill reason, and
