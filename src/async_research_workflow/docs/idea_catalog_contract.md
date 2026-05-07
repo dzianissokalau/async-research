@@ -218,6 +218,36 @@ These surfaces report stored status counts, derived `raw` / `scored` /
 counts, data or evidence gap issues, and stale projection warnings. They are
 strictly read-only with respect to canonical `ideas/IDEA-*.json`.
 
+## Phase 6 Dry-Run Capture And Maintenance
+
+Phase 6 adds proposal commands only:
+
+```bash
+async-research idea capture research_ops --from-inbox IDEA-0001 --dry-run
+async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry-run
+async-research idea capture research_ops --title "..." --id IDEA-0008 --dry-run
+async-research idea catalog maintain research_ops --dry-run
+```
+
+`idea capture` is explicit ingestion. It may read one `discovery_inbox.md` row
+or an explicit title, check deterministic duplicates, and print the exact
+canonical `ideas/IDEA-*.json` it would create. Missing or invalid IDs return a
+`needs_human` proposal. Existing IDs, duplicate titles, shared accepted/rejected
+task refs, shared cluster IDs, and explicit duplicate markers route
+conservatively to an update or human decision proposal rather than creating a
+new canonical JSON file.
+
+`idea catalog maintain` reads `discovery_inbox.md`, canonical catalog JSON,
+`accepted_outputs_index.md`, and `discovery/rejected_ideas.md`. It only proposes
+capture for inbox rows with an explicit marker such as `catalog: candidate`;
+unmarked row presence never creates catalog candidates. It also reports
+conservative lifecycle recommendations for existing catalog records.
+
+Both commands are read-only in Phase 6. `--write` is accepted only to return a
+clear refusal until Phase 7 write-mode locking and atomic writes ship. These
+commands must not edit `queue.md`, task folders, canonical idea JSON, generated
+Markdown projections, or manual notes.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

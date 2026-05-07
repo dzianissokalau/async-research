@@ -785,6 +785,27 @@ def run_idea_catalog_show_command(args: argparse.Namespace) -> int:
     return module_main("idea_catalog", ["show", str(args.ops_dir), args.idea_id])
 
 
+def run_idea_catalog_maintain_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["maintain", str(args.ops_dir)]
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
+def run_idea_capture_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["capture", str(args.ops_dir)]
+        + optional_text("--from-inbox", args.from_inbox)
+        + optional_text("--id", args.idea_id)
+        + optional_text("--title", args.title)
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
 def run_review_prepare_context_command(args: argparse.Namespace) -> int:
     return module_main(
         "prepare_review_context",
@@ -1523,7 +1544,7 @@ def register_artifact_commands(subparsers) -> None:
         subparsers,
         "idea",
         help="Score, validate, or manage idea artifacts.",
-        description="Score idea candidates, validate idea-evaluation JSON artifacts, and initialize the durable idea catalog.",
+        description="Score idea candidates, validate idea-evaluation JSON artifacts, and manage the durable idea catalog.",
     )
     idea_sub = idea.add_subparsers(dest="idea_command", required=True)
     idea_score = add_command(
@@ -1545,6 +1566,20 @@ def register_artifact_commands(subparsers) -> None:
     idea_validate.add_argument("idea_json", type=Path, help="Idea-evaluation JSON file.")
     idea_validate.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     idea_validate.set_defaults(func=lambda a: module_main("validate_idea_evaluation", [str(a.idea_json), "--ops-dir", str(a.ops_dir)]))
+    idea_capture = add_command(
+        idea_sub,
+        "capture",
+        help="Preview discovery-to-catalog capture.",
+        description="Build one dry-run canonical IDEA JSON proposal from discovery_inbox.md or an explicit title without mutating files.",
+        epilog="Phase 6 is dry-run only. Write mode is reserved for Phase 7.",
+    )
+    add_common_ops(idea_capture)
+    idea_capture.add_argument("--from-inbox", help="Discovery inbox item id or row-N selector to capture explicitly.")
+    idea_capture.add_argument("--id", dest="idea_id", help="Canonical IDEA-0000 id for the proposed catalog record.")
+    idea_capture.add_argument("--title", help="Title for an explicit title-only capture proposal.")
+    idea_capture.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
+    idea_capture.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    idea_capture.set_defaults(func=run_idea_capture_command)
     idea_catalog = add_command(
         idea_sub,
         "catalog",
@@ -1589,6 +1624,17 @@ def register_artifact_commands(subparsers) -> None:
     add_common_ops(idea_catalog_show)
     idea_catalog_show.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
     idea_catalog_show.set_defaults(func=run_idea_catalog_show_command)
+    idea_catalog_maintain = add_command(
+        idea_catalog_sub,
+        "maintain",
+        help="Preview catalog maintenance proposals.",
+        description="Read discovery_inbox.md, accepted/rejected refs, and canonical idea JSON to print conservative dry-run maintenance proposals.",
+        epilog="Phase 6 maintenance never edits queue.md, task folders, or canonical idea JSON.",
+    )
+    add_common_ops(idea_catalog_maintain)
+    idea_catalog_maintain.add_argument("--dry-run", action="store_true", help="Preview proposals without writing; this is the default.")
+    idea_catalog_maintain.add_argument("--write", action="store_true", help="Reserved for Phase 7; refused in Phase 6.")
+    idea_catalog_maintain.set_defaults(func=run_idea_catalog_maintain_command)
 
     experiment = add_command(
         subparsers,

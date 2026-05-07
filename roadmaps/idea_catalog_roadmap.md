@@ -181,7 +181,7 @@ Last updated: 2026-05-07
 | 3 | Catalog parser and read model | Complete | Adds read-only `async_research_workflow.idea_catalog` parser for canonical JSON, generated projections, duplicate IDs, stale projections, counts, and cold-start warnings. |
 | 4 | Catalog validator and read-only CLI | Complete | Completes the MVP with read-only `idea catalog validate`, `list`, and `show`, schema/lifecycle/reference validation, and CLI/README coverage. |
 | 5 | Read-only surface integration | Complete | Adds read-only catalog throughput, blockers, stale projection warnings, and malformed-state warnings to weekly digest, daily status, health, and readiness surfaces without mutating canonical JSON. |
-| 6 | Explicit capture and maintenance dry run | Not started | Post-MVP. Add explicit inbox/title capture and maintenance proposals in dry-run mode. |
+| 6 | Explicit capture and maintenance dry run | Complete | Adds dry-run `idea capture` and `idea catalog maintain` proposals with deterministic duplicate checks, explicit inbox markers, no JSON writes, and no queue/task mutation. |
 | 7 | Catalog maintenance write mode | Not started | Post-MVP. Add lock-protected writes, projection regeneration, idempotency, and note preservation. |
 | 8 | Promotion dry run | Not started | Post-MVP. Produce one bounded task proposal without editing `queue.md` or task folders. |
 | 9 | Planner promotion behavior | Not started | Post-MVP. Teach planner docs/prompts to use catalog promotion proposals safely. |
