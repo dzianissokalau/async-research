@@ -30,6 +30,7 @@ from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.idea_catalog import blockers_for_payload
 from async_research_workflow.idea_catalog import candidate_summary
 from async_research_workflow.idea_catalog import catalog_list_report
+from async_research_workflow.idea_catalog import catalog_dashboard_report
 from async_research_workflow.idea_catalog import catalog_show_report
 from async_research_workflow.idea_catalog import catalog_validation_exit_code
 from async_research_workflow.idea_catalog import catalog_validation_report
@@ -2220,6 +2221,12 @@ def run_validate(args: argparse.Namespace) -> int:
     return catalog_validation_exit_code(report)
 
 
+def run_dashboard(args: argparse.Namespace) -> int:
+    report = catalog_dashboard_report(args.ops_dir, args.max_blockers)
+    print_json(report)
+    return int(report["validation_exit_code"])
+
+
 def run_list(args: argparse.Namespace) -> int:
     report = catalog_list_report(args.ops_dir, args.status)
     print_json(report)
@@ -2266,6 +2273,15 @@ def build_parser() -> argparse.ArgumentParser:
     list_cmd.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     list_cmd.add_argument("--status", choices=STORED_STATUSES, help="Filter by stored idea status.")
     list_cmd.set_defaults(func=run_list)
+
+    dashboard = subparsers.add_parser(
+        "dashboard",
+        help="Render a read-only idea portfolio dashboard.",
+        description="Render a read-only portfolio dashboard with candidate, parked, promoted, rejected, blocker, score, task recommendation, and idea-to-task-link views from the catalog read model.",
+    )
+    dashboard.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    dashboard.add_argument("--max-blockers", type=int, default=10, help="Maximum validation blockers to include in the top_blockers section.")
+    dashboard.set_defaults(func=run_dashboard)
 
     show = subparsers.add_parser(
         "show",

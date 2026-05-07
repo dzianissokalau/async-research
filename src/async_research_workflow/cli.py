@@ -782,6 +782,10 @@ def run_idea_catalog_list_command(args: argparse.Namespace) -> int:
     return module_main("idea_catalog", ["list", str(args.ops_dir)] + optional_text("--status", args.status))
 
 
+def run_idea_catalog_dashboard_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["dashboard", str(args.ops_dir), "--max-blockers", str(args.max_blockers)])
+
+
 def run_idea_catalog_show_command(args: argparse.Namespace) -> int:
     return module_main("idea_catalog", ["show", str(args.ops_dir), args.idea_id])
 
@@ -1692,6 +1696,15 @@ def register_artifact_commands(subparsers) -> None:
     add_common_ops(idea_catalog_list)
     idea_catalog_list.add_argument("--status", choices=STORED_STATUSES, help="Filter by stored idea status.")
     idea_catalog_list.set_defaults(func=run_idea_catalog_list_command)
+    idea_catalog_dashboard = add_command(
+        idea_catalog_sub,
+        "dashboard",
+        help="Render a read-only idea portfolio dashboard.",
+        description="Render a read-only portfolio dashboard with candidate, parked, promoted, rejected, blocker, score, task recommendation, and idea-to-task-link views from canonical catalog state.",
+    )
+    add_common_ops(idea_catalog_dashboard)
+    idea_catalog_dashboard.add_argument("--max-blockers", type=int, default=10, help="Maximum validation blockers to include in the top_blockers section.")
+    idea_catalog_dashboard.set_defaults(func=run_idea_catalog_dashboard_command)
     idea_catalog_show = add_command(
         idea_catalog_sub,
         "show",

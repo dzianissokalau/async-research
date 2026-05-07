@@ -185,7 +185,7 @@ Last updated: 2026-05-07
 | 7 | Catalog maintenance write mode | Complete | Adds lock-protected capture and maintenance writes, explicit park/reject commands, atomic JSON/projection writes, stale-lock recovery, idempotency coverage, and note-preserving generated block regeneration. |
 | 8 | Promotion dry run | Complete | Adds read-only `idea promote` proposals with task-type routing, blocker reporting, duplicate override gating, experiment-plan gate checks, and no `queue.md` or task-folder mutation. |
 | 9 | Planner promotion behavior | Complete | Teaches planner prompts and core docs to move from discovery inbox to durable catalog to dry-run promotion proposal to planner-created task and queue row, preserving v1 safety boundaries. |
-| 10 | Dashboard read-only view | Not started | Post-MVP. Add read-only portfolio views after backend state stabilizes. |
+| 10 | Dashboard read-only view | Complete | Adds read-only `idea catalog dashboard` portfolio views for active, parked, promoted, and rejected ideas, top blockers, score dimensions with `unavailable` for missing score artifacts, next tasks, and idea-to-task links. |
 | V2 | Promotion write mode | Deferred | Only after dry-run promotion has usage history and transactional queue/task writes are designed. |
 
 ## Framework Integration
@@ -803,6 +803,12 @@ Purpose: make the idea portfolio visible without opening Markdown files.
 Add dashboard views after the catalog state model is stable. The dashboard
 should read from the catalog read model or validator output, not parse files
 through a separate path.
+
+Command:
+
+```bash
+async-research idea catalog dashboard research_ops
+```
 
 Show:
 

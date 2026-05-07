@@ -362,6 +362,33 @@ writer in v1. The park closeout is a temporary v1 planner convention to prevent
 repeat promotion; V2 promotion write mode will replace it with a transactional
 `promoted_task_id` update.
 
+## Phase 10 Dashboard Read-Only View
+
+Phase 10 adds a portfolio dashboard command:
+
+```bash
+async-research idea catalog dashboard research_ops
+```
+
+The dashboard reads the catalog read model and validator output. It does not
+parse catalog files through a separate path and does not write canonical idea
+JSON, generated projections, `queue.md`, or task folders.
+
+The JSON output includes:
+
+- active candidate ideas, including `candidate`, `promote`, and `needs_human`
+  statuses
+- parked, promoted, and rejected idea lists
+- top validation blockers, with failures sorted before warnings
+- score dimensions for every canonical idea
+- next recommended task groups for active candidate ideas
+- idea-to-task links from `promoted_task_id`
+
+Missing score artifacts render as `unavailable` across the dashboard summary,
+score dimensions, and candidate rows. The command still returns the validator
+exit code, so malformed or unsafe catalog state can render visibly while
+automation fails closed.
+
 ## Safety Rules
 
 - Every mutating idea-catalog command requires explicit `--write`.

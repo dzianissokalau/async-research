@@ -85,6 +85,18 @@ DATA_OR_EVIDENCE_GAP_REASONS = {
     "promote_unsafe_next_task",
     "score_threshold_missing",
 }
+UNAVAILABLE = "unavailable"
+SCORE_DIMENSIONS = (
+    "decision_impact",
+    "data_availability",
+    "killability",
+    "feasibility",
+    "reuse_potential",
+    "novelty",
+    "robustness_risk",
+    "cost",
+)
+ACTIVE_DASHBOARD_STATUSES = {"candidate", "promote", "needs_human"}
 
 CATALOG_TEMPLATE = f"""# Idea Catalog
 
@@ -989,6 +1001,221 @@ def catalog_surface_summary(ops_dir: Path, max_promotions: int = 5) -> dict[str,
         "failure_count": len(validation["failures"]),
         "warnings": [surface_issue_summary(item) for item in validation["warnings"]],
         "failures": [surface_issue_summary(item) for item in validation["failures"]],
+    }
+
+
+def dashboard_available(value: Any) -> Any:
+    if value is None:
+        return UNAVAILABLE
+    if isinstance(value, str) and not value.strip():
+        return UNAVAILABLE
+    return value
+
+
+def dashboard_score_value(score: dict[str, Any] | None, field: str) -> Any:
+    if not isinstance(score, dict):
+        return UNAVAILABLE
+    return dashboard_available(score.get(field))
+
+
+def dashboard_issue_summary(item: dict[str, Any]) -> dict[str, Any]:
+    summary = surface_issue_summary(item)
+    summary["severity"] = item.get("severity", UNAVAILABLE)
+    summary["category"] = item.get("category", "validation")
+    return summary
+
+
+def dashboard_issue_sort_key(item: dict[str, Any]) -> tuple[int, str, str, str]:
+    severity_rank = 0 if item.get("severity") == "failure" else 1
+    candidate_id = str(item.get("candidate_id") or item.get("idea_id") or "")
+    return severity_rank, candidate_id, str(item.get("reason") or ""), str(item.get("path") or "")
+
+
+def dashboard_issues_by_candidate(issues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in issues:
+        candidate_id = str(item.get("candidate_id") or item.get("idea_id") or "").strip()
+        if candidate_id:
+            grouped[candidate_id].append(item)
+    for candidate_issues in grouped.values():
+        candidate_issues.sort(key=dashboard_issue_sort_key)
+    return grouped
+
+
+def dashboard_idea_summary(record: dict[str, Any], issues_by_candidate: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    summary = candidate_summary(record)
+    idea_id = str(summary.get("idea_id") or summary.get("filename_id") or "")
+    payload = record["payload"]
+    score = payload.get("score") if isinstance(payload.get("score"), dict) else None
+    issues = issues_by_candidate.get(idea_id, [])
+    return {
+        "idea_id": dashboard_available(summary.get("idea_id")),
+        "filename_id": dashboard_available(summary.get("filename_id")),
+        "status": dashboard_available(summary.get("status")),
+        "derived_label": dashboard_available(summary.get("derived_label")),
+        "title": dashboard_available(summary.get("title")),
+        "weighted_score": dashboard_score_value(score, "weighted_total"),
+        "recommended_next_task": dashboard_available(summary.get("recommended_next_task")),
+        "human_priority": dashboard_available(summary.get("human_priority")),
+        "hard_gate_blockers": summary.get("blockers", []),
+        "issue_count": len(issues),
+        "top_issue_reasons": [str(item.get("reason")) for item in issues[:3] if item.get("reason")],
+        "promoted_task_id": dashboard_available(summary.get("promoted_task_id")),
+        "updated_at": dashboard_available(summary.get("updated_at")),
+        "path": summary.get("path"),
+    }
+
+
+def dashboard_score_summary(record: dict[str, Any]) -> dict[str, Any]:
+    payload = record["payload"]
+    score = payload.get("score") if isinstance(payload.get("score"), dict) else None
+    summary = candidate_summary(record)
+    return {
+        "idea_id": dashboard_available(summary.get("idea_id")),
+        "title": dashboard_available(summary.get("title")),
+        "status": dashboard_available(summary.get("status")),
+        "score_available": isinstance(score, dict),
+        "mission_policy_version": dashboard_score_value(score, "mission_policy_version"),
+        "budget_mode": dashboard_score_value(score, "budget_mode"),
+        "weighted_total": dashboard_score_value(score, "weighted_total"),
+        "promotion_threshold": dashboard_score_value(score, "promotion_threshold"),
+        "minimum_killability": dashboard_score_value(score, "minimum_killability"),
+        "max_promotions_per_week": dashboard_score_value(score, "max_promotions_per_week"),
+        "dimensions": {
+            dimension: dashboard_score_value(score, dimension)
+            for dimension in SCORE_DIMENSIONS
+        },
+        "hard_gate_failures": failed_gate_names(score) if isinstance(score, dict) else UNAVAILABLE,
+        "score_explanation": dashboard_score_value(score, "score_explanation"),
+    }
+
+
+def dashboard_next_tasks(
+    records: list[dict[str, Any]],
+    issues_by_candidate: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        if record["status"] not in ACTIVE_DASHBOARD_STATUSES:
+            continue
+        task = str(dashboard_available(record["payload"].get("recommended_next_task")))
+        grouped[task].append(dashboard_idea_summary(record, issues_by_candidate))
+
+    return [
+        {
+            "recommended_next_task": task,
+            "idea_count": len(ideas),
+            "ideas": sorted(ideas, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or "")),
+        }
+        for task, ideas in sorted(
+            grouped.items(),
+            key=lambda item: (item[0] == UNAVAILABLE, item[0]),
+        )
+    ]
+
+
+def dashboard_idea_task_links(records: list[dict[str, Any]], issues_by_candidate: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    links: list[dict[str, Any]] = []
+    for record in sorted(records, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or "")):
+        payload = record["payload"]
+        promoted_task_id = str(payload.get("promoted_task_id") or "").strip()
+        if not promoted_task_id:
+            continue
+        summary = candidate_summary(record)
+        idea_id = str(summary.get("idea_id") or summary.get("filename_id") or "")
+        issues = issues_by_candidate.get(idea_id, [])
+        stale = any(item.get("reason") == "stale_promoted_task_id" for item in issues)
+        if stale:
+            link_status = "stale"
+        elif summary.get("status") == "promoted":
+            link_status = "available"
+        else:
+            link_status = "unverified_non_promoted_status"
+        links.append(
+            {
+                "idea_id": dashboard_available(summary.get("idea_id")),
+                "title": dashboard_available(summary.get("title")),
+                "status": dashboard_available(summary.get("status")),
+                "promoted_task_id": promoted_task_id,
+                "link_status": link_status,
+                "path": summary.get("path"),
+            }
+        )
+    return links
+
+
+def catalog_dashboard_report(ops_dir: Path, max_blockers: int = 10) -> dict[str, Any]:
+    """Return a read-only portfolio dashboard derived from the catalog read model."""
+    model = read_catalog(ops_dir)
+    validation = catalog_validation_report_from_model(ops_dir, model)
+    validation_exit_code = catalog_validation_exit_code(validation)
+    records = model["candidates"]
+    issues = validation["failures"] + validation["warnings"]
+    issues_by_candidate = dashboard_issues_by_candidate(issues)
+    sorted_records = sorted(records, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or ""))
+    active_records = [record for record in records if record["status"] in ACTIVE_DASHBOARD_STATUSES]
+    top_blockers = [
+        dashboard_issue_summary(item)
+        for item in sorted(issues, key=dashboard_issue_sort_key)[:max(0, max_blockers)]
+    ]
+
+    return {
+        "ok": validation["ok"],
+        "action": "idea_catalog_dashboard_rendered",
+        "ops_dir": model["ops_dir"],
+        "ideas_dir": model["ideas_dir"],
+        "catalog_path": model["catalog_projection"]["path"],
+        "prioritization_path": model["prioritization_projection"]["path"],
+        "read_only": True,
+        "changed": False,
+        "generated_from": "catalog_read_model_and_validator",
+        "validation_exit_code": validation_exit_code,
+        "summary": {
+            "candidate_count": validation["candidate_count"],
+            "status_counts": complete_status_counts(validation["status_counts"]),
+            "derived_label_counts": complete_pipeline_counts(validation["derived_label_counts"]),
+            "active_candidate_count": len(active_records),
+            "parked_count": int(validation["status_counts"].get("park", 0)),
+            "promoted_count": int(validation["status_counts"].get("promoted", 0)),
+            "rejected_count": int(validation["status_counts"].get("reject", 0)),
+            "top_blocker_count": len(issues),
+            "visible_top_blocker_count": len(top_blockers),
+            "score_dimension_count": len(records),
+            "next_recommended_task_count": len(dashboard_next_tasks(records, issues_by_candidate)),
+            "idea_to_task_link_count": len(dashboard_idea_task_links(records, issues_by_candidate)),
+            "warning_count": len(validation["warnings"]),
+            "failure_count": len(validation["failures"]),
+        },
+        "sections": {
+            "candidate_ideas": [
+                dashboard_idea_summary(record, issues_by_candidate)
+                for record in sorted(active_records, key=promotion_sort_key)
+            ],
+            "parked_ideas": [
+                dashboard_idea_summary(record, issues_by_candidate)
+                for record in sorted_records
+                if record["status"] == "park"
+            ],
+            "promoted_ideas": [
+                dashboard_idea_summary(record, issues_by_candidate)
+                for record in sorted_records
+                if record["status"] == "promoted"
+            ],
+            "rejected_ideas": [
+                dashboard_idea_summary(record, issues_by_candidate)
+                for record in sorted_records
+                if record["status"] == "reject"
+            ],
+            "top_blockers": top_blockers,
+            "score_dimensions": [
+                dashboard_score_summary(record)
+                for record in sorted_records
+            ],
+            "next_recommended_tasks": dashboard_next_tasks(records, issues_by_candidate),
+            "idea_to_task_links": dashboard_idea_task_links(records, issues_by_candidate),
+        },
+        "warnings": validation["warnings"],
+        "failures": validation["failures"],
     }
 
 

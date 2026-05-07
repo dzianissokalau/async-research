@@ -232,6 +232,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research idea catalog validate research_ops` | Validate durable idea catalog state. | Canonical `ideas/IDEA-*.json`, generated Markdown projections, schema, refs, and lifecycle gates. | JSON to stdout only; read-only. |
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
+| `async-research idea catalog dashboard research_ops` | Render a read-only idea portfolio dashboard. | Catalog read model plus validator output for canonical JSON, blockers, score artifacts, task recommendations, and promoted task links. | JSON to stdout only; read-only and never mutates idea files. |
 | `async-research idea catalog show research_ops IDEA-0001` | Show one canonical catalog record. | One canonical idea JSON record plus derived validation summary. | JSON to stdout only; read-only. |
 | `async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write` | Explicitly capture one discovery idea into the durable catalog. | `discovery_inbox.md`, canonical catalog records, duplicate checks. | `ideas/IDEA-*.json`, generated catalog projections; with `--update-existing`, same-ID metadata merge only; never edits `queue.md` or task folders. |
 | `async-research idea catalog maintain research_ops --write` | Apply safe catalog maintenance proposals. | `discovery_inbox.md`, canonical catalog records, accepted output and rejected idea refs. | Lock-protected canonical JSON writes and generated catalog projections; never edits `queue.md` or task folders. |
@@ -280,6 +281,7 @@ async-research exploration validate <worker-output> --ops-dir research_ops --tas
 async-research idea catalog init research_ops --dry-run
 async-research idea catalog validate research_ops
 async-research idea catalog list research_ops --status candidate
+async-research idea catalog dashboard research_ops
 async-research idea catalog show research_ops IDEA-0001
 async-research idea score <idea-json> --ops-dir research_ops
 async-research idea validate <idea-json> --ops-dir research_ops
@@ -365,6 +367,7 @@ specific diagnostic.
 | `exploration validate` | `0` artifact passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
 | `idea catalog init` | `0` missing catalog files reported or created. | `2` catalog lock or concurrent creation blocked writes; `3` invalid flags; `4` malformed workspace path or write failure. |
 | `idea catalog validate` | `0` catalog validation passed. | `2` valid shape but unsafe lifecycle, promotion, or reference state; `4` malformed catalog state such as duplicate IDs, schema failures, malformed JSON, or malformed generated blocks. |
+| `idea catalog dashboard` | `0` dashboard rendered and catalog validation passed. | `2` dashboard rendered with unsafe lifecycle, promotion, or reference state; `4` dashboard rendered with malformed catalog state. |
 | `idea catalog list` and `idea catalog show` | `0` catalog record or list printed. | `3` requested idea was not found; `4` catalog could not be read or contains duplicate canonical IDs for `show`. |
 | `idea capture`, `idea catalog maintain`, `idea promote`, `idea park`, and `idea reject` | `0` dry-run proposal printed or write succeeded. | `2` lock, unsafe write, blocked promotion, or validation failure; `3` invalid request or conflicting flags; `4` malformed catalog state. |
 | `idea score` and `idea validate` | `0` score/validation passed. | `2` validation failed; `3` invalid request; `4` malformed idea artifact. |
