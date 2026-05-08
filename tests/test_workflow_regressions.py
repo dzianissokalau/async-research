@@ -159,6 +159,28 @@ class WorkflowRegressionTests(unittest.TestCase):
             self.assertEqual(check_schema_versions.INVALID, code, version_result)
             self.assertEqual("missing_schema_version", version_result["errors"][0]["reason"])
 
+    def test_task_status_schema_accepts_catalog_promotion_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2006-catalog-promotion",
+                catalog_idea_id="IDEA-2006",
+                catalog_promotion={
+                    "catalog_idea_id": "IDEA-2006",
+                    "idempotency_key": f"IDEA-2006:data_readiness:{'a' * 64}",
+                    "reserved_task_id": "TASK-2006",
+                    "reservation_policy": "catalog_task_id_reservation_v2.5",
+                },
+            )
+
+            code, schema = run_json(
+                validate_json_artifact,
+                [task_dir / "status.json", "--schema", schema_path("task_status.schema.json")],
+            )
+
+            self.assertEqual(validate_json_artifact.SUCCESS, code, schema)
+
     def test_invalid_status_transition_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

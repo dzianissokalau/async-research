@@ -299,6 +299,36 @@
         "pattern": "^DS-[0-9]{4}$"
       }
     },
+    "catalog_idea_id": {
+      "type": "string",
+      "pattern": "^IDEA-[0-9]{4}$"
+    },
+    "catalog_promotion": {
+      "type": "object",
+      "required": [
+        "catalog_idea_id",
+        "idempotency_key",
+        "reserved_task_id",
+        "reservation_policy"
+      ],
+      "properties": {
+        "catalog_idea_id": {
+          "type": "string",
+          "pattern": "^IDEA-[0-9]{4}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^IDEA-[0-9]{4}:(hypothesis_card|data_readiness|literature_extract|experiment_plan):[0-9a-f]{64}$"
+        },
+        "reserved_task_id": {
+          "type": "string",
+          "pattern": "^TASK-[0-9]{4}$"
+        },
+        "reservation_policy": {
+          "type": "string"
+        }
+      }
+    },
     "human_gate_reason": {
       "type": [
         "string",

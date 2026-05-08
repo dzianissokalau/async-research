@@ -38,6 +38,15 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
+def accepted_outputs_index(*rows: list[str]) -> str:
+    lines = [
+        "| accepted_date | task_id | title | key_finding | claim_type | freshness_window_days | next_recheck_date | revalidation_status | source_ids | claim_strength | caveats | followups | supersedes | superseded_by | evidence_link |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+    return "\n".join(lines) + "\n"
+
+
 def valid_score() -> dict:
     return {
         "mission_policy_version": "test_policy_v1.0",
@@ -190,7 +199,28 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
             candidate = self.write_promotable_idea(ops_dir, "IDEA-7504")
             candidate["promoted_task_id"] = "TASK-7504"
             write_json(ops_dir / "ideas" / "IDEA-7504.json", candidate)
-            write_text(ops_dir / "accepted_outputs_index.md", "# Accepted Outputs\n\nTASK-7504 accepted earlier.\n")
+            write_text(
+                ops_dir / "accepted_outputs_index.md",
+                accepted_outputs_index(
+                    [
+                        "2026-05-08",
+                        "TASK-7504",
+                        "Accepted fixture",
+                        "ready",
+                        "source_data_readiness",
+                        "90",
+                        "2026-08-06",
+                        "current",
+                        "DS-0001",
+                        "moderate",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "tasks/TASK-7504-data-readiness/worker_output.md",
+                    ]
+                ),
+            )
 
             code, payload = self.dry_run(ops_dir, "IDEA-7504")
 
@@ -199,6 +229,41 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
             self.assertIn("selected_idea_already_has_promoted_task_id", reasons)
             self.assertIn("reserved_accepted_output_exists", reasons)
             self.assertIsNone(payload["proposal"])
+
+    def test_accepted_output_note_only_reference_does_not_block_promotion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7509")
+            write_text(
+                ops_dir / "accepted_outputs_index.md",
+                accepted_outputs_index(
+                    [
+                        "2026-05-08",
+                        "TASK-1234",
+                        "Accepted fixture",
+                        "cross-refers to TASK-7509 in notes only",
+                        "source_data_readiness",
+                        "90",
+                        "2026-08-06",
+                        "current",
+                        "DS-0001",
+                        "moderate",
+                        "TASK-7509 is a future follow-up",
+                        "",
+                        "",
+                        "",
+                        "tasks/TASK-1234-data-readiness/worker_output.md",
+                    ]
+                ),
+            )
+
+            code, payload = self.dry_run(ops_dir, "IDEA-7509")
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("available", payload["task_identity"]["status"])
+            self.assertEqual([], payload["task_identity"]["blockers"])
+            self.assertEqual("TASK-7509", payload["proposal"]["proposed_task_id"])
 
     def test_stale_promoted_task_id_blocks_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -212,6 +277,21 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertIn("stale_promoted_task_id", self.blocker_reasons(payload))
+            self.assertIsNone(payload["proposal"])
+
+    def test_different_visible_promoted_task_id_blocks_promotion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            candidate = self.write_promotable_idea(ops_dir, "IDEA-7510")
+            candidate["promoted_task_id"] = "TASK-9999"
+            write_json(ops_dir / "ideas" / "IDEA-7510.json", candidate)
+            (ops_dir / "tasks" / "TASK-9999-old-followup").mkdir(parents=True)
+
+            code, payload = self.dry_run(ops_dir, "IDEA-7510")
+
+            self.assertEqual(2, code, payload)
+            self.assertIn("selected_idea_has_different_promoted_task_id", self.blocker_reasons(payload))
             self.assertIsNone(payload["proposal"])
 
     def test_other_idea_promoted_task_id_claim_blocks_promotion(self) -> None:

@@ -1921,11 +1921,41 @@ def reserved_promotion_task_slug(idea_id: str, task_type: str) -> str:
     return f"{reserved_promotion_task_id(idea_id)}-{slugify(task_type)}"
 
 
-def file_contains_text(path: Path, needle: str) -> bool:
+def markdown_table_cells(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return []
+    return [cell.strip() for cell in stripped.strip("|").split("|")]
+
+
+def markdown_separator_cells(cells: list[str]) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells)
+
+
+def accepted_outputs_contains_task(ops_dir: Path, task_id: str) -> bool:
+    path = ops_dir / "accepted_outputs_index.md"
+    if not path.exists():
+        return False
     try:
-        return path.exists() and needle in path.read_text(encoding="utf-8")
+        lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
         return False
+
+    task_id_index: int | None = None
+    for line in lines:
+        cells = markdown_table_cells(line)
+        if not cells:
+            continue
+        normalized = [cell.lower().replace(" ", "_") for cell in cells]
+        if task_id_index is None:
+            if "task_id" in normalized:
+                task_id_index = normalized.index("task_id")
+            continue
+        if markdown_separator_cells(cells) or len(cells) <= task_id_index:
+            continue
+        if task_transaction.task_id_from_text(cells[task_id_index]) == task_id:
+            return True
+    return False
 
 
 def task_status_payloads_for_id(ops_dir: Path, task_id: str) -> list[dict[str, Any]]:
@@ -1966,7 +1996,7 @@ def task_id_is_visible(ops_dir: Path, task_id: str) -> bool:
     return (
         bool(task_folder_paths_for_id(ops_dir, task_id))
         or task_transaction.queue_contains_task(ops_dir, task_id)
-        or file_contains_text(ops_dir / "accepted_outputs_index.md", task_id)
+        or accepted_outputs_contains_task(ops_dir, task_id)
     )
 
 
@@ -2000,7 +2030,7 @@ def promotion_task_identity(
     task_dir_name = reserved_promotion_task_slug(idea_id, task_type)
     task_folder_paths = task_folder_paths_for_id(ops_dir, task_id)
     queue_row_present = task_transaction.queue_contains_task(ops_dir, task_id)
-    accepted_output_present = file_contains_text(ops_dir / "accepted_outputs_index.md", task_id)
+    accepted_output_present = accepted_outputs_contains_task(ops_dir, task_id)
     status_payloads = task_status_payloads_for_id(ops_dir, task_id)
     blockers: list[dict[str, Any]] = []
 
