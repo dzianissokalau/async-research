@@ -17,9 +17,10 @@ required.
 
 ## Status
 
-Version `0.1.0a2` is a visible alpha. The core safety and package-resource
-checks are green, but the public user experience is still being hardened. Treat
-the CLI as suitable for careful dogfooding, not broad promotion.
+Version `0.2.0a1` is a visible alpha with the durable Idea Catalog and
+promotion write mode included. The core safety and package-resource checks are
+green, but the public user experience is still being hardened. Treat the CLI as
+suitable for careful dogfooding, not broad promotion.
 
 The package is currently intended for GitHub install and real-project testing
 before PyPI publication.

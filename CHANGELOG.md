@@ -5,6 +5,15 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## 0.2.0a1 - 2026-05-08
+
+- Added the durable Idea Catalog workspace with candidate intake, indexing,
+  review, scoring, and roadmap-tracking surfaces.
+- Added accepted-memory promotion write mode with provenance, duplicate guards,
+  dry-run/create behavior, and acceptance artifact checks.
+- Hardened Idea Catalog acceptance coverage, including artifact consistency and
+  direct inbox verification.
+
 ## 0.1.0a2 - 2026-05-06
 
 - Hardened `starter-smoke` and `init` safety behavior.
