@@ -41,10 +41,13 @@ Cold-start workspaces must remain valid without profiles.
 
 Profile expectations:
 
-- `candidate`, `blocked`, `restricted`, and `deprecated` audit rows may omit a
-  profile in v1.
+- `unknown`, `candidate`, `blocked`, `restricted`, and `deprecated` audit rows
+  may omit a profile in v1.
 - `approved` and `approved_with_caveats` rows should have a profile when data
   foundations are present.
+- `explicitly_approved` rows may omit a profile by default, but should warn when
+  used for governed data claims unless a profile or human approval note explains
+  the exact approved use.
 - Missing profiles for experiment-ready rows are warning-level in non-strict
   validation.
 - Strict blocking can be added later behind an explicit strict mode.
@@ -78,6 +81,10 @@ Exit codes:
 - `4` when the workspace or data foundation files are malformed enough that the
   validator cannot reason about them
 
+Warning-only validation should return exit `2` with `ok: true`,
+`warning_count > 0`, and no error-level findings. This keeps cold-start warnings
+visible to schedulers without treating the workspace as malformed.
+
 Cold-start behavior:
 
 - missing `research_ops/data/` in existing workspaces warns, not fails
@@ -104,6 +111,7 @@ Minimum tests for the first two implementation phases:
 - missing `data/` in an existing workspace is warning-only
 - duplicate profile IDs are flagged
 - profile without matching audit row is flagged
+- profile filename and internal `source_id` mismatch is flagged
 - approved source without profile is warning-only in non-strict mode
 - existing `async-research source validate` behavior is unchanged
 
@@ -162,7 +170,7 @@ Last updated: 2026-05-08
 | ---: | --- | --- | --- | --- |
 | 0 | Lock execution decisions | Complete | Capture V1 scope, profile requirement policy, audit link strategy, validator exit codes, compatibility rules, and first test matrix before implementation starts. | This roadmap now defines contract-first execution and preserves `data_source_audit.md` schema `1.0`. |
 | 1 | Starter files and profile contract | Not started | Add `research_ops/data/` starter files to generic and real-estate templates and document `data/profiles/DS-0000.md`. | Start here for PR 1; no runtime behavior change beyond starter contents. |
-| 2 | Data validator | Not started | Add read-only `async-research data validate research_ops` covering empty foundations, duplicate profiles, audit/profile mismatches, missing access notes, stale reviews, and join caveats. | MVP completes when this command has tests and existing source validation remains unchanged. |
+| 2 | Data validator | Not started | Add read-only `async-research data validate research_ops` covering empty foundations, duplicate profiles, profile-to-audit mismatches, missing access notes, stale reviews, and join caveats. | MVP completes when this command has tests and existing source validation remains unchanged. Audit-row-to-profile checks wait for Phase 3 optional audit-side linkage. |
 | 3 | Optional source audit linkage | Not started | Add docs and optional parser support so experiment-ready audit rows may reference profiles without requiring old workspaces to change. | Do not change the audit table shape until compatibility tests exist. |
 | 4 | Data-readiness task hardening | Not started | Update `data_readiness` task guidance so workers produce profile drafts/updates, recommended audit status, access check results, field/grain coverage, join feasibility, limitations, and kill reasons. | Should remain traceable to reviewed tasks and current source-audit commands. |
 | 5 | Health, readiness, and gates | Not started | Surface stale, blocked, missing, and unaudited data dependencies in `health`, `readiness`, weekly digest, experiment planning, and result acceptance. | Start as warning-only where possible, then add strict mode where appropriate. |
@@ -237,9 +245,17 @@ Suggested sections:
 - privacy/licensing restrictions
 - reviewed date and reviewer
 
+Canonical profile ID:
+
+- profile filenames use `research_ops/data/profiles/DS-0000.md`
+- each profile must also declare the same `source_id`
+- filename ID and internal `source_id` must match
+- duplicate profile IDs are invalid even when filenames differ by path or case
+
 Acceptance:
 
 - every profile points to one `DS-*` audit row
+- profile filename and internal `source_id` match
 - profiles can represent public, local, cloud, database, and manual sources
 - profile caveats are usable by reviewers and experiment planners
 
@@ -267,7 +283,9 @@ Checks:
 
 - duplicate `DS-*` profile IDs
 - profile without matching audit row
-- audit row pointing to missing profile
+- profile filename and internal `source_id` mismatch
+- audit row pointing to missing profile, only after Phase 3 optional audit-side
+  linkage exists
 - missing access notes for approved sources
 - stale review date
 - missing approved or blocked use cases
