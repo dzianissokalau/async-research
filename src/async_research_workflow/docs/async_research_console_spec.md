@@ -2,6 +2,25 @@
 
 Created: 2026-05-05
 
+## Status And Scope
+
+Status: proposed product and contract specification. The console is not yet part
+of the implemented CLI surface unless a command is explicitly documented by the
+package.
+
+This document defines what the local console should be, what it may read and
+write, and what safety rules it must preserve. It is intentionally not the
+delivery roadmap.
+
+Use the
+[Dashboard Delivery Roadmap](../../../roadmaps/dashboard_delivery_roadmap.md) for
+implementation sequence, work slices, MVP scope, risk register, and first AI
+tasks.
+
+If this specification and the roadmap drift, use this document for product
+behavior, data contracts, and safety constraints. Use the roadmap for delivery
+order and implementation packets.
+
 ## Purpose
 
 The Async Research Console is a local-first control plane for the async research
@@ -58,8 +77,8 @@ ledger gaps, failed transitions, and prompt-version drift surfaced clearly.
 ### AI Builder
 
 An AI coding agent will implement large parts of this console. The specification
-must therefore provide small milestones, explicit file boundaries, acceptance
-criteria, and testable behavior.
+must therefore provide stable product boundaries, data contracts, safety rules,
+and testable behavior.
 
 ## Non-Goals
 
@@ -119,6 +138,7 @@ It should show:
 - tasks by status
 - stale locks
 - open human decisions
+- delivered projects and accepted outputs
 - recent accepted outputs
 - recent rejected or paused outputs
 - latest scheduler runs
@@ -128,15 +148,79 @@ It should show:
 Required controls:
 
 - refresh status
+- open workspace setup checklist
 - run readiness check
 - run health check
 - update human review surface
-- open detailed views for tasks, decisions, costs, prompts, and runs
+- open detailed views for tasks, delivered projects, decisions, costs, prompts,
+  and runs
 
 Empty states must be useful. For example, if no `research_ops/` folder exists,
-the console should show the init command rather than a blank dashboard.
+the console should offer a guarded `init` action rather than a blank dashboard.
 
-### 2. Task Board
+### 2. Workspace Setup And Maintenance
+
+The console should let the operator run the common setup and maintenance
+commands without opening a terminal.
+
+Required dashboard actions:
+
+```bash
+async-research init research_ops
+async-research schema-check research_ops
+async-research readiness research_ops --dry-run
+async-research health research_ops --dry-run
+async-research surface update research_ops
+async-research surface validate research_ops
+```
+
+The setup checklist should show:
+
+- whether `research_ops/` exists
+- whether required starter files exist
+- whether schemas pass
+- readiness result
+- health result
+- whether the human review surface is current
+- whether the surface validates
+- the last time each check ran
+- the exact command used for each check
+
+Controls:
+
+- initialize `research_ops/`
+- initialize with the generic template
+- initialize with the real-estate worked example template
+- run all safe checks
+- run one check
+- refresh the human review surface
+- validate the human review surface
+- copy the equivalent CLI command
+
+Safety requirements:
+
+- `init` must require confirmation of the target folder and template.
+- `init` must not silently overwrite an existing operational folder.
+- dry-run checks should not mutate files.
+- `surface update` is allowed to mutate `daily_status.md`,
+  `human_review_queue.md`, and related generated surface files.
+- every command result should show stdout, stderr, exit code, and recovery advice
+  when the command fails.
+
+Recommended first-run flow:
+
+```text
+choose ops directory
+  -> initialize research_ops
+  -> run schema-check
+  -> run readiness --dry-run
+  -> run health --dry-run
+  -> run surface update
+  -> run surface validate
+  -> open dashboard
+```
+
+### 3. Task Board
 
 The task board should make the conveyor belt visible.
 
@@ -189,7 +273,132 @@ Safe task mutations:
 All task mutations should call existing helper logic where possible. Direct
 `status.json` editing should be a last resort and should still run validation.
 
-### 3. Human Decision Inbox
+### 4. Delivered Projects And Outcome Analytics
+
+The console should make completed work visible as a portfolio of delivered
+research outputs, not just terminal task folders.
+
+A delivered project is any task or linked task chain that reaches one of these
+states:
+
+- `accepted`
+- `synthesized`
+- `rejected` when shown in the learning archive
+- `paused` when explicitly parked as an abandoned project
+
+The default view should focus on accepted and synthesized outputs. Rejected and
+paused outputs should be available as separate learning views.
+
+Read from:
+
+```text
+research_ops/accepted_outputs_index.md
+research_ops/weekly_digest.md
+research_ops/metrics_history.jsonl
+research_ops/cost_ledger.csv
+research_ops/decisions.md
+research_ops/tasks/*/status.json
+research_ops/tasks/*/task.md
+research_ops/tasks/*/worker_output.md
+research_ops/tasks/*/reviews/*
+research_ops/tasks/*/review_panel/aggregate.json
+research_ops/tasks/*/review_panel/result_acceptance.json
+research_ops/tasks/*/artifacts/*
+```
+
+Each delivered project row should show:
+
+- project id or task id
+- title
+- delivered status
+- accepted or synthesized date
+- project type
+- original idea id when available
+- idea score and score breakdown when available
+- result acceptance scorecard when available
+- aggregate review decision
+- review tier
+- reviewer count
+- reviewer disagreement flag
+- iteration count
+- revision count
+- worker run count
+- blocker count
+- main blocker or problem
+- human decisions required
+- elapsed time from creation to acceptance
+- estimated and actual cost
+- claim strength
+- caveats
+- source ids
+- freshness or revalidation status
+- next recheck date
+- links to output, reviews, run artifacts, and accepted memory row
+
+Project detail pages should show:
+
+- timeline of major state transitions
+- idea scoring section
+- worker output summary
+- review score section
+- blockers and human gates
+- revisions requested and resolved
+- final decision and caveats
+- cost and usage
+- follow-up tasks
+- stale evidence and revalidation state
+
+The dashboard should compute these stats conservatively:
+
+- iteration count is `revision_count` plus completed worker reruns when run
+  artifacts can be linked to the task.
+- idea score comes from the idea candidate or exploration-cycle artifact that
+  promoted the task.
+- review score comes from `review_panel/result_acceptance.json` scorecard when
+  present, otherwise from structured review or aggregate artifacts if available.
+- blocker/problem text comes from `human_gate.reason`, `human_gate.details`,
+  `human_gate_reason`, `last_transition_reason`, reviewer notes, and failed run
+  metadata.
+- cost comes from task-specific ledger rows first, then linked run artifacts,
+  then planned budget fields when actual usage is unavailable.
+
+Recommended generated index:
+
+```text
+research_ops/outcomes/
+  delivered_projects.jsonl
+  delivered_projects_summary.json
+```
+
+The generated index should be rebuildable from source files. It is a cache and
+reporting surface, not the source of truth.
+
+Controls:
+
+- refresh delivered project index
+- filter by accepted, synthesized, rejected, or paused
+- filter by task type, score range, review tier, blocker type, or source
+- open project detail
+- create follow-up task
+- schedule revalidation
+- export table as CSV or JSON
+
+Outcome analytics should show:
+
+- accepted output count
+- rejected output count
+- acceptance rate
+- average iterations to acceptance
+- median elapsed time to acceptance
+- average idea score for accepted vs rejected work
+- average review score for accepted vs rejected work
+- cost per accepted output
+- most common blocker categories
+- revision-limit hit count
+- reviewer disagreement rate
+- stale or due accepted evidence count
+
+### 5. Human Decision Inbox
 
 This view is the operator's highest-value workflow.
 
@@ -226,7 +435,7 @@ Required controls:
 Every decision resolution must append to the human decision log and run the
 appropriate transition validation.
 
-### 4. Prompt Library
+### 6. Prompt Library
 
 Scheduled prompts should become editable operational assets.
 
@@ -284,7 +493,7 @@ Prompt validation should check for the required scheduler prompt rules:
 
 Prompt edits should append to `history.jsonl` and `decisions.md`.
 
-### 5. Schedule Manager
+### 7. Schedule Manager
 
 Schedules should also become repo-backed assets.
 
@@ -328,7 +537,7 @@ The first version does not need to install cron, launchd, GitHub Actions, or
 Codex app automations automatically. It should manage the repo-backed schedule
 intent and provide exact commands for the selected scheduler.
 
-### 6. Trigger-Now Runner
+### 8. Trigger-Now Runner
 
 The console should be able to launch one bounded local job.
 
@@ -384,7 +593,7 @@ Suggested `run.json`:
 }
 ```
 
-### 7. Cost And Usage View
+### 9. Cost And Usage View
 
 The console should make budget pressure visible without requiring spreadsheet
 inspection.
@@ -415,7 +624,7 @@ Controls:
 - run budget check for a proposed action
 - mark a planned row as superseded if a helper supports it
 
-### 8. Source Governance View
+### 10. Source Governance View
 
 Read from:
 
@@ -442,7 +651,7 @@ Controls:
 - approve source for a bounded use case
 - create a data-readiness task from a stale or unaudited item
 
-### 9. Run History
+### 11. Run History
 
 Run history should help debug automation without opening terminal logs.
 
@@ -466,7 +675,7 @@ Controls:
 - rerun same job with historical prompt only after explicit confirmation
 - mark run as inspected
 
-### 10. Framework Health
+### 12. Framework Health
 
 This view is for maintainers.
 
@@ -476,6 +685,7 @@ Show outputs from:
 async-research schema-check research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
+async-research surface update research_ops
 async-research surface validate research_ops
 async-research accepted revalidation research_ops --write-schedule
 async-research source freshness research_ops
@@ -527,11 +737,14 @@ The console must consume:
 - `research_ops/data_source_audit.md`
 - `research_ops/revalidation_schedule.md`
 - `research_ops/accepted_outputs_index.md`
+- `research_ops/metrics_history.jsonl`
 - `research_ops/tasks/*/task.md`
 - `research_ops/tasks/*/status.json`
 - `research_ops/tasks/*/worker_output.md`
 - `research_ops/tasks/*/reviews/*`
 - `research_ops/tasks/*/review_panel/*`
+- `research_ops/tasks/*/review_panel/aggregate.json`
+- `research_ops/tasks/*/review_panel/result_acceptance.json`
 - `research_ops/tasks/*/artifacts/*`
 
 ### New Files
@@ -544,6 +757,8 @@ research_ops/prompts/versions.json
 research_ops/prompts/history.jsonl
 research_ops/schedules.json
 research_ops/schedule_history.jsonl
+research_ops/outcomes/delivered_projects.jsonl
+research_ops/outcomes/delivered_projects_summary.json
 research_ops/run_artifacts/*/run.json
 research_ops/run_artifacts/*/events.jsonl
 research_ops/run_artifacts/*/final_message.md
@@ -557,6 +772,8 @@ Recommended package schemas:
 async_research_workflow/schemas/prompt_manifest.schema.json
 async_research_workflow/schemas/schedule_manifest.schema.json
 async_research_workflow/schemas/run_manifest.schema.json
+async_research_workflow/schemas/delivered_project.schema.json
+async_research_workflow/schemas/delivered_projects_summary.schema.json
 ```
 
 ## Suggested CLI Surface
@@ -566,6 +783,15 @@ Add commands incrementally:
 ```bash
 async-research console research_ops
 async-research console snapshot research_ops --json
+async-research init research_ops
+async-research schema-check research_ops
+async-research readiness research_ops --dry-run
+async-research health research_ops --dry-run
+async-research surface update research_ops
+async-research surface validate research_ops
+async-research outcomes refresh research_ops
+async-research outcomes list research_ops --status accepted
+async-research outcomes summary research_ops
 async-research prompts init research_ops
 async-research prompts validate research_ops
 async-research prompts activate research_ops worker --message "tighten worker stop rules"
@@ -588,7 +814,9 @@ Recommended layout:
 ```text
 left navigation:
   Dashboard
+  Setup
   Tasks
+  Delivered
   Decisions
   Prompts
   Schedules
@@ -636,6 +864,8 @@ src/async_research_workflow/console/
   __init__.py
   snapshot.py
   parsers.py
+  setup.py
+  outcomes.py
   prompts.py
   schedules.py
   runs.py
@@ -649,227 +879,37 @@ src/async_research_workflow/console/
 Keep command orchestration in Python. Keep the browser as a thin operational
 client.
 
-## Roadmap
+## Delivery Boundary
 
-### Milestone 0: Console Decision
+This specification is complete enough to support implementation, but it should
+not own the build order. The delivery roadmap owns:
 
-Duration: 0.5 day
+- implementation slices
+- MVP scope
+- timeboxes
+- risk register
+- first AI work packets
+- sequencing between snapshot, dashboard shell, setup checks, outcomes,
+  decision actions, prompt editing, schedules, run triggering, and hardening
 
-Decide:
+Keep the roadmap and this specification linked rather than duplicating their
+contents. A future implementation task should reference both documents:
 
-- dependency-free backend or FastAPI-style backend
-- plain static frontend or small bundled frontend framework
-- default port
-- whether console files are included in package data
+```text
+Product contract: src/async_research_workflow/docs/async_research_console_spec.md
+Delivery plan: roadmaps/dashboard_delivery_roadmap.md
+```
 
-Exit criteria:
+## Product Completion Bar
 
-- implementation choice recorded in `decisions.md` or package docs
-- first issue/task list created for AI workers
-
-### Milestone 1: Read-Only Snapshot CLI
-
-Duration: 1 to 2 days
-
-Build:
-
-- `async-research console snapshot research_ops --json`
-- task discovery
-- status counts
-- lock detection
-- human decision count
-- recent run artifact discovery
-- cost ledger summary
-- health/readiness command wrappers in dry-run mode
-
-Exit criteria:
-
-- command works against generic starter
-- command works against real-estate starter
-- tests cover missing files, malformed task status, stale lock, empty queue
-- no files are mutated
-
-### Milestone 2: Local Web Dashboard
-
-Duration: 2 to 4 days
-
-Build:
-
-- `async-research console research_ops`
-- local HTTP server bound to `127.0.0.1`
-- dashboard view
-- task board view
-- task detail view
-- manual refresh
-
-Exit criteria:
-
-- operator can inspect current state without opening Markdown files
-- dashboard renders when optional files are missing
-- no mutation endpoints exist yet
-- basic browser smoke test passes
-
-### Milestone 3: Human Decision Actions
-
-Duration: 2 to 4 days
-
-Build:
-
-- decision inbox view
-- action endpoints for existing human decision helper
-- confirmation modal
-- mutation audit trail
-- post-action validation
-- action result messages with recovery guidance
-
-Exit criteria:
-
-- operator can resolve a `needs_human` task from the console
-- every action appends the expected decision record
-- invalid transitions are blocked and explained
-- tests cover resume, pause, reject, and approval paths
-
-### Milestone 4: Prompt Library
-
-Duration: 3 to 5 days
-
-Build:
-
-- prompt folder initializer
-- prompt parser
-- prompt required-section validator
-- prompt edit API
-- draft vs active diff
-- activate new version
-- prompt history log
-
-Exit criteria:
-
-- active worker prompt can be edited and versioned safely
-- activation writes history and decision note
-- scheduled prompt rules are validated
-- invalid prompt cannot be activated without explicit override
-
-### Milestone 5: Schedule Manifest
-
-Duration: 2 to 4 days
-
-Build:
-
-- schedule manifest schema
-- schedule initializer
-- schedule editor
-- enable/disable job
-- bind prompt to job
-- validate max runtime and concurrency settings
-
-Exit criteria:
-
-- operator can see active job intent
-- schedule changes are logged
-- invalid schedule is rejected
-- no external scheduler installation is required
-
-### Milestone 6: Trigger-Now Dry Run
-
-Duration: 2 to 3 days
-
-Build:
-
-- run trigger planner in dry-run mode
-- show command that would run
-- validate readiness before trigger
-- create run id preview
-- reject trigger if concurrency group is active
-
-Exit criteria:
-
-- operator can safely understand what a run would do
-- no Codex process launches yet
-- tests cover active lock, disabled job, missing prompt, and readiness failure
-
-### Milestone 7: Trigger-Now Execution
-
-Duration: 4 to 7 days
-
-Build:
-
-- launch local bounded job
-- stream or poll logs
-- write run artifacts
-- capture `codex exec --json` output
-- capture final message
-- mark run completed or failed
-- ingest usage when available
-- refresh dashboard after run
-
-Exit criteria:
-
-- operator can run one worker now
-- failed runs are visible and diagnosable
-- no overlapping same-job runs occur
-- artifacts validate against run schema
-
-### Milestone 8: Cost, Source, And Health Views
-
-Duration: 3 to 5 days
-
-Build:
-
-- cost view
-- source governance view
-- framework health view
-- buttons for existing dry-run checks
-- stale accepted evidence display
-
-Exit criteria:
-
-- operator can see budget pressure without reading CSV
-- stale or blocked sources are visible
-- health failures link to recommended recovery commands
-
-### Milestone 9: Package Hardening
-
-Duration: 3 to 5 days
-
-Build:
-
-- package data inclusion for static assets
-- console smoke tests
-- fixture-based integration tests
-- acceptance-suite coverage for console schemas
-- runbook section for console recovery
-
-Exit criteria:
-
-- `pip install -e .` includes console assets
-- `async-research acceptance-suite` covers new durable contracts
-- console fails closed when malformed files are encountered
-
-### Milestone 10: Optional External Integrations
-
-Duration: optional
-
-Consider only after the local console is reliable:
-
-- GitHub Actions trigger view
-- Codex app automation integration
-- ChatGPT task reminder integration
-- Linear/GitHub issue mirror
-- remote read-only dashboard
-- authenticated multi-user mode
-
-Exit criteria:
-
-- local-first behavior remains fully supported
-- external systems mirror repo state rather than replacing it
-
-## MVP Definition
-
-The MVP is complete when:
+A full console version is complete when:
 
 - `async-research console research_ops` opens a local dashboard
-- dashboard shows task status, locks, decisions, costs, and recent runs
+- dashboard shows task status, locks, delivered projects, decisions, costs, and
+  recent runs
+- operator can initialize and health-check `research_ops/` from the dashboard
+- operator can inspect delivered projects with available idea scores, review
+  scores, iteration counts, blockers, costs, and caveats
 - operator can resolve human decisions safely
 - operator can edit and activate scheduled prompts with history
 - operator can trigger one worker job now with run artifacts
@@ -885,6 +925,7 @@ A good version means:
 
 - morning check takes under five minutes
 - blocked work is obvious
+- delivered research is easy to inspect and compare
 - prompt changes are safer than hand-editing
 - trigger-now runs are less error-prone than terminal commands
 - failures are easier to recover from
@@ -900,15 +941,3 @@ A good version means:
 - Should trigger-now execution be enabled by default, or require a launch flag
   such as `--allow-runs`?
 - Should run artifacts include redacted environment metadata for debugging?
-
-## Recommended First Build
-
-Start with Milestones 1 and 2. A read-only snapshot and dashboard will quickly
-show whether the state model is right without risking task corruption.
-
-Then add Milestone 3. Human decision resolution is the highest-value mutation
-because it removes the current need to remember helper commands while preserving
-the framework's validation rules.
-
-Only after those are boring should the project add prompt editing and run
-triggering.
