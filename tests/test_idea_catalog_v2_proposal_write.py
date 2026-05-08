@@ -1,4 +1,4 @@
-"""Regression tests for V2 proposal-write mode and recovery hardening."""
+"""Regression tests for V2 promotion write mode and recovery hardening."""
 
 from __future__ import annotations
 
@@ -481,6 +481,34 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertNotIn("files_written", payload)
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_task_transaction_failure_restores_inbox_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7413")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7413")
+            before = file_snapshot(ops_dir)
+
+            with mock.patch.object(
+                idea_catalog_script.task_transaction,
+                "write_task_transaction",
+                return_value=(
+                    idea_catalog_script.MALFORMED,
+                    {"ok": False, "reason": "forced_task_transaction_failure"},
+                ),
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7413", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(idea_catalog_script.MALFORMED, code, payload)
+            self.assertEqual("task_transaction_failed", payload["reason"])
+            self.assertEqual("forced_task_transaction_failure", payload["task_transaction"]["reason"])
+            self.assertEqual("task_transaction_failed_after_inbox_append", payload["recovery"]["reason"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_post_write_validation_failure_reports_recovery_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -521,6 +549,37 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertNotIn("promoted_task_id", updated)
             self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
             self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
+
+    def test_completion_check_failure_rolls_back_task_queue_and_catalog_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7414")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7414")
+            before = file_snapshot(ops_dir)
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "promotion_task_write_completion",
+                return_value={
+                    "ok": False,
+                    "task_id": "TASK-7414",
+                    "task_statuses": [],
+                    "failures": [{"reason": "forced_completion_failure"}],
+                },
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7414", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("promotion_task_consistency_failed", payload["reason"])
+            self.assertEqual("forced_completion_failure", payload["completion_failures"][0]["reason"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertIn("task_rollback", payload["recovery"])
+            self.assertIn("restored_files", payload["recovery"])
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertEqual(before, file_snapshot(ops_dir))
 
 
 if __name__ == "__main__":
