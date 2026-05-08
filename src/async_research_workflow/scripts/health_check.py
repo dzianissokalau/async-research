@@ -19,6 +19,7 @@ from async_research_workflow.scripts.check_schema_versions import (
     DEFAULT_SCHEMA_VERSION,
     scan_schema_versions,
 )
+from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
 from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
@@ -441,6 +442,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     discovery_count = markdown_table_row_count(ops_dir / "discovery_inbox.md")
     schema_versions = scan_schema_versions(ops_dir, args.expected_schema_version)
     source_governance = source_governance_report(ops_dir, now)
+    data_foundations = data_foundation_report(ops_dir, now)
     accepted_memory = memory_decay_report(ops_dir, now=now)
     idea_catalog = catalog_surface_summary(ops_dir)
     cost = scan_cost_ledger(
@@ -524,6 +526,30 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             f"{len(stale_sources)} source(s) are past freshness window",
             stale_sources,
         )
+    blocked_sources = source_governance.get("blocked_sources") if isinstance(source_governance.get("blocked_sources"), list) else []
+    if blocked_sources:
+        add_alert(
+            alerts,
+            "warning",
+            "blocked_data_sources",
+            f"{len(blocked_sources)} source(s) are blocked, restricted, or deprecated",
+            blocked_sources,
+        )
+    data_foundation_issue_count = data_foundations.get("warning_count", 0) + data_foundations.get("error_count", 0)
+    if data_foundation_issue_count:
+        add_alert(
+            alerts,
+            "warning",
+            "data_foundation_findings",
+            f"{data_foundation_issue_count} data-foundation finding(s)",
+            {
+                "error_count": data_foundations.get("error_count", 0),
+                "errors": data_foundations.get("errors", []),
+                "warning_count": data_foundations.get("warning_count", 0),
+                "warnings": data_foundations.get("warnings", []),
+                "active_idea_gap_refs": data_foundations.get("active_idea_gap_refs", []),
+            },
+        )
     if accepted_memory.get("stale_count", 0):
         add_alert(
             alerts,
@@ -600,6 +626,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "stuck_tasks": stuck,
             "cost": cost,
             "source_governance": source_governance,
+            "data_foundations": data_foundations,
             "accepted_memory": accepted_memory,
             "idea_catalog": idea_catalog,
         },

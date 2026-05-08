@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import (
     EXPERIMENT_READY_STATUSES,
     load_valid_register,
@@ -194,15 +195,48 @@ def validate_data_audit_refs(
     return refs
 
 
+def validate_data_foundations(
+    ops_dir: Optional[Path],
+    failures: list[dict[str, Any]],
+    warnings: list[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    if ops_dir is None:
+        return None
+    report = data_foundation_report(ops_dir)
+    if report.get("error_count", 0):
+        add_failure(
+            failures,
+            "data_foundations",
+            "Data foundation files are malformed or inconsistent.",
+            {
+                "error_count": report.get("error_count", 0),
+                "errors": report.get("errors", []),
+            },
+        )
+    if report.get("warning_count", 0):
+        add_warning(
+            warnings,
+            "data_foundations",
+            "Data foundation readiness warnings are present.",
+            {
+                "warning_count": report.get("warning_count", 0),
+                "warnings": report.get("warnings", []),
+                "active_idea_gap_refs": report.get("active_idea_gap_refs", []),
+            },
+        )
+    return report
+
+
 def validate_hard_gates(
     plan: dict[str, Any],
     ops_dir: Optional[Path],
     task_status: Optional[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], Optional[dict[str, Any]]]:
     failures: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
 
     refs = validate_data_audit_refs(plan, ops_dir, failures)
+    data_foundations = validate_data_foundations(ops_dir, failures, warnings)
 
     baselines = plan.get("baselines")
     if not isinstance(baselines, list) or not baselines:
@@ -305,7 +339,7 @@ def validate_hard_gates(
     if summary["average"] and summary["average"] < 3:
         add_warning(warnings, "scores", "Experimentation score average is below 3.", summary)
 
-    return failures, warnings, refs
+    return failures, warnings, refs, data_foundations
 
 
 def validate_plan(args: argparse.Namespace) -> int:
@@ -317,7 +351,8 @@ def validate_plan(args: argparse.Namespace) -> int:
 
     status, status_errors = load_task_status(args.task_dir)
     plan_errors = schema_errors(plan, args.schema)
-    failures, warnings, refs = validate_hard_gates(plan, args.ops_dir or infer_ops_dir(args.plan, args.task_dir), status)
+    ops_dir = args.ops_dir or infer_ops_dir(args.plan, args.task_dir)
+    failures, warnings, refs, data_foundations = validate_hard_gates(plan, ops_dir, status)
 
     if status_errors:
         failures.append({"gate": "task_status_schema", "message": "Task status failed schema validation.", "details": status_errors})
@@ -329,12 +364,13 @@ def validate_plan(args: argparse.Namespace) -> int:
         "ok": ok,
         "plan": str(args.plan),
         "task_dir": str(args.task_dir) if args.task_dir else None,
-        "ops_dir": str(args.ops_dir or infer_ops_dir(args.plan, args.task_dir)) if args.ops_dir or infer_ops_dir(args.plan, args.task_dir) else None,
+        "ops_dir": str(ops_dir) if ops_dir else None,
         "schema_version": plan.get("schema_version"),
         "framework_version": plan.get("framework_version"),
         "experiment_id": plan.get("experiment_id"),
         "task_id": plan.get("task_id"),
         "data_audit_refs": refs,
+        "data_foundations": data_foundations,
         "score_summary": score_summary(plan),
         "hard_gate_failures": failures,
         "warnings": warnings,

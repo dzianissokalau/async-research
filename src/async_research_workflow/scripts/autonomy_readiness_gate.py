@@ -21,6 +21,7 @@ from async_research_workflow.scripts.check_schema_versions import (
     DEFAULT_SCHEMA_VERSION,
     scan_schema_versions,
 )
+from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import (
     EXPERIMENT_READY_STATUSES,
     parse_register,
@@ -336,6 +337,27 @@ def source_issues(statuses: list[dict[str, Any]], ops_dir: Path, now: datetime, 
     return []
 
 
+def data_foundation_issues(report: dict[str, Any]) -> list[dict[str, Any]]:
+    finding_count = report.get("warning_count", 0) + report.get("error_count", 0)
+    if not finding_count:
+        return []
+    return [
+        issue(
+            "warning",
+            "data_foundation_findings",
+            f"{finding_count} data-foundation finding(s)",
+            {
+                "error_count": report.get("error_count", 0),
+                "errors": report.get("errors", []),
+                "warning_count": report.get("warning_count", 0),
+                "warnings": report.get("warnings", []),
+                "active_idea_gap_refs": report.get("active_idea_gap_refs", []),
+            },
+            "run async-research data validate research_ops and resolve findings before source-dependent experiment work",
+        )
+    ]
+
+
 def accepted_output_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -542,6 +564,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     review_queue = review_queue_tasks(statuses)
     cost = scan_cost_ledger(ops_dir / "cost_ledger.csv", args.monthly_budget_usd, args.weekly_budget_usd, now)
     idea_catalog = catalog_surface_summary(ops_dir)
+    data_foundations = data_foundation_report(ops_dir, now)
 
     invalids: list[dict[str, Any]] = []
     human: list[dict[str, Any]] = []
@@ -644,6 +667,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         )
 
     human.extend(source_issues(statuses, ops_dir, now, args.stale_source_days))
+    warnings.extend(data_foundation_issues(data_foundations))
     warnings.extend(stale_accepted_evidence_issues(ops_dir, now, args.accepted_output_freshness_days))
     warnings.extend(metrics_snapshot_issues(ops_dir, now, args.metrics_stale_hours))
     if idea_catalog["failure_count"]:
@@ -697,6 +721,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "queue_depth": markdown_table_row_count(ops_dir / "queue.md"),
             "discovery_inbox_count": markdown_table_row_count(ops_dir / "discovery_inbox.md"),
             "cost": cost,
+            "data_foundations": data_foundations,
             "latest_metrics_snapshot": latest_metrics_snapshot(ops_dir),
             "accepted_memory": memory_decay_report(ops_dir, now=now),
             "idea_catalog": idea_catalog,

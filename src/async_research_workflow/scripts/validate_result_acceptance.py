@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import (
     SOURCE_REF_PATTERN,
     assess_source_refs,
@@ -616,6 +617,8 @@ def build_acceptance_record(
                 "audit_register": assessed.get("audit_register"),
             }
         )
+        data_foundations = data_foundation_report(ops_dir)
+        source_governance["data_foundations"] = data_foundations
         add_gate(
             gates,
             "audited_sources_cited",
@@ -627,6 +630,14 @@ def build_acceptance_record(
             "source_governance_allowed",
             assessed.get("ok") is True,
             "source governance allows accepted evidence" if assessed.get("ok") is True else "source governance blocks accepted evidence",
+        )
+        add_gate(
+            gates,
+            "data_foundations_valid",
+            data_foundations.get("error_count", 0) == 0,
+            "data foundation validator has no error-level findings"
+            if data_foundations.get("error_count", 0) == 0
+            else "data foundation validator blocks accepted evidence until malformed data files are repaired",
         )
     elif accepted:
         add_gate(

@@ -45,6 +45,7 @@ LEGACY_STATUS_ALIASES = {
 }
 STATUSES = APPROVAL_STATUSES | set(LEGACY_STATUS_ALIASES)
 EXPERIMENT_READY_STATUSES = {"approved", "approved_with_caveats"}
+BLOCKED_GOVERNANCE_STATUSES = {"blocked", "restricted", "deprecated"}
 HIGH_IMPACT_TIERS = {"tier_1_official", "tier_2_institutional"}
 FIELDS = [
     "source_id",
@@ -407,9 +408,22 @@ def source_governance_report(ops_dir: Path, now: Optional[datetime] = None) -> d
     tier_counts: dict[str, int] = {tier: 0 for tier in sorted(SOURCE_TIERS)}
     approval_counts: dict[str, int] = {status: 0 for status in sorted(APPROVAL_STATUSES)}
     stale_sources: list[dict[str, Any]] = []
+    blocked_sources: list[dict[str, Any]] = []
     for row in rows:
         tier_counts[row["source_tier"]] = tier_counts.get(row["source_tier"], 0) + 1
         approval_counts[row["approval_status"]] = approval_counts.get(row["approval_status"], 0) + 1
+        if row["approval_status"] in BLOCKED_GOVERNANCE_STATUSES:
+            blocked_sources.append(
+                {
+                    "source_id": row["source_id"],
+                    "source_name": row["source_name"],
+                    "source_tier": row["source_tier"],
+                    "approval_status": row["approval_status"],
+                    "blocked_use_cases": row["blocked_use_cases"],
+                    "known_limitations": row["known_limitations"],
+                    "last_reviewed": row["last_reviewed"],
+                }
+            )
         if source_stale(row, current):
             stale_sources.append(
                 {
@@ -422,13 +436,23 @@ def source_governance_report(ops_dir: Path, now: Optional[datetime] = None) -> d
                     "freshness_window_days": freshness_window(row),
                 }
             )
-    warnings = [
-        {
-            "reason": "source_freshness_warning",
-            "message": f"{len(stale_sources)} source(s) are past freshness window",
-            "sources": stale_sources,
-        }
-    ] if stale_sources else []
+    warnings = []
+    if stale_sources:
+        warnings.append(
+            {
+                "reason": "source_freshness_warning",
+                "message": f"{len(stale_sources)} source(s) are past freshness window",
+                "sources": stale_sources,
+            }
+        )
+    if blocked_sources:
+        warnings.append(
+            {
+                "reason": "blocked_source_warning",
+                "message": f"{len(blocked_sources)} source(s) are blocked, restricted, or deprecated",
+                "sources": blocked_sources,
+            }
+        )
     return {
         "ok": not errors,
         "audit_register": str(path),
@@ -438,6 +462,7 @@ def source_governance_report(ops_dir: Path, now: Optional[datetime] = None) -> d
         "warning_count": len(warnings),
         "warnings": warnings,
         "stale_sources": stale_sources,
+        "blocked_sources": blocked_sources,
         "tier_counts": dict(sorted(tier_counts.items())),
         "approval_counts": dict(sorted(approval_counts.items())),
     }

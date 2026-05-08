@@ -19,6 +19,7 @@ from typing import Any, Iterable, Optional
 
 from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.scripts.cost_tracking import cost_window, ledger_path
+from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
 from async_research_workflow.scripts.decision_log import HEADER as DECISION_HEADER
 from async_research_workflow.scripts.decision_log import (
@@ -411,6 +412,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
     alerts = health.get("alerts") if isinstance(health.get("alerts"), list) else []
     cost = cost_window(ledger_path(ops_dir), now, None, None)
     source = source_governance_report(ops_dir, now=now)
+    data_foundations = data_foundation_report(ops_dir, now=now)
     metrics = latest_metrics_snapshot(ops_dir)
     queue_depth = markdown_table_row_count(ops_dir / "queue.md")
     discovery_depth = markdown_table_row_count(ops_dir / "discovery_inbox.md")
@@ -432,6 +434,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "alerts": alerts,
         "cost": cost,
         "source": source,
+        "data_foundations": data_foundations,
         "metrics": metrics,
         "queue_depth": queue_depth,
         "discovery_depth": discovery_depth,
@@ -471,8 +474,44 @@ def source_risk_lines(source: dict[str, Any]) -> list[str]:
                 f"  - {item.get('source_id')}: last reviewed {item.get('last_reviewed')}, "
                 f"age {item.get('age_days')} days, window {item.get('freshness_window_days')} days"
             )
+    blocked = source.get("blocked_sources") if isinstance(source.get("blocked_sources"), list) else []
+    if blocked:
+        lines.append(f"- Blocked, restricted, or deprecated sources: {len(blocked)}")
+        for item in blocked[:5]:
+            lines.append(
+                f"  - {item.get('source_id')}: {item.get('approval_status')} "
+                f"for {normalize_text(item.get('blocked_use_cases')) or 'declared blocked uses'}"
+            )
     if not lines:
         lines.append("- No risky or stale sources reported.")
+    return lines
+
+
+def data_foundation_lines(report: dict[str, Any]) -> list[str]:
+    warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
+    errors = report.get("errors") if isinstance(report.get("errors"), list) else []
+    gap_refs = report.get("active_idea_gap_refs") if isinstance(report.get("active_idea_gap_refs"), list) else []
+    state = "ok" if report.get("ok") and not warnings and not errors else "findings"
+    lines = [
+        f"- Data validation: {state}",
+        f"- Sources / profiles: {report.get('source_count', 0)} / {report.get('profile_count', 0)}",
+        f"- Warning findings: {len(warnings)}",
+        f"- Error findings: {len(errors)}",
+        f"- Active idea gap refs: {len(gap_refs)}",
+    ]
+    if gap_refs:
+        lines.append("- Gap references affecting active ideas:")
+        for item in gap_refs[:5]:
+            path = Path(str(item.get("path", ""))).name or "idea"
+            gap_ids = ", ".join(str(ref) for ref in item.get("gap_ids", [])) or "none"
+            lines.append(f"  - {path}: {gap_ids}")
+    finding_preview = errors[:3] + warnings[:3]
+    if finding_preview:
+        lines.append("- Validator findings:")
+        for item in finding_preview[:5]:
+            reason = normalize_text(item.get("reason")) or "finding"
+            message = normalize_text(item.get("message")) or "inspect data foundations"
+            lines.append(f"  - {reason}: {message}")
     return lines
 
 
@@ -597,6 +636,9 @@ def daily_status_markdown(model: dict[str, Any]) -> str:
     )
     lines.extend(source_risk_lines(model["source"]))
 
+    lines.extend(["", "## Data Foundations", ""])
+    lines.extend(data_foundation_lines(model["data_foundations"]))
+
     lines.extend(["", "## Current Queue State", ""])
     active_count = len(model["active"])
     lines.extend(
@@ -703,11 +745,50 @@ def weekly_catalog_section(model: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def weekly_data_foundations_section(model: dict[str, Any]) -> str:
+    data = model["data_foundations"]
+    warnings = data.get("warnings") if isinstance(data.get("warnings"), list) else []
+    errors = data.get("errors") if isinstance(data.get("errors"), list) else []
+    gap_refs = data.get("active_idea_gap_refs") if isinstance(data.get("active_idea_gap_refs"), list) else []
+    validation_state = "ok" if data.get("ok") and not warnings and not errors else f"{len(errors)} error(s), {len(warnings)} warning(s)"
+    lines = [
+        "## Data Foundations Surface",
+        "",
+        f"- Data validation: {validation_state}",
+        f"- Sources / profiles: {data.get('source_count', 0)} / {data.get('profile_count', 0)}",
+        f"- Active idea gap refs: {len(gap_refs)}",
+    ]
+    if gap_refs:
+        lines.append("- Data gaps affecting active ideas:")
+        for item in gap_refs[:5]:
+            path = Path(str(item.get("path", ""))).name or "idea"
+            gap_ids = ", ".join(str(ref) for ref in item.get("gap_ids", [])) or "none"
+            lines.append(f"  - {path}: {gap_ids}")
+    else:
+        lines.append("- Data gaps affecting active ideas: none")
+    finding_preview = errors[:3] + warnings[:3]
+    if finding_preview:
+        lines.append("- Validator findings:")
+        for item in finding_preview[:5]:
+            reason = normalize_text(item.get("reason")) or "finding"
+            message = normalize_text(item.get("message")) or "inspect data foundations"
+            lines.append(f"  - {reason}: {message}")
+    else:
+        lines.append("- Validator findings: none")
+    return "\n".join(lines) + "\n"
+
+
 def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
     path = ops_dir / WEEKLY_NAME
     text = path.read_text(encoding="utf-8") if path.exists() else "# Weekly Digest\n"
-    section = weekly_surface_section(model).rstrip() + "\n\n" + weekly_catalog_section(model).rstrip()
-    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
+    section = (
+        weekly_surface_section(model).rstrip()
+        + "\n\n"
+        + weekly_catalog_section(model).rstrip()
+        + "\n\n"
+        + weekly_data_foundations_section(model).rstrip()
+    )
+    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface|Data Foundations Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
     stripped = pattern.sub("", text).rstrip()
     updated = stripped + "\n\n" + section.rstrip() + "\n"
     atomic_write_text(path, updated)

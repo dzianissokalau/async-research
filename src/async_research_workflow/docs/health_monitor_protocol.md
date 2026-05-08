@@ -40,6 +40,8 @@ The health monitor reads:
 - `research_ops/queue.md`
 - `research_ops/discovery_inbox.md`
 - `research_ops/cost_ledger.csv`
+- `research_ops/data_source_audit.md`
+- `research_ops/data/**`
 - `research_ops/tasks/*/status.json`
 - `research_ops/tasks/*/LOCK/`
 
@@ -56,6 +58,8 @@ The daily check reports:
 - revision limit breaches
 - discovery inbox overload
 - weekly or monthly budget threshold
+- stale, blocked, restricted, or deprecated data sources
+- warning-only data foundation findings from `async-research data validate`
 - malformed or schema-invalid `status.json` files
 - tasks stuck in the same nonterminal status too long
 
