@@ -39,6 +39,8 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "If write mode returns promotion_preflight_changed, rerun --dry-run",
                 "Run async-research idea catalog dashboard research_ops",
                 "link_status=available",
+                "Do not run the former v1 park closeout after a successful or idempotent promotion write",
+                "Do not use `async-research idea park` as a post-write promotion closeout",
                 "Do not use `--allow-duplicate` without a recorded human decision or explicit planner note",
                 "Do not create a second task from the same catalog idea unless an existing task scan, human decision, or explicit planner note proves the new task is a distinct follow-up",
             ],
@@ -66,6 +68,8 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "Write mode uses `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
                 "The write transaction stages `task.md` and `status.json`, validates the staged task folder, appends `queue.md`, updates the canonical idea, and rolls back if post-write consistency fails.",
                 "The promoted idea should have `status=promoted`, `promoted_task_id=<TASK-ID>`, and a dashboard `sections.idea_to_task_links` row with `link_status=available`.",
+                "Do not run the former v1 park closeout after a successful or idempotent promotion write.",
+                "`async-research idea park ... --reason \"promoted to <TASK-ID>\" --write` would replace `status=promoted` and break the `promoted_task_id` dashboard link.",
             ],
         )
         self.assert_doc_contains(
@@ -101,6 +105,8 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "skip ideas that already have a task `status.json` with matching `catalog_idea_id`",
                 "do not hand-create task folders, `status.json`, `task.md`, or `queue.md` rows from the dry-run payload",
                 "`link_status=available`",
+                "do not run the former v1 park closeout after write success",
+                "refresh any cached pre-V2.8 planner prompt",
             ],
         )
 

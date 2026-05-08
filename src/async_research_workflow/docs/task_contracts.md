@@ -154,6 +154,10 @@ async-research idea catalog dashboard research_ops
 
 The promoted idea should have `status=promoted`, `promoted_task_id=<TASK-ID>`,
 and a dashboard `sections.idea_to_task_links` row with `link_status=available`.
+Do not run the former v1 park closeout after a successful or idempotent
+promotion write. A stale cached planner prompt that runs
+`async-research idea park ... --reason "promoted to <TASK-ID>" --write` would
+replace `status=promoted` and break the `promoted_task_id` dashboard link.
 If write mode returns `idea_promotion_task_already_written`, treat it as
 idempotent success only when the task folder, queue row, and
 `promoted_task_id` all match the selected idea. If it returns

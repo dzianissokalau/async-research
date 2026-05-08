@@ -361,6 +361,9 @@ Rules for planner promotion writes:
 - after a successful or idempotent write, rerun catalog validation and the
   dashboard; the promoted idea should show `promoted_task_id=<TASK-ID>` with
   `link_status=available`
+- do not run the former v1 park closeout after write success; refresh any
+  cached pre-V2.8 planner prompt that still calls
+  `async-research idea park ... --reason "promoted to <TASK-ID>" --write`
 - if write mode reports `promotion_preflight_changed`, recovery required,
   `rollback_ok=false`, or `requires_human=true`, stop and surface the exact
   recovery payload instead of repairing files ad hoc

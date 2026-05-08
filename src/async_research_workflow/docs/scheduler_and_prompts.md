@@ -164,10 +164,11 @@ Task:
 15. If write mode returns promotion_preflight_changed, rerun --dry-run and retry only after confirming the changed catalog inputs are expected. If it returns promotion_proposal_recovery_required, promotion_task_recovery_required, or a recovery payload with rollback_ok=false or requires_human=true, stop and surface the exact recovery payload for human repair.
 16. Run async-research idea catalog validate research_ops after a successful or idempotent write.
 17. Run async-research idea catalog dashboard research_ops and confirm the promoted idea appears with promoted_task_id=<TASK-ID> and link_status=available in sections.idea_to_task_links.
-18. Run the validation commands listed in the promotion proposal where applicable before worker execution. For `experiment_plan`, ensure the dry-run selected task_type=experiment_plan, the write used --human-override, data_audit_refs are present, and async-research source check-experiment research_ops <task-dir>/task.md passes; otherwise create a `data_readiness` follow-up or route to `needs_human`.
-19. For each written task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir> before assigning a worker when anti-context is required for the task class.
-20. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise or pause the written task through the normal task revision/human decision flow rather than editing queue.md by hand.
-21. Update daily_status.md.
+18. Do not run the former v1 park closeout after a successful or idempotent promotion write. A stale cached planner prompt that runs async-research idea park ... --reason "promoted to <TASK-ID>" --write would replace status=promoted and break the promoted_task_id dashboard link.
+19. Run the validation commands listed in the promotion proposal where applicable before worker execution. For `experiment_plan`, ensure the dry-run selected task_type=experiment_plan, the write used --human-override, data_audit_refs are present, and async-research source check-experiment research_ops <task-dir>/task.md passes; otherwise create a `data_readiness` follow-up or route to `needs_human`.
+20. For each written task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir> before assigning a worker when anti-context is required for the task class.
+21. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise or pause the written task through the normal task revision/human decision flow rather than editing queue.md by hand.
+22. Update daily_status.md.
 
 Rules:
 - Do not work on the tasks yourself.
@@ -179,6 +180,7 @@ Rules:
 - Do not use `--allow-duplicate` without a recorded human decision or explicit planner note naming the non-duplicate angle.
 - Do not hand-create execution tasks or append `queue.md` from promotion dry-run output; use `async-research idea promote ... --write --preflight-hash <hash>`.
 - Treat `idea_promotion_task_already_written` as success only when the existing task, queue row, and promoted_task_id match the selected idea.
+- Do not use `async-research idea park` as a post-write promotion closeout; refresh any cached pre-V2.8 planner prompt that still instructs this.
 - Do not create tasks requiring paid API/cloud spend unless status.json has requires_human=true.
 - Set prompt_versions.planner="planner_v1.0" and preserve the default prompt/framework version set.
 - Set framework_versions.idea_evaluation="idea_evaluation_v1.0" when a task is promoted from a discovery candidate.
