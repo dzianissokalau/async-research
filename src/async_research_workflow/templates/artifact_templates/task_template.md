@@ -60,6 +60,12 @@ Write `worker_output.md` with:
   candidates to the discovery inbox or planner queue.
 - For `experiment_plan` tasks, list audited data source IDs such as `DS-0001`.
 - If no audited data source exists yet, route to `data_readiness` before experiment planning.
+- For `data_readiness` tasks, produce profile draft/update details,
+  recommended audit status, access check results, field/grain coverage, join
+  feasibility, known limitations, recommended next task, and a kill reason if
+  data is unusable. Any audit/profile recommendation must be traceable to
+  `worker_output.md` and should pass `async-research source validate` plus
+  `async-research data validate`.
 - Source-dependent tasks must follow `data_source_audit_register_protocol.md`:
   Tier 3 sources are context-only, Tier 4 sources are blocked without explicit
   human approval, high-impact claims need Tier 1/2 support, and stale sources

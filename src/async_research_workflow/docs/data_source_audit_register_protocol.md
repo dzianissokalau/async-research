@@ -192,6 +192,14 @@ uses exact use-case tokens such as `experiment_planning`, `accepted_evidence`,
 and `context`, so human-readable caveats should be added after those tokens
 rather than replacing them.
 
+A data-readiness `worker_output.md` should include the profile draft/update,
+recommended audit status, access check result, field/grain coverage, join
+feasibility, known limitations, recommended next task, and kill reason if the
+data is unusable. Any audit or profile edit should cite the task id in
+`approved_by` or `review_notes` and should pass both
+`async-research source validate research_ops` and
+`async-research data validate research_ops` before review.
+
 ## Acceptance Checks
 
 P3-4 and Phase 5 are implemented when:

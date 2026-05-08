@@ -130,7 +130,20 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertIn("max_minutes", proposal)
             self.assertIn("max_turns", proposal)
             self.assertIn("async-research source validate research_ops", proposal["validation_commands"])
+            self.assertIn("async-research data validate research_ops", proposal["validation_commands"])
+            self.assertIn("research_ops/data/**", proposal["allowed_paths"])
             self.assertIn("task_markdown_draft", proposal)
+            for snippet in [
+                "Profile draft or update",
+                "Recommended audit status",
+                "Access check result",
+                "Field/grain coverage",
+                "Join feasibility",
+                "Known limitations",
+                "Recommended next task",
+                "Kill reason if data is unusable",
+            ]:
+                self.assertIn(snippet, proposal["task_markdown_draft"])
             self.assertIn("status_json_draft", proposal)
             blocked_paths = {item["path"] for item in payload["would_not_write"]}
             self.assertIn(str(ops_dir / "queue.md"), blocked_paths)

@@ -64,6 +64,25 @@ class DataFoundationTemplateTests(unittest.TestCase):
             self.assertIn(f"| {source_id} |", audit_text)
             self.assertIn(f"data/profiles/{source_id}.md", catalog_text)
 
+    def test_real_estate_data_readiness_task_has_phase4_contract(self) -> None:
+        task_text = (REAL_ESTATE_STARTER / "tasks" / "TASK-0001-data-readiness" / "task.md").read_text(encoding="utf-8")
+        status_text = (REAL_ESTATE_STARTER / "tasks" / "TASK-0001-data-readiness" / "status.json").read_text(encoding="utf-8")
+        for snippet in [
+            "profile draft or update",
+            "recommended audit status",
+            "access check result",
+            "field/grain coverage",
+            "join feasibility",
+            "known limitations",
+            "recommended next task",
+            "kill reason if",
+            "async-research source validate research_ops",
+            "async-research data validate research_ops",
+            "traceable to this task",
+        ]:
+            self.assertIn(snippet, task_text)
+        self.assertIn("research_ops/data/**", status_text)
+
     def test_data_foundation_templates_are_packaged_resources(self) -> None:
         package = importlib_resources.files("async_research_workflow")
         required = []

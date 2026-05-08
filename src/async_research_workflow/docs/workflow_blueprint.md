@@ -222,8 +222,10 @@ Research UK property prices and build a model.
 A task is the right size if it says:
 
 ```text
-Read the existing real-estate dataset matrix and produce a one-page data-readiness note
-for TASK-0007. Do not browse. Do not edit files outside TASK-0007.
+Read the existing real-estate dataset matrix and produce one data-readiness
+profile/update recommendation for TASK-0007: access check, field/grain coverage,
+join feasibility, limitations, recommended audit status, next task, and kill
+reason. Do not edit files outside allowed_paths.
 ```
 
 Good task types:

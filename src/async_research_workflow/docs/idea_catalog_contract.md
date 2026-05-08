@@ -341,7 +341,10 @@ Rules for planner promotion writes:
 - promote few ideas, normally at most 3 catalog ideas per planner run
 - create the cheapest killable next task that the proposal selects
 - use `literature_extract` when evidence is thin
-- use `data_readiness` when data is plausible but unaudited
+- use `data_readiness` when data is plausible but unaudited; generated
+  data-readiness tasks may update `data_source_audit.md` and `data/**`, must
+  produce profile/audit recommendations, and should run both source and data
+  validators before review
 - write `experiment_plan` only when the proposal selects it, listed source
   checks pass, and a recorded human decision backs `--human-override`
 - preserve proposal scope, allowed paths, limits, kill reason, validation

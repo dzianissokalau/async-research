@@ -60,6 +60,8 @@ folder is the planning layer for dataset readiness:
 
 Profiles should be named like `data/profiles/DS-0001.md`, declare the same
 `source_id` inside the file, and point back to one audit row.
+After editing data foundation files, run
+`async-research data validate research_ops` before review.
 
 ## First Setup Steps
 

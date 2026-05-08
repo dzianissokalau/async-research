@@ -1957,6 +1957,7 @@ def promotion_validation_commands(task_type: str, proposed_task_slug: str) -> li
         )
     if task_type == "data_readiness":
         commands.append("async-research source validate research_ops")
+        commands.append("async-research data validate research_ops")
     return commands
 
 
@@ -1969,7 +1970,8 @@ def promotion_scope(task_type: str, payload: dict[str, Any]) -> list[str]:
     if task_type == "literature_extract":
         base.append("Extract existing evidence and source leads before any data or experiment work.")
     elif task_type == "data_readiness":
-        base.append("Verify source availability, access route, caveats, and audit status before experiment planning.")
+        base.append("Verify source availability, access route, profile details, caveats, and audit status before experiment planning.")
+        base.append("Trace any audit or profile recommendation to this task's worker_output.md.")
     elif task_type == "hypothesis_card":
         base.append("Turn the idea into a falsifiable hypothesis with minimum viable test and explicit kill criteria.")
     elif task_type == "experiment_plan":
@@ -1987,9 +1989,32 @@ def promotion_allowed_paths(task_type: str, idea_id: str, proposed_task_slug: st
         "research_ops/discovery/rejected_ideas.md",
         "research_ops/rejected_results.md",
     ]
-    if task_type in {"data_readiness", "experiment_plan"}:
+    if task_type == "data_readiness":
+        paths.append("research_ops/data_source_audit.md")
+        paths.append("research_ops/data/**")
+    elif task_type == "experiment_plan":
         paths.append("research_ops/data_source_audit.md")
     return paths
+
+
+def promotion_required_output(task_type: str) -> list[str]:
+    if task_type == "data_readiness":
+        return [
+            "Profile draft or update for each investigated `DS-*` source, or an explicit no-change rationale.",
+            "Recommended audit status for each source and the exact `source upsert` fields when changes are needed.",
+            "Access check result covering access route, permission requirement, and reproducibility notes.",
+            "Field/grain coverage for the proposed use case.",
+            "Join feasibility, join keys, and join caveats.",
+            "Known limitations, privacy/licensing constraints, missingness risks, and freshness risks.",
+            "Recommended next task: `experiment_plan`, `hypothesis_card`, another `data_readiness`, `park`, or `reject`.",
+            "Kill reason if data is unusable or too risky for downstream planning.",
+            "Validation results for `async-research source validate` and `async-research data validate`.",
+        ]
+    return [
+        "Worker output that answers the task objective.",
+        "Explicit assumptions, caveats, and evidence references.",
+        "Recommendation to accept, revise, park, reject, or promote a follow-up.",
+    ]
 
 
 def promotion_preflight_payload(payload: dict[str, Any], task_type: str) -> dict[str, Any]:
@@ -2320,9 +2345,7 @@ def promotion_task_proposal(
             "",
             "## Required Output",
             "",
-            "- Worker output that answers the task objective.",
-            "- Explicit assumptions, caveats, and evidence references.",
-            "- Recommendation to accept, revise, park, reject, or promote a follow-up.",
+            *[f"- {item}" for item in promotion_required_output(task_type)],
             "",
             "## Kill Criteria",
             "",

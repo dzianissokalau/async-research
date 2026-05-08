@@ -57,8 +57,9 @@ folder is the planning layer for dataset readiness:
 - `data/profiles/` contains reviewed starter profiles for `DS-0001`,
   `DS-0002`, and `DS-0003`.
 
-Profiles are advisory planning artifacts until the data validator ships. Source
-governance still runs through `async-research source`.
+Source governance still runs through `async-research source`. After editing
+profiles, access notes, joins, or data gaps, run
+`async-research data validate research_ops` before review.
 
 ## Starter Cadence
 

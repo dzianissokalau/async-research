@@ -288,6 +288,9 @@ Write `worker_output.md` with:
 - known quality risks
 - required validation checks
 - recommendation: `ready`, `usable_with_caveats`, `blocked`, or `needs_human`
+- for `data_readiness`: profile draft/update, recommended audit status, access
+  check result, field/grain coverage, join feasibility, known limitations,
+  recommended next task, and kill reason if data is unusable
 
 ## Acceptance Criteria
 
@@ -295,6 +298,9 @@ Write `worker_output.md` with:
 - Caveats are explicit.
 - No unsupported claims.
 - Follow-up tasks are listed separately.
+- For `data_readiness`, audit/profile changes are traceable to the reviewed
+  task output and pass `async-research source validate` plus
+  `async-research data validate`.
 
 ## Context
 
