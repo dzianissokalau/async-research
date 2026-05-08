@@ -96,6 +96,23 @@ class DataFoundationValidatorTests(unittest.TestCase):
         self.assertIn("profile_source_id_mismatch", error_reasons)
         self.assertIn("profile_without_audit_row", error_reasons)
 
+    def test_canonical_orphan_profile_fails_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            original = ops_dir / "data" / "profiles" / "DS-0001.md"
+            orphan = ops_dir / "data" / "profiles" / "DS-9999.md"
+            orphan.write_text(
+                original.read_text(encoding="utf-8").replace("DS-0001", "DS-9999"),
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(4, code)
+        self.assertFalse(payload["ok"])
+        error_reasons = {item["reason"] for item in payload["errors"]}
+        self.assertIn("profile_without_audit_row", error_reasons)
+
     def test_duplicate_profile_id_is_flagged_even_with_noncanonical_filename(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
@@ -127,6 +144,65 @@ class DataFoundationValidatorTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         warning_reasons = {item["reason"] for item in payload["warnings"]}
         self.assertIn("profile_audit_projection_drift", warning_reasons)
+
+    def test_missing_profile_use_policy_fields_warn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            path = ops_dir / "data" / "profiles" / "DS-0001.md"
+            text = path.read_text(encoding="utf-8")
+            text = text.replace(
+                "- approved_use_cases: experiment_planning; accepted_evidence; context; transaction price evidence; repeat-sales experiment planning; market price benchmarking\n",
+                "",
+            )
+            text = text.replace(
+                "- blocked_use_cases: borrower mortgage terms; exact property identity without matching methodology; public address-derived outputs without license checklist\n",
+                "",
+            )
+            path.write_text(text, encoding="utf-8")
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(2, code)
+        self.assertTrue(payload["ok"])
+        missing_fields = {
+            item.get("profile_field")
+            for item in payload["warnings"]
+            if item["reason"] == "missing_profile_use_policy_field"
+        }
+        self.assertEqual({"approved_use_cases", "blocked_use_cases"}, missing_fields)
+
+    def test_malformed_data_catalog_table_fails_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(GENERIC_STARTER, Path(tmpdir))
+            path = ops_dir / "data" / "data_catalog.md"
+            text = path.read_text(encoding="utf-8")
+            text = text.replace(
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| DS-0001 | too few cells |\n",
+            )
+            path.write_text(text, encoding="utf-8")
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(4, code)
+        self.assertFalse(payload["ok"])
+        error_reasons = {item["reason"] for item in payload["errors"]}
+        self.assertIn("malformed_data_table", error_reasons)
+
+    def test_malformed_non_catalog_data_tables_fail_validation(self) -> None:
+        for relative in ("data_access.md", "join_map.md", "known_data_gaps.md"):
+            with self.subTest(relative=relative):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir = copy_starter(GENERIC_STARTER, Path(tmpdir))
+                    path = ops_dir / "data" / relative
+                    path.write_text("# Broken Table\n\n| one | two |\n| --- | --- |\n| only-one |\n", encoding="utf-8")
+
+                    code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+                self.assertEqual(4, code)
+                self.assertFalse(payload["ok"])
+                error_reasons = {item["reason"] for item in payload["errors"]}
+                self.assertIn("malformed_data_table", error_reasons)
 
     def test_template_profile_is_ignored_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

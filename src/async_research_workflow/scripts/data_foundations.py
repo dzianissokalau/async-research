@@ -42,6 +42,7 @@ GAP_REF_RE = re.compile(r"\bDG-[0-9]{4}\b")
 NO_VALUE_MARKERS = {"", "none", "n/a", "na", "unknown", "todo", "tbd", "yyyy-mm-dd"}
 ACTIVE_IDEA_STATUSES = {"", "candidate", "raw", "scored", "blocked"}
 INACTIVE_IDEA_STATUSES = {"parked", "rejected", "promoted"}
+REQUIRED_PROFILE_POLICY_FIELDS = ("approved_use_cases", "blocked_use_cases")
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -278,6 +279,20 @@ def profile_drift_warnings(
                     audit_value=audit_value,
                 )
             )
+
+    for field in REQUIRED_PROFILE_POLICY_FIELDS:
+        if field_has_value(fields.get(field)):
+            continue
+        warnings.append(
+            issue(
+                "warning",
+                "missing_profile_use_policy_field",
+                path,
+                f"profile {source_id} should record {field}",
+                source_id=source_id,
+                profile_field=field,
+            )
+        )
 
     reviewed_date = normalize_text(fields.get("reviewed_date"))
     if not field_has_value(reviewed_date):
@@ -532,6 +547,8 @@ def data_foundation_report(ops_dir: Path, now: Optional[datetime] = None) -> dic
                 )
             )
 
+    _catalog_rows, table_errors = first_markdown_table(data_dir / "data_catalog.md")
+    errors.extend(table_errors)
     data_access_rows, table_errors = first_markdown_table(data_dir / "data_access.md")
     errors.extend(table_errors)
     join_rows, table_errors = first_markdown_table(data_dir / "join_map.md")
