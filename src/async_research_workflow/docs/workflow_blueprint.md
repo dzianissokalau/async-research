@@ -57,6 +57,12 @@ research_ops/
   cost_ledger.csv
   decisions.md
   data_source_audit.md
+  data/
+    data_catalog.md
+    data_access.md
+    join_map.md
+    known_data_gaps.md
+    profiles/
   metrics_baseline.json
   metrics_history.jsonl
   discovery/

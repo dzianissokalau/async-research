@@ -123,6 +123,13 @@ research_ops/
   ideas/
     idea_catalog.md
     prioritization.md
+  data/
+    data_catalog.md
+    data_access.md
+    join_map.md
+    known_data_gaps.md
+    profiles/
+      README.md
   queue.md
   daily_status.md
   weekly_digest.md
@@ -145,7 +152,9 @@ research_ops/
 ```
 
 The important rule is that durable state lives in files. Agents should not rely
-on private chat context to know what happened before.
+on private chat context to know what happened before. `data_source_audit.md`
+remains the source-governance register; `data/` holds the human-readable
+readiness inventory, access notes, join map, gaps, and profile contract.
 
 ## Worked Task Loop
 

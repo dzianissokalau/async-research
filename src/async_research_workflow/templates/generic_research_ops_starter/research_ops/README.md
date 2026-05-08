@@ -14,6 +14,7 @@ reflects the current repo state.
 ```bash
 async-research schema-check research_ops
 async-research idea catalog init research_ops --dry-run
+async-research source validate research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research surface update research_ops
@@ -45,9 +46,25 @@ Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
 reference, and idea `promoted_task_id` only after a successful, unblocked
 dry-run. The dashboard should show the promoted idea with `link_status=available`.
 
+## Data Foundations
+
+`data_source_audit.md` remains the source-governance register. The `data/`
+folder is the planning layer for dataset readiness:
+
+- `data/data_catalog.md` inventories governed datasets.
+- `data/data_access.md` records how approved sources can be accessed without
+  storing secrets.
+- `data/join_map.md` records plausible joins and caveats.
+- `data/known_data_gaps.md` tracks data gaps that block ideas or tasks.
+- `data/profiles/README.md` defines the `DS-0000.md` profile contract.
+
+Profiles should be named like `data/profiles/DS-0001.md`, declare the same
+`source_id` inside the file, and point back to one audit row.
+
 ## First Setup Steps
 
 1. Add project-specific sources to `data_source_audit.md`.
-2. Add discovery sources to `discovery/source_register.md`.
-3. Add one small task under `tasks/` and one row in `queue.md`.
-4. Run the health and readiness checks before scheduling workers.
+2. Add matching data catalog, access, gap, join, and profile notes under `data/`.
+3. Add discovery sources to `discovery/source_register.md`.
+4. Add one small task under `tasks/` and one row in `queue.md`.
+5. Run the health and readiness checks before scheduling workers.

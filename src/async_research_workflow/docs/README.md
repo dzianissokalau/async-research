@@ -143,8 +143,9 @@ Latest full-loop simulation result:
 
 The default `async-research init` template is the
 [generic starter](../templates/generic_research_ops_starter/research_ops/README.md).
-It includes durable queue, source-governance, cost, metric, decision, review,
-and evidence files without live tasks or project-specific sources.
+It includes durable queue, source-governance, data foundation, cost, metric,
+decision, review, and evidence files without live tasks or project-specific
+sources.
 
 The [real-estate starter](../templates/research_ops_starter/research_ops/README.md)
 remains available as a worked example:
@@ -166,6 +167,13 @@ research_ops/
   ideas/
     idea_catalog.md
     prioritization.md
+  data/
+    data_catalog.md
+    data_access.md
+    join_map.md
+    known_data_gaps.md
+    profiles/
+      README.md
   inbox.md
   queue.md
   daily_status.md

@@ -4,7 +4,8 @@
   "allow_network": true,
   "allowed_paths": [
     "research_ops/tasks/TASK-0001-data-readiness/**",
-    "research_ops/data_source_audit.md"
+    "research_ops/data_source_audit.md",
+    "research_ops/data/**"
   ],
   "allowed_tools": [
     "repo_read",

@@ -227,6 +227,11 @@ class InitSafetyTests(unittest.TestCase):
             self.assertTrue((target / "queue.md").exists())
             self.assertTrue((target / "ideas" / "idea_catalog.md").exists())
             self.assertTrue((target / "ideas" / "prioritization.md").exists())
+            self.assertTrue((target / "data" / "data_catalog.md").exists())
+            self.assertTrue((target / "data" / "data_access.md").exists())
+            self.assertTrue((target / "data" / "join_map.md").exists())
+            self.assertTrue((target / "data" / "known_data_gaps.md").exists())
+            self.assertTrue((target / "data" / "profiles" / "README.md").exists())
             self.assertTrue((target / "metrics_baseline.json").exists())
             self.assertTrue((target / "metrics_history.jsonl").exists())
             self.assertTrue((target / "tasks" / ".gitkeep").exists())
@@ -252,6 +257,10 @@ class InitSafetyTests(unittest.TestCase):
             self.assertTrue((target / "tasks" / "TASK-0001-data-readiness" / "status.json").exists())
             self.assertTrue((target / "ideas" / "idea_catalog.md").exists())
             self.assertTrue((target / "ideas" / "prioritization.md").exists())
+            self.assertTrue((target / "data" / "data_catalog.md").exists())
+            self.assertTrue((target / "data" / "profiles" / "DS-0001.md").exists())
+            self.assertTrue((target / "data" / "profiles" / "DS-0002.md").exists())
+            self.assertTrue((target / "data" / "profiles" / "DS-0003.md").exists())
             self.assertTrue((target / "health_report.json").exists())
 
 

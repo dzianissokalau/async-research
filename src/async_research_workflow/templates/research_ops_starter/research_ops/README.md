@@ -13,6 +13,7 @@ review surfaces.
 ```bash
 async-research schema-check research_ops
 async-research idea catalog init research_ops --dry-run
+async-research source validate research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research surface update research_ops
@@ -43,6 +44,21 @@ async-research idea catalog dashboard research_ops
 Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
 reference, and idea `promoted_task_id` only after a successful, unblocked
 dry-run. The dashboard should show the promoted idea with `link_status=available`.
+
+## Data Foundations
+
+`data_source_audit.md` remains the source-governance register. The `data/`
+folder is the planning layer for dataset readiness:
+
+- `data/data_catalog.md` inventories the starter data sources.
+- `data/data_access.md` records public access routes and checks.
+- `data/join_map.md` records plausible joins and caveats.
+- `data/known_data_gaps.md` tracks data gaps that block ideas or tasks.
+- `data/profiles/` contains reviewed starter profiles for `DS-0001`,
+  `DS-0002`, and `DS-0003`.
+
+Profiles are advisory planning artifacts until the data validator ships. Source
+governance still runs through `async-research source`.
 
 ## Starter Cadence
 
