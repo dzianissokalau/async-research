@@ -512,6 +512,28 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_rollback_audit_payload_requires_human_when_rollback_action_fails(self) -> None:
+        audit = idea_catalog_script.rollback_audit_payload(
+            Path("/tmp/research_ops"),
+            task_rollback={
+                "actions": [
+                    {
+                        "action": "remove_task_folder",
+                        "path": "/tmp/research_ops/tasks/TASK-7419-data-readiness",
+                        "changed": False,
+                    }
+                ]
+            },
+            restored_files=[],
+        )
+
+        self.assertFalse(audit["rollback_ok"])
+        self.assertTrue(audit["requires_human"])
+        self.assertEqual(1, audit["rollback_action_count"])
+        self.assertEqual(1, len(audit["rollback_failures"]))
+        self.assertEqual("remove_task_folder", audit["rollback_failures"][0]["action"])
+        self.assertIn("inspect rollback_failures", audit["next_step"])
+
     def test_staged_task_validation_failure_restores_all_promotion_writes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
