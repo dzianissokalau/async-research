@@ -59,6 +59,7 @@ ACTIVE_STATUSES = {
     "needs_revision",
 }
 REVIEW_QUEUE_STATUSES = {"awaiting_review", "single_review", "panel_review"}
+SOURCE_GOVERNED_TASK_TYPES = {"experiment_plan", "run_analysis", "evaluate_results"}
 REQUIRED_OPERATIONAL_FILES = [
     "queue.md",
     "daily_status.md",
@@ -160,6 +161,30 @@ def needs_human_tasks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "human_gate_reason": payload.get("human_gate_reason"),
                 }
             )
+    return tasks
+
+
+def source_governance_applies(payload: dict[str, Any]) -> bool:
+    return str(payload.get("type") or "").strip() in SOURCE_GOVERNED_TASK_TYPES
+
+
+def source_dependent_governed_tasks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    for item in active_tasks(statuses):
+        payload = item["payload"]
+        refs = payload.get("data_audit_refs")
+        if not source_governance_applies(payload) or not isinstance(refs, list) or not refs:
+            continue
+        tasks.append(
+            {
+                "task_id": payload.get("id", item["task_dir"].name),
+                "task_dir": str(item["task_dir"]),
+                "status_path": str(item["status_path"]),
+                "status": payload.get("status"),
+                "type": payload.get("type"),
+                "data_audit_refs": [ref for ref in refs if isinstance(ref, str)],
+            }
+        )
     return tasks
 
 
@@ -300,6 +325,8 @@ def source_issues(statuses: list[dict[str, Any]], ops_dir: Path, now: datetime, 
 
     for item in active_tasks(statuses):
         payload = item["payload"]
+        if not source_governance_applies(payload):
+            continue
         refs = payload.get("data_audit_refs")
         if not isinstance(refs, list) or not refs:
             continue
@@ -311,6 +338,7 @@ def source_issues(statuses: list[dict[str, Any]], ops_dir: Path, now: datetime, 
                 "task_id": payload.get("id", item["task_dir"].name),
                 "task_dir": str(item["task_dir"]),
                 "status_path": str(item["status_path"]),
+                "task_type": payload.get("type"),
                 "source_id": ref,
             }
             if row is None:
@@ -337,23 +365,32 @@ def source_issues(statuses: list[dict[str, Any]], ops_dir: Path, now: datetime, 
     return []
 
 
-def data_foundation_issues(report: dict[str, Any]) -> list[dict[str, Any]]:
+def data_foundation_issues(report: dict[str, Any], statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
     finding_count = report.get("warning_count", 0) + report.get("error_count", 0)
     if not finding_count:
         return []
+    governed_tasks = source_dependent_governed_tasks(statuses)
+    error_count = report.get("error_count", 0)
+    severity = "error" if error_count and governed_tasks else "warning"
+    action = (
+        "repair malformed data foundation files before running experiment or analysis workers"
+        if severity == "error"
+        else "run async-research data validate research_ops and resolve findings before source-dependent experiment work"
+    )
     return [
         issue(
-            "warning",
+            severity,
             "data_foundation_findings",
             f"{finding_count} data-foundation finding(s)",
             {
-                "error_count": report.get("error_count", 0),
+                "error_count": error_count,
                 "errors": report.get("errors", []),
                 "warning_count": report.get("warning_count", 0),
                 "warnings": report.get("warnings", []),
                 "active_idea_gap_refs": report.get("active_idea_gap_refs", []),
+                "source_dependent_tasks": governed_tasks,
             },
-            "run async-research data validate research_ops and resolve findings before source-dependent experiment work",
+            action,
         )
     ]
 
@@ -667,7 +704,9 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         )
 
     human.extend(source_issues(statuses, ops_dir, now, args.stale_source_days))
-    warnings.extend(data_foundation_issues(data_foundations))
+    data_foundation_alerts = data_foundation_issues(data_foundations, statuses)
+    human.extend([item for item in data_foundation_alerts if item.get("severity") == "error"])
+    warnings.extend([item for item in data_foundation_alerts if item.get("severity") == "warning"])
     warnings.extend(stale_accepted_evidence_issues(ops_dir, now, args.accepted_output_freshness_days))
     warnings.extend(metrics_snapshot_issues(ops_dir, now, args.metrics_stale_hours))
     if idea_catalog["failure_count"]:

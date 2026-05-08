@@ -18,6 +18,7 @@ from async_research_workflow.scripts import (
     validate_experiment_plan,
     validate_result_acceptance,
 )
+from async_research_workflow.scripts.version_metadata import apply_default_versions
 
 
 NOW = "2026-05-08T00:00:00Z"
@@ -91,6 +92,52 @@ def init_ops(root: Path) -> Path:
     if code != cli.SUCCESS or not payload.get("ok"):
         raise AssertionError(payload)
     return ops_dir
+
+
+def write_task_status(
+    ops_dir: Path,
+    task_slug: str,
+    task_type: str,
+    data_audit_refs: list[str],
+    status: str = "ready_for_worker",
+) -> Path:
+    task_id = task_slug.split("-", 2)[0] + "-" + task_slug.split("-", 2)[1]
+    task_dir = ops_dir / "tasks" / task_slug
+    payload = {
+        "schema_version": "1.0",
+        "id": task_id,
+        "title": f"Phase 5 fixture {task_id}",
+        "type": task_type,
+        "status": status,
+        "previous_status": "ready_for_planning",
+        "last_transition_reason": "phase_5_fixture",
+        "priority": 3,
+        "revision_count": 0,
+        "max_revisions": 1,
+        "revision_limit_hit": False,
+        "created_at": NOW,
+        "updated_at": NOW,
+        "allowed_paths": [f"research_ops/tasks/{task_slug}/**"],
+        "allowed_tools": ["read_files", "write_task_files"],
+        "allow_browsing": False,
+        "allow_code_execution": False,
+        "allow_network": False,
+        "max_minutes": 15,
+        "max_turns": 1,
+        "model_tier": "low",
+        "review_policy": {
+            "tier": 1,
+            "required_reviewers": ["primary"],
+            "panel_required": False,
+            "human_required_for_acceptance": False,
+        },
+        "requires_human": False,
+        "budget": {"max_api_usd": 0, "max_compute_usd": 0},
+        "data_audit_refs": data_audit_refs,
+        "result": {"recommendation": None, "claim_strength": "none", "followup_count": 0},
+    }
+    write_json(task_dir / "status.json", apply_default_versions(payload))
+    return task_dir
 
 
 def valid_experiment_plan() -> dict:
@@ -215,6 +262,69 @@ class DataFoundationsPhase5Tests(unittest.TestCase):
         self.assertTrue(payload["expensive_workers_allowed"])
         warning = next(item for item in payload["warnings"] if item["check"] == "data_foundation_findings")
         self.assertEqual("data_dir_missing", warning["details"]["warnings"][0]["reason"])
+
+    def test_readiness_blocks_malformed_data_foundations_for_source_dependent_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = init_ops(Path(tmpdir))
+            write_audit(ops_dir, [approved_source("DS-0001")])
+            write_task_status(ops_dir, "TASK-7103-run-analysis", "run_analysis", ["DS-0001"])
+            catalog = ops_dir / "data" / "data_catalog.md"
+            catalog.write_text("# Broken Catalog\n\n| one | two |\n| --- | --- |\n| one-cell |\n", encoding="utf-8")
+
+            code, payload = run_json(
+                autonomy_readiness_gate,
+                [
+                    ops_dir,
+                    "--dry-run",
+                    "--no-daily-status",
+                    "--now",
+                    NOW,
+                    "--metrics-stale-hours",
+                    "100000",
+                ],
+            )
+
+        self.assertEqual(autonomy_readiness_gate.HUMAN_REQUIRED, code, payload)
+        self.assertEqual("human_required", payload["decision"])
+        self.assertFalse(payload["expensive_workers_allowed"])
+        blocker = next(item for item in payload["blockers"] if item["check"] == "data_foundation_findings")
+        self.assertEqual("error", blocker["severity"])
+        self.assertEqual(1, blocker["details"]["error_count"])
+        self.assertEqual("run_analysis", blocker["details"]["source_dependent_tasks"][0]["type"])
+
+    def test_readiness_allows_data_readiness_task_to_remediate_candidate_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = init_ops(Path(tmpdir))
+            candidate = approved_source("DS-0001")
+            candidate.update(
+                {
+                    "approval_status": "candidate",
+                    "approved_use_cases": "none",
+                    "blocked_use_cases": "none",
+                    "approved_by": "none",
+                    "review_notes": "candidate awaiting data-readiness review",
+                }
+            )
+            write_audit(ops_dir, [candidate])
+            write_task_status(ops_dir, "TASK-7104-data-readiness", "data_readiness", ["DS-0001"])
+
+            code, payload = run_json(
+                autonomy_readiness_gate,
+                [
+                    ops_dir,
+                    "--dry-run",
+                    "--no-daily-status",
+                    "--now",
+                    NOW,
+                    "--metrics-stale-hours",
+                    "100000",
+                ],
+            )
+
+        self.assertEqual(autonomy_readiness_gate.SUCCESS, code, payload)
+        self.assertEqual("safe_to_run", payload["decision"])
+        self.assertEqual([], payload["blockers"])
+        self.assertFalse(any(item["check"] == "stale_or_unaudited_data_sources" for item in payload["warnings"]))
 
     def test_weekly_digest_lists_active_idea_data_gap_refs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
