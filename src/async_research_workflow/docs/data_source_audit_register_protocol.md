@@ -45,6 +45,14 @@ The register is a markdown table with schema version `1.0` and these fields:
 | `approved_by` | Human, task, or review that approved the record |
 | `review_notes` | Operational notes from the latest review |
 
+Optional data profile linkage can be added as a trailing `profile_path` column
+without changing the schema version. The canonical value is a relative path such
+as `data/profiles/DS-0001.md`. Existing workspaces and cold-start registers do
+not need this column, and `source upsert` preserves it when it already exists.
+Run `async-research data validate research_ops` after adding links; missing or
+noncanonical profile links are warning-level data-readiness findings in the
+non-strict validator.
+
 Source tiers:
 
 ```text

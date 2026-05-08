@@ -32,6 +32,24 @@ def run_cli_json(argv: list[str]) -> tuple[int, dict]:
     return code, json.loads(stream.getvalue())
 
 
+def add_audit_profile_path_column(ops_dir: Path, profile_paths: dict[str, str]) -> None:
+    audit_path = ops_dir / "data_source_audit.md"
+    lines: list[str] = []
+    for line in audit_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| source_id |"):
+            lines.append(line[:-1] + " | profile_path |")
+            continue
+        if line.startswith("| --- |"):
+            lines.append(line[:-1] + " | --- |")
+            continue
+        if line.startswith("| DS-"):
+            source_id = line.split("|", 2)[1].strip()
+            lines.append(line[:-1] + f" | {profile_paths.get(source_id, '')} |")
+            continue
+        lines.append(line)
+    audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 class DataFoundationValidatorTests(unittest.TestCase):
     def test_generic_starter_passes_with_empty_data_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -56,6 +74,96 @@ class DataFoundationValidatorTests(unittest.TestCase):
         self.assertEqual(0, payload["warning_count"])
         self.assertEqual(0, payload["error_count"])
         self.assertEqual(3, payload["profile_count"])
+
+    def test_optional_audit_profile_links_validate_and_source_validate_still_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(
+                ops_dir,
+                {
+                    "DS-0001": "data/profiles/DS-0001.md",
+                    "DS-0002": "data/profiles/DS-0002.md",
+                    "DS-0003": "data/profiles/DS-0003.md",
+                },
+            )
+
+            source_code, source_payload = run_cli_json(["source", "validate", str(ops_dir)])
+            data_code, data_payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(0, source_code, source_payload)
+        self.assertTrue(source_payload["ok"])
+        self.assertEqual(0, data_code, data_payload)
+        self.assertTrue(data_payload["ok"])
+        self.assertEqual(0, data_payload["warning_count"])
+
+    def test_source_upsert_preserves_optional_profile_path_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(
+                ops_dir,
+                {
+                    "DS-0001": "data/profiles/DS-0001.md",
+                    "DS-0002": "data/profiles/DS-0002.md",
+                    "DS-0003": "data/profiles/DS-0003.md",
+                },
+            )
+
+            code, payload = run_cli_json(
+                [
+                    "source",
+                    "upsert",
+                    str(ops_dir),
+                    "--source-id",
+                    "DS-0001",
+                    "--review-notes",
+                    "phase 3 preservation check",
+                ]
+            )
+
+            audit_text = (ops_dir / "data_source_audit.md").read_text(encoding="utf-8")
+
+        self.assertEqual(0, code, payload)
+        self.assertIn("profile_path", audit_text)
+        self.assertIn("data/profiles/DS-0001.md", audit_text)
+
+    def test_empty_optional_audit_profile_link_warns_for_experiment_ready_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(
+                ops_dir,
+                {
+                    "DS-0001": "",
+                    "DS-0002": "data/profiles/DS-0002.md",
+                    "DS-0003": "data/profiles/DS-0003.md",
+                },
+            )
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(2, code)
+        self.assertTrue(payload["ok"])
+        warning_reasons = {item["reason"] for item in payload["warnings"]}
+        self.assertIn("missing_audit_profile_link", warning_reasons)
+
+    def test_audit_profile_link_to_missing_file_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(
+                ops_dir,
+                {
+                    "DS-0001": "data/profiles/DS-0001.md",
+                    "DS-0002": "data/profiles/DS-0002.md",
+                    "DS-0003": "data/profiles/DS-0003.md",
+                },
+            )
+            (ops_dir / "data" / "profiles" / "DS-0001.md").unlink()
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(2, code)
+        self.assertTrue(payload["ok"])
+        warning_reasons = {item["reason"] for item in payload["warnings"]}
+        self.assertIn("audit_profile_link_missing", warning_reasons)
 
     def test_missing_data_dir_is_warning_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

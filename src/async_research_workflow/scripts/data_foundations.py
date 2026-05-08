@@ -389,6 +389,91 @@ def missing_profile_warnings(
     return warnings
 
 
+def audit_profile_link_warnings(
+    rows: list[dict[str, str]],
+    profiles: list[dict[str, Any]],
+    ops_dir: Path,
+    audit_path: Path,
+) -> list[dict[str, Any]]:
+    if not any("profile_path" in row for row in rows):
+        return []
+
+    profiles_by_path = {profile["path"]: profile for profile in profiles}
+    warnings: list[dict[str, Any]] = []
+    for row in rows:
+        source_id = row["source_id"]
+        approval_status = row.get("approval_status", "")
+        profile_path = normalize_text(row.get("profile_path"))
+        if not profile_path:
+            if approval_status in EXPERIMENT_READY_STATUSES:
+                warnings.append(
+                    issue(
+                        "warning",
+                        "missing_audit_profile_link",
+                        audit_path,
+                        f"{source_id} is experiment-ready but profile_path is empty",
+                        source_id=source_id,
+                        approval_status=approval_status,
+                    )
+                )
+            continue
+
+        expected = f"data/profiles/{source_id}.md"
+        if profile_path != expected:
+            warnings.append(
+                issue(
+                    "warning",
+                    "noncanonical_audit_profile_link",
+                    audit_path,
+                    f"{source_id} profile_path should use {expected}",
+                    source_id=source_id,
+                    profile_path=profile_path,
+                    expected_profile_path=expected,
+                )
+            )
+
+        linked_path = ops_dir / profile_path
+        if not linked_path.exists():
+            warnings.append(
+                issue(
+                    "warning",
+                    "audit_profile_link_missing",
+                    audit_path,
+                    f"{source_id} profile_path points to a missing file",
+                    source_id=source_id,
+                    profile_path=profile_path,
+                )
+            )
+            continue
+
+        linked_profile = profiles_by_path.get(linked_path)
+        if linked_profile is None:
+            warnings.append(
+                issue(
+                    "warning",
+                    "audit_profile_link_not_active_profile",
+                    audit_path,
+                    f"{source_id} profile_path does not point to an active DS-* profile",
+                    source_id=source_id,
+                    profile_path=profile_path,
+                )
+            )
+            continue
+        if linked_profile["source_id"] != source_id:
+            warnings.append(
+                issue(
+                    "warning",
+                    "audit_profile_link_source_mismatch",
+                    audit_path,
+                    f"{source_id} profile_path points to {linked_profile['source_id']}",
+                    source_id=source_id,
+                    linked_source_id=linked_profile["source_id"],
+                    profile_path=profile_path,
+                )
+            )
+    return warnings
+
+
 def join_map_warnings(rows: list[dict[str, str]], path: Path, audit_by_id: dict[str, dict[str, str]]) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
     for index, row in enumerate(rows, start=1):
@@ -571,6 +656,7 @@ def data_foundation_report(ops_dir: Path, now: Optional[datetime] = None) -> dic
     }
 
     warnings.extend(missing_profile_warnings(audit_rows, profiles_by_id, audit_register))
+    warnings.extend(audit_profile_link_warnings(audit_rows, profiles, ops_dir, audit_register))
     for profile in profiles:
         audit_row = audit_by_id.get(profile["source_id"])
         if audit_row is None:

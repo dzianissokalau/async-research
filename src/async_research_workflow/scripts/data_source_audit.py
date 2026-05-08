@@ -62,6 +62,9 @@ FIELDS = [
     "approved_by",
     "review_notes",
 ]
+OPTIONAL_FIELDS = [
+    "profile_path",
+]
 NEW_SOURCE_REQUIRED_FIELDS = {
     "source_name": "--source-name",
     "url_or_domain": "--url-or-domain",
@@ -157,13 +160,30 @@ def canonical_row(row: dict[str, str]) -> dict[str, str]:
     canonical["owner"] = canonical["publisher_owner"]
     canonical["last_checked"] = canonical["last_reviewed"]
     canonical["readiness_notes"] = canonical["review_notes"]
+    for field in OPTIONAL_FIELDS:
+        if field in row:
+            canonical[field] = row.get(field, "")
     return canonical
 
 
 def format_rows(rows: list[dict[str, str]]) -> str:
+    canonical_rows = [canonical_row(item) for item in rows]
+    fields = FIELDS + [
+        field for field in OPTIONAL_FIELDS
+        if any(field in row for row in canonical_rows)
+    ]
     lines = empty_register_text().rstrip("\n").splitlines()
-    for row in sorted((canonical_row(item) for item in rows), key=lambda item: item["source_id"]):
-        cells = [clean_cell(row.get(field, "")) for field in FIELDS]
+    if fields != FIELDS:
+        lines = [
+            "# Data Source Audit Register",
+            "",
+            f"Schema version: {SCHEMA_VERSION}",
+            "",
+            "| " + " | ".join(fields) + " |",
+            "| " + " | ".join("---" for _ in fields) + " |",
+        ]
+    for row in sorted(canonical_rows, key=lambda item: item["source_id"]):
+        cells = [clean_cell(row.get(field, "")) for field in fields]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
 
@@ -173,6 +193,12 @@ def split_table_row(line: str) -> list[str]:
     if not stripped.startswith("|") or not stripped.endswith("|"):
         return []
     return [cell.strip() for cell in stripped.strip("|").split("|")]
+
+
+def supported_table_fields(fields: list[str]) -> bool:
+    if fields in (FIELDS, LEGACY_FIELDS):
+        return True
+    return fields == FIELDS + OPTIONAL_FIELDS
 
 
 def parse_register(path: Path) -> tuple[str, list[dict[str, str]]]:
@@ -199,7 +225,7 @@ def parse_register(path: Path) -> tuple[str, list[dict[str, str]]]:
                 break
             continue
         normalized = [cell.lower() for cell in cells]
-        if normalized in (FIELDS, LEGACY_FIELDS):
+        if supported_table_fields(normalized):
             table_fields = normalized
             in_table = True
             continue
