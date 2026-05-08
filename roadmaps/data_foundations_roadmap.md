@@ -12,6 +12,101 @@ The current framework already has `research_ops/data_source_audit.md`. This
 roadmap extends that register into a fuller data-readiness layer while keeping
 the audit register as the governance source of truth.
 
+## Execution Decisions
+
+V1 should be contract-first and backward-compatible. The first execution goal is
+to make the data foundation file structure and profile contract real without
+changing existing source-governance behavior.
+
+### V1 Scope
+
+V1 includes:
+
+- starter data foundation files in both templates
+- a documented `data/profiles/DS-0000.md` profile contract
+- optional audit/profile linkage
+- a read-only `async-research data validate research_ops` command
+
+V1 defers:
+
+- automatic local/cloud/API access checks
+- profiling helpers for local files
+- strict experiment-planning blocks for missing profiles
+- dashboard views
+- mutating data-readiness workers beyond current source-audit authoring commands
+
+### Profile Requirement Policy
+
+Cold-start workspaces must remain valid without profiles.
+
+Profile expectations:
+
+- `candidate`, `blocked`, `restricted`, and `deprecated` audit rows may omit a
+  profile in v1.
+- `approved` and `approved_with_caveats` rows should have a profile when data
+  foundations are present.
+- Missing profiles for experiment-ready rows are warning-level in non-strict
+  validation.
+- Strict blocking can be added later behind an explicit strict mode.
+
+### Audit Link Strategy
+
+The first implementation should avoid changing the `data_source_audit.md` table
+shape. Existing audit schema `1.0` must remain valid.
+
+V1 linkage direction:
+
+- profile files point back to one `DS-*` audit row
+- audit rows remain valid without a profile column
+- optional parser support for a future `profile_path` field can ship later only
+  after backward-compatibility tests exist
+
+### Validator Contract
+
+Add:
+
+```bash
+async-research data validate research_ops
+```
+
+The command is read-only.
+
+Exit codes:
+
+- `0` when data foundations are valid
+- `2` when validation findings or warnings are present
+- `4` when the workspace or data foundation files are malformed enough that the
+  validator cannot reason about them
+
+Cold-start behavior:
+
+- missing `research_ops/data/` in existing workspaces warns, not fails
+- empty starter data files pass or return warning-only status
+- existing `data_source_audit.md` validation remains the source-governance gate
+
+### Backward Compatibility
+
+Implementation must preserve:
+
+- existing `async-research init` behavior except for adding starter files
+- existing `async-research source` commands
+- existing `data_source_audit.md` schema `1.0`
+- existing starter smoke, acceptance suite, and benchmark expectations
+
+### First Test Matrix
+
+Minimum tests for the first two implementation phases:
+
+- `async-research init research_ops` creates `research_ops/data/`
+- generic and real-estate starter resources include the data foundation files
+- generic and real-estate starter smoke still pass
+- empty data foundation validates
+- missing `data/` in an existing workspace is warning-only
+- duplicate profile IDs are flagged
+- profile without matching audit row is flagged
+- approved source without profile is warning-only in non-strict mode
+- existing `async-research source validate` behavior is unchanged
+
 ## What It Does
 
 The data foundations feature answers:
@@ -29,6 +124,49 @@ The data foundations feature answers:
 It supports public and user-owned data. A source location can be a local file,
 server path, database table, bucket, API, public URL, or manually described
 dataset.
+
+## Delivery Strategy
+
+Build this as a sequence of small, deterministic slices. Do not start with the
+dashboard or strict planning gates. Those should consume a stable profile
+contract and validator rather than inventing their own read path.
+
+Recommended sequence:
+
+1. Lock execution decisions and compatibility rules.
+2. Add starter files and profile contract.
+3. Add the read-only data foundation parser and validator.
+4. Add optional audit/profile linkage.
+5. Harden data-readiness task guidance around profiles.
+6. Feed health, readiness, weekly digest, and experiment gates from validator
+   output.
+7. Add read-only dashboard views.
+
+Each phase should leave the package usable. Any strict blocking behavior should
+ship after a warning-only version has real test coverage.
+
+Delivery boundary:
+
+- MVP: Phases 0 through 2. This is roadmap decisions, starter state, profile
+  contract, and read-only validation.
+- V1 post-MVP: Phases 3 through 5. This adds linkage, data-readiness task
+  hardening, and operational gates.
+- V2: Phase 6 dashboard views, profiling helpers, automated access checks, and
+  stricter data-dependency policy once contracts are stable.
+
+## Progress
+
+Last updated: 2026-05-08
+
+| Phase | Step | Status | Description | Evidence / Notes |
+| ---: | --- | --- | --- | --- |
+| 0 | Lock execution decisions | Complete | Capture V1 scope, profile requirement policy, audit link strategy, validator exit codes, compatibility rules, and first test matrix before implementation starts. | This roadmap now defines contract-first execution and preserves `data_source_audit.md` schema `1.0`. |
+| 1 | Starter files and profile contract | Not started | Add `research_ops/data/` starter files to generic and real-estate templates and document `data/profiles/DS-0000.md`. | Start here for PR 1; no runtime behavior change beyond starter contents. |
+| 2 | Data validator | Not started | Add read-only `async-research data validate research_ops` covering empty foundations, duplicate profiles, audit/profile mismatches, missing access notes, stale reviews, and join caveats. | MVP completes when this command has tests and existing source validation remains unchanged. |
+| 3 | Optional source audit linkage | Not started | Add docs and optional parser support so experiment-ready audit rows may reference profiles without requiring old workspaces to change. | Do not change the audit table shape until compatibility tests exist. |
+| 4 | Data-readiness task hardening | Not started | Update `data_readiness` task guidance so workers produce profile drafts/updates, recommended audit status, access check results, field/grain coverage, join feasibility, limitations, and kill reasons. | Should remain traceable to reviewed tasks and current source-audit commands. |
+| 5 | Health, readiness, and gates | Not started | Surface stale, blocked, missing, and unaudited data dependencies in `health`, `readiness`, weekly digest, experiment planning, and result acceptance. | Start as warning-only where possible, then add strict mode where appropriate. |
+| 6 | Dashboard surface | Not started | Add read-only views for approved, candidate, blocked/restricted/deprecated, stale, gap-blocked, and join-caveat data states. | Should consume validator/read-model output and never mutate data files in the first version. |
 
 ## Framework Integration
 
@@ -204,7 +342,8 @@ Acceptance:
 
 ## Open Questions
 
-- Should every `DS-*` source require a profile, or only experiment-capable data?
+- Should strict mode eventually require profiles for every `DS-*` source, or only
+  experiment-capable data?
 - Should local file profiling helpers be included in v1, or deferred until
   after the Markdown contracts are stable?
 - Should access checks run automatically, or only when the user explicitly
