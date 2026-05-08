@@ -58,6 +58,7 @@ class BenchmarkPackagingTests(unittest.TestCase):
                     "promotion_write",
                     "catalog_validate",
                     "catalog_dashboard",
+                    "artifact_consistency",
                 ],
                 [step["name"] for step in payload["steps"]],
             )

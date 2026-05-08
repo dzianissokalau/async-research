@@ -142,6 +142,7 @@ def run_promotion_write_acceptance(ops_dir: Path) -> tuple[int, dict]:
     task_dir = ops_dir / "tasks" / "TASK-9901-data-readiness"
     steps: list[dict] = []
     failures: list[dict] = []
+    written: dict = {}
 
     def record_step(name: str, code: int, payload: dict) -> None:
         steps.append({"name": name, "exit_code": code, "ok": code == SUCCESS and payload.get("ok", True) is not False})
@@ -204,13 +205,34 @@ def run_promotion_write_acceptance(ops_dir: Path) -> tuple[int, dict]:
     if not failures:
         idea_payload = json.loads((ops_dir / "ideas" / f"{idea_id}.json").read_text(encoding="utf-8"))
         status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+        inbox_text = (ops_dir / "inbox.md").read_text(encoding="utf-8")
         queue_text = (ops_dir / "queue.md").read_text(encoding="utf-8")
+        proposal_ref = written.get("proposal_ref") if isinstance(written.get("proposal_ref"), dict) else {}
+        proposal_id = proposal_ref.get("proposal_id")
+        transaction_id = proposal_ref.get("transaction_id")
+        idempotency_key = proposal_ref.get("idempotency_key")
         if idea_payload.get("status") != "promoted" or idea_payload.get("promoted_task_id") != task_id:
             failures.append({"reason": "idea_promotion_state_mismatch", "payload": idea_payload})
         if status_payload.get("catalog_idea_id") != idea_id or status_payload.get("id") != task_id:
             failures.append({"reason": "task_status_mismatch", "payload": status_payload})
+        if not proposal_id or not transaction_id or not idempotency_key:
+            failures.append({"reason": "proposal_ref_metadata_missing", "proposal_ref": proposal_ref})
+        elif (
+            str(proposal_id) not in inbox_text
+            or str(transaction_id) not in inbox_text
+            or str(idempotency_key) not in inbox_text
+        ):
+            failures.append(
+                {
+                    "reason": "inbox_proposal_ref_missing",
+                    "proposal_id": proposal_id,
+                    "transaction_id": transaction_id,
+                    "idempotency_key": idempotency_key,
+                }
+            )
         if f"[{task_id}](tasks/TASK-9901-data-readiness/task.md)" not in queue_text:
             failures.append({"reason": "queue_row_missing", "task_id": task_id})
+        record_step("artifact_consistency", SUCCESS if not failures else FAILED, {"ok": not failures})
 
     if failures:
         return FAILED, {
