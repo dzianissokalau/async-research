@@ -3392,6 +3392,7 @@ def build_parser() -> argparse.ArgumentParser:
         "promote",
         help="Preview or write one catalog idea promotion task.",
         description="Produce one bounded planner-facing task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
+        epilog="Dry-run is proposal-only and returns promotion_preflight_hash. Write mode requires that matching hash and updates inbox.md, tasks/, queue.md, and the selected idea's promoted_task_id under the catalog lock.",
     )
     promote.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")

@@ -370,7 +370,8 @@ specific diagnostic.
 | `idea catalog validate` | `0` catalog validation passed. | `2` valid shape but unsafe lifecycle, promotion, or reference state; `4` malformed catalog state such as duplicate IDs, schema failures, malformed JSON, or malformed generated blocks. |
 | `idea catalog dashboard` | `0` dashboard rendered and catalog validation passed. | `2` dashboard rendered with unsafe lifecycle, promotion, or reference state; `4` dashboard rendered with malformed catalog state. |
 | `idea catalog list` and `idea catalog show` | `0` catalog record or list printed. | `3` requested idea was not found; `4` catalog could not be read or contains duplicate canonical IDs for `show`. |
-| `idea capture`, `idea catalog maintain`, `idea promote`, `idea park`, and `idea reject` | `0` dry-run proposal printed or write succeeded. | `2` lock, unsafe write, blocked promotion, or validation failure; `3` invalid request or conflicting flags; `4` malformed catalog state. |
+| `idea capture`, `idea catalog maintain`, `idea park`, and `idea reject` | `0` dry-run proposal printed or write succeeded. | `2` lock, unsafe write, or validation failure; `3` invalid request or conflicting flags; `4` malformed catalog state. |
+| `idea promote` | `0` dry-run proposal printed, promotion task write succeeded, or matching task write was already complete. | `2` lock, unsafe write, blocked promotion, human override required, changed preflight hash, or recovery required; `3` invalid request, missing `--preflight-hash` for `--write`, conflicting flags, or idea missing after lock; `4` malformed catalog or write state. |
 | `idea score` and `idea validate` | `0` score/validation passed. | `2` validation failed; `3` invalid request; `4` malformed idea artifact. |
 | `experiment validate` | `0` experiment output passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
 | `benchmark` | `0` benchmark passed. | `1` benchmark failed. |

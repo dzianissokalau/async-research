@@ -250,7 +250,8 @@ Discovery is allowed to be autonomous, but not allowed to create execution work 
 ```text
 source scan -> idea candidates -> dedupe/cluster -> discovery_inbox.md
             -> planner capture -> ideas/IDEA-*.json
-            -> idea promote --dry-run -> planner-created task -> queue.md
+            -> idea promote --dry-run -> idea promote --write --preflight-hash <hash>
+            -> reserved task + queue.md + promoted_task_id
 ```
 
 Default weekly limits:
@@ -268,14 +269,17 @@ Planner promotion rule:
 
 1. Run `async-research idea catalog validate research_ops`.
 2. Run `async-research idea promote research_ops IDEA-0001 --dry-run`.
-3. Create a task only when the proposal is successful and unblocked.
-4. Use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the
-   reserved task identity, preserving the proposal's task type, scope, allowed
-   paths, limits, kill reason, and validation commands. Older proposals that
-   still contain `TASK-PROPOSED` must be resolved to one real task ID before
-   queue insertion.
-5. Append `queue.md` only after task files, anti-context, source checks, and
-   schema/transition checks are coherent.
+3. Write a task only when the proposal returns `action=idea_promotion_planned`
+   and `ok=true`.
+4. Run `async-research idea promote research_ops IDEA-0001 --write
+   --preflight-hash <promotion_preflight_hash>`, adding `--human-override` only
+   for recorded high-risk human decisions.
+5. Let write mode create the reserved task folder, append the single `queue.md`
+   row, append the `inbox.md` proposal reference, update `promoted_task_id`, and
+   regenerate catalog projections.
+6. Run `async-research idea catalog validate research_ops` and
+   `async-research idea catalog dashboard research_ops`; the promoted idea link
+   should be `link_status=available`.
 
 Duplicate, blocked, parked, or rejected catalog ideas do not become execution
 tasks without a recorded human decision or explicit planner note.

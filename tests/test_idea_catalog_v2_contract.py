@@ -25,7 +25,7 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, V2.6 task creation write mode, and V2.7 failure/rollback hardening shipped; remaining slices cover operator docs and end-to-end acceptance. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, V2.6 task creation write mode, V2.7 failure/rollback hardening, and V2.8 operator docs shipped; remaining slice covers end-to-end acceptance. |",
                 "| V2.1 | Contract and preflight design | Complete |",
                 "| V2.2 | Proposal write mode | Complete |",
                 "| V2.3 | Proposal write recovery tests | Complete |",
@@ -33,6 +33,7 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
                 "| V2.5 | Task ID and idempotency rules | Complete |",
                 "| V2.6 | Task creation write mode | Complete |",
                 "| V2.7 | Failure and rollback hardening | Complete |",
+                "| V2.8 | CLI, docs, and operator workflow | Complete |",
             ],
         )
 

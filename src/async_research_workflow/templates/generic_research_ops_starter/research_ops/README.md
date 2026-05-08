@@ -27,8 +27,9 @@ async-research surface validate research_ops
 blocks in `ideas/idea_catalog.md` and `ideas/prioritization.md` are maintained
 by tooling in later phases; keep manual notes outside those blocks.
 
-Catalog maintenance must not edit `queue.md` or create task folders. A planner
-or human-approved helper turns catalog ideas into bounded execution tasks.
+Catalog maintenance must not edit `queue.md` or create task folders. Promotion
+write mode is the guarded helper that turns one catalog idea into one bounded
+execution task.
 
 Planner promotion should stay catalog-first:
 
@@ -36,11 +37,13 @@ Planner promotion should stay catalog-first:
 async-research idea catalog validate research_ops
 async-research idea catalog list research_ops --status promote
 async-research idea promote research_ops IDEA-0001 --dry-run
+async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
+async-research idea catalog dashboard research_ops
 ```
 
-Create a task folder only from a successful, unblocked promotion proposal.
-Append `queue.md` only after the task files, anti-context, source checks, and
-listed validation commands are coherent.
+Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
+reference, and idea `promoted_task_id` only after a successful, unblocked
+dry-run. The dashboard should show the promoted idea with `link_status=available`.
 
 ## First Setup Steps
 

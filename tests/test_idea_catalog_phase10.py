@@ -35,6 +35,13 @@ def run_helper_json(argv: list[str | Path]) -> tuple[int, dict]:
     return code, json.loads(stream.getvalue())
 
 
+def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        code = cli.main([str(arg) for arg in argv])
+    return code, json.loads(stream.getvalue())
+
+
 def file_snapshot(root: Path) -> dict[str, bytes]:
     return {
         str(path.relative_to(root)): path.read_bytes()
@@ -121,6 +128,22 @@ def valid_candidate(candidate_id: str = "IDEA-0001") -> dict:
         "recommended_next_task": "data_readiness",
         "updated_at": "2026-05-07T10:00:00Z",
     }
+
+
+def write_audited_source(ops_dir: Path, source_id: str = "DS-0001") -> None:
+    write_text(
+        ops_dir / "data_source_audit.md",
+        "\n".join(
+            [
+                "# Data Source Audit",
+                "",
+                "| source_id | source_name | url_or_domain | publisher_owner | source_tier | approval_status | approved_use_cases | prohibited_use_cases | freshness_window_days | limitations | citation_requirements | last_reviewed_at | approved_by | review_notes |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- |",
+                f"| {source_id} | Fixture source | https://example.test | Fixture | tier_1_official | approved | experiment_planning; accepted_evidence | none | 30 | none | cite fixture | 2026-05-07 | tests | ready |",
+                "",
+            ]
+        ),
+    )
 
 
 class IdeaCatalogPhase10Tests(unittest.TestCase):
@@ -309,6 +332,51 @@ class IdeaCatalogPhase10Tests(unittest.TestCase):
                     for item in payload["sections"]["idea_to_task_links"]
                 ],
             )
+
+    def test_dashboard_shows_available_link_after_successful_promotion_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            init_code, init_payload = run_cli_json(["init", ops_dir, "--force"])
+            self.assertEqual(cli.SUCCESS, init_code, init_payload)
+            write_audited_source(ops_dir)
+            candidate = valid_candidate("IDEA-7601")
+            candidate.update({"status": "promote", "data_refs": ["DS-0001"]})
+            write_json(ops_dir / "ideas" / "IDEA-7601.json", candidate)
+            dry_code, dry_run = run_cli_json(["idea", "promote", ops_dir, "IDEA-7601", "--dry-run"])
+            self.assertEqual(cli.SUCCESS, dry_code, dry_run)
+
+            write_code, written = run_cli_json(
+                [
+                    "idea",
+                    "promote",
+                    ops_dir,
+                    "IDEA-7601",
+                    "--write",
+                    "--preflight-hash",
+                    dry_run["promotion_preflight_hash"],
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, write_code, written)
+            self.assertEqual("idea_promotion_task_written", written["action"])
+
+            code, payload = run_helper_json(["dashboard", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(1, payload["summary"]["promoted_count"])
+            self.assertEqual(1, payload["summary"]["idea_to_task_link_count"])
+            self.assertEqual(
+                [{"idea_id": "IDEA-7601", "link_status": "available", "promoted_task_id": "TASK-7601"}],
+                [
+                    {
+                        "idea_id": item["idea_id"],
+                        "link_status": item["link_status"],
+                        "promoted_task_id": item["promoted_task_id"],
+                    }
+                    for item in payload["sections"]["idea_to_task_links"]
+                ],
+            )
+            self.assertEqual(["IDEA-7601"], [item["idea_id"] for item in payload["sections"]["promoted_ideas"]])
 
     def test_public_cli_routes_dashboard_command(self) -> None:
         with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:

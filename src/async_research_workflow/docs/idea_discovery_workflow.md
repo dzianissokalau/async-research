@@ -28,7 +28,8 @@ source scout
   -> discovery_inbox.md
   -> planner capture into ideas/IDEA-*.json
   -> promotion dry-run proposal
-  -> planner-created task and queue row
+  -> promotion write with matching preflight hash
+  -> reserved task, queue row, and promoted_task_id
 ```
 
 ## Source Classes
@@ -160,10 +161,12 @@ async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry
 async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write
 async-research idea catalog validate research_ops
 async-research idea promote research_ops IDEA-0007 --dry-run
+async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>
 ```
 
-Only a successful `idea_promotion_planned` response may become a task folder.
-Blocked promotion proposals remain catalog/planning state and should be parked,
+Only a successful `idea_promotion_planned` response may be passed to write mode,
+and the write must use the returned `promotion_preflight_hash`. Blocked
+promotion proposals remain catalog/planning state and should be parked,
 rejected, repaired, or routed to human review. Duplicate or near-duplicate ideas
 must not become tasks unless `--allow-duplicate` is backed by a human decision
 or explicit planner note describing the different source, geography, mechanism,
@@ -176,9 +179,12 @@ The promotion proposal chooses the cheapest safe next task:
 - bounded hypothesis work -> `hypothesis_card`
 - `experiment_plan` only when audited data refs and hard gates already pass
 
-The planner creates task files from the dry-run proposal and appends `queue.md`
-only after task files, anti-context, source checks, and listed validation
-commands are coherent.
+Write mode creates the reserved task folder, `status.json`, `task.md`, one
+`queue.md` row, the planner-facing `inbox.md` proposal reference, and the
+canonical idea's `promoted_task_id`. After write mode succeeds, run
+`async-research idea catalog validate research_ops` and
+`async-research idea catalog dashboard research_ops`; the promoted idea should
+appear in `sections.idea_to_task_links` with `link_status=available`.
 
 ## Weekly Discovery Limits
 

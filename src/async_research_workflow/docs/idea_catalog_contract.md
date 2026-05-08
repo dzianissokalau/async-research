@@ -301,11 +301,11 @@ async-research idea promote research_ops IDEA-0001 --dry-run
 async-research idea promote research_ops IDEA-0001 --task-type data_readiness --dry-run
 ```
 
-The command reads one canonical catalog idea, validates catalog state, checks
-status, lifecycle, score gates, hard gates, duplicate status, data refs, and
-task-type eligibility, then prints at most one bounded task proposal. It never
-edits `queue.md` or creates task folders. In Phase 8 it refused `--write`;
-V2.2 proposal write behavior is specified below.
+In dry-run mode, the command reads one canonical catalog idea, validates catalog
+state, checks status, lifecycle, score gates, hard gates, duplicate status, data
+refs, and task-type eligibility, then prints at most one bounded task proposal.
+Dry-run never edits `queue.md` or creates task folders. V2 write behavior is
+specified below.
 
 Allowed proposal task types are `literature_extract`, `data_readiness`,
 `hypothesis_card`, and `experiment_plan`. Without an override, thin evidence
@@ -314,15 +314,16 @@ routes to `literature_extract`; plausible but unaudited data routes to
 `data_refs` exist and hard gates pass. Duplicate or near-duplicate ideas require
 an explicit `--allow-duplicate` human override before a proposal is emitted.
 
-The JSON proposal includes a task id placeholder or slug, task type, title,
+The JSON proposal includes the reserved task id and slug, task type, title,
 objective, scope, required sources and refs, allowed paths, max minutes, max
-turns, kill reason, validation commands, blockers, and draft task/status
-content for a planner to turn into real task files manually.
+turns, kill reason, validation commands, blockers, draft task/status content,
+and a `promotion_preflight_hash` that write mode must receive unchanged.
 
-## Phase 9 Planner Promotion Behavior
+## Current Planner Promotion Behavior
 
-Phase 9 kept promotion write mode disabled at the v1 boundary, but taught the
-planner how to use dry-run proposals safely.
+The planner still uses dry-run proposals as the authoritative preflight, but it
+no longer hand-creates catalog promotion tasks. V2.6+ write mode owns the task
+creation transaction.
 
 The planner-controlled path is:
 
@@ -331,39 +332,42 @@ discovery_inbox.md
 -> async-research idea capture ... --write
 -> ideas/IDEA-0001.json
 -> async-research idea promote research_ops IDEA-0001 --dry-run
--> planner-created task folder
--> queue.md row
+-> async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
+-> reserved task folder + queue.md row + promoted_task_id
 ```
 
-Rules for planner-created tasks:
+Rules for planner promotion writes:
 
 - promote few ideas, normally at most 3 catalog ideas per planner run
 - create the cheapest killable next task that the proposal selects
 - use `literature_extract` when evidence is thin
 - use `data_readiness` when data is plausible but unaudited
-- create `experiment_plan` only when the proposal selects it and listed source
-  checks pass
+- write `experiment_plan` only when the proposal selects it, listed source
+  checks pass, and a recorded human decision backs `--human-override`
 - preserve proposal scope, allowed paths, limits, kill reason, validation
   commands, and review tier unless a human-approved reason is recorded
 - use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the
   reserved task identity for V2.5-or-newer proposals
-- do not create tasks from blocked proposals
+- do not write tasks from blocked proposals
 - do not use `--allow-duplicate` without a human decision or explicit planner
   note naming the non-duplicate angle
 - skip ideas that already have a task `status.json` with matching
   `catalog_idea_id`, unless a human decision or explicit planner note explains
   the distinct follow-up
-- append `queue.md` only after task files, anti-context, source checks, and
-  applicable validation commands are coherent
-- after appending `queue.md`, close the v1 loop with an explicit
-  `async-research idea park ... --reason "promoted to TASK-0001" --revisit ... --write`
-  status update, then rerun catalog validation
+- run `async-research idea promote ... --write --preflight-hash <hash>` only
+  with the hash from the immediately preceding dry run
+- do not hand-create task folders, `status.json`, `task.md`, or `queue.md` rows
+  from the dry-run payload
+- after a successful or idempotent write, rerun catalog validation and the
+  dashboard; the promoted idea should show `promoted_task_id=<TASK-ID>` with
+  `link_status=available`
+- if write mode reports `promotion_preflight_changed`, recovery required,
+  `rollback_ok=false`, or `requires_human=true`, stop and surface the exact
+  recovery payload instead of repairing files ad hoc
 
-Catalog commands own portfolio state and proposal generation. The planner owns
-execution task creation. Catalog maintenance must not become a hidden queue
-writer in v1. The park closeout is a temporary v1 planner convention to prevent
-repeat promotion; V2 promotion write mode will replace it with a transactional
-`promoted_task_id` update.
+Catalog commands own portfolio state and proposal generation. `idea promote
+--write` is the one catalog command allowed to create the reserved task folder
+and queue row. Catalog maintenance must not become a hidden queue writer.
 
 ## Phase 10 Dashboard Read-Only View
 
@@ -523,8 +527,10 @@ and rollback audit reporting.
 
 - Every mutating idea-catalog command requires explicit `--write`.
 - Without `--write`, idea-catalog commands are read-only or dry-run by default.
-- Promotion write mode is outside v1. In V2.1 it is still design-only; later V2
-  slices must pass the preflight tests before enabling mutation.
+- Promotion write mode requires a matching dry-run `promotion_preflight_hash`
+  and must write at most one reserved task, one `queue.md` row, one `inbox.md`
+  proposal reference, and the selected idea's promotion refs.
 - Direct experiment promotion remains blocked unless existing source and data
   gates pass.
-- Single-writer operation is assumed for mutating catalog commands in v1.
+- Single-writer operation is enforced by `research_ops/ideas/LOCK` for
+  mutating catalog commands.

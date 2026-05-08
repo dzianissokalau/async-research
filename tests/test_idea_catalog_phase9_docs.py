@@ -1,4 +1,4 @@
-"""Regression tests for Phase 9 planner promotion guidance."""
+"""Regression tests for planner promotion guidance."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
         for snippet in snippets:
             self.assertIn(" ".join(snippet.split()), text, f"missing {snippet!r} from {path}")
 
-    def test_planner_prompt_uses_catalog_promotion_dry_run(self) -> None:
+    def test_planner_prompt_uses_catalog_promotion_write_mode(self) -> None:
         self.assert_doc_contains(
             DOCS / "scheduler_and_prompts.md",
             [
@@ -32,35 +32,40 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
                 "run async-research idea promote research_ops <IDEA-ID> --dry-run",
                 "Do not create a task directly from discovery_inbox.md",
                 "Treat the promotion dry-run as authoritative",
-                "If action is idea_promotion_blocked, do not create a task",
-                "using proposal.proposed_task_id and proposal.proposed_task_slug",
-                "replacing TASK-PROPOSED in proposal.task_markdown_draft and proposal.status_json_draft",
-                "Append queue.md only after task.md, status.json, anti_context.md, source checks, and transition/schema checks are coherent",
-                "close the v1 catalog loop so the same idea is not promoted again next run",
-                "async-research idea park research_ops <IDEA-ID> --reason \"promoted to <TASK-ID>\"",
+                "If action is idea_promotion_blocked, do not write a task",
+                "run async-research idea promote research_ops <IDEA-ID> --write --preflight-hash <promotion_preflight_hash>",
+                "Do not hand-create task folders, task.md, status.json, or queue.md rows from the dry-run JSON",
+                "If write mode returns action=idea_promotion_task_written, record task_id, task_dir, proposal_ref.proposal_id, transaction_id, and idempotency_key",
+                "If write mode returns promotion_preflight_changed, rerun --dry-run",
+                "Run async-research idea catalog dashboard research_ops",
+                "link_status=available",
                 "Do not use `--allow-duplicate` without a recorded human decision or explicit planner note",
                 "Do not create a second task from the same catalog idea unless an existing task scan, human decision, or explicit planner note proves the new task is a distinct follow-up",
             ],
         )
 
-    def test_planner_prompt_does_not_make_catalog_a_queue_writer(self) -> None:
+    def test_planner_prompt_limits_queue_writes_to_promotion_write_mode(self) -> None:
         text = normalized(DOCS / "scheduler_and_prompts.md")
         self.assertNotIn("catalog maintain --write queue", text)
         self.assertNotIn("idea promote --write queue", text)
         self.assertNotIn("catalog maintenance creates task folders", text)
+        self.assertNotIn("planner creates task folders and queue rows", text)
+        self.assertIn(
+            "Keep catalog maintenance separate from task creation: `idea catalog maintain --write` never edits queue.md or tasks, while `idea promote --write` is the only catalog command that creates the reserved task folder and queue row.",
+            normalized(DOCS / "scheduler_and_prompts.md"),
+        )
 
     def test_core_docs_explain_discovery_catalog_queue_flow(self) -> None:
         self.assert_doc_contains(
             DOCS / "task_contracts.md",
             [
-                "discovery_inbox.md -> async-research idea capture ... --write -> research_ops/ideas/IDEA-0001.json -> async-research idea promote research_ops IDEA-0001 --dry-run -> planner-created TASK folder -> queue.md row",
-                "The promotion command is a dry-run proposal in v1",
+                "discovery_inbox.md -> async-research idea capture ... --write -> research_ops/ideas/IDEA-0001.json -> async-research idea promote research_ops IDEA-0001 --dry-run -> async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash> -> reserved TASK folder + queue.md row + promoted_task_id",
+                "The promotion command is split into a read-only planning pass and a guarded write pass",
                 "Do not create tasks from blocked proposals",
                 "scan `research_ops/tasks/*/status.json` for `catalog_idea_id` matching the candidate idea",
-                "use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
-                "Append the `queue.md` row only after `task.md`, `status.json`, `anti_context.md`, source checks, and applicable proposal validation commands pass",
-                "After appending `queue.md`, close the v1 catalog loop",
-                "This is a v1 planner closeout convention, not the V2 promoted-task transaction",
+                "Write mode uses `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
+                "The write transaction stages `task.md` and `status.json`, validates the staged task folder, appends `queue.md`, updates the canonical idea, and rolls back if post-write consistency fails.",
+                "The promoted idea should have `status=promoted`, `promoted_task_id=<TASK-ID>`, and a dashboard `sections.idea_to_task_links` row with `link_status=available`.",
             ],
         )
         self.assert_doc_contains(
@@ -68,40 +73,48 @@ class IdeaCatalogPhase9DocsTests(unittest.TestCase):
             [
                 "The planner must not turn a discovery inbox row directly into execution work",
                 "async-research idea promote research_ops IDEA-0007 --dry-run",
+                "async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>",
+                "the write must use the returned `promotion_preflight_hash`",
                 "thin evidence -> `literature_extract`",
                 "plausible but unaudited data -> `data_readiness`",
                 "`experiment_plan` only when audited data refs and hard gates already pass",
+                "`sections.idea_to_task_links` with `link_status=available`",
             ],
         )
         self.assert_doc_contains(
             DOCS / "workflow_blueprint.md",
             [
                 "planner capture -> ideas/IDEA-*.json",
-                "idea promote --dry-run -> planner-created task -> queue.md",
+                "idea promote --dry-run -> idea promote --write --preflight-hash <hash>",
                 "Run `async-research idea promote research_ops IDEA-0001 --dry-run`",
+                "Run `async-research idea promote research_ops IDEA-0001 --write --preflight-hash <promotion_preflight_hash>`",
                 "Duplicate, blocked, parked, or rejected catalog ideas do not become execution tasks",
-                "Use `proposal.proposed_task_id` and `proposal.proposed_task_slug` as the reserved task identity",
+                "Let write mode create the reserved task folder, append the single `queue.md` row, append the `inbox.md` proposal reference, update `promoted_task_id`, and regenerate catalog projections.",
             ],
         )
         self.assert_doc_contains(
             DOCS / "idea_catalog_contract.md",
             [
-                "Phase 9 Planner Promotion Behavior",
-                "Catalog commands own portfolio state and proposal generation. The planner owns execution task creation.",
-                "do not create tasks from blocked proposals",
+                "Current Planner Promotion Behavior",
+                "`idea promote --write` is the one catalog command allowed to create the reserved task folder and queue row.",
+                "do not write tasks from blocked proposals",
                 "skip ideas that already have a task `status.json` with matching `catalog_idea_id`",
-                "append `queue.md` only after task files, anti-context, source checks, and applicable validation commands are coherent",
-                "The park closeout is a temporary v1 planner convention to prevent repeat promotion",
+                "do not hand-create task folders, `status.json`, `task.md`, or `queue.md` rows from the dry-run payload",
+                "`link_status=available`",
             ],
         )
 
     def test_starter_readmes_include_planner_promotion_commands(self) -> None:
         snippets = [
             "Planner promotion should stay catalog-first",
+            "Promotion write mode is the guarded helper",
             "async-research idea catalog validate research_ops",
             "async-research idea catalog list research_ops --status promote",
             "async-research idea promote research_ops IDEA-0001 --dry-run",
-            "Create a task folder only from a successful, unblocked promotion proposal",
+            "async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>",
+            "async-research idea catalog dashboard research_ops",
+            "Let promotion write create the task folder",
+            "`link_status=available`",
         ]
         self.assert_doc_contains(
             TEMPLATES / "generic_research_ops_starter" / "research_ops" / "README.md",

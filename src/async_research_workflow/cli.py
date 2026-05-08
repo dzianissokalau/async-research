@@ -1628,7 +1628,7 @@ def register_artifact_commands(subparsers) -> None:
         "promote",
         help="Preview or write one catalog idea promotion task.",
         description="Produce one bounded promotion task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
-        epilog="Write mode requires a matching dry-run preflight hash, appends inbox.md, creates one tasks/TASK-*/ folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock.",
+        epilog="Dry-run is proposal-only and returns promotion_preflight_hash. Write mode requires that matching hash, appends inbox.md, creates one tasks/TASK-*/ folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock.",
     )
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")

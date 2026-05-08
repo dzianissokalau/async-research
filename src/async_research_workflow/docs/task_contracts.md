@@ -74,7 +74,7 @@ routes fail closed.
 `experiment_plan` requests are rerouted to `data_readiness` before idea
 evaluation.
 
-## Catalog Promotion Proposal
+## Catalog Promotion Write
 
 The durable planner path is:
 
@@ -83,37 +83,47 @@ discovery_inbox.md
 -> async-research idea capture ... --write
 -> research_ops/ideas/IDEA-0001.json
 -> async-research idea promote research_ops IDEA-0001 --dry-run
--> planner-created TASK folder
--> queue.md row
+-> async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
+-> reserved TASK folder + queue.md row + promoted_task_id
 ```
 
-The promotion command is a dry-run proposal in v1. It must not create task
-folders or edit `queue.md`; the planner owns those execution writes.
+The promotion command is split into a read-only planning pass and a guarded
+write pass. The dry-run proposal remains authoritative for task type, scope,
+reserved task identity, validation commands, review tier, and
+`promotion_preflight_hash`. Write mode must receive the matching
+`--preflight-hash`; it creates one reserved task folder, appends one `queue.md`
+row, appends the planner-facing proposal reference to `inbox.md`, updates the
+selected idea's `promoted_task_id` and proposal refs, and regenerates catalog
+projections under the catalog lock.
 
-Before creating a task from a catalog idea, run:
+Before writing a task from a catalog idea, run:
 
 ```bash
 async-research idea catalog validate research_ops
 async-research idea catalog show research_ops IDEA-0001
 async-research idea promote research_ops IDEA-0001 --dry-run
+async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
 ```
 
-Use a proposal only when it returns `action=idea_promotion_planned` and
+Use write mode only when dry-run returns `action=idea_promotion_planned` and
 `ok=true`. Do not create tasks from blocked proposals. Duplicate or
 near-duplicate ideas require `--allow-duplicate` plus a recorded human decision
-or explicit planner note explaining the new angle.
+or explicit planner note explaining the new angle. High-risk task writes such
+as duplicates, direct `experiment_plan`, `review_tier >= 2`, `max_minutes > 75`,
+blocking catalog validation, or related non-matching artifacts also require
+`--human-override` backed by that recorded decision.
 
 Before running promotion dry-run, scan `research_ops/tasks/*/status.json` for
 `catalog_idea_id` matching the candidate idea. If a task already references the
 idea, skip the idea unless a recorded human decision or explicit planner note
 explains the different follow-up task type or scope.
 
-When creating the task, use `proposal.proposed_task_id` and
-`proposal.proposed_task_slug` as the reserved task identity. New V2.5 proposals
-derive the TASK ID from the IDEA numeric suffix. For older proposals, replace
-`TASK-PROPOSED` in `proposal.task_markdown_draft` and
-`proposal.status_json_draft` with the next real task ID and slug. Preserve these
-proposal fields unless a human-approved reason is recorded:
+Write mode uses `proposal.proposed_task_id` and `proposal.proposed_task_slug` as
+the reserved task identity. V2.5-or-newer proposals derive the TASK ID from the
+IDEA numeric suffix. Do not hand-create a fallback task from
+`proposal.task_markdown_draft` unless a recovery runbook explicitly instructs a
+human to do so. Preserve these proposal fields unless a human-approved reason is
+recorded:
 
 - `task_type`
 - `objective`
@@ -126,33 +136,31 @@ proposal fields unless a human-approved reason is recorded:
 - `validation_commands`
 - `review_policy`
 
-Append the `queue.md` row only after `task.md`, `status.json`, `anti_context.md`,
-source checks, and applicable proposal validation commands pass. If the
-proposal routes to `literature_extract`, keep the task cheap and evidence
-gathering focused. If it routes to `data_readiness`, include source/audit checks
-before experiment planning. If it routes to `experiment_plan`, the referenced
-`DS-0000` data refs must pass `async-research source check-experiment` before
-the queue row is appended.
+The write transaction stages `task.md` and `status.json`, validates the staged
+task folder, appends `queue.md`, updates the canonical idea, and rolls back if
+post-write consistency fails. If the proposal routes to `literature_extract`,
+keep the task cheap and evidence gathering focused. If it routes to
+`data_readiness`, include source/audit checks before experiment planning. If it
+routes to `experiment_plan`, the referenced `DS-0000` data refs must pass
+`async-research source check-experiment` before worker execution.
 
-After appending `queue.md`, close the v1 catalog loop. Until V2 transactional
-promotion write mode exists, use an explicit park status as the temporary
-promotion reference:
+After write mode succeeds, verify the catalog and dashboard instead of parking
+the idea manually:
 
 ```bash
-async-research idea park research_ops IDEA-0001 \
-  --reason "promoted to TASK-0001" \
-  --revisit "revisit if TASK-0001 is rejected, killed, or needs a distinct follow-up" \
-  --dry-run
-
-async-research idea park research_ops IDEA-0001 \
-  --reason "promoted to TASK-0001" \
-  --revisit "revisit if TASK-0001 is rejected, killed, or needs a distinct follow-up" \
-  --write
-
 async-research idea catalog validate research_ops
+async-research idea catalog dashboard research_ops
 ```
 
-This is a v1 planner closeout convention, not the V2 promoted-task transaction.
+The promoted idea should have `status=promoted`, `promoted_task_id=<TASK-ID>`,
+and a dashboard `sections.idea_to_task_links` row with `link_status=available`.
+If write mode returns `idea_promotion_task_already_written`, treat it as
+idempotent success only when the task folder, queue row, and
+`promoted_task_id` all match the selected idea. If it returns
+`promotion_preflight_changed`, rerun dry-run before retrying. If it returns
+`promotion_proposal_recovery_required`, `promotion_task_recovery_required`, or a
+recovery payload with `rollback_ok=false` or `requires_human=true`, stop and
+surface the recovery payload for human repair.
 It prevents the same `promote` idea from being selected again while preserving
 the task reference and revisit condition in the catalog decision history.
 
@@ -294,7 +302,8 @@ Write `worker_output.md` with:
 Generated by `async-research anti-context build`. Workers must read this before starting.
 ```
 
-Every planner-created task should also have `anti_context.md`, generated with:
+Every promoted or planner-created task should also have `anti_context.md`,
+generated with:
 
 ```bash
 async-research anti-context build \
