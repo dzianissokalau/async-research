@@ -96,7 +96,7 @@ research_ops/
 | Human | all files | none |
 | Discovery Scout | `discovery_inbox.md`, `discovery/`, idea candidate files | `queue.md`, task folders, `data_source_audit.md` |
 | Planner | `queue.md`, new task folders, `daily_status.md`, catalog writes only through `async-research idea ... --write` commands | `worker_output.md`, `reviews/`, `review_panel/`, hand-edited generated catalog blocks |
-| Worker | `worker_output.md`, `artifacts/`, limited `status.json` fields, `data_source_audit.md` for data-readiness tasks | `queue.md`, other task folders |
+| Worker | `worker_output.md`, `artifacts/`, limited `status.json` fields; for data-readiness tasks, `data_source_audit.md` and `data/**` when listed in `allowed_paths` | `queue.md`, other task folders |
 | Primary Reviewer | `reviews/primary.md`, review fields in `status.json`, `daily_status.md` | worker artifacts unless explicitly fixing metadata |
 | Specialist Reviewer | its own file under `reviews/` | other reviewer files before aggregate exists |
 | Review Aggregator | `review_panel/aggregate.md`, final review fields in `status.json` | worker artifacts and individual review files |

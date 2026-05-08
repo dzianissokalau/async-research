@@ -292,6 +292,18 @@ Checks:
 - joins without caveats
 - known gaps referenced by active ideas
 
+Authority and drift rules:
+
+- `data_source_audit.md` remains authoritative for source governance fields.
+- duplicated profile fields such as `source_name`, `audit_status`, use cases,
+  reviewed date, and reviewer are checked for drift against the audit row.
+- duplicated-field drift is warning-level in the first validator unless the
+  drift affects `source_id` identity or makes the profile point to a missing
+  audit row.
+- if a literal `data/profiles/DS-0000.md` template file is added later, the
+  validator must explicitly ignore it as a template rather than treating it as an
+  active source profile.
+
 Acceptance:
 
 - valid empty data foundation passes or returns warning-only status
