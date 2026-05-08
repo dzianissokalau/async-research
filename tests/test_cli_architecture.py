@@ -170,7 +170,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"], list(source_choices))
-        self.assertEqual(["validate"], list(data_choices))
+        self.assertEqual(["validate", "dashboard"], list(data_choices))
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["init", "validate-manifest", "submit", "complete", "ingest", "mark-reviewed", "trust-status"], list(batch_choices))
         self.assertEqual(["append", "summarize"], list(metrics_choices))

@@ -161,6 +161,10 @@ Run `async-research data validate research_ops` after editing `data/` files to
 check profile/source linkage, access notes, join caveats, and known gap refs
 without mutating the workspace.
 
+Run `async-research data dashboard research_ops` when you need a read-only view
+of usable sources, candidate or blocked sources, stale reviews, data gaps, ideas
+blocked by data readiness, and join caveats.
+
 ## Recommended First Setup
 
 Create this operational folder in the working research repo:

@@ -450,6 +450,13 @@ def run_data_validate_command(args: argparse.Namespace) -> int:
     return module_main("data_foundations", argv)
 
 
+def run_data_dashboard_command(args: argparse.Namespace) -> int:
+    argv = ["dashboard", str(args.ops_dir)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("data_foundations", argv)
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -1226,6 +1233,16 @@ def register_data_commands(subparsers) -> None:
     add_common_ops(validate)
     validate.add_argument("--now", help="Override current time for deterministic profile freshness checks.")
     validate.set_defaults(func=run_data_validate_command)
+    dashboard = add_command(
+        data_sub,
+        "dashboard",
+        help="Render a read-only data readiness dashboard.",
+        description="Read-only dashboard for approved, candidate, blocked, stale, gap-blocked, and join-caveat data states.",
+        epilog="Exits 0 when dashboard data is clean, 2 when warning-only data findings are present, and 4 when malformed data prevents reliable dashboard state.",
+    )
+    add_common_ops(dashboard)
+    dashboard.add_argument("--now", help="Override current time for deterministic source freshness checks.")
+    dashboard.set_defaults(func=run_data_dashboard_command)
 
 
 def register_cost_commands(subparsers) -> None:

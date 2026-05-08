@@ -261,6 +261,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research source check-claim research_ops <artifact>` | Gate source-dependent claims on allowed source use. | Artifact text and `data_source_audit.md`. | JSON to stdout only. |
 | `async-research source explain research_ops DS-0001` | Explain whether one source is allowed for a use case. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research data validate research_ops` | Validate data foundation readiness files. | `data_source_audit.md`, `data/` profiles, access notes, joins, gaps, and active idea gap refs. | JSON to stdout only; read-only. |
+| `async-research data dashboard research_ops` | Render a read-only data readiness dashboard. | Source audit, data foundation validator output, data catalog, access notes, known gaps, join map, profiles, and idea gap refs. | JSON to stdout only; read-only and never mutates data files. |
 | `async-research cost summary research_ops` | Summarize spend and budget pressure. | `cost_ledger.csv`. | JSON to stdout only. |
 | `async-research cost ingest-usage research_ops --usage-file <usage-json> --item-id <id> --role worker --model <model>` | Append actual API usage to the cost ledger. | Usage JSON/JSONL artifact. | `cost_ledger.csv`; with `--dry-run`, stdout only. |
 | `async-research cost budget-check research_ops --item-id <id> --action promotion` | Gate proposed spend before promotion or expensive work. | `cost_ledger.csv` and proposed cost flags. | JSON to stdout only. |
@@ -301,6 +302,7 @@ async-research idea catalog show research_ops IDEA-0001
 async-research idea score <idea-json> --ops-dir research_ops
 async-research idea validate <idea-json> --ops-dir research_ops
 async-research data validate research_ops
+async-research data dashboard research_ops
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 ```
 
@@ -366,6 +368,7 @@ specific diagnostic.
 | `source upsert` | `0` source row written. | `2` register validation failed; `3` invalid source id, date, or freshness window; `4` malformed register. |
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |
 | `data validate` | `0` data foundation contracts are ready. | `2` warning-only readiness findings with `ok: true`; `4` malformed tables, invalid audit state, or profile identity errors. |
+| `data dashboard` | `0` dashboard rendered and data foundation state is clean. | `2` dashboard rendered with warning-only data findings; `4` dashboard rendered with malformed data foundation state. |
 | `cost summary` and `cost ingest-usage` | `0` cost summary printed or usage row ingested. | `4` malformed or unreadable cost ledger or usage artifact. |
 | `cost budget-check` | `0` proposed spend is below the configured threshold. | `2` budget threshold exceeded. |
 | `batch init`, `batch validate-manifest`, `batch submit`, `batch complete`, `batch ingest`, and `batch mark-reviewed` | `0` batch lifecycle step succeeded or dry-run validation passed. | `2` invalid lifecycle step, invalid manifest, or invalid cost ledger; `4` malformed manifest. |

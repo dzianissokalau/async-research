@@ -10,7 +10,9 @@ from pathlib import Path
 import re
 from typing import Any, Optional
 
+from async_research_workflow.idea_catalog import catalog_surface_summary
 from async_research_workflow.scripts.data_source_audit import (
+    BLOCKED_GOVERNANCE_STATUSES,
     EXPERIMENT_READY_STATUSES,
     SOURCE_ID_PATTERN,
     canonical_row,
@@ -18,6 +20,8 @@ from async_research_workflow.scripts.data_source_audit import (
     parse_date,
     parse_register,
     row_map,
+    source_age_days,
+    source_stale,
     split_table_row,
     validate_rows,
 )
@@ -684,6 +688,319 @@ def data_foundation_report(ops_dir: Path, now: Optional[datetime] = None) -> dic
     }
 
 
+def validation_exit_code(report: dict[str, Any]) -> int:
+    if report.get("reason") in {"source_audit_malformed", "source_audit_validation_failed"}:
+        return MALFORMED
+    if report.get("error_count", 0):
+        return MALFORMED
+    if report.get("warning_count", 0):
+        return VALIDATION_FINDINGS
+    return SUCCESS
+
+
+def source_findings_by_id(report: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in report.get("errors", []) + report.get("warnings", []):
+        if not isinstance(item, dict):
+            continue
+        source_id = normalize_text(item.get("source_id"))
+        if not source_id:
+            continue
+        grouped.setdefault(source_id, []).append(
+            {
+                "severity": item.get("severity"),
+                "reason": item.get("reason"),
+                "message": item.get("message"),
+                "path": item.get("path"),
+            }
+        )
+    return grouped
+
+
+def row_by_source_id(rows: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {
+        normalize_text(row.get("source_id")): row
+        for row in rows
+        if field_has_value(row.get("source_id"))
+    }
+
+
+def profile_by_source_id(profiles: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        normalize_text(profile.get("source_id")): profile
+        for profile in profiles
+        if field_has_value(profile.get("source_id"))
+    }
+
+
+def table_value(row: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = normalize_text(row.get(key))
+        if field_has_value(value):
+            return value
+    return ""
+
+
+def source_dashboard_row(
+    row: dict[str, str],
+    now: datetime,
+    profiles_by_id: dict[str, dict[str, Any]],
+    catalog_by_id: dict[str, dict[str, str]],
+    access_by_id: dict[str, dict[str, str]],
+    findings_by_id: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    source_id = row["source_id"]
+    profile = profiles_by_id.get(source_id, {})
+    profile_fields = profile.get("fields") if isinstance(profile.get("fields"), dict) else {}
+    catalog_row = catalog_by_id.get(source_id, {})
+    access_row = access_by_id.get(source_id, {})
+    stale = source_stale(row, now)
+    approved = row.get("approval_status") in EXPERIMENT_READY_STATUSES
+    usable_today = approved and not stale
+    if usable_today:
+        usability_reason = "approved_and_fresh"
+    elif row.get("approval_status") not in EXPERIMENT_READY_STATUSES:
+        usability_reason = f"approval_status_{row.get('approval_status') or 'unknown'}"
+    else:
+        usability_reason = "source_review_stale"
+    profile_path = table_value(catalog_row, "profile_path") or str(profile.get("path") or "")
+    return {
+        "source_id": source_id,
+        "source_name": row.get("source_name"),
+        "approval_status": row.get("approval_status"),
+        "source_tier": row.get("source_tier"),
+        "usable_today": usable_today,
+        "usability_reason": usability_reason,
+        "stale": stale,
+        "last_reviewed": row.get("last_reviewed"),
+        "age_days": source_age_days(row, now),
+        "freshness_window_days": freshness_window(row),
+        "approved_use_cases": row.get("approved_use_cases"),
+        "blocked_use_cases": row.get("blocked_use_cases"),
+        "known_limitations": row.get("known_limitations"),
+        "citation_requirements": row.get("citation_requirements"),
+        "profile_path": profile_path,
+        "grain": table_value(catalog_row, "grain"),
+        "geography": table_value(catalog_row, "geography"),
+        "time_coverage": table_value(catalog_row, "time_coverage"),
+        "access_summary": table_value(catalog_row, "access_summary", "access_method") or table_value(access_row, "access_method", "access_check"),
+        "access_location": table_value(access_row, "location") or table_value(profile_fields, "location"),
+        "dashboard_findings": findings_by_id.get(source_id, []),
+    }
+
+
+def gap_dashboard_rows(gap_rows: list[dict[str, str]], active_gap_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    refs_by_gap: dict[str, list[str]] = {}
+    for ref in active_gap_refs:
+        path = normalize_text(ref.get("path"))
+        for gap_id in ref.get("gap_ids", []):
+            refs_by_gap.setdefault(str(gap_id), []).append(path)
+    rows: list[dict[str, Any]] = []
+    for row in gap_rows:
+        gap_id = normalize_text(row.get("gap_id"))
+        if not field_has_value(gap_id):
+            continue
+        rows.append(
+            {
+                "gap_id": gap_id,
+                "status": normalize_text(row.get("status")) or "unknown",
+                "affected_items": normalize_text(row.get("affected_items")),
+                "data_needed": normalize_text(row.get("data_needed")),
+                "blocker": normalize_text(row.get("blocker")),
+                "next_step": normalize_text(row.get("next_step")),
+                "active_idea_refs": sorted(set(refs_by_gap.get(gap_id, []))),
+            }
+        )
+    return rows
+
+
+def join_dashboard_rows(join_rows: list[dict[str, str]], audit_by_id: dict[str, dict[str, str]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for index, row in enumerate(join_rows, start=1):
+        join_id = normalize_text(row.get("join_id")) or f"row-{index}"
+        left = normalize_text(row.get("left_source_id"))
+        right = normalize_text(row.get("right_source_id"))
+        caveats = normalize_text(row.get("caveats"))
+        rows.append(
+            {
+                "join_id": join_id,
+                "left_source_id": left,
+                "left_status": audit_by_id.get(left, {}).get("approval_status", "missing") if field_has_value(left) else "missing",
+                "right_source_id": right,
+                "right_status": audit_by_id.get(right, {}).get("approval_status", "missing") if field_has_value(right) else "missing",
+                "join_keys": normalize_text(row.get("join_keys")),
+                "grain_after_join": normalize_text(row.get("grain_after_join")),
+                "status": normalize_text(row.get("status")) or "unknown",
+                "caveats": caveats,
+                "has_caveats": field_has_value(caveats),
+                "missing_source_ids": [
+                    source_id
+                    for source_id in (left, right)
+                    if field_has_value(source_id) and source_id not in audit_by_id
+                ],
+            }
+        )
+    return rows
+
+
+def data_blocked_ideas(
+    catalog_summary: dict[str, Any],
+    active_gap_refs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in catalog_summary.get("blocked_ideas", []):
+        idea_id = normalize_text(item.get("idea_id")) or normalize_text(item.get("filename_id"))
+        gap_reasons = item.get("data_or_evidence_gaps") if isinstance(item.get("data_or_evidence_gaps"), list) else []
+        if item.get("recommended_next_task") != "data_readiness" and not gap_reasons:
+            continue
+        seen.add(idea_id)
+        rows.append(
+            {
+                "idea_id": idea_id,
+                "title": item.get("title"),
+                "status": item.get("status"),
+                "derived_label": item.get("derived_label"),
+                "recommended_next_task": item.get("recommended_next_task"),
+                "weighted_score": item.get("weighted_score"),
+                "reasons": [
+                    normalize_text(gap.get("reason")) or "data_or_evidence_gap"
+                    for gap in gap_reasons
+                    if isinstance(gap, dict)
+                ] or ["data_readiness_required"],
+                "gap_ids": [],
+                "path": item.get("path"),
+            }
+        )
+    for ref in active_gap_refs:
+        path = normalize_text(ref.get("path"))
+        idea_id = Path(path).stem if path else "unknown"
+        if idea_id in seen:
+            for row in rows:
+                if row["idea_id"] == idea_id:
+                    row["gap_ids"] = sorted(set(row.get("gap_ids", []) + list(ref.get("gap_ids", []))))
+            continue
+        rows.append(
+            {
+                "idea_id": idea_id,
+                "title": "unavailable",
+                "status": "active",
+                "derived_label": "data_gap_ref",
+                "recommended_next_task": "data_readiness",
+                "weighted_score": "unavailable",
+                "reasons": ["active_idea_data_gap_ref"],
+                "gap_ids": list(ref.get("gap_ids", [])),
+                "path": path,
+            }
+        )
+    return sorted(rows, key=lambda item: str(item.get("idea_id")))
+
+
+def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict[str, Any]:
+    current = now or datetime.now(timezone.utc)
+    validation = data_foundation_report(ops_dir, now=current)
+    exit_code = validation_exit_code(validation)
+    audit_register = ops_dir / "data_source_audit.md"
+    data_dir = ops_dir / DATA_DIR_NAME
+    audit_rows: list[dict[str, str]] = []
+    audit_errors: list[dict[str, Any]] = []
+    try:
+        schema_version, parsed_rows = parse_register(audit_register)
+        row_errors = validate_rows(schema_version, parsed_rows)
+        if row_errors:
+            audit_errors.extend(row_errors)
+        else:
+            audit_rows = [canonical_row(row) for row in parsed_rows]
+    except ValueError as exc:
+        audit_errors.append(issue("error", "source_audit_malformed", audit_register, str(exc)))
+
+    audit_by_id = row_map(audit_rows) if audit_rows else {}
+    catalog_rows, catalog_errors = first_markdown_table(data_dir / "data_catalog.md")
+    access_rows, access_errors = first_markdown_table(data_dir / "data_access.md")
+    join_rows, join_errors = first_markdown_table(data_dir / "join_map.md")
+    gap_rows, gap_errors = first_markdown_table(data_dir / "known_data_gaps.md")
+    profiles, profile_warnings, profile_errors, ignored_templates = load_profiles(data_dir / "profiles", audit_by_id) if audit_by_id else ([], [], [], [])
+    findings_by_id = source_findings_by_id(validation)
+    profiles_by_id = profile_by_source_id(profiles)
+    catalog_by_id = row_by_source_id(catalog_rows)
+    access_by_id = row_by_source_id(access_rows)
+    source_rows = [
+        source_dashboard_row(row, current, profiles_by_id, catalog_by_id, access_by_id, findings_by_id)
+        for row in sorted(audit_rows, key=lambda item: item["source_id"])
+    ]
+    catalog_summary = catalog_surface_summary(ops_dir)
+    active_gap_refs = validation.get("active_idea_gap_refs") if isinstance(validation.get("active_idea_gap_refs"), list) else []
+    gap_rows_dashboard = gap_dashboard_rows(gap_rows, active_gap_refs)
+    join_rows_dashboard = join_dashboard_rows(join_rows, audit_by_id)
+    validator_findings = validation.get("errors", []) + validation.get("warnings", [])
+
+    approved_sources = [row for row in source_rows if row["approval_status"] in EXPERIMENT_READY_STATUSES]
+    candidate_sources = [row for row in source_rows if row["approval_status"] == "candidate"]
+    needs_review_sources = [row for row in source_rows if row["approval_status"] in {"unknown", "explicitly_approved"}]
+    blocked_sources = [row for row in source_rows if row["approval_status"] in BLOCKED_GOVERNANCE_STATUSES]
+    stale_sources = [row for row in source_rows if row["stale"]]
+    usable_today = [row for row in source_rows if row["usable_today"]]
+    ideas_blocked = data_blocked_ideas(catalog_summary, active_gap_refs)
+    join_caveats = [row for row in join_rows_dashboard if row["has_caveats"] or row["missing_source_ids"]]
+    table_parse_errors = catalog_errors + access_errors + join_errors + gap_errors
+    return {
+        "ok": validation.get("ok") is True,
+        "action": "data_dashboard_rendered",
+        "ops_dir": str(ops_dir),
+        "audit_register": str(audit_register),
+        "data_dir": str(data_dir),
+        "read_only": True,
+        "changed": False,
+        "generated_from": "data_foundation_validator_and_read_model",
+        "validation_exit_code": exit_code,
+        "summary": {
+            "source_count": len(source_rows),
+            "usable_today_count": len(usable_today),
+            "approved_source_count": len(approved_sources),
+            "candidate_source_count": len(candidate_sources),
+            "needs_review_source_count": len(needs_review_sources),
+            "blocked_source_count": len(blocked_sources),
+            "stale_source_count": len(stale_sources),
+            "data_gap_count": len(gap_rows_dashboard),
+            "open_data_gap_count": len([row for row in gap_rows_dashboard if row["status"] not in {"closed", "resolved"}]),
+            "ideas_blocked_by_data_count": len(ideas_blocked),
+            "join_path_count": len(join_rows_dashboard),
+            "join_caveat_count": len(join_caveats),
+            "validator_warning_count": validation.get("warning_count", 0),
+            "validator_error_count": validation.get("error_count", 0),
+        },
+        "operator_summary": {
+            "usable_today_source_ids": [row["source_id"] for row in usable_today],
+            "attention_needed": sorted(
+                set(
+                    [row["source_id"] for row in blocked_sources]
+                    + [row["source_id"] for row in stale_sources]
+                    + [row["source_id"] for row in candidate_sources]
+                    + [row["source_id"] for row in needs_review_sources]
+                )
+            ),
+            "blocked_idea_ids": [row["idea_id"] for row in ideas_blocked],
+        },
+        "sections": {
+            "usable_today_sources": usable_today,
+            "approved_sources": approved_sources,
+            "candidate_sources": candidate_sources,
+            "needs_review_sources": needs_review_sources,
+            "blocked_sources": blocked_sources,
+            "stale_source_reviews": stale_sources,
+            "data_gaps": gap_rows_dashboard,
+            "ideas_blocked_by_data": ideas_blocked,
+            "join_paths": join_rows_dashboard,
+            "join_caveats": join_caveats,
+            "validator_findings": validator_findings,
+        },
+        "validation": validation,
+        "read_model_warnings": profile_warnings,
+        "read_model_errors": audit_errors + table_parse_errors + profile_errors,
+        "ignored_templates": ignored_templates,
+    }
+
+
 def command_validate(args: argparse.Namespace) -> int:
     try:
         now = parse_now(args.now)
@@ -701,13 +1018,29 @@ def command_validate(args: argparse.Namespace) -> int:
 
     report = data_foundation_report(args.ops_dir, now=now)
     print_json(report)
-    if report.get("reason") in {"source_audit_malformed", "source_audit_validation_failed"}:
+    return validation_exit_code(report)
+
+
+def command_dashboard(args: argparse.Namespace) -> int:
+    try:
+        now = parse_now(args.now)
+    except ValueError as exc:
+        print_json({
+            "ok": False,
+            "action": "data_dashboard_rendered",
+            "reason": "invalid_now",
+            "validation_exit_code": MALFORMED,
+            "error_count": 1,
+            "errors": [{"reason": "invalid_now", "message": str(exc)}],
+            "warning_count": 0,
+            "warnings": [],
+            "read_only": True,
+            "changed": False,
+        })
         return MALFORMED
-    if report.get("error_count", 0):
-        return MALFORMED
-    if report.get("warning_count", 0):
-        return VALIDATION_FINDINGS
-    return SUCCESS
+    report = data_dashboard_report(args.ops_dir, now=now)
+    print_json(report)
+    return int(report["validation_exit_code"])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -721,6 +1054,14 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("ops_dir", type=Path, help="Path to research_ops.")
     validate.add_argument("--now", help="Override current time for deterministic freshness checks.")
     validate.set_defaults(func=command_validate)
+    dashboard = subparsers.add_parser(
+        "dashboard",
+        help="Render a read-only data readiness dashboard.",
+        description="Render approved, candidate, blocked, stale, gap-blocked, and join-caveat data views without writing files.",
+    )
+    dashboard.add_argument("ops_dir", type=Path, help="Path to research_ops.")
+    dashboard.add_argument("--now", help="Override current time for deterministic freshness checks.")
+    dashboard.set_defaults(func=command_dashboard)
     return parser
 
 
