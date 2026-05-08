@@ -491,8 +491,9 @@ Rollback boundaries:
 - Task creation write mode must remove staged task files if queue append fails.
 - If final validation fails after queue append, the helper must roll back the
   task folder and queue row together before releasing the catalog lock.
-- If rollback itself fails, the helper must stop, return `needs_human`, and
-  include exact paths, transaction id, and next recovery command suggestions.
+- If rollback itself fails, the recovery payload must mark `requires_human`,
+  set `rollback_ok=false`, include exact paths, transaction id,
+  `rollback_failures`, and next recovery command suggestions.
 
 Human override rules are slice-specific.
 
@@ -511,11 +512,12 @@ true:
 
 - projected spend fails `async-research cost budget-check`.
 
-Preflight tests for V2.2 and later must cover duplicate retry, stale
+Preflight and regression tests for V2.2 and later cover duplicate retry, stale
 `research_ops/ideas/LOCK`, changed candidate between dry-run and write, partial
-inbox proposal without idea reference, partial task folder without queue row,
-queue row without task folder, stale `promoted_task_id`, existing task folder,
-and rollback failure reporting before any queue or task mutation ships.
+inbox proposal without idea reference, staged task validation failure, queue
+append failure, idea JSON write failure, completion-check failure, interrupted
+retry with existing artifacts, stale `promoted_task_id`, existing task folder,
+and rollback audit reporting.
 
 ## Safety Rules
 

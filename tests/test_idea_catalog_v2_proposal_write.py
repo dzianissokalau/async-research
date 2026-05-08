@@ -506,7 +506,85 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual("forced_task_transaction_failure", payload["task_transaction"]["reason"])
             self.assertEqual("task_transaction_failed_after_inbox_append", payload["recovery"]["reason"])
             self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            self.assertFalse(payload["recovery"]["requires_human"])
+            self.assertIn("async-research idea catalog validate", payload["recovery"]["next_step"])
             self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_staged_task_validation_failure_restores_all_promotion_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7415")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7415")
+            before = file_snapshot(ops_dir)
+
+            bad_status = {
+                "schema_version": "1.0",
+                "id": "TASK-7415",
+                "title": "Invalid staged promotion task",
+                "type": "data_readiness",
+                "status": "inbox",
+            }
+            with mock.patch.object(
+                idea_catalog_script,
+                "promotion_task_status_json",
+                return_value=bad_status,
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7415", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("task_transaction_failed", payload["reason"])
+            self.assertEqual("staged_task_validation_failed", payload["task_transaction"]["reason"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            self.assertEqual([], payload["recovery"]["rollback_failures"])
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertEqual([], list((ops_dir / "tasks").glob(".TASK-7415-data-readiness.staging.*")))
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_queue_append_failure_rolls_back_task_and_restores_inbox(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7416")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7416")
+            before = file_snapshot(ops_dir)
+            original_write = idea_catalog_script.task_transaction.write_task_transaction
+
+            def write_with_queue_failure(*args, **kwargs):
+                def fail_append(_ops_dir: Path, _row: dict) -> dict:
+                    raise idea_catalog_script.task_transaction.TaskTransactionError(
+                        {"reason": "queue_append_failed", "error": "forced queue append failure"},
+                        idea_catalog_script.task_transaction.MALFORMED,
+                    )
+
+                kwargs["append_queue"] = fail_append
+                return original_write(*args, **kwargs)
+
+            with mock.patch.object(
+                idea_catalog_script.task_transaction,
+                "write_task_transaction",
+                side_effect=write_with_queue_failure,
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7416", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(idea_catalog_script.MALFORMED, code, payload)
+            self.assertEqual("task_transaction_failed", payload["reason"])
+            self.assertEqual("queue_append_failed", payload["task_transaction"]["reason"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            rollback_actions = {
+                item["action"]
+                for item in payload["task_transaction"]["rollback"]["actions"]
+            }
+            self.assertIn("remove_task_folder", rollback_actions)
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertFalse((ops_dir / "tasks" / "TASK-7416-data-readiness").exists())
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_post_write_validation_failure_reports_recovery_payload(self) -> None:
@@ -542,6 +620,8 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
             self.assertIn("task_rollback", payload["recovery"])
             self.assertIn("restored_files", payload["recovery"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            self.assertFalse(payload["recovery"]["requires_human"])
             self.assertTrue(payload["files_written"])
             self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
             updated = read_json(ops_dir / "ideas" / "IDEA-7410.json")
@@ -549,6 +629,43 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertNotIn("promoted_task_id", updated)
             self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
             self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
+
+    def test_idea_json_write_failure_rolls_back_task_queue_and_inbox(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7417")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7417")
+            before = file_snapshot(ops_dir)
+            idea_path = ops_dir / "ideas" / "IDEA-7417.json"
+            original_atomic = idea_catalog_script.atomic_write_bytes
+            failed_once = False
+
+            def fail_first_idea_write(path: Path, content: bytes) -> bool:
+                nonlocal failed_once
+                if Path(path) == idea_path and not failed_once:
+                    failed_once = True
+                    raise OSError("forced idea write failure")
+                return original_atomic(path, content)
+
+            with mock.patch.object(
+                idea_catalog_script,
+                "atomic_write_bytes",
+                side_effect=fail_first_idea_write,
+            ):
+                code, payload = run_cli_json(
+                    ["idea", "promote", ops_dir, "IDEA-7417", "--write", "--preflight-hash", preflight_hash]
+                )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("catalog_write_failed", payload["reason"])
+            self.assertEqual("catalog_write_failed", payload["failures"][0]["reason"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            self.assertFalse(payload["recovery"]["requires_human"])
+            self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertFalse((ops_dir / "tasks" / "TASK-7417-data-readiness").exists())
+            self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_completion_check_failure_rolls_back_task_queue_and_catalog_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -578,8 +695,37 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
             self.assertIn("task_rollback", payload["recovery"])
             self.assertIn("restored_files", payload["recovery"])
+            self.assertTrue(payload["recovery"]["rollback_ok"])
+            self.assertFalse(payload["recovery"]["requires_human"])
             self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_interrupted_retry_with_missing_queue_row_requires_recovery_without_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            self.write_audited_source(ops_dir)
+            self.write_promotable_idea(ops_dir, "IDEA-7418")
+            preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7418")
+            first_code, first = run_cli_json(
+                ["idea", "promote", ops_dir, "IDEA-7418", "--write", "--preflight-hash", preflight_hash]
+            )
+            self.assertEqual(cli.SUCCESS, first_code, first)
+            removal = idea_catalog_script.task_transaction.remove_queue_row(ops_dir, "TASK-7418")
+            self.assertTrue(removal["changed"])
+            before_retry = file_snapshot(ops_dir)
+
+            retry_code, retry = run_cli_json(
+                ["idea", "promote", ops_dir, "IDEA-7418", "--write", "--preflight-hash", preflight_hash]
+            )
+
+            self.assertEqual(2, retry_code, retry)
+            self.assertEqual("promotion_task_recovery_required", retry["reason"])
+            self.assertEqual(dry_run["idempotency_key"], retry["existing_proposal_ref"]["idempotency_key"])
+            self.assertIn(
+                "queue_row_missing",
+                {item["reason"] for item in retry["completion_failures"]},
+            )
+            self.assertEqual(before_retry, file_snapshot(ops_dir))
 
 
 if __name__ == "__main__":

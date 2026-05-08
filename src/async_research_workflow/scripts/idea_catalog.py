@@ -136,6 +136,53 @@ def restore_file_snapshots(snapshots: dict[Path, bytes | None]) -> list[dict[str
     return actions
 
 
+def rollback_action_failed(action: dict[str, Any]) -> bool:
+    action_name = str(action.get("action") or "")
+    if action.get("error") or action_name.endswith("_failed"):
+        return True
+    if action_name in {"remove_staged_task_folder", "remove_task_folder"} and action.get("changed") is False:
+        return True
+    return False
+
+
+def rollback_audit_payload(
+    ops_dir: Path,
+    task_rollback: dict[str, Any] | None = None,
+    restored_files: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    actions: list[dict[str, Any]] = []
+    if isinstance(task_rollback, dict):
+        rollback_actions = task_rollback.get("actions")
+        if isinstance(rollback_actions, list):
+            actions.extend(item for item in rollback_actions if isinstance(item, dict))
+    if restored_files:
+        actions.extend(restored_files)
+
+    failures = [item for item in actions if rollback_action_failed(item)]
+    requires_human = bool(failures)
+    next_step = (
+        f"inspect rollback_failures, then run async-research idea catalog validate {ops_dir}"
+        if requires_human
+        else f"run async-research idea catalog validate {ops_dir} before retrying the promotion write"
+    )
+    return {
+        "rollback_ok": not requires_human,
+        "rollback_action_count": len(actions),
+        "rollback_failures": failures,
+        "requires_human": requires_human,
+        "next_step": next_step,
+    }
+
+
+def post_task_catalog_failure_reason(failures: list[dict[str, Any]]) -> str:
+    reasons = {str(item.get("reason") or "") for item in failures}
+    if "catalog_write_failed" in reasons:
+        return "catalog_write_failed"
+    if "generated_projection_render_failed" in reasons:
+        return "generated_projection_render_failed"
+    return "post_write_validation_failed"
+
+
 class CatalogLockError(RuntimeError):
     def __init__(self, payload: dict[str, Any]):
         super().__init__(str(payload.get("reason", "catalog_lock_error")))
@@ -2955,6 +3002,7 @@ def promotion_write(args: argparse.Namespace) -> int:
         )
         if task_code != SUCCESS:
             restored_files = restore_file_snapshots(snapshots)
+            task_rollback = task_payload.get("rollback") if isinstance(task_payload, dict) else None
             print_json(
                 {
                     "ok": False,
@@ -2967,6 +3015,7 @@ def promotion_write(args: argparse.Namespace) -> int:
                         "transaction_id": transaction_id,
                         "idempotency_key": idempotency_key,
                         "restored_files": restored_files,
+                        **rollback_audit_payload(args.ops_dir, task_rollback, restored_files),
                     },
                     "dry_run_plan": plan,
                     "lock": lock,
@@ -2988,7 +3037,7 @@ def promotion_write(args: argparse.Namespace) -> int:
                 {
                     "ok": False,
                     "action": "idea_promotion_write_failed",
-                    "reason": "post_write_validation_failed",
+                    "reason": post_task_catalog_failure_reason(failures),
                     "ops_dir": str(args.ops_dir),
                     "failures": failures,
                     "files_written": all_files_written,
@@ -2998,6 +3047,7 @@ def promotion_write(args: argparse.Namespace) -> int:
                         "idempotency_key": idempotency_key,
                         "task_rollback": task_rollback,
                         "restored_files": restored_files,
+                        **rollback_audit_payload(args.ops_dir, task_rollback, restored_files),
                     },
                     "dry_run_plan": plan,
                     "lock": lock,
@@ -3027,6 +3077,7 @@ def promotion_write(args: argparse.Namespace) -> int:
                         "idempotency_key": idempotency_key,
                         "task_rollback": task_rollback,
                         "restored_files": restored_files,
+                        **rollback_audit_payload(args.ops_dir, task_rollback, restored_files),
                     },
                     "dry_run_plan": plan,
                     "lock": lock,

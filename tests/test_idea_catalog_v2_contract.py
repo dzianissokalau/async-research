@@ -25,13 +25,14 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, and V2.6 task creation write mode shipped; remaining slices harden failure observability, docs, and end-to-end acceptance. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, V2.6 task creation write mode, and V2.7 failure/rollback hardening shipped; remaining slices cover operator docs and end-to-end acceptance. |",
                 "| V2.1 | Contract and preflight design | Complete |",
                 "| V2.2 | Proposal write mode | Complete |",
                 "| V2.3 | Proposal write recovery tests | Complete |",
                 "| V2.4 | Task transaction helper design | Complete |",
                 "| V2.5 | Task ID and idempotency rules | Complete |",
                 "| V2.6 | Task creation write mode | Complete |",
+                "| V2.7 | Failure and rollback hardening | Complete |",
             ],
         )
 
@@ -98,15 +99,19 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
                 "Proposal write mode must not leave an inbox proposal without a matching idea proposal reference",
                 "Task creation write mode must remove staged task files if queue append fails.",
                 "If final validation fails after queue append, the helper must roll back the task folder and queue row together",
-                "If rollback itself fails, the helper must stop, return `needs_human`",
+                "If rollback itself fails, the recovery payload must mark `requires_human`",
+                "`rollback_failures`",
                 "duplicate retry",
                 "stale `research_ops/ideas/LOCK`",
                 "changed candidate between dry-run and write",
                 "partial inbox proposal without idea reference",
-                "partial task folder without queue row",
-                "queue row without task folder",
+                "staged task validation failure",
+                "queue append failure",
+                "idea JSON write failure",
+                "completion-check failure",
+                "interrupted retry with existing artifacts",
                 "stale `promoted_task_id`",
-                "rollback failure reporting",
+                "rollback audit reporting",
             ],
         )
 
