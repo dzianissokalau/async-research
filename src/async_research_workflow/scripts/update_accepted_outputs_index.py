@@ -91,8 +91,16 @@ METADATA_KEYS = {
     "schema_version",
     "framework_version",
     "framework_versions",
+    "result_acceptance",
+    "review_aggregation",
+    "schema_versioning",
     "prompt_version",
     "prompt_versions",
+    "worker",
+    "primary_reviewer",
+    "methodology_reviewer",
+    "skeptic_reviewer",
+    "review_aggregator",
     "reviewer_role",
     "decision",
     "claim_strength",
@@ -500,16 +508,26 @@ def first_summary_line(worker_output: Path) -> str:
     if not worker_output.exists():
         return "accepted output"
     in_code = False
+    in_metadata_block = False
     for raw in worker_output.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if line.startswith("```"):
             in_code = not in_code
             continue
-        if in_code or not line:
+        if in_code:
             continue
+        if not line:
+            in_metadata_block = False
+            continue
+        if in_metadata_block and raw[:1].isspace():
+            continue
+        in_metadata_block = False
         if line.startswith("#") or line.startswith("|"):
             continue
         if set(line) <= {"-", " "}:
+            continue
+        if is_metadata_line(line) and line.endswith(":"):
+            in_metadata_block = True
             continue
         finding = useful_key_finding(line)
         if finding:

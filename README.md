@@ -79,7 +79,7 @@ git clone https://github.com/dzianissokalau/async-research
 cd async-research
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip setuptools
 python -m pip install -e .
 async-research version
 ```
@@ -195,6 +195,9 @@ The review-start transition is intentionally explicit. If reviews exist while a
 task still says `awaiting_review`, `review aggregate` fails closed and returns a
 `suggested_intermediate_status` plus `next_step` so a human or agent can record
 the missing `single_review` or `panel_review` state before rerunning aggregation.
+To avoid hand-editing `status.json`, rerun the same command with
+`--record-review-start`; the helper validates the intermediate review-start
+transition before applying the aggregate route.
 
 If the aggregate routes to `needs_revision`, send the task back to a bounded
 worker. If it routes to `needs_human`, update the surface and record the decision
@@ -260,7 +263,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research batch trust-status <manifest>` | Gate downstream use of batch outputs. | `batch_manifest.json`. | JSON to stdout only. |
 | `async-research metrics append research_ops --label manual` | Append an autonomy metrics snapshot. | Health, task, review, accepted-memory, and cost files. | `metrics_history.jsonl`; optionally `weekly_digest.md`. |
 | `async-research metrics summarize research_ops --output research_ops/monthly_metrics_trends.md` | Summarize baseline and metrics history trends. | `metrics_baseline.json`, `metrics_history.jsonl`. | JSON to stdout; optional Markdown output file. |
-| `async-research review aggregate <task-dir>` | Combine isolated reviews and route a task. | `status.json`, `reviews/*.md`, worker output, review policy. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. |
+| `async-research review aggregate <task-dir> --record-review-start` | Combine isolated reviews and route a task; optionally records the missing review-start transition first. | `status.json`, `reviews/*.md`, worker output, review policy. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. |
 | `async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers` | Validate or write final result acceptance for a reviewed task. | Task status, worker output, review aggregate, source audit, accepted memory. | `review_panel/result_acceptance.json`; with ledgers, `evidence_ledger.md` or `rejected_results.md`. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |

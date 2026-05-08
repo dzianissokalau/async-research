@@ -1494,7 +1494,19 @@ def register_review_commands(subparsers) -> None:
     )
     aggregate.add_argument("task_dir", type=Path, help="Task directory containing status.json and reviews/.")
     aggregate.add_argument("--dry-run", action="store_true", help="Validate and preview routing without writing aggregate/status files.")
-    aggregate.set_defaults(func=lambda a: module_main("aggregate_reviews", [str(a.task_dir)] + (["--dry-run"] if a.dry_run else [])))
+    aggregate.add_argument(
+        "--record-review-start",
+        action="store_true",
+        help="Validate and record a missing awaiting_review -> single_review/panel_review transition before aggregating.",
+    )
+    aggregate.set_defaults(
+        func=lambda a: module_main(
+            "aggregate_reviews",
+            [str(a.task_dir)]
+            + (["--dry-run"] if a.dry_run else [])
+            + (["--record-review-start"] if a.record_review_start else []),
+        )
+    )
 
 
 def add_revision_schema_option(parser: argparse.ArgumentParser) -> None:

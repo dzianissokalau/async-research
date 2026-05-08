@@ -137,6 +137,16 @@ class CliArchitectureTests(unittest.TestCase):
             ],
         )
 
+    def test_review_aggregate_record_review_start_routes_to_helper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["review", "aggregate", "research_ops/tasks/TASK-0001", "--dry-run", "--record-review-start"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "aggregate_reviews",
+            ["research_ops/tasks/TASK-0001", "--dry-run", "--record-review-start"],
+        )
+
     def test_build_parser_registers_nested_aliases(self) -> None:
         choices = subparser_choices(cli.build_parser())
         source_choices = subparser_choices(choices["source"])

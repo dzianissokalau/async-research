@@ -90,6 +90,14 @@ class IdeaCatalogSchemaTests(unittest.TestCase):
 
                 self.assertEqual([], schema_errors(candidate))
 
+    def test_optional_lifecycle_strings_allow_null_when_not_semantically_required(self) -> None:
+        candidate = valid_candidate()
+        candidate["human_gate_reason"] = None
+        candidate["status_reason"] = None
+        candidate["source_discovery_path"] = None
+
+        self.assertEqual([], schema_errors(candidate))
+
     def test_lifecycle_refs_and_decision_history_validate(self) -> None:
         candidate = valid_candidate()
         preflight_hash = "a" * 64

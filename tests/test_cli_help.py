@@ -119,7 +119,7 @@ class CliHelpTests(unittest.TestCase):
             (["review"], ["Prepare isolated review bundles", "prepare-context", "install-context", "aggregate"]),
             (["review", "prepare-context"], ["isolated reviewer", "--role", "--bundle-dir"]),
             (["review", "install-context"], ["completed isolated review output", "--force"]),
-            (["review", "aggregate"], ["reviews/*.md", "--dry-run"]),
+            (["review", "aggregate"], ["reviews/*.md", "--dry-run", "--record-review-start"]),
             (["revision"], ["bounded revision counters", "request", "scan-limits"]),
             (["revision", "defaults"], ["default max revisions", "--tier"]),
             (["revision", "request"], ["bounded task revision", "--dry-run", "--schema"]),

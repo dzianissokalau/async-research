@@ -5,6 +5,33 @@ workflow simulations, external reviews, and dogfooding. It is separate from
 `CHANGELOG.md`: the changelog summarizes release-level changes, while this log
 keeps operational context for why a fix was made and how it was verified.
 
+## 2026-05-08 - Manus 0.2.0a1 Review Follow-Ups
+
+Commit: `Harden Manus review friction points`
+
+Source: Manus review of framework version `0.2.0a1`.
+
+### Fixed
+
+| Area | Problem | Resolution | Verification |
+| --- | --- | --- | --- |
+| Accepted-memory `key_finding` extraction | The metadata filter skipped top-level metadata such as `prompt_version`, but nested framework metadata like `framework_versions: result_acceptance` could still be selected as a fallback key finding. | The Markdown fallback now treats framework/prompt metadata keys and indented metadata blocks as non-content before selecting the first summary line. | Added a regression for indented `framework_versions` metadata before the real summary line. |
+| Idea-catalog optional fields | Agent-generated catalog JSON could set optional lifecycle strings such as `human_gate_reason` to `null`, causing schema failure before lifecycle validation could return the useful semantic blocker. | `idea_candidate.schema.json` now allows `null` for selected optional lifecycle strings while preserving the `needs_human` nonempty `human_gate_reason` lifecycle gate. | Added schema and validator regressions for optional nulls and `needs_human` null handling. |
+| Review aggregation transition friction | `review aggregate` correctly failed closed when reviews existed but `status.json` still said `awaiting_review`, but operators had to hand-edit the missing `single_review`/`panel_review` state. | Added `--record-review-start` to validate and record the missing review-start transition before applying the aggregate route, and documented the flag in the public README. | Added CLI routing/help coverage and a write-path regression that verifies final status and aggregate metadata. |
+
+### Verification Run
+
+- `.venv/bin/python -m unittest tests.test_workflow_regressions tests.test_idea_catalog_schema tests.test_idea_catalog_validator tests.test_cli_architecture tests.test_cli_help`
+- `.venv/bin/python -m unittest discover -s tests`
+- `.venv/bin/async-research acceptance-suite`
+- `.venv/bin/async-research benchmark`
+- `.venv/bin/async-research starter-smoke /private/tmp/async-research-manus-followups-generic --force`
+- `.venv/bin/async-research starter-smoke /private/tmp/async-research-manus-followups-real-estate --template real-estate --force`
+- `.venv/bin/python -m compileall src tests`
+- `.venv/bin/python -m pip install -e .`
+- `.venv/bin/python -m build`
+- `git diff --check`
+
 ## 2026-05-07 - CLI Alias CI Flake
 
 Commit: `Harden accepted alias timestamp test`

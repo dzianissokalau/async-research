@@ -229,6 +229,36 @@
     "human_gate_required": {
       "type": "boolean"
     },
+    "review_start_transition": {
+      "type": "object",
+      "required": [
+        "from_status",
+        "to_status",
+        "reason",
+        "recorded_before_aggregate"
+      ],
+      "properties": {
+        "from_status": {
+          "type": "string",
+          "enum": [
+            "awaiting_review"
+          ]
+        },
+        "to_status": {
+          "type": "string",
+          "enum": [
+            "single_review",
+            "panel_review"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recorded_before_aggregate": {
+          "type": "boolean"
+        }
+      }
+    },
     "escalation": {
       "type": "object",
       "required": [

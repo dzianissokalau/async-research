@@ -373,7 +373,8 @@ class WorkflowRegressionTests(unittest.TestCase):
                 "\n".join(
                     [
                         "prompt_version: worker_v1.0",
-                        "framework_versions: result_acceptance_v1.0",
+                        "framework_versions:",
+                        "  result_acceptance: result_acceptance_v1.0",
                         "",
                         "## Summary",
                         "",
@@ -500,6 +501,59 @@ class WorkflowRegressionTests(unittest.TestCase):
             self.assertEqual("accepted", payload["attempted_route"])
             self.assertEqual("single_review", payload["suggested_intermediate_status"])
             self.assertIn("awaiting_review -> single_review", payload["next_step"])
+            self.assertIn("--record-review-start", payload["next_step"])
+
+    def test_review_aggregate_can_record_missing_review_start_transition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2013-record-review-start",
+                previous_status="in_progress",
+                status="awaiting_review",
+                last_transition_reason="worker_submitted_for_review",
+                result={
+                    "recommendation": "ready",
+                    "claim_strength": "suggestive",
+                    "key_finding": "Reviewable output is present",
+                },
+            )
+            task_dir.joinpath("worker_output.md").write_text("Reviewable output is present.\n", encoding="utf-8")
+            write_json(
+                task_dir / "reviews" / "primary.md",
+                {
+                    "reviewer_role": "primary",
+                    "decision": "accept",
+                    "claim_strength": "suggestive",
+                    "prompt_version": "primary_reviewer_v1.0",
+                    "framework_versions": {"result_acceptance": "result_acceptance_v1.0"},
+                    "main_concerns": [],
+                    "required_followups": [],
+                    "evidence_gaps": [],
+                    "escalate_to_tier": None,
+                    "escalation_reason": None,
+                    "confidence": 0.8,
+                },
+            )
+
+            code, payload = run_json(aggregate_reviews, [task_dir, "--record-review-start"])
+
+            self.assertEqual(aggregate_reviews.SUCCESS, code, payload)
+            self.assertEqual("accepted", payload["aggregate_decision"])
+            self.assertEqual(
+                {
+                    "from_status": "awaiting_review",
+                    "to_status": "single_review",
+                    "reason": "review_start_recorded_before_aggregate",
+                    "recorded_before_aggregate": True,
+                },
+                payload["review_start_transition"],
+            )
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("single_review", status["previous_status"])
+            self.assertEqual("accepted", status["status"])
+            aggregate = json.loads((task_dir / "review_panel" / "aggregate.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["review_start_transition"], aggregate["review_start_transition"])
 
     def test_result_acceptance_uses_accepted_index_freshness_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:

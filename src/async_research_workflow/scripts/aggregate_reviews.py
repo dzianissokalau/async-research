@@ -324,6 +324,20 @@ def current_claim_strength(reviews: list[dict[str, Any]]) -> str:
     return min(strengths, key=CLAIM_STRENGTH_ORDER.index)
 
 
+def review_start_status_for_tier(tier: int) -> str:
+    return "single_review" if tier <= 1 else "panel_review"
+
+
+def record_review_start_status(status: dict[str, Any], tier: int) -> dict[str, Any]:
+    updated = apply_default_versions(dict(status))
+    normalize_revision_fields(updated, tier)
+    updated["previous_status"] = status.get("status")
+    updated["status"] = review_start_status_for_tier(tier)
+    updated["last_transition_reason"] = "review_start_recorded_before_aggregate"
+    updated["updated_at"] = iso_now()
+    return updated
+
+
 def mark_claim_strength_stale(result: dict[str, Any], reason: str) -> None:
     result["claim_strength"] = None
     result["claim_strength_stale"] = True
@@ -441,7 +455,7 @@ def format_escalation(escalation: dict[str, Any]) -> str:
     return f"Tier {target} requested by {requested_by}: {reason}"
 
 
-def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
+def aggregate_reviews(task_dir: Path, dry_run: bool, record_review_start: bool = False) -> int:
     if not task_dir.exists() or not task_dir.is_dir():
         print_json({"ok": False, "reason": "task_dir_missing", "task_dir": str(task_dir)})
         return MALFORMED
@@ -491,11 +505,35 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
     route, reason, human_gate_required, agreements, disagreements, trace = compute_route(tier, status, ordered_reviews)
     aggregate_claim_strength = current_claim_strength(ordered_reviews)
 
-    mutable_status = dict(status)
+    base_status = dict(status)
+    review_start_transition: Optional[dict[str, Any]] = None
+    if status.get("status") == "awaiting_review" and record_review_start and route in AGGREGATE_DECISIONS:
+        base_status = record_review_start_status(status, tier)
+        start_status_code, start_status_errors = validate_status(base_status)
+        if start_status_code != SUCCESS:
+            print_json(
+                {
+                    "ok": False,
+                    "reason": "review_start_validation_failed",
+                    "errors": start_status_errors,
+                    "task_dir": str(task_dir),
+                    "attempted_review_start_status": base_status.get("status"),
+                }
+            )
+            return start_status_code
+        review_start_transition = {
+            "from_status": status.get("status"),
+            "to_status": base_status.get("status"),
+            "reason": base_status.get("last_transition_reason"),
+            "recorded_before_aggregate": not dry_run,
+        }
+        trace.append(f"review_start_recorded={base_status.get('status')}")
+
+    mutable_status = dict(base_status)
     route, reason, revision_limit_hit = apply_revision_limit(mutable_status, route, reason, tier)
-    already_at_route = status.get("status") == route
+    already_at_route = base_status.get("status") == route
     if already_at_route:
-        updated_status = apply_default_versions(dict(status))
+        updated_status = apply_default_versions(dict(base_status))
         normalize_revision_fields(updated_status, tier)
     else:
         updated_status = update_status(mutable_status, route, reason, human_gate_required, tier, aggregate_claim_strength)
@@ -519,6 +557,8 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
         "escalation": escalation_summary(status),
         "rule_trace": trace,
     }
+    if review_start_transition is not None:
+        aggregate["review_start_transition"] = review_start_transition
 
     aggregate_code, aggregate_errors = validate_payload_with_schema(aggregate, AGGREGATE_SCHEMA)
     if aggregate_code != SUCCESS:
@@ -529,7 +569,7 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
     if status_code != SUCCESS:
         payload = {"ok": False, "reason": "status_validation_failed", "errors": status_errors, "task_dir": str(task_dir)}
         if status.get("status") == "awaiting_review" and route in {"accepted", "needs_revision", "paused", "rejected"}:
-            intermediate = "single_review" if tier <= 1 else "panel_review"
+            intermediate = review_start_status_for_tier(tier)
             payload.update(
                 {
                     "current_status": "awaiting_review",
@@ -537,7 +577,7 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
                     "suggested_intermediate_status": intermediate,
                     "next_step": (
                         f"record the review-start transition awaiting_review -> {intermediate}, "
-                        "validate status, then rerun async-research review aggregate"
+                        "or rerun async-research review aggregate with --record-review-start"
                     ),
                 }
             )
@@ -582,6 +622,7 @@ def aggregate_reviews(task_dir: Path, dry_run: bool) -> int:
             "routing_reason": reason,
             "human_gate_required": aggregate["human_gate_required"],
             "revision_limit_hit": revision_limit_hit,
+            "review_start_transition": review_start_transition,
         }
     )
     return SUCCESS
@@ -591,12 +632,17 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Deterministically aggregate async research reviews.")
     parser.add_argument("task_dir", type=Path)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--record-review-start",
+        action="store_true",
+        help="When a reviewed task is still awaiting_review, validate and record the missing single_review/panel_review transition before aggregating.",
+    )
     return parser.parse_args(list(argv))
 
 
 def main(argv: Iterable[str]) -> int:
     args = parse_args(argv)
-    return aggregate_reviews(args.task_dir, args.dry_run)
+    return aggregate_reviews(args.task_dir, args.dry_run, args.record_review_start)
 
 
 if __name__ == "__main__":

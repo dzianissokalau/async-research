@@ -150,13 +150,22 @@
       }
     },
     "human_gate_reason": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "status_reason": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "source_discovery_path": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "library_refs": {
       "type": "array",

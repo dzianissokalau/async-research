@@ -435,6 +435,21 @@ class IdeaCatalogValidatorTests(unittest.TestCase):
 
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_null_human_gate_reason_reaches_lifecycle_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_catalog(ops_dir)
+            candidate = valid_candidate("IDEA-0001")
+            candidate["status"] = "needs_human"
+            candidate["human_gate_reason"] = None
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", candidate)
+
+            _code, payload = run_helper_json(["validate", ops_dir])
+            failure_reasons = [item["reason"] for item in payload["failures"]]
+
+            self.assertIn("needs_human_missing_human_gate_reason", failure_reasons)
+            self.assertNotIn("candidate_schema_validation_failed", failure_reasons)
+
 
 if __name__ == "__main__":
     unittest.main()
