@@ -186,6 +186,7 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual("inbox", status_json["status"])
             self.assertIsNone(status_json["previous_status"])
             self.assertEqual("catalog_promotion_task_created", status_json["last_transition_reason"])
+            self.assertIn("research_ops/data_source_audit.md", status_json["allowed_paths"])
             self.assertIn("research_ops/data/**", status_json["allowed_paths"])
             self.assertEqual("IDEA-7401", status_json["catalog_idea_id"])
             self.assertEqual(proposal_ref["transaction_id"], status_json["catalog_promotion"]["transaction_id"])

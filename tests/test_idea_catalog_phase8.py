@@ -131,6 +131,7 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertIn("max_turns", proposal)
             self.assertIn("async-research source validate research_ops", proposal["validation_commands"])
             self.assertIn("async-research data validate research_ops", proposal["validation_commands"])
+            self.assertIn("research_ops/data_source_audit.md", proposal["allowed_paths"])
             self.assertIn("research_ops/data/**", proposal["allowed_paths"])
             self.assertIn("task_markdown_draft", proposal)
             for snippet in [

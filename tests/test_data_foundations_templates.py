@@ -81,6 +81,7 @@ class DataFoundationTemplateTests(unittest.TestCase):
             "traceable to this task",
         ]:
             self.assertIn(snippet, task_text)
+        self.assertIn("research_ops/data_source_audit.md", status_text)
         self.assertIn("research_ops/data/**", status_text)
 
     def test_data_foundation_templates_are_packaged_resources(self) -> None:
