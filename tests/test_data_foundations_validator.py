@@ -126,6 +126,36 @@ class DataFoundationValidatorTests(unittest.TestCase):
         self.assertIn("profile_path", audit_text)
         self.assertIn("data/profiles/DS-0001.md", audit_text)
 
+    def test_first_source_upsert_preserves_empty_optional_profile_path_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(GENERIC_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(ops_dir, {})
+
+            code, payload = run_cli_json(
+                [
+                    "source",
+                    "upsert",
+                    str(ops_dir),
+                    "--source-id",
+                    "DS-0001",
+                    "--source-name",
+                    "First Source",
+                    "--url-or-domain",
+                    "https://example.test/data",
+                    "--publisher-owner",
+                    "Test Publisher",
+                ]
+            )
+
+            audit_text = (ops_dir / "data_source_audit.md").read_text(encoding="utf-8")
+            source_code, source_payload = run_cli_json(["source", "validate", str(ops_dir)])
+
+        self.assertEqual(0, code, payload)
+        self.assertIn("profile_path", audit_text)
+        self.assertIn("| DS-0001 |", audit_text)
+        self.assertEqual(0, source_code, source_payload)
+        self.assertTrue(source_payload["ok"])
+
     def test_empty_optional_audit_profile_link_warns_for_experiment_ready_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
@@ -164,6 +194,26 @@ class DataFoundationValidatorTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         warning_reasons = {item["reason"] for item in payload["warnings"]}
         self.assertIn("audit_profile_link_missing", warning_reasons)
+
+    def test_noncanonical_and_mismatched_audit_profile_link_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir = copy_starter(REAL_ESTATE_STARTER, Path(tmpdir))
+            add_audit_profile_path_column(
+                ops_dir,
+                {
+                    "DS-0001": "data/profiles/DS-0002.md",
+                    "DS-0002": "data/profiles/DS-0002.md",
+                    "DS-0003": "data/profiles/DS-0003.md",
+                },
+            )
+
+            code, payload = run_cli_json(["data", "validate", str(ops_dir), "--now", "2026-05-08"])
+
+        self.assertEqual(2, code)
+        self.assertTrue(payload["ok"])
+        warning_reasons = {item["reason"] for item in payload["warnings"]}
+        self.assertIn("noncanonical_audit_profile_link", warning_reasons)
+        self.assertIn("audit_profile_link_source_mismatch", warning_reasons)
 
     def test_missing_data_dir_is_warning_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

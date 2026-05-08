@@ -201,6 +201,21 @@ def supported_table_fields(fields: list[str]) -> bool:
     return fields == FIELDS + OPTIONAL_FIELDS
 
 
+def declared_optional_fields(path: Path) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    for line in text.splitlines():
+        cells = split_table_row(line)
+        if not cells:
+            continue
+        normalized = [cell.lower() for cell in cells]
+        if supported_table_fields(normalized):
+            return [field for field in OPTIONAL_FIELDS if field in normalized]
+    return []
+
+
 def parse_register(path: Path) -> tuple[str, list[dict[str, str]]]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -585,6 +600,7 @@ def cmd_upsert(args: argparse.Namespace) -> int:
         print_json({"ok": False, "reason": "audit_validation_failed", "errors": existing_errors, "path": str(path)})
         return VALIDATION_FAILED
 
+    optional_fields = declared_optional_fields(path)
     current = row_map(rows)
     source_id = args.source_id
     new_source = source_id not in current
@@ -625,6 +641,8 @@ def cmd_upsert(args: argparse.Namespace) -> int:
     for key, value in updates.items():
         if value is not None:
             row[key] = clean_cell(value)
+    for field in optional_fields:
+        row.setdefault(field, "")
     row = canonical_row(row)
     if not row.get("last_reviewed"):
         row["last_reviewed"] = iso_date()
