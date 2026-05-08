@@ -64,7 +64,7 @@ class CliHelpTests(unittest.TestCase):
             (["version"], ["installed async-research package version"]),
             (["init"], ["Starter template", "--template", "--force", "existing non-empty"]),
             (["starter-smoke"], ["starter workspace", "--template", "--force"]),
-            (["acceptance-suite"], ["isolated temporary fixtures", "--work-dir", "--keep-work-dir", "Exits 0"]),
+            (["acceptance-suite"], ["isolated temporary fixtures", "promotion-write end-to-end acceptance", "--work-dir", "--keep-work-dir", "Exits 0"]),
             (["readiness"], ["Readiness exit codes:", "human action required"]),
             (["health"], ["accepted-memory health", "--dry-run", "--monthly-budget-usd", "--weekly-budget-usd"]),
             (["surface"], ["daily_status.md", "update", "validate"]),

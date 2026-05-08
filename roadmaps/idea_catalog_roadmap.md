@@ -186,7 +186,7 @@ Last updated: 2026-05-07
 | 8 | Promotion dry run | Complete | Adds read-only `idea promote` proposals with task-type routing, blocker reporting, duplicate override gating, experiment-plan gate checks, and no `queue.md` or task-folder mutation. |
 | 9 | Planner promotion behavior | Complete | Taught planner prompts and core docs to move from discovery inbox to durable catalog to dry-run promotion proposals; V2.8 supersedes the old manual task/queue closeout with promotion write mode. |
 | 10 | Dashboard read-only view | Complete | Adds read-only `idea catalog dashboard` portfolio views for active, parked, promoted, and rejected ideas, top blockers, score dimensions with `unavailable` for missing score artifacts, next tasks, and idea-to-task links. |
-| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, V2.6 task creation write mode, V2.7 failure/rollback hardening, and V2.8 operator docs shipped; remaining slice covers end-to-end acceptance. |
+| V2 | Promotion write mode | Complete | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, V2.6 task creation write mode, V2.7 failure/rollback hardening, V2.8 operator docs, and V2.9 end-to-end acceptance shipped. |
 
 ## Framework Integration
 
@@ -851,7 +851,7 @@ Implementation steps:
 | V2.6 | Task creation write mode | Complete | Extend `idea promote --write` to create one task folder, `task.md`, `status.json`, queue row, and canonical `promoted_task_id` update in one transaction. | Write succeeds only after dry-run promotion gates pass; schema/transition validation passes; `queue.md`, task folder, and idea JSON are mutually consistent; retry is idempotent only for a complete matching write. |
 | V2.7 | Failure and rollback hardening | Complete | Make all task-write failure paths observable and fail closed. | Tests cover validation failure after staged task files, queue append failure, idea JSON write failure, interrupted retry with existing artifacts, completion-check failure, and rollback audit messages with `rollback_ok`, `rollback_failures`, `requires_human`, and `next_step`. |
 | V2.8 | CLI, docs, and operator workflow | Complete | Update CLI help, README, planner docs, dashboard expectations, and review prompts for the new write behavior. | Help and docs distinguish proposal write mode from task creation write mode; dashboard displays `promoted_task_id` links after a successful write; exit-code contract is updated. |
-| V2.9 | End-to-end acceptance | Planned | Prove one real catalog idea can be promoted safely through write mode. | Focused tests, full unit suite, starter smokes, acceptance suite, benchmark, and a temp-workspace end-to-end promotion write all pass. |
+| V2.9 | End-to-end acceptance | Complete | Prove one real catalog idea can be promoted safely through write mode. | Focused tests, full unit suite, starter smokes, acceptance suite, benchmark, and a temp-workspace end-to-end promotion write all pass. |
 
 V2 has shipped its core write path in two sub-slices:
 
@@ -882,12 +882,13 @@ Atomicity requirements:
 - if queue append fails, remove staged task files
 - if final validation fails, rollback task files and queue row together
 
-Acceptance before v2 ships:
+Acceptance for shipped V2:
 
 - task creation is transactional
 - queue update is not duplicated on retry
 - validation runs after writes
 - rollback leaves no partial task folder
+- acceptance suite includes a disposable promotion-write end-to-end check
 - human override is required for high-cost or high-risk promotion
 
 ## AI Implementation Pattern

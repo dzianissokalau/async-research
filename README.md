@@ -272,7 +272,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research revision inspect <task-dir>` | Inspect revision counter fields. | Task `status.json`. | JSON to stdout only. |
 | `async-research revision scan-limits research_ops/tasks` | List tasks that hit revision limits. | Task status files. | JSON to stdout, or Markdown with `--markdown`. |
 | `async-research benchmark` | Run known-good and known-bad autonomy cases. | Packaged benchmark cases and runtime resources. | Isolated temporary fixtures and JSON to stdout. |
-| `async-research acceptance-suite` | Run the package hardening suite. | Packaged resources and isolated fixtures. | Isolated temporary fixtures and JSON to stdout. |
+| `async-research acceptance-suite` | Run the package hardening suite, including promotion-write end-to-end acceptance. | Packaged resources and isolated fixtures. | Isolated temporary fixtures and JSON to stdout. |
 | `async-research simulate-week research_ops --work-dir /tmp/async-research-sim` | Rehearse a scheduled week against an isolated copy. | The provided `research_ops/` workspace. | Temporary simulation copy and JSON to stdout; with `--keep-work-dir`, the copy is preserved for debugging. |
 
 Validator commands for specific artifact types are also available:

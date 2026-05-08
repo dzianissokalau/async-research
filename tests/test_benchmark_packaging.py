@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow.scripts import run_autonomy_benchmark
+from async_research_workflow.scripts import run_acceptance_suite
 from async_research_workflow.scripts import simulate_scheduled_week
 
 
@@ -37,6 +38,29 @@ class BenchmarkPackagingTests(unittest.TestCase):
         )
         self.assertEqual(0, code)
         self.assertEqual("methodology", simulation_payload["reviewer_role"])
+
+    def test_acceptance_suite_runs_promotion_write_end_to_end(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code, payload = run_acceptance_suite.run_promotion_write_acceptance(
+                Path(tmp) / "promotion-write" / "research_ops"
+            )
+
+            self.assertEqual(0, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("promotion_write_end_to_end_passed", payload["action"])
+            self.assertEqual("IDEA-9901", payload["idea_id"])
+            self.assertEqual("TASK-9901", payload["task_id"])
+            self.assertTrue(Path(payload["task_dir"]).exists())
+            self.assertEqual(
+                [
+                    "init",
+                    "promotion_dry_run",
+                    "promotion_write",
+                    "catalog_validate",
+                    "catalog_dashboard",
+                ],
+                [step["name"] for step in payload["steps"]],
+            )
 
     def test_benchmark_refuses_work_dir_inside_research_ops(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

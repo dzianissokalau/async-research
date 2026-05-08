@@ -907,7 +907,7 @@ def register_package_commands(subparsers) -> None:
         subparsers,
         "acceptance-suite",
         help="Run isolated package acceptance checks.",
-        description="Run the durable package acceptance suite against isolated temporary fixtures.",
+        description="Run the durable package acceptance suite against isolated temporary fixtures, including promotion-write end-to-end acceptance.",
         epilog="Exits 0 when all checks pass, 1 when any acceptance check fails.",
     )
     acceptance.add_argument("--work-dir", type=Path, help="Use this fixture directory instead of the default temp path.")
