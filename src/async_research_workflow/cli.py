@@ -443,6 +443,13 @@ def run_source_explain_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_data_validate_command(args: argparse.Namespace) -> int:
+    argv = ["validate", str(args.ops_dir)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("data_foundations", argv)
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -1201,6 +1208,26 @@ def register_source_commands(subparsers) -> None:
     explain.set_defaults(func=run_source_explain_command)
 
 
+def register_data_commands(subparsers) -> None:
+    data = add_command(
+        subparsers,
+        "data",
+        help="Validate data foundation readiness files.",
+        description="Validate data foundation readiness by inspecting research_ops/data profiles, access notes, join caveats, and known gaps without mutating files.",
+    )
+    data_sub = data.add_subparsers(dest="data_command", required=True)
+    validate = add_command(
+        data_sub,
+        "validate",
+        help="Validate research_ops/data contracts.",
+        description="Read-only validation for research_ops/data profiles, source-profile linkage, access notes, join caveats, and known gap references.",
+        epilog="Exits 0 when ready, 2 for warning-only readiness findings, and 4 for malformed tables or identity errors.",
+    )
+    add_common_ops(validate)
+    validate.add_argument("--now", help="Override current time for deterministic profile freshness checks.")
+    validate.set_defaults(func=run_data_validate_command)
+
+
 def register_cost_commands(subparsers) -> None:
     cost = add_command(
         subparsers,
@@ -1794,6 +1821,7 @@ COMMAND_REGISTRARS = (
     register_decision_commands,
     register_escalation_commands,
     register_source_commands,
+    register_data_commands,
     register_cost_commands,
     register_batch_commands,
     register_metrics_commands,

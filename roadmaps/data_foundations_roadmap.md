@@ -170,7 +170,7 @@ Last updated: 2026-05-08
 | ---: | --- | --- | --- | --- |
 | 0 | Lock execution decisions | Complete | Capture V1 scope, profile requirement policy, audit link strategy, validator exit codes, compatibility rules, and first test matrix before implementation starts. | This roadmap now defines contract-first execution and preserves `data_source_audit.md` schema `1.0`. |
 | 1 | Starter files and profile contract | Complete | Add `research_ops/data/` starter files to generic and real-estate templates and document `data/profiles/DS-0000.md`. | Adds starter data catalog, access, join map, known gaps, profile contract README, and real-estate seed profiles for existing audited sources. |
-| 2 | Data validator | Not started | Add read-only `async-research data validate research_ops` covering empty foundations, duplicate profiles, profile-to-audit mismatches, missing access notes, stale reviews, and join caveats. | MVP completes when this command has tests and existing source validation remains unchanged. Audit-row-to-profile checks wait for Phase 3 optional audit-side linkage. |
+| 2 | Data validator | Complete | Add read-only `async-research data validate research_ops` covering empty foundations, duplicate profiles, profile-to-audit mismatches, missing access notes, stale reviews, join caveats, and active idea gap refs. | Adds the public `data validate` command, README exit-code docs, and validator tests for generic/real-estate starters, warning-only cold start, profile identity errors, projection drift, template ignore, and idea gap refs. Audit-row-to-profile checks wait for Phase 3 optional audit-side linkage. |
 | 3 | Optional source audit linkage | Not started | Add docs and optional parser support so experiment-ready audit rows may reference profiles without requiring old workspaces to change. | Do not change the audit table shape until compatibility tests exist. |
 | 4 | Data-readiness task hardening | Not started | Update `data_readiness` task guidance so workers produce profile drafts/updates, recommended audit status, access check results, field/grain coverage, join feasibility, limitations, and kill reasons. | Should remain traceable to reviewed tasks and current source-audit commands. |
 | 5 | Health, readiness, and gates | Not started | Surface stale, blocked, missing, and unaudited data dependencies in `health`, `readiness`, weekly digest, experiment planning, and result acceptance. | Start as warning-only where possible, then add strict mode where appropriate. |
@@ -309,6 +309,9 @@ Acceptance:
 - valid empty data foundation passes or returns warning-only status
 - approved source with missing access path is flagged
 - blocked or stale sources remain blocked for experiment planning
+- profile/audit projection drift is warning-level unless identity or missing
+  audit-row checks fail
+- warning-only findings return exit `2` with `ok: true`
 
 ### Slice 5: Data Readiness Task
 

@@ -157,6 +157,10 @@ async-research init research_ops --template real-estate
 For manual operations and recovery, start with the
 [Operational Readiness Runbook](./operational_readiness_runbook.md).
 
+Run `async-research data validate research_ops` after editing `data/` files to
+check profile/source linkage, access notes, join caveats, and known gap refs
+without mutating the workspace.
+
 ## Recommended First Setup
 
 Create this operational folder in the working research repo:

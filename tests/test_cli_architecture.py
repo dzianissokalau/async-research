@@ -43,6 +43,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_decision_commands",
                 "register_escalation_commands",
                 "register_source_commands",
+                "register_data_commands",
                 "register_cost_commands",
                 "register_batch_commands",
                 "register_metrics_commands",
@@ -75,6 +76,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "decision",
                 "escalation",
                 "source",
+                "data",
                 "cost",
                 "batch",
                 "metrics",
@@ -150,6 +152,7 @@ class CliArchitectureTests(unittest.TestCase):
     def test_build_parser_registers_nested_aliases(self) -> None:
         choices = subparser_choices(cli.build_parser())
         source_choices = subparser_choices(choices["source"])
+        data_choices = subparser_choices(choices["data"])
         queue_choices = subparser_choices(choices["queue"])
         decision_choices = subparser_choices(choices["decision"])
         escalation_choices = subparser_choices(choices["escalation"])
@@ -167,6 +170,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"], list(source_choices))
+        self.assertEqual(["validate"], list(data_choices))
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["init", "validate-manifest", "submit", "complete", "ingest", "mark-reviewed", "trust-status"], list(batch_choices))
         self.assertEqual(["append", "summarize"], list(metrics_choices))
