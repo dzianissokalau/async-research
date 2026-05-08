@@ -309,7 +309,7 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
             self.assertIn("reserved_task_id_claimed_by_other_idea", self.blocker_reasons(payload))
             self.assertIsNone(payload["proposal"])
 
-    def test_re_running_same_write_command_does_not_duplicate_proposal(self) -> None:
+    def test_re_running_same_write_command_is_idempotent_when_task_is_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             self.write_audited_source(ops_dir)
@@ -342,9 +342,10 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
                 ]
             )
 
-            self.assertEqual(2, second_code, second)
-            self.assertEqual("duplicate_promotion_proposal", second["reason"])
-            self.assertEqual("TASK-7508-data-readiness", second["existing_proposal_ref"]["proposed_task_slug"])
+            self.assertEqual(cli.SUCCESS, second_code, second)
+            self.assertEqual("idea_promotion_task_already_written", second["action"])
+            self.assertFalse(second["changed"])
+            self.assertEqual("TASK-7508-data-readiness", second["proposal_ref"]["proposed_task_slug"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
 

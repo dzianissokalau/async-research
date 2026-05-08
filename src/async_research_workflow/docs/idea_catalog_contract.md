@@ -399,17 +399,18 @@ The dashboard summary distinguishes issue volume from the capped blocker list:
 
 ## V2 Promotion Write Contract And Preflight
 
-V2.1 was a design and test-preflight slice. V2.2 enables proposal write mode
-only: operators must run `async-research idea promote ... --dry-run`, copy the
-returned `promotion_preflight_hash`, then run `async-research idea promote ...
---write --preflight-hash <hash>`.
+V2.1 was a design and test-preflight slice. V2.6 promotes the write path from
+proposal-only to task creation: operators must run
+`async-research idea promote ... --dry-run`, copy the returned
+`promotion_preflight_hash`, then run `async-research idea promote ... --write
+--preflight-hash <hash>`.
 
-V2.2 `--write` appends one planner-facing proposal reference to
-`research_ops/inbox.md`, updates the selected canonical idea with
-`promotion_proposal_refs`, `latest_promotion_proposal_id`, and a
-`decision_history` entry, and regenerates idea projections. It does not create
-task folders, append `queue.md`, set `promoted_task_id`, or mutate source or
-accepted-output ledgers.
+V2.6 `--write` appends one planner-facing proposal reference to
+`research_ops/inbox.md`, creates one reserved `tasks/TASK-*/` folder with
+`task.md` and `status.json`, appends one `queue.md` row, updates the selected
+canonical idea with `promotion_proposal_refs`, `latest_promotion_proposal_id`,
+`promoted_task_id`, and a `decision_history` entry, and regenerates idea
+projections. It does not mutate source or accepted-output ledgers.
 
 Promotion write mode remains split into two write slices:
 
@@ -418,12 +419,10 @@ Promotion write mode remains split into two write slices:
 | Proposal write mode | `research_ops/inbox.md`, the selected `ideas/IDEA-*.json` proposal reference fields, generated idea projections, and `decision_history` for the proposal reference. | `queue.md`, `tasks/`, accepted-output ledgers, source audit rows, and unrelated idea records. |
 | Task creation write mode | One new `tasks/TASK-*/` folder, one `queue.md` row, the selected idea's `promoted_task_id`, generated idea projections, and transaction/audit metadata. | More than one task, unrelated queue rows, unrelated ideas, source audit state, accepted-output ledgers, and manual notes outside generated blocks. |
 
-CLI evolution is staged. In V2.2, `idea promote --write` performs proposal
-writes only and does not create task folders or edit `queue.md`. In V2.6,
+CLI evolution is staged. In V2.2, `idea promote --write` performed proposal
+writes only and did not create task folders or edit `queue.md`. As of V2.6,
 `idea promote --write` composes proposal write and task creation write in one
-invocation under one catalog lock acquisition. If later implementation chooses
-separate flags instead, this contract and its tests must be updated before
-runtime code changes.
+invocation under one catalog lock acquisition.
 
 Required lock ordering:
 
@@ -444,10 +443,10 @@ Required lock ordering:
    it must be acquired after the catalog lock and released before the catalog
    lock to avoid deadlocks.
 
-V2.5 defines the deterministic task-id reservation rule before task files are
+V2.5 defined the deterministic task-id reservation rule before task files are
 finalized. The reserved TASK ID reuses the selected IDEA numeric suffix:
 `IDEA-7501 -> TASK-7501`, with a task folder slug such as
-`TASK-7501-data-readiness`. Promotion dry-run and proposal write payloads expose
+`TASK-7501-data-readiness`. Promotion dry-run and task write payloads expose
 this identity as `task_identity`, `proposal.proposed_task_id`, and
 `proposal.proposed_task_slug`.
 
@@ -478,10 +477,11 @@ the dry-run proposal task type. If any of those fields change between dry-run
 and write, the write must refuse with `reason=promotion_preflight_changed` and
 tell the operator to rerun `--dry-run`.
 
-V2.2 duplicate handling is intentionally conservative: a second proposal write
-with the same idempotency key must refuse with
-`reason=duplicate_promotion_proposal`; an inbox row with a matching idempotency
-key but no idea proposal reference must refuse with
+V2.6 duplicate handling is conservative but retry-friendly: a second write with
+the same preflight hash may return `action=idea_promotion_task_already_written`
+only when the existing task folder, queue row, inbox row, idea `promoted_task_id`,
+catalog idea id, idempotency key, and transaction id all match. An inbox row with
+a matching idempotency key but no idea proposal reference must refuse with
 `reason=promotion_proposal_recovery_required`.
 
 Rollback boundaries:
@@ -496,22 +496,20 @@ Rollback boundaries:
 
 Human override rules are slice-specific.
 
-For V2.2 proposal write mode, human override is required when any of these are
+For promotion task write mode, human override is required when any of these are
 true:
 
 - `--allow-duplicate` is needed for a duplicate or near-duplicate idea.
 - the dry-run proposal routes to `experiment_plan`.
 - the proposal has `review_tier >= 2` or `max_minutes > 75`.
 - catalog validation returns failures or blocking promotion reasons.
-
-V2.2 has no projected spend, task creation, or queue mutation, so it does not
-run `async-research cost budget-check` or fuzzy related task/queue matching
-inside proposal write mode. Before V2.6 task creation write mode ships, human
-override must also be required when any of these are true:
-
-- projected spend fails `async-research cost budget-check`.
 - an existing task, queue row, or proposal appears related but does not match
   the current idempotency key.
+
+Future hardening may require an additional human override when any of these are
+true:
+
+- projected spend fails `async-research cost budget-check`.
 
 Preflight tests for V2.2 and later must cover duplicate retry, stale
 `research_ops/ideas/LOCK`, changed candidate between dry-run and write, partial

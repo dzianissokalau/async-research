@@ -25,24 +25,25 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
         self.assert_doc_contains(
             ROADMAP,
             [
-                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, and V2.5 task-id reservation rules shipped; task creation write mode remains deferred until the V2.6 transaction exists. |",
+                "| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, and V2.6 task creation write mode shipped; remaining slices harden failure observability, docs, and end-to-end acceptance. |",
                 "| V2.1 | Contract and preflight design | Complete |",
                 "| V2.2 | Proposal write mode | Complete |",
                 "| V2.3 | Proposal write recovery tests | Complete |",
                 "| V2.4 | Task transaction helper design | Complete |",
                 "| V2.5 | Task ID and idempotency rules | Complete |",
-                "| V2.6 | Task creation write mode | Planned |",
+                "| V2.6 | Task creation write mode | Complete |",
             ],
         )
 
-    def test_contract_documents_v22_proposal_write_only(self) -> None:
+    def test_contract_documents_v26_task_write(self) -> None:
         self.assert_doc_contains(
             CONTRACT,
             [
-                "V2.1 was a design and test-preflight slice. V2.2 enables proposal write mode only",
+                "V2.1 was a design and test-preflight slice. V2.6 promotes the write path from proposal-only to task creation",
                 "operators must run `async-research idea promote ... --dry-run`, copy the returned `promotion_preflight_hash`",
                 "--write --preflight-hash <hash>",
-                "It does not create task folders, append `queue.md`, set `promoted_task_id`, or mutate source or accepted-output ledgers.",
+                "creates one reserved `tasks/TASK-*/` folder with `task.md` and `status.json`, appends one `queue.md` row",
+                "It does not mutate source or accepted-output ledgers.",
             ],
         )
 
@@ -63,9 +64,8 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
             CONTRACT,
             [
                 "CLI evolution is staged.",
-                "In V2.2, `idea promote --write` performs proposal writes only and does not create task folders or edit `queue.md`.",
-                "In V2.6, `idea promote --write` composes proposal write and task creation write in one invocation under one catalog lock acquisition.",
-                "If later implementation chooses separate flags instead, this contract and its tests must be updated before runtime code changes.",
+                "In V2.2, `idea promote --write` performed proposal writes only and did not create task folders or edit `queue.md`.",
+                "As of V2.6, `idea promote --write` composes proposal write and task creation write in one invocation under one catalog lock acquisition.",
             ],
         )
 
@@ -115,15 +115,14 @@ class IdeaCatalogV2ContractTests(unittest.TestCase):
             CONTRACT,
             [
                 "Human override rules are slice-specific.",
-                "For V2.2 proposal write mode, human override is required when any of these are true:",
+                "For promotion task write mode, human override is required when any of these are true:",
                 "`--allow-duplicate` is needed for a duplicate or near-duplicate idea.",
                 "the dry-run proposal routes to `experiment_plan`.",
                 "the proposal has `review_tier >= 2` or `max_minutes > 75`.",
                 "catalog validation returns failures or blocking promotion reasons.",
-                "V2.2 has no projected spend, task creation, or queue mutation, so it does not run `async-research cost budget-check` or fuzzy related task/queue matching inside proposal write mode.",
-                "Before V2.6 task creation write mode ships, human override must also be required when any of these are true:",
-                "projected spend fails `async-research cost budget-check`.",
                 "an existing task, queue row, or proposal appears related but does not match the current idempotency key.",
+                "Future hardening may require an additional human override when any of these are true:",
+                "projected spend fails `async-research cost budget-check`.",
             ],
         )
 

@@ -44,6 +44,7 @@ from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
 from async_research_workflow.idea_catalog import validate_candidate_record
 from async_research_workflow.scripts import task_transaction
+from async_research_workflow.scripts.version_metadata import apply_default_versions
 
 
 SUCCESS = 0
@@ -65,7 +66,7 @@ CAPTURE_DRAFT_POLICY_VERSION = "catalog_capture_dry_run_v1.0"
 CATALOG_LOCK_TTL = timedelta(minutes=30)
 TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
 PROMOTION_DRY_RUN_POLICY_VERSION = "catalog_promotion_dry_run_v1.0"
-PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_proposal_write_v2.5"
+PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_task_write_v2.6"
 TASK_ID_RESERVATION_POLICY_VERSION = "catalog_task_id_reservation_v2.5"
 INBOX_FILE = "inbox.md"
 INBOX_TEMPLATE = "# Inbox\n\n| item | source | notes |\n| --- | --- | --- |\n"
@@ -88,6 +89,51 @@ def post_write_failure_context(files_written: list[dict[str, Any]]) -> dict[str,
         "warning": "files were written before post-write validation detected a failure; no automatic rollback was attempted",
         "next_step": "run async-research idea catalog validate to inspect catalog state before retrying",
     }
+
+
+def snapshot_files(paths: list[Path]) -> dict[Path, bytes | None]:
+    snapshots: dict[Path, bytes | None] = {}
+    for path in paths:
+        try:
+            snapshots[path] = path.read_bytes() if path.exists() else None
+        except OSError:
+            snapshots[path] = None
+    return snapshots
+
+
+def restore_file_snapshots(snapshots: dict[Path, bytes | None]) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    for path, content in snapshots.items():
+        if content is None:
+            if path.exists():
+                try:
+                    path.unlink()
+                    actions.append({"path": str(path), "action": "restore_absent_file", "changed": True})
+                except OSError as exc:
+                    actions.append(
+                        {
+                            "path": str(path),
+                            "action": "restore_absent_file_failed",
+                            "changed": False,
+                            "error": str(exc),
+                        }
+                    )
+            else:
+                actions.append({"path": str(path), "action": "restore_absent_file", "changed": False})
+            continue
+        try:
+            changed = atomic_write_bytes(path, content)
+            actions.append({"path": str(path), "action": "restore_file_snapshot", "changed": changed})
+        except OSError as exc:
+            actions.append(
+                {
+                    "path": str(path),
+                    "action": "restore_file_snapshot_failed",
+                    "changed": False,
+                    "error": str(exc),
+                }
+            )
+    return actions
 
 
 class CatalogLockError(RuntimeError):
@@ -393,6 +439,24 @@ def validate_records_for_write(ops_dir: Path, records: list[dict[str, Any]]) -> 
         _warnings, record_failures = validate_candidate_record(record, ops_dir)
         failures.extend(record_failures)
     return failures
+
+
+def pre_task_promotion_validation_failures(
+    ops_dir: Path,
+    records: list[dict[str, Any]],
+    idea_id: str,
+    task_id: str,
+) -> list[dict[str, Any]]:
+    failures = validate_records_for_write(ops_dir, records)
+    return [
+        failure
+        for failure in failures
+        if not (
+            failure.get("reason") == "stale_promoted_task_id"
+            and failure.get("candidate_id") == idea_id
+            and failure.get("promoted_task_id") == task_id
+        )
+    ]
 
 
 def write_catalog_outputs(
@@ -2153,18 +2217,37 @@ def promotion_task_proposal(
         "title": task_title,
         "type": task_type,
         "status": "inbox",
+        "previous_status": None,
+        "last_transition_reason": "catalog_promotion_task_created",
         "priority": payload.get("human_priority") if isinstance(payload.get("human_priority"), int) else 2,
+        "revision_count": 0,
+        "max_revisions": 1,
+        "revision_limit_hit": False,
+        "created_at": TIMESTAMP_PLACEHOLDER,
+        "updated_at": TIMESTAMP_PLACEHOLDER,
         "allowed_paths": promotion_allowed_paths(task_type, idea_id, slug),
+        "allowed_tools": ["repo_read", "markdown_edit"],
         "allow_browsing": task_type in {"literature_extract", "data_readiness"},
         "allow_code_execution": False,
         "allow_network": task_type in {"literature_extract", "data_readiness"},
         "max_minutes": limits["max_minutes"],
         "max_turns": limits["max_turns"],
+        "model_tier": "standard",
         "review_policy": {
             "tier": limits["review_tier"],
             "required_reviewers": ["primary"] if limits["review_tier"] == 1 else ["primary", "methodology"],
             "panel_required": limits["review_tier"] >= 2,
             "human_required_for_acceptance": False,
+        },
+        "requires_human": False,
+        "budget": {
+            "max_api_usd": 1.0,
+            "max_compute_usd": 0.0,
+        },
+        "result": {
+            "recommendation": None,
+            "claim_strength": "none",
+            "followup_count": 0,
         },
         "data_audit_refs": refs["data_refs"],
         "catalog_idea_id": idea_id,
@@ -2175,6 +2258,7 @@ def promotion_task_proposal(
             "reservation_policy": TASK_ID_RESERVATION_POLICY_VERSION,
         },
     }
+    apply_default_versions(status_json_draft)
     task_markdown_draft = "\n".join(
         [
             f"# {task_id}: {task_title}",
@@ -2337,6 +2421,16 @@ def existing_promotion_proposal_ref(payload: dict[str, Any], idempotency_key: st
     return None
 
 
+def existing_promotion_ref_by_preflight_hash(payload: dict[str, Any], preflight_hash: str) -> dict[str, Any] | None:
+    refs = payload.get("promotion_proposal_refs")
+    if not isinstance(refs, list):
+        return None
+    for ref in refs:
+        if isinstance(ref, dict) and ref.get("promotion_preflight_hash") == preflight_hash:
+            return ref
+    return None
+
+
 def inbox_contains_idempotency_key(ops_dir: Path, idempotency_key: str) -> bool:
     inbox_path = ops_dir / INBOX_FILE
     if not inbox_path.exists():
@@ -2391,6 +2485,43 @@ def append_inbox_proposal(ops_dir: Path, proposal_ref: dict[str, Any], proposal:
     return {"path": str(inbox_path), "action": "append_promotion_proposal", "changed": changed}, None
 
 
+def promotion_task_status_json(proposal: dict[str, Any], proposal_ref: dict[str, Any], now: datetime) -> dict[str, Any]:
+    status_json = copy.deepcopy(proposal["status_json_draft"])
+    timestamp = utc_timestamp(now)
+    status_json["created_at"] = timestamp
+    status_json["updated_at"] = timestamp
+    status_json["catalog_promotion"] = {
+        **status_json.get("catalog_promotion", {}),
+        "proposal_id": proposal_ref["proposal_id"],
+        "transaction_id": proposal_ref["transaction_id"],
+        "promotion_preflight_hash": proposal_ref["promotion_preflight_hash"],
+        "write_policy_version": PROMOTION_WRITE_POLICY_VERSION,
+        "dry_run_policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
+    }
+    apply_default_versions(status_json)
+    return status_json
+
+
+def promotion_queue_row(proposal: dict[str, Any], proposal_ref: dict[str, Any]) -> dict[str, Any]:
+    task_id = str(proposal["proposed_task_id"])
+    task_dir_name = str(proposal["proposed_task_slug"])
+    notes = (
+        f"catalog_idea_id={proposal_ref['idea_id']}; "
+        f"proposal_id={proposal_ref['proposal_id']}; "
+        f"transaction_id={proposal_ref['transaction_id']}; "
+        f"idempotency_key={proposal_ref['idempotency_key']}"
+    )
+    return {
+        "task_id": task_id,
+        "task_dir_name": task_dir_name,
+        "priority": proposal["status_json_draft"].get("priority"),
+        "status": proposal["status_json_draft"].get("status"),
+        "type": proposal["task_type"],
+        "next_runner": "planner",
+        "notes": notes,
+    }
+
+
 def updated_payload_with_promotion_proposal(
     record: dict[str, Any],
     proposal_ref: dict[str, Any],
@@ -2424,13 +2555,107 @@ def updated_payload_with_promotion_proposal(
     return updated
 
 
+def updated_payload_with_promotion_task(
+    record: dict[str, Any],
+    proposal_ref: dict[str, Any],
+    task_id: str,
+    now: datetime,
+) -> dict[str, Any]:
+    updated = copy.deepcopy(record["payload"])
+    refs = updated.get("promotion_proposal_refs")
+    if not isinstance(refs, list):
+        refs = []
+    refs.append(proposal_ref)
+    updated["promotion_proposal_refs"] = refs
+    updated["latest_promotion_proposal_id"] = proposal_ref["proposal_id"]
+    updated["promoted_task_id"] = task_id
+    previous_status = str(updated.get("status") or "candidate")
+    updated["status"] = "promoted"
+    updated["status_reason"] = f"promoted to {task_id} via {proposal_ref['proposal_id']}"
+    history = updated.get("decision_history")
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "at": utc_timestamp(now),
+            "from_status": previous_status,
+            "to_status": "promoted",
+            "reason": f"promotion task written to {proposal_ref['queue_ref']}",
+            "actor": "catalog_promotion_write",
+            "transaction_id": proposal_ref["transaction_id"],
+            "idempotency_key": proposal_ref["idempotency_key"],
+            "proposal_id": proposal_ref["proposal_id"],
+            "task_id": task_id,
+        }
+    )
+    updated["decision_history"] = history
+    updated["updated_at"] = utc_timestamp(now)
+    return updated
+
+
+def promotion_task_write_completion(
+    ops_dir: Path,
+    payload: dict[str, Any],
+    proposal_ref: dict[str, Any],
+) -> dict[str, Any]:
+    task_id = str(proposal_ref.get("task_id") or payload.get("promoted_task_id") or "").strip()
+    failures: list[dict[str, Any]] = []
+    if not task_id:
+        failures.append({"reason": "promotion_task_id_missing"})
+    elif str(payload.get("promoted_task_id") or "").strip() != task_id:
+        failures.append(
+            {
+                "reason": "promoted_task_id_mismatch",
+                "expected": task_id,
+                "actual": payload.get("promoted_task_id"),
+            }
+        )
+
+    if payload.get("status") != "promoted":
+        failures.append({"reason": "idea_not_marked_promoted", "status": payload.get("status")})
+
+    idempotency_key = str(proposal_ref.get("idempotency_key") or "")
+    if idempotency_key and not inbox_contains_idempotency_key(ops_dir, idempotency_key):
+        failures.append({"reason": "inbox_proposal_ref_missing", "idempotency_key": idempotency_key})
+
+    if task_id and not task_transaction.queue_contains_task(ops_dir, task_id):
+        failures.append({"reason": "queue_row_missing", "task_id": task_id})
+
+    task_statuses = task_status_payloads_for_id(ops_dir, task_id) if task_id else []
+    matching_statuses: list[dict[str, Any]] = []
+    for item in task_statuses:
+        status_payload = item.get("payload", {})
+        catalog_promotion = status_payload.get("catalog_promotion")
+        if (
+            isinstance(catalog_promotion, dict)
+            and catalog_promotion.get("idempotency_key") == idempotency_key
+            and catalog_promotion.get("transaction_id") == proposal_ref.get("transaction_id")
+            and status_payload.get("catalog_idea_id") == proposal_ref.get("idea_id")
+        ):
+            matching_statuses.append(item)
+    if task_id and not matching_statuses:
+        failures.append(
+            {
+                "reason": "task_status_promotion_metadata_missing",
+                "task_id": task_id,
+                "status_payload_paths": [item["status_path"] for item in task_statuses],
+            }
+        )
+
+    return {
+        "ok": not failures,
+        "task_id": task_id or None,
+        "task_statuses": matching_statuses,
+        "failures": failures,
+    }
+
+
 def write_human_override_blockers(proposal: dict[str, Any]) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     task_type = str(proposal.get("task_type") or "")
     max_minutes = proposal.get("max_minutes")
     review_tier = proposal.get("status_json_draft", {}).get("review_policy", {}).get("tier")
-    # V2.5 proposal writes reserve a task id but do not create tasks or spend budget.
-    # V2.6 task-write should add budget and queue gates here.
+    # Write mode creates a real task/queue row, so higher-risk routes require a recorded override.
     if task_type == "experiment_plan":
         blockers.append({"reason": "experiment_plan_write_requires_human_override"})
     if isinstance(review_tier, int) and review_tier >= 2:
@@ -2465,10 +2690,61 @@ def promotion_write(args: argparse.Namespace) -> int:
     lock: dict[str, Any] | None = None
     try:
         lock = acquire_catalog_lock(args.ops_dir, "idea promote --write")
+
         dry_args = copy.copy(args)
         dry_args.write = False
         plan_code, plan = build_promotion_plan(dry_args)
         if plan_code != SUCCESS:
+            retry_model = read_catalog(args.ops_dir)
+            if not retry_model["failures"] and duplicate_record_failure(retry_model, args.idea_id) is None:
+                retry_record = find_catalog_record(retry_model, args.idea_id)
+                if retry_record is not None:
+                    previous_ref = existing_promotion_ref_by_preflight_hash(
+                        retry_record["payload"],
+                        args.preflight_hash,
+                    )
+                    if previous_ref is not None:
+                        completion = promotion_task_write_completion(args.ops_dir, retry_record["payload"], previous_ref)
+                        if completion["ok"]:
+                            validation = catalog_validation_report_from_model(args.ops_dir, retry_model)
+                            print_json(
+                                {
+                                    "ok": True,
+                                    "action": "idea_promotion_task_already_written",
+                                    "policy_version": PROMOTION_WRITE_POLICY_VERSION,
+                                    "ops_dir": str(args.ops_dir),
+                                    "idea_id": args.idea_id,
+                                    "dry_run": False,
+                                    "changed": False,
+                                    "lock": lock,
+                                    "transaction_id": previous_ref.get("transaction_id"),
+                                    "idempotency_key": previous_ref.get("idempotency_key"),
+                                    "promotion_preflight_hash": args.preflight_hash,
+                                    "proposal_ref": previous_ref,
+                                    "task_id": completion["task_id"],
+                                    "task_statuses": completion["task_statuses"],
+                                    "files_written": [],
+                                    "validation": {
+                                        "ok": validation.get("ok", False),
+                                        "candidate_count": validation.get("candidate_count", 0),
+                                        "warning_count": len(validation.get("warnings", [])),
+                                        "failure_count": len(validation.get("failures", [])),
+                                    },
+                                }
+                            )
+                            return SUCCESS
+                        print_json(
+                            {
+                                "ok": False,
+                                "action": "idea_promotion_write_refused",
+                                "reason": "promotion_task_recovery_required",
+                                "message": "this idea already records the promotion preflight hash, but the task, queue, and idea artifacts are not mutually complete",
+                                "existing_proposal_ref": previous_ref,
+                                "completion_failures": completion["failures"],
+                                "lock": lock,
+                            }
+                        )
+                        return VALIDATION_FAILED
             print_json(
                 {
                     "ok": False,
@@ -2477,8 +2753,8 @@ def promotion_write(args: argparse.Namespace) -> int:
                     "lock": lock,
                     "dry_run_plan": plan,
                     "would_not_write": [
-                        {"path": str(args.ops_dir / "queue.md"), "reason": "proposal write mode never edits queue.md"},
-                        {"path": str(args.ops_dir / "tasks"), "reason": "proposal write mode never creates task folders"},
+                        {"path": str(args.ops_dir / "queue.md"), "reason": "write mode did not pass dry-run gates"},
+                        {"path": str(args.ops_dir / "tasks"), "reason": "write mode did not pass dry-run gates"},
                     ],
                 }
             )
@@ -2531,13 +2807,43 @@ def promotion_write(args: argparse.Namespace) -> int:
         idempotency_key = str(plan["idempotency_key"])
         existing_ref = existing_promotion_proposal_ref(record["payload"], idempotency_key)
         if existing_ref is not None:
+            completion = promotion_task_write_completion(args.ops_dir, record["payload"], existing_ref)
+            if completion["ok"]:
+                validation = catalog_validation_report_from_model(args.ops_dir, model)
+                print_json(
+                    {
+                        "ok": True,
+                        "action": "idea_promotion_task_already_written",
+                        "policy_version": PROMOTION_WRITE_POLICY_VERSION,
+                        "ops_dir": str(args.ops_dir),
+                        "idea_id": args.idea_id,
+                        "dry_run": False,
+                        "changed": False,
+                        "lock": lock,
+                        "transaction_id": existing_ref.get("transaction_id"),
+                        "idempotency_key": idempotency_key,
+                        "promotion_preflight_hash": preflight_hash,
+                        "proposal_ref": existing_ref,
+                        "task_id": completion["task_id"],
+                        "task_statuses": completion["task_statuses"],
+                        "files_written": [],
+                        "validation": {
+                            "ok": validation.get("ok", False),
+                            "candidate_count": validation.get("candidate_count", 0),
+                            "warning_count": len(validation.get("warnings", [])),
+                            "failure_count": len(validation.get("failures", [])),
+                        },
+                    }
+                )
+                return SUCCESS
             print_json(
                 {
                     "ok": False,
                     "action": "idea_promotion_write_refused",
-                    "reason": "duplicate_promotion_proposal",
-                    "message": "this idea already records a proposal with the same idempotency key",
+                    "reason": "promotion_task_recovery_required",
+                    "message": "this idea already records a proposal with the same idempotency key, but the task, queue, and idea artifacts are not mutually complete",
                     "existing_proposal_ref": existing_ref,
+                    "completion_failures": completion["failures"],
                     "idempotency_key": idempotency_key,
                     "lock": lock,
                 }
@@ -2562,6 +2868,8 @@ def promotion_write(args: argparse.Namespace) -> int:
         now = utc_now()
         proposal_id = promotion_proposal_id(args.idea_id, str(proposal["task_type"]), preflight_hash)
         transaction_id = promotion_transaction_id(now, args.idea_id, preflight_hash)
+        task_id = str(proposal["proposed_task_id"])
+        task_dir_name = str(proposal["proposed_task_slug"])
         proposal_ref = {
             "proposal_id": proposal_id,
             "transaction_id": transaction_id,
@@ -2571,18 +2879,21 @@ def promotion_write(args: argparse.Namespace) -> int:
             "idea_id": args.idea_id,
             "task_type": proposal["task_type"],
             "proposed_task_slug": proposal["proposed_task_slug"],
+            "task_id": task_id,
+            "task_dir": f"tasks/{task_dir_name}",
+            "queue_ref": f"queue.md#{task_id}",
             "created_at": utc_timestamp(now),
-            "status": "proposal_written",
+            "status": "task_written",
             "policy_version": PROMOTION_WRITE_POLICY_VERSION,
             "dry_run_policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
             "human_override": bool(args.human_override),
             "duplicate_allowed": bool(args.allow_duplicate),
         }
-        updated = updated_payload_with_promotion_proposal(record, proposal_ref, now)
+        updated = updated_payload_with_promotion_task(record, proposal_ref, task_id, now)
         idea_path = Path(str(record["path"]))
         payloads_by_path = {idea_path: updated}
         records = records_after_payloads(args.ops_dir, model, payloads_by_path)
-        validation_failures = validate_records_for_write(args.ops_dir, records)
+        validation_failures = pre_task_promotion_validation_failures(args.ops_dir, records, args.idea_id, task_id)
         if validation_failures:
             print_json(
                 {
@@ -2611,6 +2922,17 @@ def promotion_write(args: argparse.Namespace) -> int:
             )
             return MALFORMED
 
+        status_json = promotion_task_status_json(proposal, proposal_ref, now)
+        queue_row = promotion_queue_row(proposal, proposal_ref)
+        snapshots = snapshot_files(
+            [
+                args.ops_dir / INBOX_FILE,
+                args.ops_dir / "queue.md",
+                idea_path,
+                args.ops_dir / IDEAS_DIR / CATALOG_FILE,
+                args.ops_dir / IDEAS_DIR / PRIORITIZATION_FILE,
+            ]
+        )
         inbox_write, inbox_failure = append_inbox_proposal(args.ops_dir, proposal_ref, proposal)
         if inbox_failure is not None:
             print_json(
@@ -2624,9 +2946,44 @@ def promotion_write(args: argparse.Namespace) -> int:
             )
             return MALFORMED
 
+        task_code, task_payload = task_transaction.write_task_transaction(
+            args.ops_dir,
+            task_dir_name,
+            str(proposal["task_markdown_draft"]),
+            status_json,
+            queue_row,
+        )
+        if task_code != SUCCESS:
+            restored_files = restore_file_snapshots(snapshots)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "task_transaction_failed",
+                    "task_transaction": task_payload,
+                    "files_written": [inbox_write],
+                    "recovery": {
+                        "reason": "task_transaction_failed_after_inbox_append",
+                        "transaction_id": transaction_id,
+                        "idempotency_key": idempotency_key,
+                        "restored_files": restored_files,
+                    },
+                    "dry_run_plan": plan,
+                    "lock": lock,
+                }
+            )
+            return task_code
+
         files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
-        all_files_written = [inbox_write, *files_written]
+        all_files_written = [inbox_write, *task_payload.get("files_written", []), *files_written]
         if failures:
+            task_rollback = task_transaction.rollback_task_transaction(
+                args.ops_dir,
+                task_id,
+                target_dir=Path(str(task_payload.get("task_dir") or args.ops_dir / "tasks" / task_dir_name)),
+                remove_queue=True,
+            )
+            restored_files = restore_file_snapshots(snapshots)
             print_json(
                 {
                     "ok": False,
@@ -2636,10 +2993,40 @@ def promotion_write(args: argparse.Namespace) -> int:
                     "failures": failures,
                     "files_written": all_files_written,
                     "recovery": {
-                        "reason": "inbox_proposal_may_need_idea_reference_recovery",
+                        "reason": "promotion_task_write_rolled_back_after_catalog_validation_failure",
                         "transaction_id": transaction_id,
                         "idempotency_key": idempotency_key,
-                        "partial_artifact": inbox_write,
+                        "task_rollback": task_rollback,
+                        "restored_files": restored_files,
+                    },
+                    "dry_run_plan": plan,
+                    "lock": lock,
+                }
+            )
+            return VALIDATION_FAILED
+
+        completion = promotion_task_write_completion(args.ops_dir, updated, proposal_ref)
+        if not completion["ok"]:
+            task_rollback = task_transaction.rollback_task_transaction(
+                args.ops_dir,
+                task_id,
+                target_dir=Path(str(task_payload.get("task_dir") or args.ops_dir / "tasks" / task_dir_name)),
+                remove_queue=True,
+            )
+            restored_files = restore_file_snapshots(snapshots)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_promotion_write_failed",
+                    "reason": "promotion_task_consistency_failed",
+                    "completion_failures": completion["failures"],
+                    "files_written": all_files_written,
+                    "recovery": {
+                        "reason": "promotion_task_write_rolled_back_after_consistency_failure",
+                        "transaction_id": transaction_id,
+                        "idempotency_key": idempotency_key,
+                        "task_rollback": task_rollback,
+                        "restored_files": restored_files,
                     },
                     "dry_run_plan": plan,
                     "lock": lock,
@@ -2650,7 +3037,7 @@ def promotion_write(args: argparse.Namespace) -> int:
         print_json(
             {
                 "ok": True,
-                "action": "idea_promotion_proposal_written",
+                "action": "idea_promotion_task_written",
                 "policy_version": PROMOTION_WRITE_POLICY_VERSION,
                 "ops_dir": str(args.ops_dir),
                 "idea_id": args.idea_id,
@@ -2661,6 +3048,9 @@ def promotion_write(args: argparse.Namespace) -> int:
                 "idempotency_key": idempotency_key,
                 "promotion_preflight_hash": preflight_hash,
                 "proposal_ref": proposal_ref,
+                "task_id": task_id,
+                "task_dir": task_payload.get("task_dir"),
+                "task_transaction": task_payload,
                 "files_written": all_files_written,
                 "dry_run_plan": plan,
                 "validation": {
@@ -2669,10 +3059,6 @@ def promotion_write(args: argparse.Namespace) -> int:
                     "warning_count": len(validation.get("warnings", [])),
                     "failure_count": len(validation.get("failures", [])),
                 },
-                "would_not_write": [
-                    {"path": str(args.ops_dir / "queue.md"), "reason": "proposal write mode never edits queue.md"},
-                    {"path": str(args.ops_dir / "tasks"), "reason": "proposal write mode never creates task folders"},
-                ],
             }
         )
         return SUCCESS
@@ -2953,17 +3339,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     promote = subparsers.add_parser(
         "promote",
-        help="Preview one catalog idea promotion task.",
-        description="Produce one bounded planner-facing task proposal from a canonical catalog idea without editing queue.md or task folders.",
+        help="Preview or write one catalog idea promotion task.",
+        description="Produce one bounded planner-facing task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
     )
     promote.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")
     promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
     promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
-    promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk proposal writes.")
+    promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk promotion task writes.")
     promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
     promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
-    promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; reserves a task id but never creates task folders or edits queue.md in V2.5.")
+    promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     promote.set_defaults(func=run_promote)
 
     park = subparsers.add_parser(

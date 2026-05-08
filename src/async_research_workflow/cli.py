@@ -1626,18 +1626,18 @@ def register_artifact_commands(subparsers) -> None:
     idea_promote = add_command(
         idea_sub,
         "promote",
-        help="Preview or write one catalog idea promotion proposal.",
-        description="Produce one bounded promotion task proposal from a canonical catalog idea without editing queue.md or task folders.",
-        epilog="V2.5 proposal write mode appends a planner-facing proposal reference to inbox.md and the selected idea only. It reserves a deterministic task id but never creates task folders or edits queue.md.",
+        help="Preview or write one catalog idea promotion task.",
+        description="Produce one bounded promotion task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
+        epilog="Write mode requires a matching dry-run preflight hash, appends inbox.md, creates one tasks/TASK-*/ folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock.",
     )
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
     idea_promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
     idea_promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
     idea_promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
-    idea_promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk proposal writes.")
+    idea_promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk promotion task writes.")
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
-    idea_promote.add_argument("--write", action="store_true", help="Append a proposal reference to inbox.md and the selected idea; reserves a task id but never creates task folders or edits queue.md in V2.5.")
+    idea_promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     idea_promote.set_defaults(func=run_idea_promote_command)
     idea_park = add_command(
         idea_sub,

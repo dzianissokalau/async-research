@@ -144,7 +144,7 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
         self.assertEqual(cli.SUCCESS, code, payload)
         return payload["promotion_preflight_hash"], payload
 
-    def test_write_appends_inbox_ref_updates_idea_and_preserves_non_task_files(self) -> None:
+    def test_write_appends_inbox_creates_task_queue_and_updates_idea(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             self.write_audited_source(ops_dir)
@@ -152,35 +152,49 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             catalog_path = ops_dir / "ideas" / "idea_catalog.md"
             write_text(catalog_path, catalog_path.read_text(encoding="utf-8") + "\nManual planner note stays here.\n")
             preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7401")
-            queue_before = (ops_dir / "queue.md").read_bytes()
-            tasks_before = file_snapshot(ops_dir / "tasks")
 
             code, payload = run_cli_json(
                 ["idea", "promote", ops_dir, "IDEA-7401", "--write", "--preflight-hash", preflight_hash]
             )
 
             self.assertEqual(cli.SUCCESS, code, payload)
-            self.assertEqual("idea_promotion_proposal_written", payload["action"])
+            self.assertEqual("idea_promotion_task_written", payload["action"])
             self.assertFalse(payload["dry_run"])
             self.assertEqual(preflight_hash, payload["promotion_preflight_hash"])
             self.assertEqual(dry_run["idempotency_key"], payload["idempotency_key"])
             self.assertTrue(payload["validation"]["ok"])
             self.assertEqual(0, payload["validation"]["failure_count"])
-            blocked_paths = {Path(item["path"]) for item in payload["would_not_write"]}
-            self.assertIn(ops_dir / "queue.md", blocked_paths)
-            self.assertIn(ops_dir / "tasks", blocked_paths)
-            self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
-            self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
 
             proposal_ref = payload["proposal_ref"]
+            self.assertEqual("task_written", proposal_ref["status"])
+            self.assertEqual("TASK-7401", payload["task_id"])
+            self.assertEqual("TASK-7401", proposal_ref["task_id"])
+            self.assertEqual("queue.md#TASK-7401", proposal_ref["queue_ref"])
             inbox = (ops_dir / "inbox.md").read_text(encoding="utf-8")
             self.assertIn(proposal_ref["proposal_id"], inbox)
             self.assertIn(proposal_ref["transaction_id"], inbox)
             self.assertIn(proposal_ref["idempotency_key"], inbox)
+            queue = (ops_dir / "queue.md").read_text(encoding="utf-8")
+            self.assertIn("[TASK-7401](tasks/TASK-7401-data-readiness/task.md)", queue)
+            self.assertIn(proposal_ref["transaction_id"], queue)
+            self.assertIn(proposal_ref["idempotency_key"], queue)
+            task_dir = Path(payload["task_dir"])
+            self.assertTrue((task_dir / "task.md").exists())
+            self.assertTrue((task_dir / "status.json").exists())
+            status_json = read_json(task_dir / "status.json")
+            self.assertEqual("TASK-7401", status_json["id"])
+            self.assertEqual("inbox", status_json["status"])
+            self.assertIsNone(status_json["previous_status"])
+            self.assertEqual("catalog_promotion_task_created", status_json["last_transition_reason"])
+            self.assertEqual("IDEA-7401", status_json["catalog_idea_id"])
+            self.assertEqual(proposal_ref["transaction_id"], status_json["catalog_promotion"]["transaction_id"])
+            self.assertEqual(proposal_ref["idempotency_key"], status_json["catalog_promotion"]["idempotency_key"])
+            self.assertIn("planner", status_json["prompt_versions"])
             self.assertIn("Manual planner note stays here.", catalog_path.read_text(encoding="utf-8"))
 
             updated = read_json(ops_dir / "ideas" / "IDEA-7401.json")
-            self.assertNotIn("promoted_task_id", updated)
+            self.assertEqual("promoted", updated["status"])
+            self.assertEqual("TASK-7401", updated["promoted_task_id"])
             self.assertEqual(proposal_ref["proposal_id"], updated["latest_promotion_proposal_id"])
             self.assertEqual([proposal_ref], updated["promotion_proposal_refs"])
             self.assertTrue(
@@ -189,6 +203,8 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
                     and entry.get("transaction_id") == proposal_ref["transaction_id"]
                     and entry.get("idempotency_key") == proposal_ref["idempotency_key"]
                     and entry.get("proposal_id") == proposal_ref["proposal_id"]
+                    and entry.get("task_id") == "TASK-7401"
+                    and entry.get("to_status") == "promoted"
                     for entry in updated["decision_history"]
                 )
             )
@@ -209,9 +225,10 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
                 ["idea", "promote", ops_dir, "IDEA-7402", "--write", "--preflight-hash", preflight_hash]
             )
 
-            self.assertEqual(2, second_code, second)
-            self.assertEqual("duplicate_promotion_proposal", second["reason"])
-            self.assertEqual(first["proposal_ref"], second["existing_proposal_ref"])
+            self.assertEqual(cli.SUCCESS, second_code, second)
+            self.assertEqual("idea_promotion_task_already_written", second["action"])
+            self.assertFalse(second["changed"])
+            self.assertEqual(first["proposal_ref"], second["proposal_ref"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_changed_candidate_refuses_stale_preflight_hash_without_writes(self) -> None:
@@ -318,7 +335,7 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual("idea_promotion_write_refused", payload["action"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
-    def test_write_rotates_stale_lock_and_preserves_queue_and_tasks(self) -> None:
+    def test_write_rotates_stale_lock_and_creates_queue_and_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             self.write_audited_source(ops_dir)
@@ -329,19 +346,17 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
                 started_at="2000-01-01T00:00:00Z",
                 expires_at="2000-01-01T00:30:00Z",
             )
-            queue_before = (ops_dir / "queue.md").read_bytes()
-            tasks_before = file_snapshot(ops_dir / "tasks")
 
             code, payload = run_cli_json(
                 ["idea", "promote", ops_dir, "IDEA-7407", "--write", "--preflight-hash", preflight_hash]
             )
 
             self.assertEqual(cli.SUCCESS, code, payload)
-            self.assertEqual("idea_promotion_proposal_written", payload["action"])
+            self.assertEqual("idea_promotion_task_written", payload["action"])
             self.assertFalse(lock_dir.exists())
             self.assertTrue(list((ops_dir / "ideas").glob("LOCK.stale.*")))
-            self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
-            self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
+            self.assertIn("TASK-7407", (ops_dir / "queue.md").read_text(encoding="utf-8"))
+            self.assertTrue((Path(payload["task_dir"]) / "status.json").exists())
 
     def test_blocked_candidate_refuses_write_without_mutating(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -497,12 +512,13 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             self.assertEqual(2, code, payload)
             self.assertEqual("post_write_validation_failed", payload["reason"])
             self.assertEqual(dry_run["idempotency_key"], payload["recovery"]["idempotency_key"])
-            self.assertIn("transaction_id", payload["recovery"])
-            self.assertEqual("append_promotion_proposal", payload["recovery"]["partial_artifact"]["action"])
+            self.assertIn("task_rollback", payload["recovery"])
+            self.assertIn("restored_files", payload["recovery"])
             self.assertTrue(payload["files_written"])
-            self.assertIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
+            self.assertNotIn(dry_run["idempotency_key"], (ops_dir / "inbox.md").read_text(encoding="utf-8"))
             updated = read_json(ops_dir / "ideas" / "IDEA-7410.json")
-            self.assertEqual(dry_run["idempotency_key"], updated["promotion_proposal_refs"][0]["idempotency_key"])
+            self.assertNotIn("promotion_proposal_refs", updated)
+            self.assertNotIn("promoted_task_id", updated)
             self.assertEqual(queue_before, (ops_dir / "queue.md").read_bytes())
             self.assertEqual(tasks_before, file_snapshot(ops_dir / "tasks"))
 

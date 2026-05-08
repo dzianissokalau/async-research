@@ -186,7 +186,7 @@ Last updated: 2026-05-07
 | 8 | Promotion dry run | Complete | Adds read-only `idea promote` proposals with task-type routing, blocker reporting, duplicate override gating, experiment-plan gate checks, and no `queue.md` or task-folder mutation. |
 | 9 | Planner promotion behavior | Complete | Teaches planner prompts and core docs to move from discovery inbox to durable catalog to dry-run promotion proposal to planner-created task and queue row, preserving v1 safety boundaries. |
 | 10 | Dashboard read-only view | Complete | Adds read-only `idea catalog dashboard` portfolio views for active, parked, promoted, and rejected ideas, top blockers, score dimensions with `unavailable` for missing score artifacts, next tasks, and idea-to-task links. |
-| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, and V2.5 task-id reservation rules shipped; task creation write mode remains deferred until the V2.6 transaction exists. |
+| V2 | Promotion write mode | In progress | V2.1 contract/preflight, V2.2 proposal write mode, V2.3 recovery hardening, V2.4 task transaction helpers, V2.5 task-id reservation rules, and V2.6 task creation write mode shipped; remaining slices harden failure observability, docs, and end-to-end acceptance. |
 
 ## Framework Integration
 
@@ -848,20 +848,21 @@ Implementation steps:
 | V2.3 | Proposal write recovery tests | Complete | Harden proposal write mode before any queue mutation exists. | Tests cover lock present, stale lock rotation, duplicate retry, invalid candidate, partial inbox recovery, post-write validation failure, and no mutation of `queue.md` or `tasks/`. |
 | V2.4 | Task transaction helper design | Complete | Build shared helpers for staged task-folder writes, queue append/remove, final validation, and rollback. | Unit tests prove staged files are removed if queue append fails, queue rows are not duplicated on retry, and rollback leaves no partial task folder. |
 | V2.5 | Task ID and idempotency rules | Complete | Allocate deterministic or reserved task IDs safely for one idea-to-one-task promotion. | Tests cover deterministic `IDEA-0000 -> TASK-0000` reservation, existing task folder, existing queue row, existing `promoted_task_id`, stale `promoted_task_id`, other-idea task claims, and re-running the same write command. |
-| V2.6 | Task creation write mode | Planned | Extend `idea promote --write` to create one task folder, `task.md`, `status.json`, queue row, and canonical `promoted_task_id` update in one transaction. | Write succeeds only after dry-run promotion gates pass; schema/transition validation passes; `queue.md`, task folder, and idea JSON are mutually consistent. |
+| V2.6 | Task creation write mode | Complete | Extend `idea promote --write` to create one task folder, `task.md`, `status.json`, queue row, and canonical `promoted_task_id` update in one transaction. | Write succeeds only after dry-run promotion gates pass; schema/transition validation passes; `queue.md`, task folder, and idea JSON are mutually consistent; retry is idempotent only for a complete matching write. |
 | V2.7 | Failure and rollback hardening | Planned | Make all task-write failure paths observable and fail closed. | Tests cover validation failure after staged task files, queue append failure, idea JSON write failure, interrupted retry with existing artifacts, and rollback audit messages. |
 | V2.8 | CLI, docs, and operator workflow | Planned | Update CLI help, README, planner docs, dashboard expectations, and review prompts for the new write behavior. | Help and docs distinguish proposal write mode from task creation write mode; dashboard displays `promoted_task_id` links after a successful write; exit-code contract is updated. |
 | V2.9 | End-to-end acceptance | Planned | Prove one real catalog idea can be promoted safely through write mode. | Focused tests, full unit suite, starter smokes, acceptance suite, benchmark, and a temp-workspace end-to-end promotion write all pass. |
 
-V2 should ship in two sub-slices:
+V2 has shipped its core write path in two sub-slices:
 
 1. Proposal write mode writes one planner-facing proposal to `inbox.md` and
    updates the idea with the proposal reference. It does not create task folders
    or edit `queue.md`.
-2. Task creation write mode, if still needed after real usage, creates one task
-   folder and one `queue.md` row through planner-approved transactional helpers.
+2. Task creation write mode creates one task folder and one `queue.md` row
+   through the shared transactional helper, then updates the canonical idea with
+   `promoted_task_id`.
 
-Required task-creation behavior before the second sub-slice is allowed:
+Required task-creation behavior enforced by V2.6:
 
 - create one task folder
 - write `task.md`
