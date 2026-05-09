@@ -1289,7 +1289,7 @@ def register_library_commands(subparsers) -> None:
         "validate",
         help="Validate knowledge library Markdown contracts.",
         description="Read-only validation for research_ops/library generated blocks, source IDs, source refs, metadata, and update provenance.",
-        epilog="Exits 0 when library contracts are clean, 2 for warning-only findings with usable state, and 4 for malformed generated blocks, duplicate IDs, or invalid references.",
+        epilog="Exits 0 when library contracts are clean, 2 for warning-only findings with usable state, 3 for invalid request flags, and 4 for malformed generated blocks, duplicate IDs, or invalid references.",
     )
     add_common_ops(validate)
     validate.add_argument("--now", help="Override current time for deterministic stale review checks.")

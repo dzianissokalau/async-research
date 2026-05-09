@@ -167,6 +167,37 @@ class KnowledgeLibraryValidatorTests(unittest.TestCase):
             self.assertIn("invalid_library_source_status", reasons)
             self.assertIn("invalid_library_trust_tier", reasons)
 
+    def test_unknown_trust_tier_is_valid_vocabulary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_library(ops_dir)
+            write_rows(
+                ops_dir,
+                table_file("source_library.md"),
+                [["LIT-0001", "candidate", "unknown", "paper", "A", "Publisher", "https://example.com/a", "2026-05-01", "ok"]],
+            )
+
+            code, payload = run_cli_json(["library", "validate", ops_dir])
+
+            self.assertEqual(knowledge_library.SUCCESS, code, payload)
+            self.assertNotIn("library_source_trust_tier_missing", [item["reason"] for item in payload["warnings"]])
+
+    def test_invalid_reviewed_date_warns_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_library(ops_dir)
+            write_rows(
+                ops_dir,
+                table_file("source_library.md"),
+                [["LIT-0001", "candidate", "unknown", "paper", "A", "Publisher", "https://example.com/a", "2026-13-01", "ok"]],
+            )
+
+            code, payload = run_cli_json(["library", "validate", ops_dir])
+
+            self.assertEqual(knowledge_library.VALIDATION_FINDINGS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertIn("library_reviewed_date_invalid", [item["reason"] for item in payload["warnings"]])
+
     def test_source_refs_must_resolve_to_source_library(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"

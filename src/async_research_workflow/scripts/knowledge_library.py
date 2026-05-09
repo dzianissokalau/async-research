@@ -162,6 +162,10 @@ def field_has_value(value: Any) -> bool:
     return str(value or "").strip().lower() not in NO_VALUE_MARKERS
 
 
+def field_has_text(value: Any) -> bool:
+    return bool(str(value or "").strip())
+
+
 def normalize_text(value: Any) -> str:
     return str(value or "").strip()
 
@@ -207,7 +211,10 @@ def date_value(value: Any) -> datetime | None:
     text = normalize_text(value)
     if not DATE_RE.fullmatch(text):
         return None
-    return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def parse_source_refs(value: Any, path: Path, line: int, field: str) -> tuple[list[str], list[dict[str, Any]]]:
@@ -464,13 +471,13 @@ def source_library_warnings_and_errors(rows: list[dict[str, Any]], path: Path, n
             source_ids.add(source_id)
 
         status = normalize_text(row.get("status")).lower()
-        if not field_has_value(status):
+        if not field_has_text(status):
             warnings.append(issue("warning", "library_source_status_missing", path, "source row should declare a status", line=line, source_id=source_id))
         elif status not in SOURCE_STATUSES:
             errors.append(issue("error", "invalid_library_source_status", path, "source status is not in the V1 library status vocabulary", line=line, source_id=source_id, status=status))
 
         trust_tier = normalize_text(row.get("trust_tier")).lower()
-        if not field_has_value(trust_tier):
+        if not field_has_text(trust_tier):
             warnings.append(issue("warning", "library_source_trust_tier_missing", path, "source row should declare a trust tier", line=line, source_id=source_id))
         elif trust_tier not in TRUST_TIERS:
             errors.append(issue("error", "invalid_library_trust_tier", path, "source trust_tier is not in the V1 library trust-tier vocabulary", line=line, source_id=source_id, trust_tier=trust_tier))
