@@ -34,9 +34,10 @@ Supported schema features:
 - `pattern`
 - `minimum`
 - `maximum`
+- `minItems`
 
 It is not a full JSON Schema Draft 2020-12 implementation. Unsupported assertion
-keywords such as `anyOf`, `oneOf`, `$ref`, `const`, `minItems`, `maxItems`, and
+keywords such as `anyOf`, `oneOf`, `$ref`, `const`, `maxItems`, and
 `additionalProperties` fail closed so future schemas do not silently rely on
 constraints this helper does not check. If the workflow later needs advanced
 schema features, add validator support first or replace it with a pinned

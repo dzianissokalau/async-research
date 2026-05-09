@@ -5,7 +5,9 @@
   "required": [
     "schema_version",
     "framework_version",
+    "manifest_created_at",
     "run_id",
+    "run_status",
     "task_id",
     "task_type",
     "experiment_plan_id",
@@ -22,10 +24,6 @@
     "primary_metric",
     "planned_outputs",
     "output_paths",
-    "started_at",
-    "completed_at",
-    "runtime_minutes",
-    "cost",
     "deviations_from_plan",
     "reproducibility"
   ],
@@ -42,9 +40,21 @@
         "analysis_run_v1.0"
       ]
     },
+    "manifest_created_at": {
+      "type": "string"
+    },
     "run_id": {
       "type": "string",
       "pattern": "^RUN-[0-9]{4}$"
+    },
+    "run_status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "running",
+        "completed",
+        "failed"
+      ]
     },
     "task_id": {
       "type": "string",
@@ -74,10 +84,11 @@
     },
     "analysis_config_path": {
       "type": "string",
-      "pattern": "^(?!/)(?!.*\\.\\.).+$"
+      "pattern": "^(none|research_ops/tasks/TASK-[0-9]{4}[^\\n]*)$"
     },
     "data_versions": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
@@ -102,7 +113,7 @@
           },
           "artifact_path": {
             "type": "string",
-            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+            "pattern": "^(none|research_ops/tasks/TASK-[0-9]{4}[^\\n]*)$"
           }
         }
       }
@@ -161,7 +172,7 @@
         },
         "parameters_ref": {
           "type": "string",
-          "pattern": "^(none|(?!/)(?!.*\\.\\.).+)$"
+          "pattern": "^(none|research_ops/tasks/TASK-[0-9]{4}[^\\n]*)$"
         },
         "execution_environment": {
           "type": "string"
@@ -203,6 +214,7 @@
     },
     "baseline_refs": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
@@ -219,7 +231,7 @@
           },
           "expected_output_path": {
             "type": "string",
-            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+            "pattern": "^research_ops/tasks/TASK-[0-9]{4}[^\\n]*$"
           }
         }
       }
@@ -251,6 +263,7 @@
     },
     "planned_outputs": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
@@ -264,7 +277,7 @@
           },
           "path": {
             "type": "string",
-            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+            "pattern": "^research_ops/tasks/TASK-[0-9]{4}[^\\n]*$"
           },
           "required_for_acceptance": {
             "type": "boolean"
@@ -274,9 +287,10 @@
     },
     "output_paths": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "string",
-        "pattern": "^(?!/)(?!.*\\.\\.).+$"
+        "pattern": "^research_ops/tasks/TASK-[0-9]{4}[^\\n]*$"
       }
     },
     "started_at": {

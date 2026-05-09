@@ -96,8 +96,9 @@ The validator builds a `result_acceptance.json` record with:
 - claim strength does not exceed the evidence cap
 - accepted evidence has a key finding and evidence link
 - `run_analysis` and `evaluate_results` tasks have a structured result summary
-- result summaries include baseline, validation, robustness, leakage,
-  limitation, artifact, dataset, and follow-up fields
+- result task summaries include an analysis run manifest path, baseline,
+  validation, robustness, leakage, limitation, artifact, dataset, and follow-up
+  fields
 - result tasks do not hide failed robustness checks
 - public/high-stakes outputs and strong claims require human approval
 - rejected results are logged to `rejected_results.md`
@@ -107,7 +108,8 @@ The validator builds a `result_acceptance.json` record with:
 The executable caps are:
 
 - no structured result summary: at most `suggestive`
-- no reproducible run manifest or artifact version: `none`
+- result task without `artifacts/analysis_run/run_manifest.json`: `none`
+- routine artifact with no reproducible run manifest or artifact version: `none`
 - no baseline comparison: `weak`
 - no leakage checks: `weak`
 - no robustness checks: `suggestive`
@@ -128,6 +130,7 @@ Every result summary shall include:
 
 - experiment plan ID
 - run ID
+- run manifest path for `run_analysis` and `evaluate_results`
 - code commit or artifact version
 - dataset versions
 - primary metric

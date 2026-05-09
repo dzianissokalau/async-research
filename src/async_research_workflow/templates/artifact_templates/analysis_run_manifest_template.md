@@ -1,16 +1,23 @@
 # Analysis Run Manifest Template
 
 Use this fenced JSON block as `artifacts/analysis_run/run_manifest.json` for
-`run_analysis` tasks. It records what actually ran after an experiment plan was
-accepted. Project repositories own the analysis code; this manifest gives
-reviewers and validators a stable contract for provenance, planned outputs,
-deviations, and reproducibility.
+`run_analysis` tasks. It starts as a pre-run declaration with
+`run_status: "planned"` and becomes the canonical record of what actually ran
+after the worker updates it to `completed` or `failed`. Project repositories own
+the analysis code; this manifest gives reviewers and validators a stable
+contract for provenance, planned outputs, deviations, and reproducibility.
+
+For manual, notebook, or SQL runs where parameters are embedded in the reviewed
+artifact rather than a separate config file, set `analysis_config_path` and
+`runner.parameters_ref` to `"none"`.
 
 ```json
 {
   "schema_version": "1.0",
   "framework_version": "analysis_run_v1.0",
+  "manifest_created_at": "2026-05-09T09:55:00Z",
   "run_id": "RUN-0001",
+  "run_status": "planned",
   "task_id": "TASK-0004",
   "task_type": "run_analysis",
   "experiment_plan_id": "EXP-0001",
@@ -88,15 +95,6 @@ deviations, and reproducibility.
     "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/robustness_checks.json",
     "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/leakage_checks.json"
   ],
-  "started_at": "2026-05-09T10:00:00Z",
-  "completed_at": "2026-05-09T10:18:00Z",
-  "runtime_minutes": 18,
-  "cost": {
-    "api_usd": 0,
-    "compute_usd": 0,
-    "total_usd": 0,
-    "notes": "No paid cloud or API spend."
-  },
   "deviations_from_plan": [],
   "reproducibility": {
     "rerun_possible": true,

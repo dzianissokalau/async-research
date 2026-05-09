@@ -87,6 +87,7 @@ Write `worker_output.md` with:
 - For `run_analysis` tasks, write
   `artifacts/analysis_run/run_manifest.json` conforming to
   `async_research_workflow/schemas/analysis_run.schema.json`; the manifest is
+  created with `run_status: "planned"` before analysis starts, then updated as
   the canonical record of what actually ran and any deviations from the accepted
   experiment plan.
 - For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result

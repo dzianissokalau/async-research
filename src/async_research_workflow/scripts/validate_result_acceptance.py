@@ -350,6 +350,7 @@ def summary_missing_fields(summary: dict[str, Any]) -> list[str]:
         "result_id",
         "experiment_plan_id",
         "run_id",
+        "run_manifest_path",
         "artifact_version",
         "dataset_versions",
         "primary_metric",
@@ -378,7 +379,11 @@ def summary_missing_fields(summary: dict[str, Any]) -> list[str]:
     return missing
 
 
-def cap_claim_strength(summary: Optional[dict[str, Any]], aggregate: Optional[dict[str, Any]]) -> tuple[str, list[str]]:
+def valid_analysis_run_manifest_path(value: Any) -> bool:
+    return nonempty_string(value) and str(value).replace("\\", "/").endswith("/artifacts/analysis_run/run_manifest.json")
+
+
+def cap_claim_strength(summary: Optional[dict[str, Any]], aggregate: Optional[dict[str, Any]], task_type: str = "") -> tuple[str, list[str]]:
     cap = CLAIM_ORDER["strong"]
     reasons: list[str] = []
 
@@ -386,7 +391,11 @@ def cap_claim_strength(summary: Optional[dict[str, Any]], aggregate: Optional[di
         cap = min(cap, CLAIM_ORDER["suggestive"])
         reasons.append("structured result summary absent; generic artifacts cap at suggestive")
     else:
-        if not nonempty_string(summary.get("run_id")) or not (
+        if task_type in RESULT_TASK_TYPES:
+            if not nonempty_string(summary.get("run_id")) or not valid_analysis_run_manifest_path(summary.get("run_manifest_path")):
+                cap = min(cap, CLAIM_ORDER["none"])
+                reasons.append("result task lacks a reproducible analysis run manifest path")
+        elif not nonempty_string(summary.get("run_id")) or not (
             nonempty_string(summary.get("run_manifest_path")) or nonempty_string(summary.get("artifact_version"))
         ):
             cap = min(cap, CLAIM_ORDER["none"])
@@ -486,7 +495,7 @@ def scorecard(task_type: str, summary: Optional[dict[str, Any]], claim: str, cap
     has_summary = isinstance(summary, dict)
     return {
         "plan_compliance": 5 if not is_result_task or (has_summary and nonempty_string(summary.get("experiment_plan_id"))) else 1,
-        "reproducibility": 5 if has_summary and nonempty_string(summary.get("run_id")) and (nonempty_string(summary.get("run_manifest_path")) or nonempty_string(summary.get("artifact_version"))) else (3 if worker_output_present else 1),
+        "reproducibility": 5 if has_summary and nonempty_string(summary.get("run_id")) and (valid_analysis_run_manifest_path(summary.get("run_manifest_path")) if is_result_task else (nonempty_string(summary.get("run_manifest_path")) or nonempty_string(summary.get("artifact_version")))) else (3 if worker_output_present else 1),
         "baseline_comparison": 5 if has_summary and nonempty_string(summary.get("baseline_results")) else (3 if not is_result_task else 1),
         "metric_validity": 5 if has_summary and nonempty_string(summary.get("primary_metric")) else (3 if not is_result_task else 2),
         "validation_strength": 5 if has_summary and nonempty_string(summary.get("validation_split_results")) else (3 if not is_result_task else 2),
@@ -537,7 +546,7 @@ def build_acceptance_record(
     task_type = str(status.get("type", "admin"))
     current_route = route(status, summary)
     claim = claim_strength(status, aggregate, summary)
-    cap, cap_reasons = cap_claim_strength(summary, aggregate)
+    cap, cap_reasons = cap_claim_strength(summary, aggregate, task_type)
     worker_output_present = (task_dir / "worker_output.md").exists() and bool((task_dir / "worker_output.md").read_text(encoding="utf-8").strip())
     gates: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
@@ -581,6 +590,14 @@ def build_acceptance_record(
         if isinstance(summary, dict):
             missing = summary_missing_fields(summary)
             add_gate(gates, "result_summary_required_fields", not missing, "required result summary fields present" if not missing else f"missing fields: {', '.join(missing)}")
+            add_gate(
+                gates,
+                "run_manifest_path_points_to_analysis_run_manifest",
+                valid_analysis_run_manifest_path(summary.get("run_manifest_path")),
+                "run manifest path points to artifacts/analysis_run/run_manifest.json"
+                if valid_analysis_run_manifest_path(summary.get("run_manifest_path"))
+                else "result tasks require run_manifest_path ending in artifacts/analysis_run/run_manifest.json",
+            )
             add_gate(gates, "baseline_comparison_present", nonempty_string(summary.get("baseline_results")), "baseline comparison present")
             add_gate(gates, "leakage_checks_present", nonempty_list(summary.get("leakage_check_results")), "leakage checks present")
             add_gate(gates, "robustness_checks_present", nonempty_list(summary.get("robustness_results")), "robustness checks present")

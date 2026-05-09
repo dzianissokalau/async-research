@@ -271,7 +271,7 @@ Last updated: 2026-05-09
 | Phase | Step | Status | Description | Evidence / Notes |
 | ---: | --- | --- | --- | --- |
 | 0 | Lock execution decisions | Complete | Capture V1 scope, authority model, accepted plan requirement, validator contract, compatibility rules, and first test matrix before package implementation starts. | This roadmap now defines contract-first execution and keeps the core package out of project-owned statistics code. |
-| 1 | Analysis run contract | Complete | Add `analysis_run.schema.json`, a manifest template, packaged resource tests, and docs for the canonical `artifacts/analysis_run/` layout. | Adds the Phase 1 schema/template contract, worker guidance, task contract docs, framework docs, and focused schema/resource tests. |
+| 1 | Analysis run contract | Complete | Add `analysis_run.schema.json`, a manifest template, packaged resource tests, and docs for the canonical `artifacts/analysis_run/` layout. | Adds the Phase 1 schema/template contract, lifecycle-aware planned manifests, worker guidance, result-summary manifest linkage, task contract docs, framework docs, and focused schema/resource tests. |
 | 2 | Preflight validator | Not Started | Add read-only `async-research analysis preflight` against task status, accepted experiment plan, source/data governance, budget, metric, method, and path safety. | Should fail closed before analysis starts. |
 | 3 | Output contracts | Not Started | Add structured metrics, diagnostics, robustness, and leakage schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Keep project-specific diagnostics in project repos. |
 | 4 | Claim gates | Not Started | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Strong, public, and high-stakes claims require human approval. |
@@ -411,7 +411,8 @@ Acceptance:
 
 ## Phase 1: Analysis Run Contract
 
-Purpose: make the run manifest the canonical record of what actually ran.
+Purpose: make the run manifest usable before analysis starts and canonical
+after the run completes.
 
 Add a standard run manifest contract:
 
@@ -424,7 +425,9 @@ Required fields:
 
 - `schema_version`
 - `framework_version`
+- `manifest_created_at`
 - `run_id`
+- `run_status`
 - `task_id`
 - `task_type`
 - `experiment_plan_id`
@@ -441,22 +444,32 @@ Required fields:
 - `primary_metric`
 - `planned_outputs`
 - `output_paths`
+- `deviations_from_plan`
+- `reproducibility`
+
+Completion-only fields:
+
 - `started_at`
 - `completed_at`
 - `runtime_minutes`
 - `cost`
-- `deviations_from_plan`
-- `reproducibility`
 
 Schema decisions:
 
 - `schema_version` starts at `1.0`.
 - `framework_version` starts at `analysis_run_v1.0`.
 - `run_id` uses a stable `RUN-0000` style pattern.
+- `run_status` starts as `planned` for preflight and may move to `running`,
+  `completed`, or `failed` after execution.
 - `task_id` must match the analysis task status.
 - `task_type` must be `run_analysis` for preflight.
-- paths must be workspace-relative and must not escape the task folder unless
-  they reference accepted input artifacts.
+- the schema rejects absolute paths, parent-directory traversal, and obvious
+  non-task output paths; Phase 2 preflight enforces exact containment inside the
+  current task folder except accepted input artifacts.
+- `analysis_config_path` may be `none` for manual, notebook, SQL, or other runs
+  where parameters are embedded in a reviewed artifact.
+- data versions, baseline refs, planned outputs, and output paths must be
+  non-empty.
 - deviations are an array of explicit objects, not free-form prose only.
 - `runner` is descriptive in V1, such as `manual`, `local_script`, `notebook`,
   `sql`, `dbt`, `warehouse_job`, or `other`; the core package does not execute

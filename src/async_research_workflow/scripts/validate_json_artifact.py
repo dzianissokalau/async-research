@@ -3,7 +3,7 @@
 
 This is not a full JSON Schema implementation. It supports the subset used by
 the async research workflow schemas: type, required, properties, items, enum,
-pattern, minimum, and maximum. Schemas that introduce unsupported assertion
+pattern, minimum, maximum, and minItems. Schemas that introduce unsupported assertion
 keywords fail closed so authors do not accidentally rely on checks this helper
 does not perform.
 """
@@ -28,6 +28,7 @@ SUPPORTED_SCHEMA_KEYWORDS = {
     "enum",
     "items",
     "maximum",
+    "minItems",
     "minimum",
     "pattern",
     "properties",
@@ -114,6 +115,11 @@ def validate(instance: Any, schema: dict, path: str = "$") -> List[ValidationErr
         for index, item in enumerate(instance):
             errors.extend(validate(item, schema["items"], f"{path}[{index}]"))
 
+    if isinstance(instance, list) and "minItems" in schema:
+        minimum_items = schema["minItems"]
+        if isinstance(minimum_items, int) and len(instance) < minimum_items:
+            errors.append(ValidationError(path, f"array length {len(instance)!r} is below minItems {minimum_items!r}"))
+
     if isinstance(instance, str) and "pattern" in schema:
         if re.match(schema["pattern"], instance) is None:
             errors.append(ValidationError(path, f"value {instance!r} does not match pattern {schema['pattern']!r}"))
@@ -132,7 +138,7 @@ def schema_keyword_errors(schema: Any, path: str = "$") -> List[ValidationError]
 
     `properties` keys are artifact field names, not schema keywords, so their
     values are traversed as nested schemas. Unsupported JSON Schema constructs
-    such as anyOf, oneOf, allOf, $ref, const, minItems, maxItems, and
+    such as anyOf, oneOf, allOf, $ref, const, maxItems, and
     additionalProperties intentionally fail closed here.
     """
 

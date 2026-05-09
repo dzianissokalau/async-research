@@ -327,7 +327,7 @@ def result_summary_payload(task_id: str) -> dict[str, Any]:
         "result_id": f"RESULT-{task_id[-4:]}",
         "experiment_plan_id": f"EXP-{task_id[-4:]}",
         "run_id": f"RUN-{task_id[-4:]}",
-        "run_manifest_path": f"research_ops/tasks/{task_id}/artifacts/run_manifest.json",
+        "run_manifest_path": f"research_ops/tasks/{task_id}/artifacts/analysis_run/run_manifest.json",
         "artifact_version": "git:benchmark",
         "dataset_versions": [{"source_id": "DS-0001", "version": "benchmark"}],
         "primary_metric": "Out-of-sample MAE reduction",
@@ -371,7 +371,7 @@ def accepted_result_summary(case: dict[str, Any], ops_dir: Path) -> dict[str, An
     )
     summary = result_summary_payload(case["task_id"])
     write_text(path / "worker_output.md", "Data audit refs: DS-0001\n\n```json\n" + json.dumps(summary, indent=2, sort_keys=True) + "\n```\n")
-    write_json(path / "artifacts" / "run_manifest.json", {"schema_version": "1.0", "run_id": summary["run_id"]})
+    write_json(path / "artifacts" / "analysis_run" / "run_manifest.json", {"schema_version": "1.0", "run_id": summary["run_id"]})
     run_script("data_source_audit.py", ["init", str(ops_dir)])
     run_script(
         "data_source_audit.py",

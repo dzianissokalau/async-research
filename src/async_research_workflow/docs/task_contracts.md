@@ -587,10 +587,13 @@ Use the packaged template:
 async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md
 ```
 
-The manifest records the accepted experiment plan, data versions, code version,
-runner type, method family, baseline refs, primary metric, planned outputs,
-cost, deviations from plan, and reproducibility notes. It is not an approval to
-change the accepted plan; deviations must be explicit and reviewable.
+The manifest starts with `run_status: "planned"` so preflight can inspect it
+before analysis starts. After execution, update it to `completed` or `failed`
+and add completion-only timing and cost fields when known. It records the
+accepted experiment plan, data versions, code version, runner type, method
+family, baseline refs, primary metric, planned outputs, deviations from plan,
+and reproducibility notes. It is not an approval to change the accepted plan;
+deviations must be explicit and reviewable.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
