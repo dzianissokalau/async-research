@@ -105,6 +105,33 @@ Cold-start workspaces are allowed. A missing or empty library warns or passes
 depending on the state, but it must not block discovery, idea scoring, data
 readiness, health, or surface validation in V1.
 
+## Operational Surfaces
+
+Health, readiness, and weekly digest surfaces consume
+`async-research library validate research_ops` output through the shared
+validator report. They must not reparse library tables independently or resolve
+`LIT-*` refs through ad hoc text search.
+
+`async-research health research_ops --dry-run` reports knowledge-library
+warnings and malformed populated library state in `checks.knowledge_library` and
+the `knowledge_library_findings` alert. Missing library files are warning-only
+cold-start findings.
+
+`async-research readiness research_ops --dry-run` keeps missing or warning-only
+library state nonblocking. Error-level library findings block only active
+library-dependent work whose task or catalog idea declares `library_refs`; they
+do not block all discovery, data readiness, or source/data-governed experiment
+checks.
+
+`async-research surface update research_ops` adds Knowledge Library sections to
+`daily_status.md` and `weekly_digest.md`, including source coverage, topic,
+claim, method, risky-source, and open-question counts plus validator finding
+previews.
+
+Source-dependent experiment and result gates continue to rely on source/data
+governance. Library memory can inform planning and review, but it is not a
+substitute for audited data sources or final source-level citations.
+
 ## Manual Notes
 
 Each library file has one generated table block and a `## Notes` section.

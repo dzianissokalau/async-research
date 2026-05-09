@@ -1,9 +1,9 @@
 # Research Foundations Roadmap
 
 Status: In Progress
-Current phase: Knowledge Library health surfaces
+Current phase: Knowledge Library dashboard surface
 Last updated: 2026-05-09
-Next action: Continue Knowledge Library Phase 6 health/readiness/weekly surfaces
+Next action: Continue Knowledge Library Phase 7 dashboard surface
 Blocked by: None
 
 Created: 2026-05-05

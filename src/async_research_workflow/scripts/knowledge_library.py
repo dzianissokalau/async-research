@@ -18,6 +18,7 @@ SUCCESS = 0
 VALIDATION_FINDINGS = 2
 INVALID_REQUEST = 3
 MALFORMED = 4
+SURFACE_STALE_DAYS = 180
 
 LIBRARY_DIR = "library"
 SOURCE_LIBRARY_FILE = "source_library.md"
@@ -554,6 +555,40 @@ def update_log_warnings(rows: list[dict[str, Any]], path: Path) -> list[dict[str
     return warnings
 
 
+def count_by_value(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = normalize_text(row.get(field)).lower()
+        if not value:
+            value = "unspecified"
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def row_preview(row: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+    preview = {
+        field: normalize_text(row.get(field))
+        for field in fields
+        if normalize_text(row.get(field))
+    }
+    if row.get("_line"):
+        preview["line"] = row["_line"]
+    if row.get("_path"):
+        preview["path"] = row["_path"]
+    return preview
+
+
+def open_question_previews(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    closed_statuses = {"closed", "resolved", "answered", "done"}
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        status = normalize_text(row.get("status")).lower()
+        if status in closed_statuses:
+            continue
+        previews.append(row_preview(row, ["question_id", "question", "why_it_matters", "source_refs", "next_task", "status"]))
+    return previews
+
+
 def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int | None = None) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     library_dir = ops_dir / LIBRARY_DIR
@@ -642,6 +677,17 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
         )
     )
 
+    knowledge_rows = rows_by_relative.get(str(Path(LIBRARY_DIR) / KNOWLEDGE_INDEX_FILE), [])
+    claim_rows = rows_by_relative.get(str(Path(LIBRARY_DIR) / CLAIM_MAP_FILE), [])
+    method_rows = rows_by_relative.get(str(Path(LIBRARY_DIR) / METHOD_INDEX_FILE), [])
+    open_question_rows = rows_by_relative.get(str(Path(LIBRARY_DIR) / OPEN_QUESTIONS_FILE), [])
+    update_rows = rows_by_relative.get(str(Path(LIBRARY_DIR) / UPDATE_LOG_FILE), [])
+    open_questions = open_question_previews(open_question_rows)
+    risky_sources = [
+        row_preview(row, ["source_id", "status", "trust_tier", "title", "location", "reviewed_date", "notes"])
+        for row in source_rows
+        if normalize_text(row.get("status")).lower() in {"context_only", "disputed", "deprecated"}
+    ]
     row_counts = {relative: len(rows) for relative, rows in sorted(rows_by_relative.items())}
     return {
         "ok": not errors,
@@ -650,6 +696,17 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
         "library_dir": str(library_dir),
         "source_count": len(source_ids),
         "row_counts": row_counts,
+        "topic_count": len(knowledge_rows),
+        "claim_count": len(claim_rows),
+        "method_count": len(method_rows),
+        "open_question_count": len(open_questions),
+        "update_log_count": len(update_rows),
+        "source_status_counts": count_by_value(source_rows, "status"),
+        "source_trust_tier_counts": count_by_value(source_rows, "trust_tier"),
+        "claim_strength_counts": count_by_value(claim_rows, "claim_strength"),
+        "risky_source_count": len(risky_sources),
+        "risky_sources": risky_sources[:10],
+        "open_questions": open_questions[:10],
         "warning_count": len(warnings),
         "warnings": warnings,
         "error_count": len(errors),

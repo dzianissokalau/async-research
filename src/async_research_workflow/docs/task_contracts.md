@@ -249,6 +249,22 @@ values parsed from the generated `library/source_library.md` block. Generic text
 presence in notes, headings, examples, or malformed tables does not satisfy
 library support.
 
+## Knowledge Library Phase 6 Surfaces
+
+Health, readiness, and weekly digest surfaces read knowledge-library state from
+the shared library validator report. They must not reparse Markdown tables
+separately or resolve `LIT-*` refs through text search.
+
+`health` reports `knowledge_library_findings` and includes
+`checks.knowledge_library`. `readiness` treats missing or warning-only library
+state as nonblocking, and turns malformed populated library state into a blocker
+only when active library-dependent work declares `library_refs`. `surface
+update` writes Knowledge Library summaries to `daily_status.md` and
+`weekly_digest.md`, including source coverage and open questions.
+
+Source-dependent experiment and result gates remain governed by source/data
+audit rules, not by library memory alone.
+
 ## Exploration Cycle
 
 Use `research_ops/discovery/source_register.md` as the approved discovery source

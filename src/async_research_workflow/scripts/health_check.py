@@ -21,6 +21,7 @@ from async_research_workflow.scripts.check_schema_versions import (
 )
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
+from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
@@ -443,6 +444,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     schema_versions = scan_schema_versions(ops_dir, args.expected_schema_version)
     source_governance = source_governance_report(ops_dir, now)
     data_foundations = data_foundation_report(ops_dir, now)
+    library = knowledge_library.library_report(ops_dir, now, args.library_stale_days)
     accepted_memory = memory_decay_report(ops_dir, now=now)
     idea_catalog = catalog_surface_summary(ops_dir)
     cost = scan_cost_ledger(
@@ -550,6 +552,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 "active_idea_gap_refs": data_foundations.get("active_idea_gap_refs", []),
             },
         )
+    library_issue_count = library.get("warning_count", 0) + library.get("error_count", 0)
+    if library_issue_count:
+        add_alert(
+            alerts,
+            "error" if library.get("error_count", 0) else "warning",
+            "knowledge_library_findings",
+            f"{library_issue_count} knowledge-library finding(s)",
+            {
+                "error_count": library.get("error_count", 0),
+                "errors": library.get("errors", []),
+                "warning_count": library.get("warning_count", 0),
+                "warnings": library.get("warnings", []),
+                "source_count": library.get("source_count", 0),
+                "row_counts": library.get("row_counts", {}),
+                "open_question_count": library.get("open_question_count", 0),
+                "risky_source_count": library.get("risky_source_count", 0),
+            },
+        )
     if accepted_memory.get("stale_count", 0):
         add_alert(
             alerts,
@@ -627,6 +647,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "cost": cost,
             "source_governance": source_governance,
             "data_foundations": data_foundations,
+            "knowledge_library": library,
             "accepted_memory": accepted_memory,
             "idea_catalog": idea_catalog,
         },
@@ -640,6 +661,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "stuck_days": args.stuck_days,
             "in_progress_stuck_hours": args.in_progress_stuck_hours,
             "expected_schema_version": args.expected_schema_version,
+            "library_stale_days": args.library_stale_days,
         },
     }
 
@@ -659,6 +681,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--weekly-budget-usd", type=float)
     parser.add_argument("--stuck-days", type=float, default=7.0)
     parser.add_argument("--in-progress-stuck-hours", type=float, default=24.0)
+    parser.add_argument("--library-stale-days", type=int, default=knowledge_library.SURFACE_STALE_DAYS)
     parser.add_argument("--report-path", type=Path)
     parser.add_argument("--daily-status-path", type=Path)
     parser.add_argument("--no-daily-status", action="store_true")

@@ -1,9 +1,9 @@
 # Knowledge Library Roadmap
 
 Status: In Progress
-Current phase: Phase 6
+Current phase: Phase 7
 Last updated: 2026-05-09
-Next action: Add warning-only health, readiness, and weekly library surfaces
+Next action: Add read-only knowledge library dashboard surface
 Blocked by: None
 
 Created: 2026-05-05
@@ -301,7 +301,7 @@ Last updated: 2026-05-09
 | 3 | CLI, README, and docs integration | Complete | Wire public CLI help, README command tables, exit-code docs, starter README guidance, and package resource tests. | Public `library` help exposes `init` and `validate`; root README documents library commands, exit codes, workspace files, and the accepted-output boundary; starter READMEs explain cold-start and accepted-output separation; packaged-resource and doc-reference tests cover the full library starter file set and docs contract. |
 | 4 | Idea catalog reference alignment | Complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | Catalog validation resolves `library_refs` only against `library/source_library.md`; promotion dry-run now reports `evidence_support.status` so planners can distinguish `thin_evidence` from `missing_library_support`; unresolved refs remain warning-level for normal validation/data-readiness routing, while library-dependent routes block until support resolves or extraction runs first. |
 | 5 | Library extraction task guidance | Complete | Add the chosen task contract for library extraction/update proposals and clarify allowed paths, required caveats, claim-strength rules, and update-log provenance. | V1 keeps `literature_extract`; promotion proposals now require proposed generated-block library rows, source status/trust tier rationale, claim-strength caveats, reviewer notes, exact update targets, `library_update_log.md` provenance, and `async-research library validate research_ops`; worker library writes remain task-folder-only unless `allowed_paths` grants library files; library-dependent promotion support resolves `LIT-*` refs from parsed generated `source_library.md` source rows rather than generic text presence. |
-| 6 | Health, readiness, and weekly surfaces | Not started | Surface missing, stale, disputed, unsupported, and open-question library state without blocking all cold-start work. | Should consume validator output, not reparsed Markdown. |
+| 6 | Health, readiness, and weekly surfaces | Complete | Surface missing, stale, disputed, unsupported, and open-question library state without blocking all cold-start work. | Health, readiness, and surface update now consume `knowledge_library.library_report` validator output; missing/warning-only library state is warning-only, malformed library state blocks only active library-dependent work with declared `library_refs`, weekly and daily surfaces include source coverage and open questions, and source/data-governed gates remain separate from library memory. |
 | 7 | Dashboard surface | Not started | Add read-only dashboard views for source coverage, reviewed sources, stale/disputed claims, open questions, and proposed update tasks. | Deferred until parser/validator behavior is stable. |
 
 ## Framework Integration
@@ -677,6 +677,19 @@ Acceptance:
   resolving `LIT-*` refs through ad hoc text search
 - source-dependent experiment and result gates continue to rely on source/data
   governance, not library memory alone
+
+Delivered 2026-05-09:
+
+- `health` includes `checks.knowledge_library` and `knowledge_library_findings`
+  alerts from the validator report
+- `readiness` keeps missing and warning-only library findings nonblocking, and
+  blocks malformed library state only for active library-dependent tasks with
+  declared `library_refs`
+- `surface update` writes Knowledge Library summaries into `daily_status.md`
+  and `weekly_digest.md`, including source coverage, risky sources, validator
+  findings, and open questions
+- source/data-governed experiment and result gates continue to use source and
+  data foundation checks rather than treating library memory as approval
 
 ## Phase 7: Dashboard Surface
 

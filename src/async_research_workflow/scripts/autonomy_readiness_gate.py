@@ -22,6 +22,7 @@ from async_research_workflow.scripts.check_schema_versions import (
     scan_schema_versions,
 )
 from async_research_workflow.scripts.data_foundations import data_foundation_report
+from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts.data_source_audit import (
     EXPERIMENT_READY_STATUSES,
     parse_register,
@@ -60,6 +61,7 @@ ACTIVE_STATUSES = {
 }
 REVIEW_QUEUE_STATUSES = {"awaiting_review", "single_review", "panel_review"}
 SOURCE_GOVERNED_TASK_TYPES = {"experiment_plan", "run_analysis", "evaluate_results"}
+LIBRARY_SUPPORT_REQUIRED_TASK_TYPES = {"hypothesis_card", "experiment_plan"}
 REQUIRED_OPERATIONAL_FILES = [
     "queue.md",
     "daily_status.md",
@@ -183,6 +185,62 @@ def source_dependent_governed_tasks(statuses: list[dict[str, Any]]) -> list[dict
                 "status": payload.get("status"),
                 "type": payload.get("type"),
                 "data_audit_refs": [ref for ref in refs if isinstance(ref, str)],
+            }
+        )
+    return tasks
+
+
+def idea_library_refs(ops_dir: Path, idea_id: str) -> list[str]:
+    if not idea_id:
+        return []
+    path = ops_dir / "ideas" / f"{idea_id}.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    refs = payload.get("library_refs") if isinstance(payload, dict) else None
+    if not isinstance(refs, list):
+        return []
+    return [str(ref).strip() for ref in refs if str(ref).strip()]
+
+
+def task_library_refs(ops_dir: Path, payload: dict[str, Any]) -> list[str]:
+    refs = payload.get("library_refs")
+    if isinstance(refs, list):
+        direct = [str(ref).strip() for ref in refs if str(ref).strip()]
+        if direct:
+            return direct
+    required_sources = payload.get("required_sources")
+    if isinstance(required_sources, dict) and isinstance(required_sources.get("library_refs"), list):
+        nested = [str(ref).strip() for ref in required_sources["library_refs"] if str(ref).strip()]
+        if nested:
+            return nested
+    idea_id = str(payload.get("catalog_idea_id") or "").strip()
+    if not idea_id:
+        catalog_promotion = payload.get("catalog_promotion")
+        if isinstance(catalog_promotion, dict):
+            idea_id = str(catalog_promotion.get("catalog_idea_id") or "").strip()
+    return idea_library_refs(ops_dir, idea_id)
+
+
+def library_dependent_tasks(statuses: list[dict[str, Any]], ops_dir: Path) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    for item in active_tasks(statuses):
+        payload = item["payload"]
+        task_type = str(payload.get("type") or "").strip()
+        if task_type not in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
+            continue
+        refs = task_library_refs(ops_dir, payload)
+        if not refs:
+            continue
+        tasks.append(
+            {
+                "task_id": payload.get("id", item["task_dir"].name),
+                "task_dir": str(item["task_dir"]),
+                "status_path": str(item["status_path"]),
+                "status": payload.get("status"),
+                "type": task_type,
+                "library_refs": refs,
             }
         )
     return tasks
@@ -389,6 +447,38 @@ def data_foundation_issues(report: dict[str, Any], statuses: list[dict[str, Any]
                 "warnings": report.get("warnings", []),
                 "active_idea_gap_refs": report.get("active_idea_gap_refs", []),
                 "source_dependent_tasks": governed_tasks,
+            },
+            action,
+        )
+    ]
+
+
+def knowledge_library_issues(report: dict[str, Any], statuses: list[dict[str, Any]], ops_dir: Path) -> list[dict[str, Any]]:
+    finding_count = report.get("warning_count", 0) + report.get("error_count", 0)
+    if not finding_count:
+        return []
+    dependent_tasks = library_dependent_tasks(statuses, ops_dir)
+    error_count = report.get("error_count", 0)
+    severity = "error" if error_count and dependent_tasks else "warning"
+    action = (
+        "repair malformed knowledge library rows before running library-dependent hypothesis or experiment work"
+        if severity == "error"
+        else "run async-research library validate research_ops and review library findings before relying on library memory"
+    )
+    return [
+        issue(
+            severity,
+            "knowledge_library_findings",
+            f"{finding_count} knowledge-library finding(s)",
+            {
+                "error_count": error_count,
+                "errors": report.get("errors", []),
+                "warning_count": report.get("warning_count", 0),
+                "warnings": report.get("warnings", []),
+                "source_count": report.get("source_count", 0),
+                "row_counts": report.get("row_counts", {}),
+                "open_question_count": report.get("open_question_count", 0),
+                "library_dependent_tasks": dependent_tasks,
             },
             action,
         )
@@ -602,6 +692,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     cost = scan_cost_ledger(ops_dir / "cost_ledger.csv", args.monthly_budget_usd, args.weekly_budget_usd, now)
     idea_catalog = catalog_surface_summary(ops_dir)
     data_foundations = data_foundation_report(ops_dir, now)
+    library = knowledge_library.library_report(ops_dir, now, args.library_stale_days)
 
     invalids: list[dict[str, Any]] = []
     human: list[dict[str, Any]] = []
@@ -707,6 +798,9 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     data_foundation_alerts = data_foundation_issues(data_foundations, statuses)
     human.extend([item for item in data_foundation_alerts if item.get("severity") == "error"])
     warnings.extend([item for item in data_foundation_alerts if item.get("severity") == "warning"])
+    knowledge_library_alerts = knowledge_library_issues(library, statuses, ops_dir)
+    human.extend([item for item in knowledge_library_alerts if item.get("severity") == "error"])
+    warnings.extend([item for item in knowledge_library_alerts if item.get("severity") == "warning"])
     warnings.extend(stale_accepted_evidence_issues(ops_dir, now, args.accepted_output_freshness_days))
     warnings.extend(metrics_snapshot_issues(ops_dir, now, args.metrics_stale_hours))
     if idea_catalog["failure_count"]:
@@ -761,6 +855,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "discovery_inbox_count": markdown_table_row_count(ops_dir / "discovery_inbox.md"),
             "cost": cost,
             "data_foundations": data_foundations,
+            "knowledge_library": library,
             "latest_metrics_snapshot": latest_metrics_snapshot(ops_dir),
             "accepted_memory": memory_decay_report(ops_dir, now=now),
             "idea_catalog": idea_catalog,
@@ -773,6 +868,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "stale_source_days": args.stale_source_days,
             "accepted_output_freshness_days": args.accepted_output_freshness_days,
             "metrics_stale_hours": args.metrics_stale_hours,
+            "library_stale_days": args.library_stale_days,
             "expected_schema_version": args.expected_schema_version,
         },
     }
@@ -793,6 +889,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--stale-source-days", type=int, default=90)
     parser.add_argument("--accepted-output-freshness-days", type=int, default=90)
     parser.add_argument("--metrics-stale-hours", type=float, default=168.0)
+    parser.add_argument("--library-stale-days", type=int, default=knowledge_library.SURFACE_STALE_DAYS)
     parser.add_argument("--report-path", type=Path)
     parser.add_argument("--daily-status-path", type=Path)
     parser.add_argument("--no-daily-status", action="store_true")

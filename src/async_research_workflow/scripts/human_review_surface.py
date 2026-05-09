@@ -36,6 +36,7 @@ from async_research_workflow.scripts.health_check import (
     parse_datetime,
     status_counts,
 )
+from async_research_workflow.scripts import knowledge_library
 
 
 SUCCESS = 0
@@ -413,6 +414,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
     cost = cost_window(ledger_path(ops_dir), now, None, None)
     source = source_governance_report(ops_dir, now=now)
     data_foundations = data_foundation_report(ops_dir, now=now)
+    library = knowledge_library.library_report(ops_dir, now=now, stale_days=knowledge_library.SURFACE_STALE_DAYS)
     metrics = latest_metrics_snapshot(ops_dir)
     queue_depth = markdown_table_row_count(ops_dir / "queue.md")
     discovery_depth = markdown_table_row_count(ops_dir / "discovery_inbox.md")
@@ -435,6 +437,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "cost": cost,
         "source": source,
         "data_foundations": data_foundations,
+        "knowledge_library": library,
         "metrics": metrics,
         "queue_depth": queue_depth,
         "discovery_depth": discovery_depth,
@@ -511,6 +514,52 @@ def data_foundation_lines(report: dict[str, Any]) -> list[str]:
         for item in finding_preview[:5]:
             reason = normalize_text(item.get("reason")) or "finding"
             message = normalize_text(item.get("message")) or "inspect data foundations"
+            lines.append(f"  - {reason}: {message}")
+    return lines
+
+
+def format_count_map_for_surface(counts: Any, preferred: list[str]) -> str:
+    if not isinstance(counts, dict) or not counts:
+        return "none"
+    ordered = []
+    seen = set()
+    for key in preferred:
+        if key in counts:
+            ordered.append(f"{key}: {counts[key]}")
+            seen.add(key)
+    for key, value in sorted(counts.items()):
+        if key not in seen:
+            ordered.append(f"{key}: {value}")
+    return ", ".join(ordered) if ordered else "none"
+
+
+def knowledge_library_lines(report: dict[str, Any]) -> list[str]:
+    warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
+    errors = report.get("errors") if isinstance(report.get("errors"), list) else []
+    open_questions = report.get("open_questions") if isinstance(report.get("open_questions"), list) else []
+    state = "ok" if report.get("ok") and not warnings and not errors else f"{len(errors)} error(s), {len(warnings)} warning(s)"
+    lines = [
+        f"- Library validation: {state}",
+        f"- Sources: {report.get('source_count', 0)}",
+        f"- Topics / claims / methods: {report.get('topic_count', 0)} / {report.get('claim_count', 0)} / {report.get('method_count', 0)}",
+        f"- Open questions: {report.get('open_question_count', 0)}",
+        f"- Risky sources: {report.get('risky_source_count', 0)}",
+        f"- Source statuses: {format_count_map_for_surface(report.get('source_status_counts'), ['candidate', 'trusted', 'context_only', 'disputed', 'deprecated'])}",
+        f"- Trust tiers: {format_count_map_for_surface(report.get('source_trust_tier_counts'), ['primary', 'supporting', 'background', 'weak', 'unknown'])}",
+    ]
+    if open_questions:
+        lines.append("- Open question preview:")
+        for item in open_questions[:5]:
+            question_id = normalize_text(item.get("question_id"), "question")
+            question = normalize_text(item.get("question"), "inspect open_questions.md")
+            next_task = normalize_text(item.get("next_task"), "none")
+            lines.append(f"  - {question_id}: {question} (next {next_task})")
+    finding_preview = errors[:3] + warnings[:3]
+    if finding_preview:
+        lines.append("- Validator findings:")
+        for item in finding_preview[:5]:
+            reason = normalize_text(item.get("reason")) or "finding"
+            message = normalize_text(item.get("message")) or "inspect knowledge library"
             lines.append(f"  - {reason}: {message}")
     return lines
 
@@ -638,6 +687,9 @@ def daily_status_markdown(model: dict[str, Any]) -> str:
 
     lines.extend(["", "## Data Foundations", ""])
     lines.extend(data_foundation_lines(model["data_foundations"]))
+
+    lines.extend(["", "## Knowledge Library", ""])
+    lines.extend(knowledge_library_lines(model["knowledge_library"]))
 
     lines.extend(["", "## Current Queue State", ""])
     active_count = len(model["active"])
@@ -778,6 +830,16 @@ def weekly_data_foundations_section(model: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def weekly_knowledge_library_section(model: dict[str, Any]) -> str:
+    library = model["knowledge_library"]
+    lines = [
+        "## Knowledge Library Surface",
+        "",
+    ]
+    lines.extend(knowledge_library_lines(library))
+    return "\n".join(lines) + "\n"
+
+
 def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
     path = ops_dir / WEEKLY_NAME
     text = path.read_text(encoding="utf-8") if path.exists() else "# Weekly Digest\n"
@@ -787,8 +849,10 @@ def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
         + weekly_catalog_section(model).rstrip()
         + "\n\n"
         + weekly_data_foundations_section(model).rstrip()
+        + "\n\n"
+        + weekly_knowledge_library_section(model).rstrip()
     )
-    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface|Data Foundations Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
+    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface|Data Foundations Surface|Knowledge Library Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
     stripped = pattern.sub("", text).rstrip()
     updated = stripped + "\n\n" + section.rstrip() + "\n"
     atomic_write_text(path, updated)
