@@ -610,9 +610,9 @@ def reference_issues(record: dict[str, Any], ops_dir: Path) -> tuple[list[dict[s
 
     library_refs = payload.get("library_refs")
     if isinstance(library_refs, list):
-        library_index = ops_dir / "knowledge" / "knowledge_index.md"
+        library_source = ops_dir / "library" / "source_library.md"
         for ref in [str(item).strip() for item in library_refs if str(item).strip()]:
-            if not text_contains(library_index, ref):
+            if not text_contains(library_source, ref):
                 warnings.append(candidate_issue(
                     "warning",
                     "library_ref_unresolved",
@@ -620,7 +620,7 @@ def reference_issues(record: dict[str, Any], ops_dir: Path) -> tuple[list[dict[s
                     f"library_refs reference {ref} could not be resolved because the knowledge library is optional in this phase",
                     ref_field="library_refs",
                     ref=ref,
-                    target=str(library_index),
+                    target=str(library_source),
                 ))
 
     cluster_id = str(payload.get("cluster_id", "")).strip()

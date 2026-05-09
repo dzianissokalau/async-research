@@ -168,6 +168,57 @@ surface the recovery payload for human repair.
 It prevents the same `promote` idea from being selected again while preserving
 the task reference and revisit condition in the catalog decision history.
 
+## Knowledge Library Phase 0
+
+Knowledge Library V1 uses `research_ops/library/` as the canonical workspace
+path. Do not create a parallel `research_ops/knowledge/` namespace. `LIT-*`
+references identify source rows in `library/source_library.md`; they are
+background memory for planning and review, not final source-level citation for
+accepted claims.
+
+For V1, keep the executable task type as `literature_extract` and add
+library-update proposal expectations to that task guidance in a later phase. Do
+not add a separate `library_review` task type unless the task schemas, promotion
+helpers, review-tier defaults, and docs are updated together.
+
+Library source statuses are:
+
+```text
+candidate
+trusted
+context_only
+disputed
+deprecated
+```
+
+Library trust tiers are:
+
+```text
+primary
+supporting
+background
+weak
+unknown
+```
+
+Workers may propose updates to `source_library.md`, `knowledge_index.md`,
+`claim_map.md`, `method_index.md`, `open_questions.md`, and
+`library_update_log.md`, but they must not write directly to
+`research_ops/library/` unless the task explicitly grants those paths and the
+reviewed update is traceable in `library_update_log.md`. Library maintenance
+must not edit `queue.md` or create task folders.
+
+The planned read-only validator contract is:
+
+```bash
+async-research library validate research_ops
+```
+
+Exit `0` means the library contract is valid. Exit `2` means warning-only
+library findings with usable state. Exit `4` means malformed populated library
+state. Empty or missing library files are cold-start warnings, not blockers for
+discovery, idea scoring, or data readiness.
+
 ## Exploration Cycle
 
 Use `research_ops/discovery/source_register.md` as the approved discovery source

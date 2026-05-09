@@ -109,6 +109,12 @@ rejected_result_refs
 decision_history
 ```
 
+`library_refs` are optional background references to `LIT-*` source IDs in
+`research_ops/library/source_library.md`. They are warning-level support for
+planning and review until the knowledge library feature ships its validator.
+They must not point to `research_ops/knowledge/`, and they do not replace
+source-level citation in final accepted claims.
+
 Stored idea statuses are:
 
 ```text

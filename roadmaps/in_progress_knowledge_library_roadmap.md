@@ -1,9 +1,9 @@
 # Knowledge Library Roadmap
 
-Status: Not Started
-Current phase: Phase 0
+Status: In Progress
+Current phase: Phase 1
 Last updated: 2026-05-09
-Next action: Lock decisions, then add starter files and validator
+Next action: Add starter files, contracts, and safe init
 Blocked by: None
 
 Created: 2026-05-05
@@ -60,9 +60,9 @@ The canonical library path is:
 research_ops/library/
 ```
 
-Do not introduce a parallel `research_ops/knowledge/` namespace. Existing
-placeholder references to `research_ops/knowledge/knowledge_index.md` should be
-migrated or treated as a pre-V1 compatibility bug.
+Do not introduce a parallel `research_ops/knowledge/` namespace. Earlier
+placeholder references to `research_ops/knowledge/knowledge_index.md` were a
+pre-V1 compatibility bug and should not reappear in code or tests.
 
 Markdown library tables are canonical in V1. There is no JSON canonical store in
 the first version. If generated dashboard or digest projections appear later,
@@ -190,8 +190,8 @@ Implementation must preserve:
 
 Before implementation starts, fix or decide the following:
 
-1. **Canonical path mismatch.** The roadmap uses `research_ops/library/`, but
-   the current idea catalog unresolved-ref warning points at
+1. **Canonical path mismatch.** The roadmap uses `research_ops/library/`, while
+   early idea catalog unresolved-ref warnings pointed at
    `research_ops/knowledge/knowledge_index.md`. Align all code, docs, and tests
    on `research_ops/library/`. `library_refs` should resolve against
    `library/source_library.md` because `LIT-*` identifies sources.
@@ -295,11 +295,11 @@ Last updated: 2026-05-09
 
 | Phase | Step | Status | Description | Evidence / Notes |
 | ---: | --- | --- | --- | --- |
-| 0 | Pre-requirements and product decisions | Planned | Lock canonical path, task type choice, status vocabulary, update authority, validator contract, and compatibility rules before implementation starts. | This roadmap now lists the required pre-implementation fixes, including the `knowledge/` vs `library/` path mismatch. |
+| 0 | Pre-requirements and product decisions | Complete | Lock canonical path, task type choice, status vocabulary, update authority, validator contract, and compatibility rules before implementation starts. | Canonical `library_refs` resolution now targets `research_ops/library/source_library.md`; V1 keeps `literature_extract` as the executable task type and documents library-update proposal expectations, status vocabulary, update authority, validator exit codes, and cold-start safety. |
 | 1 | Starter files, contracts, and safe init | Not started | Add `research_ops/library/` starter files to generic and real-estate templates, document table contracts, and add idempotent `library init`. | Should be the first code slice after Phase 0. |
 | 2 | Library parser and validator | Not started | Add read-only parsing and `async-research library validate research_ops` with cold-start warnings, duplicate ID checks, row-shape checks, provenance checks, and source-ref checks. | Reuse the data-foundations validator style where possible. |
 | 3 | CLI, README, and docs integration | Not started | Wire public CLI help, README command tables, exit-code docs, starter README guidance, and package resource tests. | Completes MVP when validation is available and documented. |
-| 4 | Idea catalog reference alignment | Not started | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | Fixes the current pre-V1 `research_ops/knowledge/knowledge_index.md` target. |
+| 4 | Idea catalog reference alignment | Partially complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | The canonical target fix shipped with Phase 0; route-specific promotion explanation remains future work. |
 | 5 | Library extraction task guidance | Not started | Add the chosen task contract for library extraction/update proposals and clarify allowed paths, required caveats, claim-strength rules, and update-log provenance. | Depends on Phase 0 task type decision. |
 | 6 | Health, readiness, and weekly surfaces | Not started | Surface missing, stale, disputed, unsupported, and open-question library state without blocking all cold-start work. | Should consume validator output, not reparsed Markdown. |
 | 7 | Dashboard surface | Not started | Add read-only dashboard views for source coverage, reviewed sources, stale/disputed claims, open questions, and proposed update tasks. | Deferred until parser/validator behavior is stable. |
