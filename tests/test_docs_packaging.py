@@ -32,14 +32,15 @@ def packaged_doc_files() -> list[Path]:
 class DocsPackagingTests(unittest.TestCase):
     def test_policy_records_keep_packaged_decision(self) -> None:
         text = POLICY.read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
 
         for snippet in [
             "Keep Markdown protocol and operator docs packaged",
-            "roughly 46 Markdown files and 382 KiB",
+            "comfortably below the 1 MiB packaging threshold",
             "Keep the packaged docs footprint below 1 MiB",
             "Verify key packaged docs through `importlib.resources`",
         ]:
-            self.assertIn(snippet, text)
+            self.assertIn(" ".join(snippet.split()), normalized)
 
     def test_pyproject_keeps_docs_package_data_explicit(self) -> None:
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))

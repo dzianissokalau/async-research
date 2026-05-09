@@ -1,9 +1,9 @@
 # Research Foundations Roadmap
 
 Status: In Progress
-Current phase: Knowledge Library remains
+Current phase: Knowledge Library post-MVP integration
 Last updated: 2026-05-09
-Next action: Deliver Knowledge Library MVP
+Next action: Continue Knowledge Library Phase 4 idea-catalog support explanation
 Blocked by: None
 
 Created: 2026-05-05
@@ -42,7 +42,7 @@ progress.
 
 Implement these as separate, shippable features:
 
-1. [Knowledge Library Roadmap](./not_started_knowledge_library_roadmap.md)
+1. [Knowledge Library Roadmap](./in_progress_knowledge_library_roadmap.md)
    - Create trusted source and claim memory from literature, posts, books,
      user notes, and accepted evidence.
    - Feeds discovery, planning, review, and future library update tasks.
@@ -71,11 +71,11 @@ Implement these as separate, shippable features:
 
 ## Suggested Overall Sequence
 
-1. Ship the knowledge library skeleton and validator.
-2. Ship data foundations on top of the existing source audit register.
-3. Ship the idea catalog once library and data refs can be attached to ideas.
-4. Add planner integration so missing foundations become small setup tasks.
-5. Add dashboard surfaces for library coverage, data readiness, and idea
+1. Continue Knowledge Library post-MVP integrations.
+2. Keep delivered data foundations and idea catalog behavior aligned with
+   library references.
+3. Add planner integration so missing foundations become small setup tasks.
+4. Add dashboard surfaces for library coverage, data readiness, and idea
    backlog.
 
 This sequence keeps implementation incremental while still moving toward the
