@@ -617,6 +617,7 @@ under `artifacts/analysis_run/`:
 metrics.json
 diagnostics.json
 robustness_checks.json
+claim_gates.json
 ```
 
 These artifacts must conform to:
@@ -625,6 +626,7 @@ These artifacts must conform to:
 async_research_workflow/schemas/analysis_metrics.schema.json
 async_research_workflow/schemas/analysis_diagnostics.schema.json
 async_research_workflow/schemas/analysis_robustness_checks.schema.json
+async_research_workflow/schemas/analysis_claim_gates.schema.json
 ```
 
 Use the packaged templates:
@@ -633,6 +635,7 @@ Use the packaged templates:
 async_research_workflow/templates/artifact_templates/analysis_metrics_template.md
 async_research_workflow/templates/artifact_templates/analysis_diagnostics_template.md
 async_research_workflow/templates/artifact_templates/analysis_robustness_checks_template.md
+async_research_workflow/templates/artifact_templates/analysis_claim_gates_template.md
 ```
 
 The metrics contract requires explicit baseline, candidate, and validation
@@ -647,6 +650,15 @@ impact, strongest supported claim class, and limitations. Phase 5 semantic
 validators will enforce cross-field rules such as a `not_run` robustness check
 not being allowed to support a claim. These are contracts for reviewers and
 validators, not a modeling library.
+
+The claim gate contract records the maximum supported claim strength and the
+route for result acceptance: accepted, capped, rejected, or human-gated. The
+reusable evaluator checks predictive baseline/validation evidence, causal
+language against identification evidence, probability claims against
+calibration or uncertainty diagnostics, diagnostic weakness caps, and
+public/high-stakes/strong human approval requirements. Phase 5 will expose
+these checks through the analysis validation CLI; Phase 7 will wire the gate
+report into durable result acceptance records.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:

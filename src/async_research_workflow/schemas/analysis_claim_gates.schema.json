@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Analysis Claim Gates",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "generated_at",
+    "run_id",
+    "experiment_plan_id",
+    "task_id",
+    "claim",
+    "claim_type",
+    "requested_claim_strength",
+    "max_claim_strength",
+    "claim_decision",
+    "recommended_route",
+    "cap_reasons",
+    "human_gate",
+    "claim_gate_results",
+    "review_notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "analysis_claim_gates_v1.0"
+      ]
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^RUN-[0-9]{4}$"
+    },
+    "experiment_plan_id": {
+      "type": "string",
+      "pattern": "^EXP-[0-9]{4}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "claim": {
+      "type": "string"
+    },
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "descriptive",
+        "associative",
+        "predictive",
+        "causal",
+        "probabilistic",
+        "other"
+      ]
+    },
+    "requested_claim_strength": {
+      "type": "string",
+      "enum": [
+        "none",
+        "weak",
+        "suggestive",
+        "moderate",
+        "strong"
+      ]
+    },
+    "max_claim_strength": {
+      "type": "string",
+      "enum": [
+        "none",
+        "weak",
+        "suggestive",
+        "moderate",
+        "strong"
+      ]
+    },
+    "claim_decision": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "capped",
+        "rejected",
+        "needs_human"
+      ]
+    },
+    "recommended_route": {
+      "type": "string",
+      "enum": [
+        "accept_as_evidence",
+        "needs_revision",
+        "needs_human",
+        "reject"
+      ]
+    },
+    "cap_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_gate": {
+      "type": "object",
+      "required": [
+        "required",
+        "satisfied",
+        "reason"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "claim_gate_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "gate",
+          "status",
+          "max_claim_strength",
+          "reason",
+          "evidence"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "cap",
+              "reject",
+              "needs_human"
+            ]
+          },
+          "max_claim_strength": {
+            "type": "string",
+            "enum": [
+              "none",
+              "weak",
+              "suggestive",
+              "moderate",
+              "strong"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "review_notes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

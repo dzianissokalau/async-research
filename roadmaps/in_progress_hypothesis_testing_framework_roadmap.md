@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 4 ready
+Current phase: Phase 5 ready
 Last updated: 2026-05-09
-Next action: Implement Phase 4 claim gates
+Next action: Implement Phase 5 analysis validation CLI
 Blocked by: None
 
 Created: 2026-05-07
@@ -274,8 +274,8 @@ Last updated: 2026-05-09
 | 0 | Lock execution decisions | Complete | Capture V1 scope, authority model, accepted plan requirement, validator contract, compatibility rules, and first test matrix before package implementation starts. | This roadmap now defines contract-first execution and keeps the core package out of project-owned statistics code. |
 | 1 | Analysis run contract | Complete | Add `analysis_run.schema.json`, a manifest template, packaged resource tests, and docs for the canonical `artifacts/analysis_run/` layout. | Adds the Phase 1 schema/template contract, lifecycle-aware planned manifests, worker guidance, result-summary manifest linkage, task contract docs, framework docs, and focused schema/resource tests. |
 | 2 | Preflight validator | Complete | Add read-only `async-research analysis preflight` against task status, accepted experiment plan, source/data governance, budget, metric, method, and path safety. | Adds `analysis_runs.py`, public CLI wiring, help/architecture tests, and focused preflight tests for task type, accepted plan state, plan revalidation, source/data governance, stale accepted memory, budget, metric, method, and unsafe paths. |
-| 3 | Output contracts | Complete | Add structured metrics, diagnostics, robustness, and leakage schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Adds `analysis_metrics`, `analysis_diagnostics`, and `analysis_robustness` schemas plus packaged artifact templates and contract tests. |
-| 4 | Claim gates | Not Started | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Strong, public, and high-stakes claims require human approval. |
+| 3 | Output contracts | Complete | Add structured metrics, diagnostics, and robustness schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Adds `analysis_metrics`, `analysis_diagnostics`, and `analysis_robustness` schemas plus packaged artifact templates and contract tests. |
+| 4 | Claim gates | Complete | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Adds `analysis_claim_gates_v1.0`, a packaged template, and reusable evaluator tests for accepted, capped, rejected, and human-gated routes. |
 | 5 | Analysis validation CLI | Not Started | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Commands are read-only in V1. |
 | 6 | Task templates and prompts | Not Started | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Completes the MVP usability loop. |
 | 7 | Result acceptance integration | Not Started | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence should cite manifest, data versions, diagnostics, and claim gates. |
@@ -310,11 +310,14 @@ src/async_research_workflow/schemas/analysis_run.schema.json
 src/async_research_workflow/schemas/analysis_metrics.schema.json
 src/async_research_workflow/schemas/analysis_diagnostics.schema.json
 src/async_research_workflow/schemas/analysis_robustness_checks.schema.json
+src/async_research_workflow/schemas/analysis_claim_gates.schema.json
 src/async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md
 src/async_research_workflow/templates/artifact_templates/analysis_metrics_template.md
 src/async_research_workflow/templates/artifact_templates/analysis_diagnostics_template.md
 src/async_research_workflow/templates/artifact_templates/analysis_robustness_checks_template.md
+src/async_research_workflow/templates/artifact_templates/analysis_claim_gates_template.md
 src/async_research_workflow/scripts/analysis_runs.py
+src/async_research_workflow/scripts/analysis_claim_gates.py
 ```
 
 Recommended run artifact layout:
@@ -333,6 +336,7 @@ research_ops/tasks/TASK-0004-run-analysis/
       diagnostics.json
       diagnostics.md
       robustness_checks.json
+      claim_gates.json
       model_outputs/
       tables/
       figures/
@@ -611,6 +615,20 @@ Implementation steps:
 3. Add causal-language and probability-claim checks.
 4. Add human approval requirements for public, high-stakes, and strong claims.
 5. Add tests for cap, reject, and human-review routes.
+
+Delivered in Phase 4:
+
+- `analysis_claim_gates.schema.json` defines the machine-readable claim gate
+  report with `claim_decision`, `recommended_route`, max supported claim
+  strength, human gate state, and per-gate evidence.
+- `analysis_claim_gates.py` evaluates Phase 3 metrics, diagnostics, and
+  robustness artifacts against result-summary claims without executing analysis
+  code.
+- Predictive claims require passed baseline comparisons and out-of-sample
+  validation, causal language requires identification evidence, probability
+  claims require calibration or uncertainty diagnostics, weak diagnostics cap
+  claim strength, and public/high-stakes/strong claims route to human review
+  when approval is missing.
 
 Acceptance:
 

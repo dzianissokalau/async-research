@@ -85,6 +85,11 @@ experimentation, and result acceptance frameworks have reached this point:
   `async_research_workflow/schemas/analysis_robustness_checks.schema.json`,
   with packaged artifact templates under
   `async_research_workflow/templates/artifact_templates/`
+- `analysis_claim_gates_v1.0` is backed by
+  `async_research_workflow/schemas/analysis_claim_gates.schema.json`, the
+  packaged `async_research_workflow/templates/artifact_templates/analysis_claim_gates_template.md`,
+  and reusable claim gate evaluation in
+  `async_research_workflow/scripts/analysis_claim_gates.py`
 - `result_acceptance_v1.0` is backed by
   `async_research_workflow/schemas/result_acceptance.schema.json` and
   `async_research_workflow/scripts/validate_result_acceptance.py`
