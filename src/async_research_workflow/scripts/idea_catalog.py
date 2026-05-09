@@ -1864,6 +1864,13 @@ def library_support_status(ops_dir: Path, payload: dict[str, Any]) -> dict[str, 
     }
 
 
+def library_resolution_errors(library_support: dict[str, Any]) -> list[dict[str, Any]]:
+    issues = library_support.get("resolution_issues")
+    if not isinstance(issues, list):
+        return []
+    return [issue for issue in issues if isinstance(issue, dict) and issue.get("severity") == "error"]
+
+
 def non_library_evidence_refs(payload: dict[str, Any]) -> dict[str, list[str]]:
     refs = promotion_refs(payload)
     return {
@@ -1880,11 +1887,18 @@ def evidence_is_thin(payload: dict[str, Any]) -> bool:
 
 def promotion_evidence_support(ops_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     library_support = library_support_status(ops_dir, payload)
+    library_errors = library_resolution_errors(library_support)
     other_refs = non_library_evidence_refs(payload)
     source_discovery_path = str(payload.get("source_discovery_path") or "").strip()
     if evidence_is_thin(payload):
         status = "thin_evidence"
         message = "No library_refs, data_refs, accepted/rejected refs, evidence seeds, or source discovery path are present."
+    elif library_support["library_refs"] and library_errors:
+        status = "invalid_library_support"
+        message = (
+            "The idea names library_refs, but generated source rows in "
+            "research_ops/library/source_library.md have validator errors."
+        )
     elif library_support["unresolved_refs"] and not other_refs and not source_discovery_path:
         status = "missing_library_support"
         message = (
@@ -2008,7 +2022,21 @@ def promotion_blockers(
 
     evidence_support = promotion_evidence_support(ops_dir, payload)
     library_support = evidence_support["library_support"]
-    if evidence_support["status"] == "missing_library_support" and task_type in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
+    library_errors = library_resolution_errors(library_support)
+    if library_errors and task_type in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
+        blockers.append(
+            {
+                "reason": "invalid_library_support",
+                "message": (
+                    f"{task_type} promotion requires validator-clean generated source_library.md rows "
+                    "for referenced library_refs"
+                ),
+                "resolution_errors": library_errors,
+                "target": library_support["target"],
+                "resolution": library_support.get("resolution"),
+            }
+        )
+    elif evidence_support["status"] == "missing_library_support" and task_type in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
         blockers.append(
             {
                 "reason": "missing_library_support",

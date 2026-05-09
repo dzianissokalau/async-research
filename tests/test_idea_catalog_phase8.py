@@ -367,6 +367,44 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual([], library_support["resolved_refs"])
             self.assertEqual(["LIT-7316"], library_support["unresolved_refs"])
 
+    def test_promote_blocks_library_required_route_when_source_row_has_validator_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7317", "Invalid library source row idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["required_data"] = []
+            candidate["library_refs"] = ["LIT-7317"]
+            write_json(ops_dir / "ideas" / "IDEA-7317.json", candidate)
+            write_source_library_rows(
+                ops_dir,
+                [
+                    [
+                        "LIT-7317",
+                        "approved",
+                        "tier_1",
+                        "article",
+                        "Fixture source",
+                        "Fixture Publisher",
+                        "https://example.test/lit-7317",
+                        "2026-05-09",
+                        "invalid vocabulary on purpose",
+                    ]
+                ],
+            )
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7317"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("idea_promotion_blocked", payload["action"])
+            self.assertEqual("invalid_library_support", payload["evidence_support"]["status"])
+            library_support = payload["evidence_support"]["library_support"]
+            self.assertEqual(["LIT-7317"], library_support["resolved_refs"])
+            blocker = next(item for item in payload["blockers"] if item["reason"] == "invalid_library_support")
+            error_reasons = {item["reason"] for item in blocker["resolution_errors"]}
+            self.assertIn("invalid_library_source_status", error_reasons)
+            self.assertIn("invalid_library_trust_tier", error_reasons)
+            self.assertIsNone(payload["proposal"])
+
     def test_promote_keeps_partial_library_support_warning_nonblocking_when_other_evidence_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

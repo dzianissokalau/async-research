@@ -601,9 +601,9 @@ Acceptance:
 
 Purpose: give workers a bounded way to create or improve library state.
 
-Depending on the Phase 0 task-type decision, either add a dedicated
-`library_review` task type or harden `literature_extract` with a library-update
-output contract.
+Phase 0 chose to keep `literature_extract` as the V1 executable task type. This
+phase hardens `literature_extract` with a library-update output contract rather
+than adding a separate `library_review` task type.
 
 The task should specify:
 
