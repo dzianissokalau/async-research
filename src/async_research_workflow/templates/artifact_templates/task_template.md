@@ -92,7 +92,9 @@ Write `worker_output.md` with:
   experiment plan. Run
   `async-research analysis preflight <task-dir> --ops-dir research_ops` before
   starting the analysis; blockers or warnings must be resolved or reviewed
-  before execution.
+  before execution. After execution, write `metrics.json`, `diagnostics.json`,
+  and `robustness_checks.json` under `artifacts/analysis_run/` using the
+  packaged analysis output templates.
 - For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result
   summary following
   `async_research_workflow/templates/artifact_templates/result_summary_template.md`;

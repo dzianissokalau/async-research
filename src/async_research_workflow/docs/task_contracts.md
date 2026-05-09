@@ -610,6 +610,39 @@ to start. Exit `2` may mean hard blockers or warning-only findings; inspect the
 JSON `ok`, `hard_gate_failures`, `warnings`, and `next_step` fields before
 execution.
 
+Completed `run_analysis` tasks should also write structured output artifacts
+under `artifacts/analysis_run/`:
+
+```text
+metrics.json
+diagnostics.json
+robustness_checks.json
+```
+
+These artifacts must conform to:
+
+```text
+async_research_workflow/schemas/analysis_metrics.schema.json
+async_research_workflow/schemas/analysis_diagnostics.schema.json
+async_research_workflow/schemas/analysis_robustness_checks.schema.json
+```
+
+Use the packaged templates:
+
+```text
+async_research_workflow/templates/artifact_templates/analysis_metrics_template.md
+async_research_workflow/templates/artifact_templates/analysis_diagnostics_template.md
+async_research_workflow/templates/artifact_templates/analysis_robustness_checks_template.md
+```
+
+The metrics contract records baseline metrics, candidate metrics, validation
+split metrics, baseline comparisons, and limitations. The diagnostics contract
+records missingness, join quality, leakage checks, segment diagnostics,
+calibration or uncertainty checks when relevant, and limitations. The
+robustness contract records planned robustness checks, pass/warn/fail state,
+decision impact, strongest supported claim class, and limitations. These are
+contracts for reviewers and validators, not a modeling library.
+
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
 

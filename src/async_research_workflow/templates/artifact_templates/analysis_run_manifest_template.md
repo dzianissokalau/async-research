@@ -72,17 +72,12 @@ artifact rather than a separate config file, set `analysis_config_path` and
     },
     {
       "name": "diagnostics",
-      "path": "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/diagnostics.md",
+      "path": "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/diagnostics.json",
       "required_for_acceptance": true
     },
     {
       "name": "robustness checks",
       "path": "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/robustness_checks.json",
-      "required_for_acceptance": true
-    },
-    {
-      "name": "leakage checks",
-      "path": "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/leakage_checks.json",
       "required_for_acceptance": true
     }
   ],
@@ -91,9 +86,8 @@ artifact rather than a separate config file, set `analysis_config_path` and
     "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/analysis_config.json",
     "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/data_versions.json",
     "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/metrics.json",
-    "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/diagnostics.md",
-    "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/robustness_checks.json",
-    "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/leakage_checks.json"
+    "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/diagnostics.json",
+    "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/robustness_checks.json"
   ],
   "deviations_from_plan": [],
   "reproducibility": {

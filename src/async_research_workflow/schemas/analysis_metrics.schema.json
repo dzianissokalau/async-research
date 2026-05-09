@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Analysis Metrics",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "generated_at",
+    "run_id",
+    "experiment_plan_id",
+    "task_id",
+    "primary_metric_name",
+    "metric_rows",
+    "baseline_comparisons",
+    "validation_splits",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "analysis_metrics_v1.0"
+      ]
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^RUN-[0-9]{4}$"
+    },
+    "experiment_plan_id": {
+      "type": "string",
+      "pattern": "^EXP-[0-9]{4}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "primary_metric_name": {
+      "type": "string"
+    },
+    "metric_rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_name",
+          "role",
+          "value",
+          "unit",
+          "direction",
+          "split",
+          "segment",
+          "source"
+        ],
+        "properties": {
+          "metric_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "candidate",
+              "validation",
+              "diagnostic",
+              "calibration",
+              "uncertainty",
+              "other"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease",
+              "match_target",
+              "not_applicable"
+            ]
+          },
+          "split": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "planned_metric_ref": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "baseline_comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "baseline_name",
+          "candidate_name",
+          "metric_name",
+          "baseline_value",
+          "candidate_value",
+          "delta",
+          "comparison_direction",
+          "passed"
+        ],
+        "properties": {
+          "baseline_name": {
+            "type": "string"
+          },
+          "candidate_name": {
+            "type": "string"
+          },
+          "metric_name": {
+            "type": "string"
+          },
+          "baseline_value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "candidate_value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "delta": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "comparison_direction": {
+            "type": "string",
+            "enum": [
+              "candidate_higher_better",
+              "candidate_lower_better",
+              "match_target",
+              "not_applicable"
+            ]
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "planned_baseline_ref": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validation_splits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "split_name",
+          "split_role",
+          "time_window",
+          "geography_scope",
+          "sample_size",
+          "metric_refs"
+        ],
+        "properties": {
+          "split_name": {
+            "type": "string"
+          },
+          "split_role": {
+            "type": "string",
+            "enum": [
+              "train",
+              "validation",
+              "test",
+              "holdout",
+              "backtest",
+              "full_sample",
+              "other"
+            ]
+          },
+          "time_window": {
+            "type": "string"
+          },
+          "geography_scope": {
+            "type": "string"
+          },
+          "sample_size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "metric_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "limitation",
+          "impact",
+          "claim_boundary"
+        ],
+        "properties": {
+          "limitation": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "unknown"
+            ]
+          },
+          "claim_boundary": {
+            "type": "string"
+          },
+          "mitigation": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

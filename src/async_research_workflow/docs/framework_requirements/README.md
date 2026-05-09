@@ -78,6 +78,13 @@ experimentation, and result acceptance frameworks have reached this point:
   `async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md`;
   read-only preflight is implemented in
   `async_research_workflow/scripts/analysis_runs.py`
+- `analysis_metrics_v1.0`, `analysis_diagnostics_v1.0`, and
+  `analysis_robustness_v1.0` are backed by
+  `async_research_workflow/schemas/analysis_metrics.schema.json`,
+  `async_research_workflow/schemas/analysis_diagnostics.schema.json`, and
+  `async_research_workflow/schemas/analysis_robustness_checks.schema.json`,
+  with packaged artifact templates under
+  `async_research_workflow/templates/artifact_templates/`
 - `result_acceptance_v1.0` is backed by
   `async_research_workflow/schemas/result_acceptance.schema.json` and
   `async_research_workflow/scripts/validate_result_acceptance.py`
