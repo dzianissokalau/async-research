@@ -49,10 +49,14 @@ dry-run. The dashboard should show the promoted idea with `link_status=available
 
 ## Knowledge Library
 
-`library/` is the durable background-memory surface for reviewed sources,
-topic summaries, claim memory, methods, open questions, and update provenance.
-Empty library files are valid during cold start. The worked example starts with
-empty library files by design.
+`research_ops/library/` is the durable background-memory surface for reviewed
+sources, topic summaries, claim memory, methods, open questions, and update
+provenance. Empty library files are valid during cold start. The worked example
+starts with empty library files by design.
+
+It is separate from accepted-output memory: `accepted_outputs_index.md` stores
+reviewed task results, while `library/` stores background sources, caveats, and
+open questions that can inform future planning and review.
 
 - `library/source_library.md` owns `LIT-*` source IDs.
 - `library/knowledge_index.md` stores topic summaries with source refs.

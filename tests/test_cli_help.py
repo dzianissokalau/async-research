@@ -231,6 +231,36 @@ class CliHelpTests(unittest.TestCase):
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
 
+    def test_library_help_documents_mvp_commands_and_exit_codes(self) -> None:
+        self.assert_help_contains(
+            ["library"],
+            [
+                "research_ops/library",
+                "init",
+                "validate",
+            ],
+        )
+        self.assert_help_contains(
+            ["library", "init"],
+            [
+                "research_ops/library starter files",
+                "Without --write this command is a dry run",
+                "Exits 0",
+                "3 for conflicting flags",
+                "4 for malformed workspace paths",
+            ],
+        )
+        self.assert_help_contains(
+            ["library", "validate"],
+            [
+                "Read-only validation for research_ops/library generated blocks",
+                "Exits 0",
+                "2 for warning-only findings",
+                "3 for invalid request flags",
+                "4 for malformed generated blocks",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

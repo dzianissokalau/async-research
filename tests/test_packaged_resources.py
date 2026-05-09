@@ -11,6 +11,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "src" / "async_research_workflow"
 RUNTIME_CODE = [PACKAGE_ROOT / "cli.py", *sorted((PACKAGE_ROOT / "scripts").glob("*.py"))]
+LIBRARY_STARTER_FILES = [
+    "source_library.md",
+    "knowledge_index.md",
+    "claim_map.md",
+    "method_index.md",
+    "open_questions.md",
+    "library_update_log.md",
+]
 
 
 def text_files(root: Path) -> list[Path]:
@@ -60,22 +68,24 @@ class PackagedResourceTests(unittest.TestCase):
             ("templates", "generic_research_ops_starter", "research_ops", "ideas", "prioritization.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "data", "data_catalog.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "data", "profiles", "README.md"),
-            ("templates", "generic_research_ops_starter", "research_ops", "library", "source_library.md"),
-            ("templates", "generic_research_ops_starter", "research_ops", "library", "claim_map.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "tasks", ".gitkeep"),
             ("templates", "research_ops_starter", "research_ops", "README.md"),
             ("templates", "research_ops_starter", "research_ops", "ideas", "idea_catalog.md"),
             ("templates", "research_ops_starter", "research_ops", "ideas", "prioritization.md"),
             ("templates", "research_ops_starter", "research_ops", "data", "data_catalog.md"),
             ("templates", "research_ops_starter", "research_ops", "data", "profiles", "README.md"),
-            ("templates", "research_ops_starter", "research_ops", "library", "source_library.md"),
-            ("templates", "research_ops_starter", "research_ops", "library", "claim_map.md"),
             ("templates", "research_ops_starter", "research_ops", "data", "profiles", "DS-0001.md"),
             ("templates", "research_ops_starter", "research_ops", "tasks", "TASK-0001-data-readiness", "status.json"),
             ("docs", "idea_catalog_contract.md"),
+            ("docs", "knowledge_library_contract.md"),
             ("examples", "github_actions_codex_worker.yml"),
             ("mission_policy.json",),
         ]
+        required.extend(
+            ("templates", template, "research_ops", "library", filename)
+            for template in ("generic_research_ops_starter", "research_ops_starter")
+            for filename in LIBRARY_STARTER_FILES
+        )
 
         missing = [
             "/".join(parts)

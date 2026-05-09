@@ -186,6 +186,45 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_knowledge_library_docs_use_canonical_boundary(self) -> None:
+        docs = [
+            ROOT / "README.md",
+            PACKAGE_ROOT / "docs" / "knowledge_library_contract.md",
+            PACKAGE_ROOT / "templates" / "generic_research_ops_starter" / "research_ops" / "README.md",
+            PACKAGE_ROOT / "templates" / "research_ops_starter" / "research_ops" / "README.md",
+        ]
+        required_snippets = [
+            "research_ops/library/",
+            "library/source_library.md",
+            "accepted_outputs_index.md",
+        ]
+        failures: list[str] = []
+
+        for path in docs:
+            text = path.read_text(encoding="utf-8")
+            normalized = " ".join(text.split())
+            for snippet in required_snippets:
+                if " ".join(snippet.split()) not in normalized:
+                    failures.append(f"{path.relative_to(ROOT)} missing {snippet}")
+            if "research_ops/knowledge/knowledge_index.md" in text:
+                failures.append(f"{path.relative_to(ROOT)} mentions legacy knowledge namespace")
+
+        docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+        if "[Knowledge Library Contract](./knowledge_library_contract.md)" not in docs_index:
+            failures.append("docs/README.md missing Knowledge Library Contract link")
+
+        contract = (PACKAGE_ROOT / "docs" / "knowledge_library_contract.md").read_text(encoding="utf-8")
+        normalized_contract = " ".join(contract.split())
+        for snippet in [
+            "Workers may cite `LIT-*` IDs as background context",
+            "Final accepted claims still need source-level citation",
+            "Tooling owns only the generated block",
+        ]:
+            if " ".join(snippet.split()) not in normalized_contract:
+                failures.append(f"knowledge_library_contract.md missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_direct_internal_helper_invocations_are_labeled(self) -> None:
         failures: list[str] = []
         for path in iter_documentation_files():

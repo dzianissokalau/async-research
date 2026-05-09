@@ -15,7 +15,7 @@ only from a source checkout.
 ## Current Footprint
 
 At review time, the tracked packaged docs under
-`src/async_research_workflow/docs/` are roughly 43 Markdown files and 342 KiB.
+`src/async_research_workflow/docs/` are roughly 46 Markdown files and 382 KiB.
 That is small compared with the templates, schemas, benchmark cases, and runtime
 code, and it does not justify removing useful offline guidance from the wheel.
 

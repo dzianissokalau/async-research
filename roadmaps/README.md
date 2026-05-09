@@ -28,6 +28,6 @@ explicitly requested follow-ups.
 | [Idea Catalog Roadmap](./delivered_idea_catalog_roadmap.md) | Delivered | V2.9 acceptance complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Data Foundations Roadmap](./delivered_data_foundations_roadmap.md) | Delivered | Dashboard surface complete | 2026-05-09 | Monitor workflow simulations and patch regressions. | None |
 | [Research Foundations Roadmap](./in_progress_research_foundations_roadmap.md) | In Progress | Knowledge Library remains | 2026-05-09 | Deliver Knowledge Library MVP next. | None |
-| [Knowledge Library Roadmap](./in_progress_knowledge_library_roadmap.md) | In Progress | Phase 3 | 2026-05-09 | Complete CLI, README, and docs integration polish. | None |
+| [Knowledge Library Roadmap](./in_progress_knowledge_library_roadmap.md) | In Progress | Phase 4 | 2026-05-09 | Complete idea catalog route-specific library support explanation. | None |
 | [Hypothesis Testing Framework Roadmap](./not_started_hypothesis_testing_framework_roadmap.md) | Not Started | Phase 0 | 2026-05-09 | Start after foundations or explicit user request. | None |
 | [Dashboard Delivery Roadmap](./blocked_dashboard_delivery_roadmap.md) | Blocked | Slice 1 | 2026-05-09 | Revisit after Knowledge Library MVP is delivered. | Knowledge Library MVP |

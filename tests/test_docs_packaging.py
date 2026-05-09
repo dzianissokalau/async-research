@@ -19,6 +19,7 @@ REQUIRED_PACKAGED_DOCS = [
     ("operational_readiness_runbook.md",),
     ("scheduler_and_prompts.md",),
     ("task_contracts.md",),
+    ("knowledge_library_contract.md",),
     ("reviewer_isolation_protocol.md",),
     ("framework_requirements", "README.md"),
 ]
@@ -34,7 +35,7 @@ class DocsPackagingTests(unittest.TestCase):
 
         for snippet in [
             "Keep Markdown protocol and operator docs packaged",
-            "roughly 43 Markdown files and 342 KiB",
+            "roughly 46 Markdown files and 382 KiB",
             "Keep the packaged docs footprint below 1 MiB",
             "Verify key packaged docs through `importlib.resources`",
         ]:

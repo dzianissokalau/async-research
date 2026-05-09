@@ -124,6 +124,13 @@ research_ops/
   ideas/
     idea_catalog.md
     prioritization.md
+  library/
+    source_library.md
+    knowledge_index.md
+    claim_map.md
+    method_index.md
+    open_questions.md
+    library_update_log.md
   data/
     data_catalog.md
     data_access.md
@@ -156,6 +163,14 @@ The important rule is that durable state lives in files. Agents should not rely
 on private chat context to know what happened before. `data_source_audit.md`
 remains the source-governance register; `data/` holds the human-readable
 readiness inventory, access notes, join map, gaps, and profile contract.
+
+The canonical library path is `research_ops/library/`. `library/` is separate
+from accepted-output memory. It stores durable background context: `LIT-*`
+source identities, topic summaries, claim caveats, methods, and open questions.
+`LIT-*` source identities live in `library/source_library.md`.
+`accepted_outputs_index.md` stores reviewed task results that can be reused with
+freshness checks. A `LIT-*` library reference can support planning or review
+context, but final accepted claims still need source-level citation and review.
 
 ## Worked Task Loop
 
