@@ -40,6 +40,35 @@ not approve a final task claim by itself.
 Workers may cite `LIT-*` IDs as background context. Final accepted claims still
 need source-level citation, review, and the normal result-acceptance gates.
 
+## Literature Extraction Tasks
+
+V1 keeps the executable task type as `literature_extract`. A
+`literature_extract` task may create or improve library state by proposing
+generated-block rows, but worker writes stay inside the task folder by default.
+Do not write directly to `research_ops/library/` unless the task's
+`allowed_paths` explicitly grants those files.
+
+The task guidance must specify the topic or source set, allowed source list,
+whether browsing is allowed, extraction fields, source status and trust tier
+rules, claim-strength rules, required caveats, anti-context and dead ends,
+proposed update targets, and `async-research library validate research_ops`.
+
+Worker output should include proposed `source_library.md`,
+`knowledge_index.md`, `claim_map.md`, `method_index.md` when relevant,
+`open_questions.md`, and `library_update_log.md` rows. It should also list the
+exact files that would be updated and reviewer notes for weak, disputed,
+deprecated, or context-only sources. Reviewers can accept, revise, reject, or
+route proposed updates to a human. Accepted library updates must be traceable to
+a reviewed task through `library_update_log.md`.
+
+High-stakes claims and any proposed `strong` claim require human approval before
+publication use.
+
+For library-dependent planning support, only row-level `source_id` values parsed
+from the generated `source_library.md` block satisfy `LIT-*` refs. Notes,
+headings, examples, or other ad hoc text in `source_library.md` do not count as
+resolved library support.
+
 ## Commands
 
 Initialize or repair starter files:

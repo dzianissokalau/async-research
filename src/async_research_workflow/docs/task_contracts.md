@@ -92,7 +92,8 @@ write pass. The dry-run proposal remains authoritative for task type, scope,
 reserved task identity, validation commands, review tier, and
 `evidence_support.status`. `thin_evidence` means there are no support refs or
 source discovery context; `missing_library_support` means `library_refs` did
-not resolve against `research_ops/library/source_library.md`. Write mode must
+not resolve against row-level source IDs in the generated
+`research_ops/library/source_library.md` block. Write mode must
 receive the matching `--preflight-hash`; it creates one reserved task folder,
 appends one `queue.md` row, appends the planner-facing proposal reference to
 `inbox.md`, updates the selected idea's `promoted_task_id` and proposal refs,
@@ -178,10 +179,10 @@ references identify source rows in `library/source_library.md`; they are
 background memory for planning and review, not final source-level citation for
 accepted claims.
 
-For V1, keep the executable task type as `literature_extract` and add
-library-update proposal expectations to that task guidance in a later phase. Do
-not add a separate `library_review` task type unless the task schemas, promotion
-helpers, review-tier defaults, and docs are updated together.
+For V1, keep the executable task type as `literature_extract` and use the
+library-update proposal expectations below. Do not add a separate
+`library_review` task type unless the task schemas, promotion helpers,
+review-tier defaults, and docs are updated together.
 
 Library source statuses are:
 
@@ -220,6 +221,33 @@ Exit `0` means the library contract is valid. Exit `2` means warning-only
 library findings with usable state. Exit `4` means malformed populated library
 state. Empty or missing library files are cold-start warnings, not blockers for
 discovery, idea scoring, or data readiness.
+
+## Knowledge Library Phase 5 Literature Extraction
+
+`literature_extract` is the bounded V1 task type for creating or improving
+library state. The proposal must specify the topic or source set, allowed source
+list, browsing allowance, extraction fields, source status and trust tier
+rules, claim-strength rules, required caveats, anti-context and dead ends,
+proposed output update targets, and `async-research library validate
+research_ops`.
+
+Workers propose generated-block rows in `worker_output.md` rather than editing
+`research_ops/library/` directly. They may propose updates to
+`source_library.md`, `knowledge_index.md`, `claim_map.md`, `method_index.md`
+where relevant, `open_questions.md`, and `library_update_log.md`, and must list
+the exact files that would be updated. A task may write those library files only
+when its `allowed_paths` explicitly grants them. Accepted updates must be
+traceable to the reviewed task through `library_update_log.md`.
+
+Reviewer output should be able to accept, revise, reject, or route the proposed
+library update to a human. Weak, disputed, deprecated, and context-only sources
+need explicit reviewer notes. High-stakes claims and any proposed `strong`
+claim require human approval before publication use.
+
+Library-dependent routes resolve `LIT-*` support from row-level `source_id`
+values parsed from the generated `library/source_library.md` block. Generic text
+presence in notes, headings, examples, or malformed tables does not satisfy
+library support.
 
 ## Exploration Cycle
 

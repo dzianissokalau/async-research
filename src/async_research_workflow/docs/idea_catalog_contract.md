@@ -324,17 +324,29 @@ Promotion dry-run reports `evidence_support` separately from route choice so
 planners can distinguish true thin evidence from missing library support.
 `thin_evidence` means the idea has no refs or source discovery context.
 `missing_library_support` means `library_refs` were present but did not resolve
-against `research_ops/library/source_library.md`. Normal catalog validation and
+against row-level `source_id` values in the generated
+`research_ops/library/source_library.md` block. Normal catalog validation and
 data-readiness routing keep unresolved `library_refs` warning-level, but routes
 that rely on library support, such as `hypothesis_card` or `experiment_plan`,
 block until the refs resolve or a prior `literature_extract` task creates the
-needed support.
+needed support. Notes, headings, examples, or other ad hoc text in
+`source_library.md` do not satisfy library-dependent support.
 
 The JSON proposal includes the reserved task id and slug, task type, title,
 objective, scope, `evidence_support`, required sources and refs, allowed paths,
 max minutes, max turns, kill reason, validation commands, blockers, draft
 task/status content, and a `promotion_preflight_hash` that write mode must
 receive unchanged.
+
+For `literature_extract`, the proposal keeps worker writes inside the task
+folder by default and requires a library-update proposal in `worker_output.md`.
+The task output must cover topic or source set, allowed source list, browsing
+use, extraction fields, source status and trust tier rules, claim-strength
+rules, caveats, anti-context and dead ends, proposed rows for the generated
+library files, reviewer notes for weak or disputed sources, exact files that
+would be updated, `library_update_log.md` provenance, and the result of
+`async-research library validate research_ops`. High-stakes claims and any
+proposed `strong` claim require human approval before publication use.
 
 ## Current Planner Promotion Behavior
 
@@ -361,7 +373,8 @@ Rules for planner promotion writes:
 - inspect `evidence_support.status` before writing tasks; unresolved
   `library_refs` are normal warning-level catalog state, but
   `missing_library_support` means a library-dependent proposal needs resolved
-  `LIT-*` support or an earlier extraction task
+  row-level `LIT-*` support from the generated `source_library.md` block or an
+  earlier extraction task
 - use `data_readiness` when data is plausible but unaudited; generated
   data-readiness tasks may update `data_source_audit.md` and `data/**`, must
   produce profile/audit recommendations, and should run both source and data

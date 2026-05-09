@@ -28,6 +28,25 @@ def write_json(path: Path, payload: dict) -> None:
     write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def write_source_library_rows(ops_dir: Path, rows: list[list[str]], notes: str = "") -> None:
+    body = [
+        "# Source Library",
+        "",
+        "<!-- LIBRARY-SOURCES: schema_version=1.0 -->",
+        "| source_id | status | trust_tier | type | title | author_or_publisher | location | reviewed_date | notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        *["| " + " | ".join(row) + " |" for row in rows],
+        "<!-- /LIBRARY-SOURCES -->",
+        "",
+        "## Notes",
+        "",
+        "Free-form notes. Tooling must not edit this section.",
+    ]
+    if notes:
+        body.extend(["", notes])
+    write_text(ops_dir / "library" / "source_library.md", "\n".join(body) + "\n")
+
+
 def file_snapshot(root: Path) -> dict[str, bytes]:
     return {
         str(path.relative_to(root)): path.read_bytes()
@@ -163,6 +182,21 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual("evidence_is_thin", thin_payload["proposal"]["route_reason"])
             self.assertEqual("thin_evidence", thin_payload["evidence_support"]["status"])
             self.assertEqual("thin_evidence", thin_payload["proposal"]["evidence_support"]["status"])
+            self.assertIn(
+                "async-research library validate research_ops",
+                thin_payload["proposal"]["validation_commands"],
+            )
+            self.assertNotIn("research_ops/library/**", thin_payload["proposal"]["allowed_paths"])
+            for snippet in [
+                "Proposed `source_library.md` rows",
+                "Proposed `knowledge_index.md` rows",
+                "Proposed `claim_map.md` rows",
+                "Proposed `method_index.md` rows",
+                "Proposed `open_questions.md` rows",
+                "library_update_log.md",
+                "Human approval flag for high-stakes claims",
+            ]:
+                self.assertIn(snippet, thin_payload["proposal"]["task_markdown_draft"])
 
             override_code, override_payload = run_cli_json(
                 ["idea", "promote", ops_dir, "IDEA-7302", "--task-type", "hypothesis_card"]
@@ -285,9 +319,21 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             candidate["required_data"] = []
             candidate["library_refs"] = ["LIT-7314"]
             write_json(ops_dir / "ideas" / "IDEA-7314.json", candidate)
-            write_text(
-                ops_dir / "library" / "source_library.md",
-                "# Source Library\n\n| source_id | title |\n| --- | --- |\n| LIT-7314 | Fixture source |\n",
+            write_source_library_rows(
+                ops_dir,
+                [
+                    [
+                        "LIT-7314",
+                        "trusted",
+                        "supporting",
+                        "article",
+                        "Fixture source",
+                        "Fixture Publisher",
+                        "https://example.test/lit-7314",
+                        "2026-05-09",
+                        "ready",
+                    ]
+                ],
             )
 
             code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7314"])
@@ -296,6 +342,30 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual("hypothesis_card", payload["proposal"]["task_type"])
             self.assertEqual("supported", payload["evidence_support"]["status"])
             self.assertEqual(["LIT-7314"], payload["evidence_support"]["library_support"]["resolved_refs"])
+            self.assertEqual(
+                "source_library_generated_rows",
+                payload["evidence_support"]["library_support"]["resolution"],
+            )
+
+    def test_promote_does_not_count_notes_text_as_library_source_row_support(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7316", "Notes-only library support idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["required_data"] = []
+            candidate["library_refs"] = ["LIT-7316"]
+            write_json(ops_dir / "ideas" / "IDEA-7316.json", candidate)
+            write_source_library_rows(ops_dir, [], "This note mentions LIT-7316 but is not a generated source row.")
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7316"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("idea_promotion_blocked", payload["action"])
+            self.assertEqual("missing_library_support", payload["evidence_support"]["status"])
+            library_support = payload["evidence_support"]["library_support"]
+            self.assertEqual("source_library_generated_rows", library_support["resolution"])
+            self.assertEqual([], library_support["resolved_refs"])
+            self.assertEqual(["LIT-7316"], library_support["unresolved_refs"])
 
     def test_promote_keeps_partial_library_support_warning_nonblocking_when_other_evidence_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

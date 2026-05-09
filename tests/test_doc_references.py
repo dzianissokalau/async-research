@@ -236,6 +236,46 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
 
+    def test_knowledge_library_phase5_task_guidance_is_documented(self) -> None:
+        docs = {
+            "knowledge_library_contract.md": PACKAGE_ROOT / "docs" / "knowledge_library_contract.md",
+            "task_contracts.md": PACKAGE_ROOT / "docs" / "task_contracts.md",
+            "idea_catalog_contract.md": PACKAGE_ROOT / "docs" / "idea_catalog_contract.md",
+        }
+        required_snippets = [
+            "`literature_extract`",
+            "allowed source list",
+            "source status and trust tier",
+            "claim-strength rules",
+            "anti-context and dead ends",
+            "async-research library validate research_ops",
+            "source_library.md",
+            "library_update_log.md",
+            "High-stakes claims and any proposed `strong` claim require human approval",
+        ]
+        failures: list[str] = []
+
+        for label, path in docs.items():
+            normalized = " ".join(path.read_text(encoding="utf-8").split())
+            for snippet in required_snippets:
+                if " ".join(snippet.split()) not in normalized:
+                    failures.append(f"{label} missing {snippet}")
+
+        for path in [
+            PACKAGE_ROOT / "templates" / "generic_research_ops_starter" / "research_ops" / "README.md",
+            PACKAGE_ROOT / "templates" / "research_ops_starter" / "research_ops" / "README.md",
+        ]:
+            normalized = " ".join(path.read_text(encoding="utf-8").split())
+            for snippet in [
+                "`literature_extract` tasks can propose library updates without writing outside their task folder",
+                "proposed generated-table rows",
+                "`library_update_log.md` provenance row",
+            ]:
+                if " ".join(snippet.split()) not in normalized:
+                    failures.append(f"{path.relative_to(ROOT)} missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_direct_internal_helper_invocations_are_labeled(self) -> None:
         failures: list[str] = []
         for path in iter_documentation_files():

@@ -42,8 +42,8 @@ from async_research_workflow.idea_catalog import markdown_cells
 from async_research_workflow.idea_catalog import prioritization_markers
 from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
-from async_research_workflow.idea_catalog import text_contains
 from async_research_workflow.idea_catalog import validate_candidate_record
+from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import task_transaction
 from async_research_workflow.scripts.version_metadata import apply_default_versions
 
@@ -1822,9 +1822,23 @@ def promotion_refs(payload: dict[str, Any]) -> dict[str, list[str]]:
     }
 
 
+def library_source_row_ids(ops_dir: Path) -> tuple[set[str], list[dict[str, Any]], Path]:
+    relative = Path(knowledge_library.LIBRARY_DIR) / knowledge_library.SOURCE_LIBRARY_FILE
+    target = ops_dir / relative
+    spec = knowledge_library.TABLE_SPECS[relative]
+    rows, issues = knowledge_library.parse_generated_table(target, relative, spec)
+    source_ids, warnings, errors = knowledge_library.source_library_warnings_and_errors(
+        rows,
+        target,
+        datetime.now(timezone.utc),
+        None,
+    )
+    return source_ids, [*issues, *warnings, *errors], target
+
+
 def library_support_status(ops_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     refs = list_field(payload, "library_refs")
-    target = ops_dir / "library" / "source_library.md"
+    source_ids, issues, target = library_source_row_ids(ops_dir)
     if not refs:
         return {
             "status": "not_declared",
@@ -1832,9 +1846,11 @@ def library_support_status(ops_dir: Path, payload: dict[str, Any]) -> dict[str, 
             "resolved_refs": [],
             "unresolved_refs": [],
             "target": str(target),
+            "resolution": "source_library_generated_rows",
+            "resolution_issues": issues,
         }
 
-    resolved = [ref for ref in refs if text_contains(target, ref)]
+    resolved = [ref for ref in refs if ref in source_ids]
     unresolved = [ref for ref in refs if ref not in resolved]
     status = "resolved" if not unresolved else "missing_library_support"
     return {
@@ -1843,6 +1859,8 @@ def library_support_status(ops_dir: Path, payload: dict[str, Any]) -> dict[str, 
         "resolved_refs": resolved,
         "unresolved_refs": unresolved,
         "target": str(target),
+        "resolution": "source_library_generated_rows",
+        "resolution_issues": issues,
     }
 
 
@@ -1869,7 +1887,10 @@ def promotion_evidence_support(ops_dir: Path, payload: dict[str, Any]) -> dict[s
         message = "No library_refs, data_refs, accepted/rejected refs, evidence seeds, or source discovery path are present."
     elif library_support["unresolved_refs"] and not other_refs and not source_discovery_path:
         status = "missing_library_support"
-        message = "The idea names library_refs, but they do not resolve against research_ops/library/source_library.md."
+        message = (
+            "The idea names library_refs, but they do not resolve against generated source rows in "
+            "research_ops/library/source_library.md."
+        )
     elif library_support["unresolved_refs"]:
         status = "partial_library_support"
         message = "Some library_refs are unresolved; non-library evidence refs or source discovery context are still available."
@@ -1994,6 +2015,7 @@ def promotion_blockers(
                 "message": f"{task_type} promotion requires resolved library_refs or a prior literature_extract task",
                 "unresolved_refs": library_support["unresolved_refs"],
                 "target": library_support["target"],
+                "resolution": library_support.get("resolution"),
             }
         )
 
@@ -2033,6 +2055,8 @@ def promotion_validation_commands(task_type: str, proposed_task_slug: str) -> li
     if task_type == "data_readiness":
         commands.append("async-research source validate research_ops")
         commands.append("async-research data validate research_ops")
+    if task_type == "literature_extract":
+        commands.append("async-research library validate research_ops")
     return commands
 
 
@@ -2044,6 +2068,12 @@ def promotion_scope(task_type: str, payload: dict[str, Any]) -> list[str]:
     ]
     if task_type == "literature_extract":
         base.append("Extract existing evidence and source leads before any data or experiment work.")
+        base.append(
+            "Keep library changes as proposed generated-block rows in worker_output.md unless allowed_paths explicitly grants research_ops/library/ writes."
+        )
+        base.append(
+            "Treat row-level source_id values from the generated library/source_library.md block as authoritative for resolving LIT-* support."
+        )
     elif task_type == "data_readiness":
         base.append("Verify source availability, access route, profile details, caveats, and audit status before experiment planning.")
         base.append("Trace any audit or profile recommendation to this task's worker_output.md.")
@@ -2073,6 +2103,21 @@ def promotion_allowed_paths(task_type: str, idea_id: str, proposed_task_slug: st
 
 
 def promotion_required_output(task_type: str) -> list[str]:
+    if task_type == "literature_extract":
+        return [
+            "Topic or source set covered, allowed source list used, and whether browsing was used.",
+            "Proposed `source_library.md` rows with `source_id`, `status`, `trust_tier`, `type`, `title`, `author_or_publisher`, `location`, `reviewed_date`, and `notes`.",
+            "Proposed `knowledge_index.md` rows with topic summaries, source refs, confidence, caveats, and updated_at values.",
+            "Proposed `claim_map.md` rows with claim strength, disputed status, source refs, caveats, and reviewed_date values.",
+            "Proposed `method_index.md` rows where relevant, including assumptions, risks, source refs, and reviewed_date values.",
+            "Proposed `open_questions.md` rows for unresolved gaps, dead ends, and follow-up task candidates.",
+            "Source status and trust tier rationale using only the documented library vocabulary.",
+            "Claim-strength rules, required caveats, anti-context, and dead ends for sources not used.",
+            "Reviewer notes for weak, disputed, deprecated, or context-only sources.",
+            "Exact `research_ops/library/` files that would be updated, plus the reviewed `library_update_log.md` provenance row needed if accepted.",
+            "Validation result for `async-research library validate research_ops`.",
+            "Human approval flag for high-stakes claims or any proposed `strong` claim before publication use.",
+        ]
     if task_type == "data_readiness":
         return [
             "Profile draft or update for each investigated `DS-*` source, or an explicit no-change rationale.",

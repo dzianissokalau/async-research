@@ -175,8 +175,9 @@ or decision use.
 The promotion proposal chooses the cheapest safe next task:
 
 - thin evidence -> `literature_extract`
-- missing library support -> resolve `library_refs` in `source_library.md` or
-  run `literature_extract` before library-dependent routes
+- missing library support -> resolve `library_refs` against row-level source IDs
+  in the generated `source_library.md` block or run `literature_extract` before
+  library-dependent routes
 - plausible but unaudited data -> `data_readiness`
 - bounded hypothesis work -> `hypothesis_card`
 - `experiment_plan` only when audited data refs and hard gates already pass
