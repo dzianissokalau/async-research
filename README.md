@@ -243,6 +243,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research escalation evaluate <task-dir> --ops-dir research_ops` | Evaluate one task against deterministic human-escalation triggers. | Task status/output, task contract, source audit, accepted memory, reviews, and cost ledger. | JSON to stdout; with `--apply`, task `status.json` when escalation is required. |
 | `async-research surface update research_ops` | Refresh the human-facing control surface; alias: `review-surface update`. | Task status, health report, ledgers, cost, accepted memory, source audit, data foundations. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`. |
 | `async-research surface validate research_ops` | Check the rendered human surface for drift; alias: `review-surface validate`. | `daily_status.md`, `human_review_queue.md`, `weekly_digest.md`, current workspace state. | JSON to stdout only. |
+| `async-research library init research_ops --dry-run` | Preview or add missing knowledge library starter files. | Existing `research_ops/library/` files. | JSON to stdout; with `--write`, only missing library Markdown files. |
 | `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research idea catalog validate research_ops` | Validate durable idea catalog state. | Canonical `ideas/IDEA-*.json`, generated Markdown projections, schema, refs, and lifecycle gates. | JSON to stdout only; read-only. |
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
@@ -291,10 +292,11 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research acceptance-suite` | Run the package hardening suite, including promotion-write end-to-end acceptance. | Packaged resources and isolated fixtures. | Isolated temporary fixtures and JSON to stdout. |
 | `async-research simulate-week research_ops --work-dir /tmp/async-research-sim` | Rehearse a scheduled week against an isolated copy. | The provided `research_ops/` workspace. | Temporary simulation copy and JSON to stdout; with `--keep-work-dir`, the copy is preserved for debugging. |
 
-Validator commands for specific artifact types are also available:
+Setup and validator commands for specific artifact types are also available:
 
 ```bash
 async-research exploration validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
+async-research library init research_ops --dry-run
 async-research idea catalog init research_ops --dry-run
 async-research idea catalog validate research_ops
 async-research idea catalog list research_ops --status candidate
@@ -370,6 +372,7 @@ specific diagnostic.
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |
 | `data validate` | `0` data foundation contracts are ready. | `2` warning-only readiness findings with `ok: true`; `4` malformed tables, invalid audit state, or profile identity errors. |
 | `data dashboard` | `0` dashboard rendered and data foundation plus catalog read-model state are clean. | `2` dashboard rendered with warning-only data findings or catalog read-model findings; `4` dashboard rendered with malformed data foundation state. |
+| `library init` | `0` missing library files reported or created. | `3` invalid flags; `4` malformed workspace path or write failure. |
 | `cost summary` and `cost ingest-usage` | `0` cost summary printed or usage row ingested. | `4` malformed or unreadable cost ledger or usage artifact. |
 | `cost budget-check` | `0` proposed spend is below the configured threshold. | `2` budget threshold exceeded. |
 | `batch init`, `batch validate-manifest`, `batch submit`, `batch complete`, `batch ingest`, and `batch mark-reviewed` | `0` batch lifecycle step succeeded or dry-run validation passed. | `2` invalid lifecycle step, invalid manifest, or invalid cost ledger; `4` malformed manifest. |

@@ -12,6 +12,7 @@ review surfaces.
 
 ```bash
 async-research schema-check research_ops
+async-research library init research_ops --dry-run
 async-research idea catalog init research_ops --dry-run
 async-research source validate research_ops
 async-research readiness research_ops --dry-run
@@ -44,6 +45,24 @@ async-research idea catalog dashboard research_ops
 Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
 reference, and idea `promoted_task_id` only after a successful, unblocked
 dry-run. The dashboard should show the promoted idea with `link_status=available`.
+
+## Knowledge Library
+
+`library/` is the durable background-memory surface for reviewed sources,
+topic summaries, claim memory, methods, open questions, and update provenance.
+Empty library files are valid during cold start. The worked example starts with
+empty library files by design.
+
+- `library/source_library.md` owns `LIT-*` source IDs.
+- `library/knowledge_index.md` stores topic summaries with source refs.
+- `library/claim_map.md` stores durable claim memory and caveats.
+- `library/method_index.md` stores methods, assumptions, and risks.
+- `library/open_questions.md` stores gaps that may become future tasks.
+- `library/library_update_log.md` records reviewed update provenance.
+
+Run `async-research library init research_ops --dry-run` to inspect missing
+library starter files in an existing workspace. Use `--write` to add only
+missing files; existing notes are preserved.
 
 ## Data Foundations
 

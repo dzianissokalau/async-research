@@ -318,6 +318,28 @@ class IdeaCatalogValidatorTests(unittest.TestCase):
                 [item["reason"] for item in payload["warnings"]],
             )
 
+    def test_legacy_knowledge_path_does_not_resolve_library_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            bootstrap_empty_catalog(ops_dir)
+            candidate = valid_candidate("IDEA-0001")
+            candidate["library_refs"] = ["LIT-0001"]
+            write_json(ops_dir / "ideas" / "IDEA-0001.json", candidate)
+            write_text(
+                ops_dir / "knowledge" / "knowledge_index.md",
+                "# Knowledge Index\n\n| source_id | title |\n| --- | --- |\n| LIT-0001 | Legacy source |\n",
+            )
+
+            code, payload = run_helper_json(["validate", ops_dir])
+
+            self.assertEqual(idea_catalog.SUCCESS, code, payload)
+            library_warnings = [
+                item for item in payload["warnings"]
+                if item["reason"] == "library_ref_unresolved"
+            ]
+            self.assertEqual(1, len(library_warnings))
+            self.assertEqual(str(ops_dir / "library" / "source_library.md"), library_warnings[0]["target"])
+
     def test_lifecycle_validation_branches_are_covered(self) -> None:
         cases = [
             (

@@ -1,9 +1,9 @@
 # Knowledge Library Roadmap
 
 Status: In Progress
-Current phase: Phase 1
+Current phase: Phase 2
 Last updated: 2026-05-09
-Next action: Add starter files, contracts, and safe init
+Next action: Add read-only parser and validator
 Blocked by: None
 
 Created: 2026-05-05
@@ -296,7 +296,7 @@ Last updated: 2026-05-09
 | Phase | Step | Status | Description | Evidence / Notes |
 | ---: | --- | --- | --- | --- |
 | 0 | Pre-requirements and product decisions | Complete | Lock canonical path, task type choice, status vocabulary, update authority, validator contract, and compatibility rules before implementation starts. | Canonical `library_refs` resolution now targets `research_ops/library/source_library.md`; V1 keeps `literature_extract` as the executable task type and documents library-update proposal expectations, status vocabulary, update authority, validator exit codes, and cold-start safety. |
-| 1 | Starter files, contracts, and safe init | Not started | Add `research_ops/library/` starter files to generic and real-estate templates, document table contracts, and add idempotent `library init`. | Should be the first code slice after Phase 0. |
+| 1 | Starter files, contracts, and safe init | Complete | Add `research_ops/library/` starter files to generic and real-estate templates, document table contracts, and add idempotent `library init`. | Adds library starter files, starter README guidance, public `async-research library init` dry-run/write behavior, packaged-resource coverage, safe migration tests, and a legacy `research_ops/knowledge/` regression guard. |
 | 2 | Library parser and validator | Not started | Add read-only parsing and `async-research library validate research_ops` with cold-start warnings, duplicate ID checks, row-shape checks, provenance checks, and source-ref checks. | Reuse the data-foundations validator style where possible. |
 | 3 | CLI, README, and docs integration | Not started | Wire public CLI help, README command tables, exit-code docs, starter README guidance, and package resource tests. | Completes MVP when validation is available and documented. |
 | 4 | Idea catalog reference alignment | Partially complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | The canonical target fix shipped with Phase 0; route-specific promotion explanation remains future work. |

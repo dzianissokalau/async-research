@@ -458,6 +458,15 @@ def run_data_dashboard_command(args: argparse.Namespace) -> int:
     return module_main("data_foundations", argv)
 
 
+def run_library_init_command(args: argparse.Namespace) -> int:
+    argv = ["init", str(args.ops_dir)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.write:
+        argv.append("--write")
+    return module_main("knowledge_library", argv)
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -1247,6 +1256,27 @@ def register_data_commands(subparsers) -> None:
     dashboard.set_defaults(func=run_data_dashboard_command)
 
 
+def register_library_commands(subparsers) -> None:
+    library = add_command(
+        subparsers,
+        "library",
+        help="Initialize knowledge library starter files.",
+        description="Manage research_ops/library starter files for source memory, claim maps, methods, and open questions.",
+    )
+    library_sub = library.add_subparsers(dest="library_command", required=True)
+    init = add_command(
+        library_sub,
+        "init",
+        help="Add missing knowledge library starter files.",
+        description="Preview or add missing research_ops/library starter files without overwriting existing files.",
+        epilog="Without --write this command is a dry run. Exits 0 when missing files are reported or created, 3 for conflicting flags, and 4 for malformed workspace paths or write failures.",
+    )
+    add_common_ops(init)
+    init.add_argument("--dry-run", action="store_true", help="Report missing library files without writing. This is the default.")
+    init.add_argument("--write", action="store_true", help="Create only missing library files.")
+    init.set_defaults(func=run_library_init_command)
+
+
 def register_cost_commands(subparsers) -> None:
     cost = add_command(
         subparsers,
@@ -1841,6 +1871,7 @@ COMMAND_REGISTRARS = (
     register_escalation_commands,
     register_source_commands,
     register_data_commands,
+    register_library_commands,
     register_cost_commands,
     register_batch_commands,
     register_metrics_commands,
