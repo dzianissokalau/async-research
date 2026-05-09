@@ -5,6 +5,16 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## 0.2.0a2 - 2026-05-09
+
+- Added data-foundation starter files and profile contracts for source
+  readiness, access notes, join paths, and known data gaps.
+- Added read-only `data validate` and `data dashboard` surfaces with
+  profile/source linkage checks, malformed table guards, active idea gap refs,
+  catalog read-model findings, and use-case-aware usable-source summaries.
+- Wired data-foundation state into health, readiness, experiment validation,
+  result acceptance, generated data-readiness task guidance, and operator docs.
+
 ## 0.2.0a1 - 2026-05-08
 
 - Added the durable Idea Catalog workspace with candidate intake, indexing,
