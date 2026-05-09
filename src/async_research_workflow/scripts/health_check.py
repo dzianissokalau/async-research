@@ -40,6 +40,7 @@ NONTERMINAL_STATUSES = {
     "needs_revision",
     "needs_human",
 }
+LIBRARY_SUPPORT_REQUIRED_TASK_TYPES = {"hypothesis_card", "experiment_plan"}
 AMOUNT_FIELDS = ("amount_usd", "cost_usd", "usd", "total_usd", "api_usd", "compute_usd")
 DATE_FIELDS = ("date", "created_at", "timestamp", "period_start")
 INPUT_TOKEN_FIELDS = ("input_tokens", "prompt_tokens")
@@ -217,6 +218,66 @@ def status_counts(statuses: list[dict[str, Any]]) -> dict[str, int]:
         status = str(item["payload"].get("status", "unknown"))
         counts[status] = counts.get(status, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def active_status_items(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in statuses if item["payload"].get("status") in NONTERMINAL_STATUSES]
+
+
+def idea_library_refs(ops_dir: Path, idea_id: str) -> list[str]:
+    if not idea_id:
+        return []
+    path = ops_dir / "ideas" / f"{idea_id}.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    refs = payload.get("library_refs") if isinstance(payload, dict) else None
+    if not isinstance(refs, list):
+        return []
+    return [str(ref).strip() for ref in refs if str(ref).strip()]
+
+
+def task_library_refs(ops_dir: Path, payload: dict[str, Any]) -> list[str]:
+    refs = payload.get("library_refs")
+    if isinstance(refs, list):
+        direct = [str(ref).strip() for ref in refs if str(ref).strip()]
+        if direct:
+            return direct
+    required_sources = payload.get("required_sources")
+    if isinstance(required_sources, dict) and isinstance(required_sources.get("library_refs"), list):
+        nested = [str(ref).strip() for ref in required_sources["library_refs"] if str(ref).strip()]
+        if nested:
+            return nested
+    idea_id = str(payload.get("catalog_idea_id") or "").strip()
+    if not idea_id:
+        catalog_promotion = payload.get("catalog_promotion")
+        if isinstance(catalog_promotion, dict):
+            idea_id = str(catalog_promotion.get("catalog_idea_id") or "").strip()
+    return idea_library_refs(ops_dir, idea_id)
+
+
+def library_dependent_tasks(statuses: list[dict[str, Any]], ops_dir: Path) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    for item in active_status_items(statuses):
+        payload = item["payload"]
+        task_type = str(payload.get("type") or "").strip()
+        if task_type not in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
+            continue
+        refs = task_library_refs(ops_dir, payload)
+        if not refs:
+            continue
+        tasks.append(
+            {
+                "task_id": payload.get("id", item["task_dir"].name),
+                "task_dir": str(item["task_dir"]),
+                "status_path": str(item["status_path"]),
+                "status": payload.get("status"),
+                "type": task_type,
+                "library_refs": refs,
+            }
+        )
+    return tasks
 
 
 def revision_limit_breaches(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -554,9 +615,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         )
     library_issue_count = library.get("warning_count", 0) + library.get("error_count", 0)
     if library_issue_count:
+        library_dependent = library_dependent_tasks(statuses, ops_dir)
         add_alert(
             alerts,
-            "error" if library.get("error_count", 0) else "warning",
+            "error" if library.get("error_count", 0) and library_dependent else "warning",
             "knowledge_library_findings",
             f"{library_issue_count} knowledge-library finding(s)",
             {
@@ -568,6 +630,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 "row_counts": library.get("row_counts", {}),
                 "open_question_count": library.get("open_question_count", 0),
                 "risky_source_count": library.get("risky_source_count", 0),
+                "library_dependent_tasks": library_dependent,
             },
         )
     if accepted_memory.get("stale_count", 0):

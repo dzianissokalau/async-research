@@ -222,6 +222,40 @@ class KnowledgeLibrarySurfaceTests(unittest.TestCase):
         self.assertEqual(2, blocker["details"]["error_count"])
         self.assertEqual("TASK-7601", blocker["details"]["library_dependent_tasks"][0]["task_id"])
 
+    def test_health_report_does_not_make_standalone_malformed_library_block_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            write_rows(
+                ops_dir,
+                table_file("source_library.md"),
+                [["LIT-0001", "approved", "tier_1", "paper", "A", "Publisher", "https://example.test/a", "2026-05-09", "bad vocab"]],
+            )
+
+            health_code, health_payload = run_json(health_check, [ops_dir, "--no-daily-status", "--now", NOW])
+            health_report = json.loads((ops_dir / "health_report.json").read_text(encoding="utf-8"))
+            code, payload = run_json(
+                autonomy_readiness_gate,
+                [
+                    ops_dir,
+                    "--dry-run",
+                    "--no-daily-status",
+                    "--now",
+                    NOW,
+                    "--metrics-stale-hours",
+                    "100000",
+                ],
+            )
+
+        self.assertEqual(health_check.SUCCESS, health_code, health_payload)
+        alert = next(item for item in health_report["alerts"] if item["check"] == "knowledge_library_findings")
+        self.assertEqual("warning", alert["severity"])
+        self.assertEqual([], alert["details"]["library_dependent_tasks"])
+        self.assertEqual(autonomy_readiness_gate.WARNINGS, code, payload)
+        self.assertEqual("safe_with_warnings", payload["decision"])
+        self.assertTrue(payload["expensive_workers_allowed"])
+        self.assertFalse(any(item["check"] == "failed_previous_run" for item in payload["blockers"]))
+        self.assertFalse(any(item["check"] == "knowledge_library_findings" for item in payload["blockers"]))
+
     def test_weekly_digest_and_daily_status_summarize_library_coverage_and_open_questions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
