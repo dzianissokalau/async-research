@@ -13,6 +13,7 @@ review surfaces.
 ```bash
 async-research schema-check research_ops
 async-research library init research_ops --dry-run
+async-research library validate research_ops
 async-research idea catalog init research_ops --dry-run
 async-research source validate research_ops
 async-research readiness research_ops --dry-run
@@ -62,7 +63,8 @@ empty library files by design.
 
 Run `async-research library init research_ops --dry-run` to inspect missing
 library starter files in an existing workspace. Use `--write` to add only
-missing files; existing notes are preserved.
+missing files; existing notes are preserved. Run
+`async-research library validate research_ops` after editing library tables.
 
 ## Data Foundations
 

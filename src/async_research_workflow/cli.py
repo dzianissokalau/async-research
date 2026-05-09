@@ -467,6 +467,15 @@ def run_library_init_command(args: argparse.Namespace) -> int:
     return module_main("knowledge_library", argv)
 
 
+def run_library_validate_command(args: argparse.Namespace) -> int:
+    argv = ["validate", str(args.ops_dir)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    if args.stale_days is not None:
+        argv.extend(["--stale-days", str(args.stale_days)])
+    return module_main("knowledge_library", argv)
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -1260,8 +1269,8 @@ def register_library_commands(subparsers) -> None:
     library = add_command(
         subparsers,
         "library",
-        help="Initialize knowledge library starter files.",
-        description="Manage research_ops/library starter files for source memory, claim maps, methods, and open questions.",
+        help="Initialize and validate knowledge library files.",
+        description="Manage research_ops/library files for source memory, claim maps, methods, and open questions.",
     )
     library_sub = library.add_subparsers(dest="library_command", required=True)
     init = add_command(
@@ -1275,6 +1284,17 @@ def register_library_commands(subparsers) -> None:
     init.add_argument("--dry-run", action="store_true", help="Explicitly report missing library files without writing.")
     init.add_argument("--write", action="store_true", help="Create only missing library files.")
     init.set_defaults(func=run_library_init_command)
+    validate = add_command(
+        library_sub,
+        "validate",
+        help="Validate knowledge library Markdown contracts.",
+        description="Read-only validation for research_ops/library generated blocks, source IDs, source refs, metadata, and update provenance.",
+        epilog="Exits 0 when library contracts are clean, 2 for warning-only findings with usable state, and 4 for malformed generated blocks, duplicate IDs, or invalid references.",
+    )
+    add_common_ops(validate)
+    validate.add_argument("--now", help="Override current time for deterministic stale review checks.")
+    validate.add_argument("--stale-days", type=int, help="Warn when reviewed_date is older than this many days.")
+    validate.set_defaults(func=run_library_validate_command)
 
 
 def register_cost_commands(subparsers) -> None:

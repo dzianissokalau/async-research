@@ -38,6 +38,7 @@ class KnowledgeLibraryTemplateTests(unittest.TestCase):
                 self.assertIn("## Knowledge Library", text)
                 self.assertIn("Empty library files are valid", text)
                 self.assertIn("async-research library init research_ops --dry-run", text)
+                self.assertIn("async-research library validate research_ops", text)
                 self.assertIn("existing notes are preserved", text)
 
     def test_library_templates_are_packaged_resources(self) -> None:
