@@ -36,9 +36,11 @@ MALFORMED = 4
 FRAMEWORK_VERSION = "analysis_run_v1.0"
 MANIFEST_RELATIVE_PATH = Path("artifacts/analysis_run/run_manifest.json")
 MANIFEST_SCHEMA = schema_path("analysis_run.schema.json")
+RESULT_ACCEPTANCE_SCHEMA = schema_path("result_acceptance.schema.json")
 STATUS_SCHEMA = schema_path("task_status.schema.json")
 TASK_REF_RE = re.compile(r"\bTASK-[0-9]{4}\b")
 INDEX_REF_RE = re.compile(r"\[([0-9]+)\]")
+ALLOWED_PREFLIGHT_STATUSES = {"ready_for_worker", "in_progress"}
 
 METHOD_FAMILY_TOKENS: dict[str, set[str]] = {
     "descriptive_statistics": {"descriptive", "summary", "statistics", "statistic"},
@@ -197,6 +199,13 @@ def load_status(task_dir: Path, failures: list[dict[str, Any]]) -> Optional[dict
             "task_type",
             "Preflight only supports run_analysis tasks.",
             {"expected": "run_analysis", "actual": status.get("type")},
+        )
+    if status.get("status") not in ALLOWED_PREFLIGHT_STATUSES:
+        add_failure(
+            failures,
+            "task_status_runnable",
+            "Analysis preflight may start only from ready_for_worker or in_progress tasks.",
+            {"allowed": sorted(ALLOWED_PREFLIGHT_STATUSES), "actual": status.get("status")},
         )
     expected_id = task_id_from_dir(task_dir)
     if expected_id and status.get("id") != expected_id:
@@ -419,18 +428,19 @@ def validate_accepted_plan(
         )
     else:
         plan_report["index_row"] = accepted_row
-        if accepted_row.get("revalidation_status") == "stale":
+        accepted_plan_revalidation_status = accepted_row.get("revalidation_status")
+        if accepted_plan_revalidation_status in {"stale", "superseded"}:
             add_failure(
                 failures,
                 "accepted_plan_current",
-                "Accepted plan memory is stale and must be revalidated before analysis starts.",
+                "Accepted plan memory is stale or superseded and must be revalidated before analysis starts.",
                 accepted_row,
             )
-        elif accepted_row.get("revalidation_status") == "due":
+        elif accepted_plan_revalidation_status in {"due", "scheduled"}:
             add_warning(
                 warnings,
                 "accepted_plan_current",
-                "Accepted plan memory is due for revalidation before analysis starts.",
+                "Accepted plan memory is due or scheduled for revalidation before analysis starts.",
                 accepted_row,
             )
 
@@ -473,6 +483,23 @@ def validate_accepted_plan(
             "Accepted plan result_acceptance.json is missing.",
             str(acceptance_path),
         )
+    elif acceptance_path.name != "result_acceptance.json" or acceptance_path.parent.name != "review_panel":
+        add_failure(
+            failures,
+            "accepted_plan_result_acceptance_path",
+            "accepted_plan_result_acceptance_path must point to review_panel/result_acceptance.json.",
+            {"path": str(acceptance_path), "expected_tail": "review_panel/result_acceptance.json"},
+        )
+    else:
+        acceptance_payload = read_json_object(acceptance_path)
+        acceptance_errors = schema_errors(acceptance_payload, RESULT_ACCEPTANCE_SCHEMA)
+        if acceptance_errors:
+            add_failure(
+                failures,
+                "accepted_plan_result_acceptance_schema",
+                "Accepted plan result_acceptance.json failed result acceptance schema validation.",
+                acceptance_errors,
+            )
 
     if accepted_plan_path is None or not accepted_plan_path.exists():
         return plan_status, None, accepted_plan_path, plan_report
@@ -635,6 +662,7 @@ def validate_method_metric_baselines_budget(
     }
     output_paths = {normalize_text(item) for item in manifest.get("output_paths") or [] if normalize_text(item)}
     available_outputs = planned_paths | output_paths
+    represented_baseline_indices: set[int] = set()
     for index, baseline in enumerate(manifest.get("baseline_refs") or []):
         if not isinstance(baseline, dict):
             continue
@@ -647,6 +675,8 @@ def validate_method_metric_baselines_budget(
                 "Manifest baseline_refs must point to accepted plan baselines.",
                 {"planned_baseline_ref": baseline_ref, "available_count": len(baselines)},
             )
+        else:
+            represented_baseline_indices.add(baseline_index)
         expected_output = normalize_text(baseline.get("expected_output_path"))
         if expected_output and expected_output not in available_outputs:
             add_failure(
@@ -655,6 +685,18 @@ def validate_method_metric_baselines_budget(
                 "Baseline expected output must be included in planned_outputs or output_paths.",
                 {"baseline_index": index, "expected_output_path": expected_output},
             )
+    missing_baselines = [
+        {"baseline_index": index, "name": baseline.get("name") if isinstance(baseline, dict) else ""}
+        for index, baseline in enumerate(baselines)
+        if index not in represented_baseline_indices
+    ]
+    if missing_baselines:
+        add_failure(
+            failures,
+            "baseline_outputs_required",
+            "Every accepted plan baseline must have a manifest baseline ref and planned output.",
+            missing_baselines,
+        )
 
     plan_budget = plan.get("budget") if isinstance(plan.get("budget"), dict) else {}
     if status is not None:
@@ -713,6 +755,12 @@ def text_for_accepted_memory_scan(ops_dir: Path, task_dir: Path, manifest: dict[
     if config_path is not None and config_path.exists() and is_relative_to(config_path, task_dir):
         try:
             parts.append(config_path.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    parameters_path = workspace_path(ops_dir, (manifest.get("runner") or {}).get("parameters_ref"))
+    if parameters_path is not None and parameters_path.exists() and is_relative_to(parameters_path, task_dir):
+        try:
+            parts.append(parameters_path.read_text(encoding="utf-8"))
         except OSError:
             pass
     return "\n".join(parts)
@@ -823,12 +871,18 @@ def preflight(args: argparse.Namespace) -> int:
         return MALFORMED
 
     ok = not failures
+    if failures:
+        next_step = "repair blockers before analysis starts"
+    elif warnings:
+        next_step = "review warnings before analysis starts"
+    else:
+        next_step = "run analysis"
     report.update(
         {
             "ok": ok,
             "failure_count": len(failures),
             "warning_count": len(warnings),
-            "next_step": "run analysis" if ok else "repair blockers before analysis starts",
+            "next_step": next_step,
         }
     )
     print_json(report)

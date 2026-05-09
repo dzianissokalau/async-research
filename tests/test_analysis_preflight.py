@@ -313,6 +313,71 @@ def valid_manifest() -> dict:
     }
 
 
+def valid_result_acceptance() -> dict:
+    return {
+        "schema_version": "1.0",
+        "framework_version": "result_acceptance_v1.0",
+        "task_id": "TASK-8001",
+        "task_type": "experiment_plan",
+        "evaluated_at": NOW,
+        "route": "accept_as_evidence",
+        "recommended_decision": "ready",
+        "claim_strength": "none",
+        "max_claim_strength": "none",
+        "claim_strength_policy": "fixture methodology note",
+        "hard_gate_results": [{"gate": "fixture", "passed": True, "reason": "accepted"}],
+        "scorecard": {
+            "plan_compliance": 5,
+            "reproducibility": 5,
+            "baseline_comparison": 5,
+            "metric_validity": 5,
+            "validation_strength": 5,
+            "robustness_strength": 5,
+            "leakage_safety": 5,
+            "limitation_honesty": 5,
+            "decision_usefulness": 5,
+            "claim_discipline": 5,
+        },
+        "reviewer_panel": {
+            "aggregate_present": True,
+            "aggregate_decision": "accepted",
+            "tier": 1,
+            "required_reviewers": ["primary"],
+            "reviewer_count": 1,
+            "disagreement_present": False,
+        },
+        "human_gate": {"required": False, "satisfied": True, "reason": "fixture"},
+        "source_governance": {
+            "required": True,
+            "source_ids": ["DS-0001"],
+            "ok": True,
+            "warnings": [],
+            "blocked": [],
+        },
+        "accepted_memory": {
+            "claim_type": "methodology_note",
+            "freshness_window_days": "manual_review",
+            "next_recheck_date": "manual_review",
+            "revalidation_status": "manual_review",
+            "supersedes": "none",
+            "superseded_by": "none",
+        },
+        "evidence_ledger": {
+            "required": False,
+            "ledger_path": "research_ops/evidence_ledger.md",
+            "logged": False,
+            "evidence_link": "research_ops/tasks/TASK-8001-experiment-plan/worker_output.md",
+        },
+        "rejection_logging": {
+            "required": False,
+            "log_path": "research_ops/rejected_results.md",
+            "logged": False,
+        },
+        "followups": [],
+        "review_notes": ["fixture accepted plan"],
+    }
+
+
 def write_accepted_index(ops_dir: Path, extra_rows: list[dict[str, str]] | None = None, include_default: bool = True) -> None:
     rows = []
     if include_default:
@@ -351,7 +416,7 @@ def create_fixture_workspace(root: Path) -> tuple[Path, Path, Path]:
         "Accepted fixture plan.\n\n```json\n" + json.dumps(valid_experiment_plan(), indent=2, sort_keys=True) + "\n```\n",
         encoding="utf-8",
     )
-    write_json(plan_dir / "review_panel" / "result_acceptance.json", {"ok": True, "decision": "accepted"})
+    write_json(plan_dir / "review_panel" / "result_acceptance.json", valid_result_acceptance())
     write_json(analysis_dir / "status.json", task_status("TASK-8002", "run_analysis", "ready_for_worker", ["DS-0001"]))
     analysis_dir.joinpath("task.md").write_text("Run TASK-8001 fixture analysis using DS-0001.\n", encoding="utf-8")
     write_json(analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json", valid_manifest())
@@ -396,6 +461,19 @@ class AnalysisPreflightTests(unittest.TestCase):
 
         self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
         self.assertIn("task_type", gate_names(payload))
+
+    def test_preflight_rejects_non_runnable_analysis_statuses(self) -> None:
+        for blocked_status in ("needs_human", "paused", "accepted", "rejected"):
+            with self.subTest(blocked_status=blocked_status):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+                    status = task_status("TASK-8002", "run_analysis", blocked_status, ["DS-0001"])
+                    write_json(analysis_dir / "status.json", status)
+
+                    code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+                self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+                self.assertIn("task_status_runnable", gate_names(payload))
 
     def test_preflight_requires_accepted_plan_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -481,6 +559,85 @@ class AnalysisPreflightTests(unittest.TestCase):
         self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
         self.assertIn("accepted_plan_current", gate_names(payload))
 
+    def test_preflight_rejects_superseded_accepted_plan_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_accepted_index(
+                ops_dir,
+                [
+                    {
+                        "accepted_date": "2026-05-09",
+                        "task_id": "TASK-8001",
+                        "title": "Superseded fixture experiment plan",
+                        "key_finding": "Fixture plan was replaced.",
+                        "claim_type": "methodology_note",
+                        "freshness_window_days": "manual_review",
+                        "next_recheck_date": "manual_review",
+                        "revalidation_status": "manual_review",
+                        "source_ids": "DS-0001",
+                        "claim_strength": "none",
+                        "caveats": "superseded",
+                        "followups": "use replacement",
+                        "supersedes": "none",
+                        "superseded_by": "TASK-8998",
+                        "evidence_link": "research_ops/tasks/TASK-8001-experiment-plan/worker_output.md",
+                    }
+                ],
+                include_default=False,
+            )
+
+            code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+        self.assertIn("accepted_plan_current", gate_names(payload))
+
+    def test_warning_only_preflight_requires_warning_review_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_accepted_index(
+                ops_dir,
+                [
+                    {
+                        "accepted_date": "2026-05-09",
+                        "task_id": "TASK-8001",
+                        "title": "Due fixture experiment plan",
+                        "key_finding": "Fixture plan is due for review.",
+                        "claim_type": "general",
+                        "freshness_window_days": "3",
+                        "next_recheck_date": "2026-05-12",
+                        "revalidation_status": "due",
+                        "source_ids": "DS-0001",
+                        "claim_strength": "none",
+                        "caveats": "due",
+                        "followups": "review soon",
+                        "supersedes": "none",
+                        "superseded_by": "none",
+                        "evidence_link": "research_ops/tasks/TASK-8001-experiment-plan/worker_output.md",
+                    }
+                ],
+                include_default=False,
+            )
+
+            code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["hard_gate_failures"])
+        self.assertGreater(payload["warning_count"], 0)
+        self.assertEqual("review warnings before analysis starts", payload["next_step"])
+
+    def test_preflight_requires_result_acceptance_path_to_be_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            manifest = valid_manifest()
+            manifest["accepted_plan_result_acceptance_path"] = "research_ops/tasks/TASK-8001-experiment-plan/status.json"
+            write_json(analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json", manifest)
+
+            code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+        self.assertIn("accepted_plan_result_acceptance_path", gate_names(payload))
+
     def test_preflight_rejects_metric_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
@@ -504,6 +661,28 @@ class AnalysisPreflightTests(unittest.TestCase):
 
         self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
         self.assertIn("method_family_allowed", gate_names(payload))
+
+    def test_preflight_requires_all_accepted_plan_baselines(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            plan = valid_experiment_plan()
+            plan["baselines"].append(
+                {
+                    "name": "regularized regression benchmark",
+                    "family": "regularized_regression_benchmark",
+                    "implementation": "fixture regularized model",
+                    "comparison_role": "baseline",
+                }
+            )
+            plan_dir.joinpath("worker_output.md").write_text(
+                "Accepted fixture plan.\n\n```json\n" + json.dumps(plan, indent=2, sort_keys=True) + "\n```\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+        self.assertIn("baseline_outputs_required", gate_names(payload))
 
     def test_preflight_rejects_budget_overrun(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -562,6 +741,38 @@ class AnalysisPreflightTests(unittest.TestCase):
             }
             write_accepted_index(ops_dir, [stale_row])
             analysis_dir.joinpath("task.md").write_text("Reuse TASK-7999 as current evidence for this run.\n", encoding="utf-8")
+
+            code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_runs.VALIDATION_FAILED, code, payload)
+        self.assertIn("stale_accepted_memory_reuse", gate_names(payload))
+
+    def test_preflight_scans_runner_parameters_ref_for_stale_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            stale_row = {
+                "accepted_date": "2025-01-01",
+                "task_id": "TASK-7999",
+                "title": "Old parameter evidence",
+                "key_finding": "Old evidence",
+                "claim_type": "general",
+                "freshness_window_days": "30",
+                "next_recheck_date": "2025-02-01",
+                "revalidation_status": "stale",
+                "source_ids": "DS-0001",
+                "claim_strength": "moderate",
+                "caveats": "stale",
+                "followups": "refresh",
+                "supersedes": "none",
+                "superseded_by": "none",
+                "evidence_link": "research_ops/tasks/TASK-7999-old/worker_output.md",
+            }
+            write_accepted_index(ops_dir, [stale_row])
+            parameters_path = analysis_dir / "artifacts" / "analysis_run" / "parameters.md"
+            parameters_path.write_text("Use TASK-7999 as current evidence for this parameterization.\n", encoding="utf-8")
+            manifest = valid_manifest()
+            manifest["runner"]["parameters_ref"] = "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/parameters.md"
+            write_json(analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json", manifest)
 
             code, payload = run_json(analysis_runs, ["preflight", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
 
