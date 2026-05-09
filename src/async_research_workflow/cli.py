@@ -1691,6 +1691,31 @@ def register_result_command(subparsers) -> None:
     result.set_defaults(func=lambda a: module_main("validate_result_acceptance", [str(a.task_dir)] + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else []) + (["--write"] if a.write else []) + (["--update-ledgers"] if a.update_ledgers else [])))
 
 
+def register_analysis_commands(subparsers) -> None:
+    analysis = add_command(
+        subparsers,
+        "analysis",
+        help="Preflight analysis-run tasks.",
+        description="Preflight analysis run tasks against accepted experiment plans before execution starts.",
+    )
+    analysis_sub = analysis.add_subparsers(dest="analysis_command", required=True)
+    preflight = add_command(
+        analysis_sub,
+        "preflight",
+        help="Run a read-only analysis preflight.",
+        description=(
+            "Read-only preflight for a run_analysis task: validates status.json, the run manifest, "
+            "accepted experiment plan linkage, source/data readiness, budget, method and metric alignment, "
+            "output paths, and stale accepted memory before analysis starts."
+        ),
+        epilog="Exits 0 when clean, 2 for blockers or reviewable warnings, 3 for invalid requests, and 4 for malformed task state.",
+    )
+    preflight.add_argument("task_dir", type=Path, help="run_analysis task directory to preflight.")
+    preflight.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
+    preflight.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    preflight.set_defaults(func=lambda a: module_main("analysis_runs", ["preflight", str(a.task_dir), "--ops-dir", str(a.ops_dir)] + (["--now", a.now] if a.now else [])))
+
+
 def register_artifact_commands(subparsers) -> None:
     exploration = add_command(
         subparsers,
@@ -1920,6 +1945,7 @@ COMMAND_REGISTRARS = (
     register_review_commands,
     register_revision_commands,
     register_result_command,
+    register_analysis_commands,
     register_artifact_commands,
     register_benchmark_commands,
 )

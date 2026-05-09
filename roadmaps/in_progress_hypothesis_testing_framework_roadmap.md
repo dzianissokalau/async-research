@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 2 ready
+Current phase: Phase 3 ready
 Last updated: 2026-05-09
-Next action: Implement Phase 2 preflight validator
+Next action: Implement Phase 3 output contracts
 Blocked by: None
 
 Created: 2026-05-07
@@ -136,8 +136,9 @@ Exit codes:
 
 Warning-only validation may return exit `2` with `ok: true`,
 `warning_count > 0`, and no hard gate failures. Hard gate failures return exit
-`2` with `ok: false`. Malformed JSON, unsafe paths, or unreadable required
-artifacts return exit `4`.
+`2` with `ok: false`. Unsafe paths are hard gate failures under exit `2`.
+Malformed JSON or unreadable required artifacts return exit `4` when the
+validator cannot reason about the task state.
 
 Validator JSON should include:
 
@@ -272,7 +273,7 @@ Last updated: 2026-05-09
 | ---: | --- | --- | --- | --- |
 | 0 | Lock execution decisions | Complete | Capture V1 scope, authority model, accepted plan requirement, validator contract, compatibility rules, and first test matrix before package implementation starts. | This roadmap now defines contract-first execution and keeps the core package out of project-owned statistics code. |
 | 1 | Analysis run contract | Complete | Add `analysis_run.schema.json`, a manifest template, packaged resource tests, and docs for the canonical `artifacts/analysis_run/` layout. | Adds the Phase 1 schema/template contract, lifecycle-aware planned manifests, worker guidance, result-summary manifest linkage, task contract docs, framework docs, and focused schema/resource tests. |
-| 2 | Preflight validator | Not Started | Add read-only `async-research analysis preflight` against task status, accepted experiment plan, source/data governance, budget, metric, method, and path safety. | Should fail closed before analysis starts. |
+| 2 | Preflight validator | Complete | Add read-only `async-research analysis preflight` against task status, accepted experiment plan, source/data governance, budget, metric, method, and path safety. | Adds `analysis_runs.py`, public CLI wiring, help/architecture tests, and focused preflight tests for task type, accepted plan state, plan revalidation, source/data governance, stale accepted memory, budget, metric, method, and unsafe paths. |
 | 3 | Output contracts | Not Started | Add structured metrics, diagnostics, robustness, and leakage schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Keep project-specific diagnostics in project repos. |
 | 4 | Claim gates | Not Started | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Strong, public, and high-stakes claims require human approval. |
 | 5 | Analysis validation CLI | Not Started | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Commands are read-only in V1. |
@@ -310,6 +311,7 @@ src/async_research_workflow/schemas/analysis_metrics.schema.json
 src/async_research_workflow/schemas/analysis_diagnostics.schema.json
 src/async_research_workflow/schemas/analysis_robustness_checks.schema.json
 src/async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md
+src/async_research_workflow/scripts/analysis_runs.py
 ```
 
 Recommended run artifact layout:

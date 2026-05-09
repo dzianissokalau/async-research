@@ -53,6 +53,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_review_commands",
                 "register_revision_commands",
                 "register_result_command",
+                "register_analysis_commands",
                 "register_artifact_commands",
                 "register_benchmark_commands",
             ],
@@ -87,6 +88,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "review",
                 "revision",
                 "result-acceptance",
+                "analysis",
                 "exploration",
                 "idea",
                 "experiment",
@@ -166,6 +168,7 @@ class CliArchitectureTests(unittest.TestCase):
         anti_context_choices = subparser_choices(choices["anti-context"])
         review_choices = subparser_choices(choices["review"])
         revision_choices = subparser_choices(choices["revision"])
+        analysis_choices = subparser_choices(choices["analysis"])
         idea_choices = subparser_choices(choices["idea"])
         idea_catalog_choices = subparser_choices(idea_choices["catalog"])
 
@@ -183,6 +186,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["build"], list(anti_context_choices))
         self.assertEqual(["prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))
+        self.assertEqual(["preflight"], list(analysis_choices))
         self.assertEqual(["score", "validate", "capture", "promote", "park", "reject", "catalog"], list(idea_choices))
         self.assertEqual(["init", "validate", "list", "dashboard", "show", "maintain"], list(idea_catalog_choices))
         self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])

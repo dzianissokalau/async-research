@@ -595,6 +595,21 @@ family, baseline refs, primary metric, planned outputs, deviations from plan,
 and reproducibility notes. It is not an approval to change the accepted plan;
 deviations must be explicit and reviewable.
 
+Run the read-only preflight before starting the analysis:
+
+```bash
+async-research analysis preflight \
+  research_ops/tasks/TASK-0001 \
+  --ops-dir research_ops
+```
+
+The preflight revalidates the task status, manifest, accepted experiment plan,
+source/data governance, accepted-memory freshness, method/metric alignment,
+budget, baselines, and output path containment. Exit `0` means the run is clean
+to start. Exit `2` may mean hard blockers or warning-only findings; inspect the
+JSON `ok`, `hard_gate_failures`, `warnings`, and `next_step` fields before
+execution.
+
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
 

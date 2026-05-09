@@ -295,6 +295,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research metrics summarize research_ops --output research_ops/monthly_metrics_trends.md` | Summarize baseline and metrics history trends. | `metrics_baseline.json`, `metrics_history.jsonl`. | JSON to stdout; optional Markdown output file. |
 | `async-research review aggregate <task-dir> --record-review-start` | Combine isolated reviews and route a task; optionally records the missing review-start transition first. | `status.json`, `reviews/*.md`, worker output, review policy. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. |
 | `async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers` | Validate or write final result acceptance for a reviewed task. | Task status, worker output, review aggregate, source audit, accepted memory. | `review_panel/result_acceptance.json`; with ledgers, `evidence_ledger.md` or `rejected_results.md`. |
+| `async-research analysis preflight <task-dir> --ops-dir research_ops` | Check whether a `run_analysis` task is safe to start. | Task status, analysis run manifest, accepted experiment plan, source/data governance, accepted memory, budget, metric, method, and path safety. | JSON to stdout only; read-only. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
@@ -326,6 +327,7 @@ async-research idea validate <idea-json> --ops-dir research_ops
 async-research data validate research_ops
 async-research data dashboard research_ops --use-case experiment_planning
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
+async-research analysis preflight <task-dir> --ops-dir research_ops
 ```
 
 ## Internal Helper Boundary
@@ -409,6 +411,7 @@ specific diagnostic.
 | `revision request` | `0` revision route applied or dry-run transition printed. | `2` revision/status validation failed; `4` malformed schema or status input. |
 | `revision inspect` and `revision scan-limits` | `0` revision state reported. | `2` revision/status validation failed; `4` malformed schema or status input. |
 | `result-acceptance` | `0` gates passed. | `2` result-acceptance gates failed; `4` malformed task, aggregate, or source state. |
+| `analysis preflight` | `0` clean preflight. | `2` blockers or reviewable warnings; `3` invalid request; `4` malformed task, manifest, or plan state. |
 | `exploration validate` | `0` artifact passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
 | `idea catalog init` | `0` missing catalog files reported or created. | `2` catalog lock or concurrent creation blocked writes; `3` invalid flags; `4` malformed workspace path or write failure. |
 | `idea catalog validate` | `0` catalog validation passed. | `2` valid shape but unsafe lifecycle, promotion, or reference state; `4` malformed catalog state such as duplicate IDs, schema failures, malformed JSON, or malformed generated blocks. |

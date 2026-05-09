@@ -55,6 +55,7 @@ class CliHelpTests(unittest.TestCase):
                 "batch",
                 "anti-context",
                 "revision",
+                "analysis",
                 "simulate-week",
                 "Exit codes:",
                 "See README.md for the command-specific contract.",
@@ -135,6 +136,8 @@ class CliHelpTests(unittest.TestCase):
             (["revision", "inspect"], ["revision fields", "--schema"]),
             (["revision", "scan-limits"], ["revision-limit hits", "--markdown"]),
             (["result-acceptance"], ["result_acceptance.json", "--update-ledgers"]),
+            (["analysis"], ["Preflight analysis", "preflight"]),
+            (["analysis", "preflight"], ["Read-only", "accepted experiment plan", "--ops-dir", "--now", "stale accepted memory"]),
             (["exploration"], ["exploration-cycle tasks", "validate"]),
             (["exploration", "validate"], ["worker output", "--task-dir"]),
             (["idea"], ["idea-evaluation JSON artifacts", "score", "validate", "capture", "promote", "park", "reject", "catalog"]),
@@ -208,6 +211,7 @@ class CliHelpTests(unittest.TestCase):
             "| `accepted check-memory-use` | `0` artifact does not cite stale accepted memory",
             "| `starter-smoke` | `0` all starter checks passed.",
             "| `result-acceptance` | `0` gates passed.",
+            "| `analysis preflight` | `0` clean preflight.",
             "| `simulate-week` | `0` simulated week passed.",
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
