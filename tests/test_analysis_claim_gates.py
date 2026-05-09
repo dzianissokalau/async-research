@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import io
 import json
 import re
+import tempfile
 import unittest
+from pathlib import Path
 
 from async_research_workflow.resources import schema_path, template_path
 from async_research_workflow.scripts import analysis_claim_gates
@@ -30,6 +34,17 @@ def template_payload(template_name: str) -> dict:
 def schema_errors(payload: dict, schema_name: str) -> list[dict[str, str]]:
     schema = load_json(schema_path(schema_name))
     return [error.to_dict() for error in validate(payload, schema)]
+
+
+def write_json(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def run_main(argv: list[str | Path]) -> tuple[int, dict]:
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        code = analysis_claim_gates.main([str(arg) for arg in argv])
+    return code, json.loads(stream.getvalue())
 
 
 def base_summary(**overrides) -> dict:
@@ -65,13 +80,20 @@ def base_summary(**overrides) -> dict:
 MISSING = object()
 
 
-def evaluate(summary: dict, metrics: object = MISSING, diagnostics: object = MISSING, robustness: object = MISSING) -> dict:
+def evaluate(
+    summary: dict,
+    metrics: object = MISSING,
+    diagnostics: object = MISSING,
+    robustness: object = MISSING,
+    trusted_identity: dict[str, str] | None = None,
+) -> dict:
     return analysis_claim_gates.evaluate_claim_gates(
         summary,
         metrics=metrics if metrics is not MISSING else template_payload("analysis_metrics_template.md"),
         diagnostics=diagnostics if diagnostics is not MISSING else template_payload("analysis_diagnostics_template.md"),
         robustness=robustness if robustness is not MISSING else template_payload("analysis_robustness_checks_template.md"),
         generated_at="2026-05-09T10:45:00Z",
+        trusted_identity=trusted_identity,
     )
 
 
@@ -93,6 +115,34 @@ class AnalysisClaimGateTests(unittest.TestCase):
         self.assertEqual("moderate", report["max_claim_strength"])
         self.assertEqual([], schema_errors(report, "analysis_claim_gates.schema.json"))
 
+    def test_cli_accepts_matching_artifacts_without_trusted_identity_args(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            summary_path = root / "summary.json"
+            metrics_path = root / "metrics.json"
+            diagnostics_path = root / "diagnostics.json"
+            robustness_path = root / "robustness.json"
+            write_json(summary_path, base_summary())
+            write_json(metrics_path, template_payload("analysis_metrics_template.md"))
+            write_json(diagnostics_path, template_payload("analysis_diagnostics_template.md"))
+            write_json(robustness_path, template_payload("analysis_robustness_checks_template.md"))
+
+            code, payload = run_main(
+                [
+                    "--summary",
+                    summary_path,
+                    "--metrics",
+                    metrics_path,
+                    "--diagnostics",
+                    diagnostics_path,
+                    "--robustness",
+                    robustness_path,
+                ]
+            )
+
+        self.assertEqual(analysis_claim_gates.SUCCESS, code, payload)
+        self.assertEqual("accepted", payload["claim_decision"])
+
     def test_causal_language_without_identification_tests_is_rejected(self) -> None:
         summary = base_summary(
             claim="The candidate feature causes lower error rates in deployed settings.",
@@ -100,6 +150,73 @@ class AnalysisClaimGateTests(unittest.TestCase):
         )
 
         report = evaluate(summary, robustness=None)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["causal_identification_tests"]["status"])
+
+    def test_unknown_claim_type_fails_closed_without_bypassing_metrics_gates(self) -> None:
+        summary = base_summary(
+            claim="The candidate feature improves predictive accuracy in this bounded backtest.",
+            claim_type="predicitive",
+            claim_strength="strong",
+        )
+
+        report = evaluate(summary, metrics=None)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        self.assertEqual("none", report["max_claim_strength"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["claim_type_classified"]["status"])
+
+    def test_artifact_identity_mismatch_is_rejected(self) -> None:
+        metrics = copy.deepcopy(template_payload("analysis_metrics_template.md"))
+        metrics["run_id"] = "RUN-9999"
+
+        report = evaluate(base_summary(), metrics=metrics)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["artifact_identity_matches_claim"]["status"])
+
+    def test_missing_summary_task_id_is_rejected_without_trusted_context(self) -> None:
+        summary = base_summary()
+        del summary["task_id"]
+
+        report = evaluate(summary)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["claim_identity_present"]["status"])
+
+    def test_missing_summary_task_id_can_be_supplied_by_trusted_context(self) -> None:
+        summary = base_summary()
+        del summary["task_id"]
+
+        report = evaluate(summary, trusted_identity={"task_id": "TASK-0004"})
+
+        self.assertEqual("accepted", report["claim_decision"])
+        self.assertEqual("TASK-0004", report["task_id"])
+
+    def test_causal_blocking_robustness_check_rejects_even_with_identification_summary(self) -> None:
+        summary = base_summary(
+            claim="The intervention causes lower error rates.",
+            claim_type="causal",
+            identification_tests=["Placebo check"],
+            identification_assumptions=["Parallel trends assumption documented."],
+        )
+        robustness = copy.deepcopy(template_payload("analysis_robustness_checks_template.md"))
+        robustness["summary"]["strongest_supported_claim"] = "causal"
+        robustness["planned_checks"][0].update(
+            {
+                "check_family": "placebo",
+                "status": "fail",
+                "decision_impact": "blocks_claim",
+                "result": "Placebo effect appears before treatment.",
+            }
+        )
+
+        report = evaluate(summary, robustness=robustness)
 
         self.assertEqual("rejected", report["claim_decision"])
         gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
@@ -116,6 +233,31 @@ class AnalysisClaimGateTests(unittest.TestCase):
         self.assertEqual("rejected", report["claim_decision"])
         gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
         self.assertEqual("reject", gates["probability_calibration_or_uncertainty"]["status"])
+
+    def test_probability_applicable_not_applicable_status_is_rejected(self) -> None:
+        diagnostics = copy.deepcopy(template_payload("analysis_diagnostics_template.md"))
+        diagnostics["calibration_checks"][0]["applicable"] = True
+        diagnostics["calibration_checks"][0]["status"] = "not_applicable"
+        summary = base_summary(
+            claim="The model produces calibrated risk probabilities for each entity.",
+            claim_type="probabilistic",
+        )
+
+        report = evaluate(summary, diagnostics=diagnostics)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["probability_calibration_or_uncertainty"]["status"])
+
+    def test_predictive_claim_requires_applicable_passing_leakage_check(self) -> None:
+        diagnostics = copy.deepcopy(template_payload("analysis_diagnostics_template.md"))
+        diagnostics["leakage_checks"][0]["status"] = "not_applicable"
+
+        report = evaluate(base_summary(), diagnostics=diagnostics)
+
+        self.assertEqual("rejected", report["claim_decision"])
+        gates = {gate["gate"]: gate for gate in report["claim_gate_results"]}
+        self.assertEqual("reject", gates["predictive_leakage_checks"]["status"])
 
     def test_warning_diagnostics_cap_requested_claim_strength(self) -> None:
         diagnostics = copy.deepcopy(template_payload("analysis_diagnostics_template.md"))

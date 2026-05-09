@@ -337,8 +337,9 @@ a fenced JSON block following
 For `run_analysis` tasks, the result summary must point to
 `artifacts/analysis_run/run_manifest.json`, which is the canonical record of
 what actually ran. Predictive results cap at `moderate`, causal claims without
-identification tests cap at `weak`, and public/high-stakes or strong claims need
-human approval.
+identification tests are blocked, and public/high-stakes or strong claims need
+human approval. Claim-gate artifacts must share `run_id`,
+`experiment_plan_id`, and `task_id` with the result summary or fail closed.
 
 ## Task Folder
 

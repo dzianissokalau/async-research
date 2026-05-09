@@ -50,6 +50,12 @@ CLAIM_TYPE_ALIASES = {
     "calibrated-risk": "probabilistic",
     "risk": "probabilistic",
 }
+IDENTITY_FIELDS = ["run_id", "experiment_plan_id", "task_id"]
+IDENTITY_SENTINELS = {
+    "run_id": "RUN-0000",
+    "experiment_plan_id": "EXP-0000",
+    "task_id": "TASK-0000",
+}
 ARTIFACT_SCHEMAS = {
     "metrics": "analysis_metrics.schema.json",
     "diagnostics": "analysis_diagnostics.schema.json",
@@ -183,6 +189,108 @@ def normalize_claim_type(summary: dict[str, Any]) -> str:
     return "other"
 
 
+def claim_type_gate(summary: dict[str, Any], claim_type: str) -> dict[str, Any]:
+    raw = str(summary.get("claim_type", "")).strip().lower().replace(" ", "_")
+    if not raw:
+        return gate_result(
+            "claim_type_classified",
+            "reject",
+            "none",
+            "result summary claim_type is required for claim gates",
+        )
+    if raw in CLAIM_TYPES or raw in CLAIM_TYPE_ALIASES:
+        if claim_type == "other":
+            return gate_result(
+                "claim_type_classified",
+                "cap",
+                "weak",
+                "other claims require reviewer classification before stronger evidence can be accepted",
+            )
+        return gate_result("claim_type_classified", "pass", "strong", f"claim_type is classified as {claim_type}")
+    return gate_result(
+        "claim_type_classified",
+        "reject",
+        "none",
+        f"unknown claim_type {summary.get('claim_type')!r}; claim gates fail closed",
+        [f"allowed claim types: {', '.join(sorted(CLAIM_TYPES))}"],
+    )
+
+
+def canonical_identity(summary: dict[str, Any], trusted_identity: Optional[dict[str, str]] = None) -> dict[str, str]:
+    trusted_identity = trusted_identity or {}
+    identity: dict[str, str] = {}
+    for field in IDENTITY_FIELDS:
+        value = trusted_identity.get(field) if nonempty_text(trusted_identity.get(field)) else summary.get(field)
+        identity[field] = str(value) if nonempty_text(value) else IDENTITY_SENTINELS[field]
+    return identity
+
+
+def identity_gates(
+    summary: dict[str, Any],
+    artifacts: dict[str, Optional[dict[str, Any]]],
+    trusted_identity: Optional[dict[str, str]] = None,
+) -> list[dict[str, Any]]:
+    trusted_identity = trusted_identity or {}
+    gates: list[dict[str, Any]] = []
+    missing_summary = [
+        field for field in IDENTITY_FIELDS if not nonempty_text(summary.get(field)) and not nonempty_text(trusted_identity.get(field))
+    ]
+    if missing_summary:
+        gates.append(
+            gate_result(
+                "claim_identity_present",
+                "reject",
+                "none",
+                "result summary is missing required provenance identifiers",
+                [f"missing fields: {', '.join(missing_summary)}"],
+            )
+        )
+    else:
+        gates.append(gate_result("claim_identity_present", "pass", "strong", "result summary provenance identifiers are present"))
+
+    identity = canonical_identity(summary, trusted_identity)
+    for field, trusted_value in trusted_identity.items():
+        if (
+            field in IDENTITY_FIELDS
+            and nonempty_text(trusted_value)
+            and nonempty_text(summary.get(field))
+            and str(summary[field]) != str(trusted_value)
+        ):
+            gates.append(
+                gate_result(
+                    "claim_identity_matches_context",
+                    "reject",
+                    "none",
+                    "result summary provenance does not match trusted caller context",
+                    [f"{field}: summary={summary[field]!r}, trusted={trusted_value!r}"],
+                )
+            )
+
+    mismatches: list[str] = []
+    for name, payload in artifacts.items():
+        if payload is None:
+            continue
+        for field in IDENTITY_FIELDS:
+            artifact_value = payload.get(field)
+            if not nonempty_text(artifact_value):
+                mismatches.append(f"{name}.{field} is missing")
+            elif str(artifact_value) != identity[field]:
+                mismatches.append(f"{name}.{field}={artifact_value!r} does not match {identity[field]!r}")
+    if mismatches:
+        gates.append(
+            gate_result(
+                "artifact_identity_matches_claim",
+                "reject",
+                "none",
+                "analysis artifacts must share run_id, experiment_plan_id, and task_id with the claim summary",
+                mismatches,
+            )
+        )
+    else:
+        gates.append(gate_result("artifact_identity_matches_claim", "pass", "strong", "artifact identities match the claim summary"))
+    return gates
+
+
 def requested_claim_strength(summary: dict[str, Any]) -> str:
     value = str(summary.get("claim_strength", "none")).strip().lower()
     return value if value in CLAIM_ORDER else "none"
@@ -279,6 +387,59 @@ def predictive_gate(metrics: Optional[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
+def predictive_leakage_gate(diagnostics: Optional[dict[str, Any]]) -> dict[str, Any]:
+    if diagnostics is None:
+        return gate_result(
+            "predictive_leakage_checks",
+            "reject",
+            "none",
+            "predictive claims require diagnostics with leakage checks",
+            ["diagnostics artifact missing"],
+        )
+
+    rows = [item for item in diagnostics.get("leakage_checks", []) if isinstance(item, dict)]
+    if not rows:
+        return gate_result(
+            "predictive_leakage_checks",
+            "reject",
+            "none",
+            "predictive claims require at least one leakage check row",
+        )
+
+    statuses = [str(row.get("status", "")).lower() for row in rows]
+    if "fail" in statuses:
+        return gate_result(
+            "predictive_leakage_checks",
+            "reject",
+            "none",
+            "failed leakage checks block predictive claims",
+            [f"statuses: {', '.join(statuses)}"],
+        )
+    if "pass" not in statuses:
+        if "warn" in statuses:
+            return gate_result(
+                "predictive_leakage_checks",
+                "cap",
+                "suggestive",
+                "warning-only leakage checks cap predictive claims at suggestive",
+                [f"statuses: {', '.join(statuses)}"],
+            )
+        return gate_result(
+            "predictive_leakage_checks",
+            "reject",
+            "none",
+            "predictive claims require an applicable passing leakage check",
+            [f"statuses: {', '.join(statuses)}"],
+        )
+    return gate_result(
+        "predictive_leakage_checks",
+        "pass",
+        "moderate",
+        "predictive leakage checks include a passing row",
+        [f"statuses: {', '.join(statuses)}"],
+    )
+
+
 def associative_gate(summary: dict[str, Any], metrics: Optional[dict[str, Any]]) -> dict[str, Any]:
     has_metrics_comparison = isinstance(metrics, dict) and nonempty_list(metrics.get("baseline_comparisons"))
     has_summary_comparison = nonempty_text(summary.get("baseline_results"))
@@ -363,6 +524,14 @@ def probability_gate(diagnostics: Optional[dict[str, Any]]) -> dict[str, Any]:
         )
 
     statuses = {str(row.get("status", "")).lower() for row in applicable}
+    if not statuses or "not_applicable" in statuses:
+        return gate_result(
+            "probability_calibration_or_uncertainty",
+            "reject",
+            "none",
+            "applicable calibration or uncertainty checks cannot be marked not_applicable",
+            [f"statuses: {', '.join(sorted(statuses))}"],
+        )
     if "fail" in statuses:
         return gate_result(
             "probability_calibration_or_uncertainty",
@@ -396,9 +565,24 @@ def causal_identification_gate(summary: dict[str, Any], robustness: Optional[dic
             for item in robustness.get("planned_checks", [])
             if isinstance(item, dict)
             and str(item.get("check_family", "")).lower() in CAUSAL_CHECK_FAMILIES
-            and str(item.get("status", "")).lower() in {"pass", "warn"}
-            and str(item.get("decision_impact", "")).lower() != "blocks_claim"
         ]
+    blocking = [
+        item
+        for item in checks
+        if str(item.get("status", "")).lower() == "fail"
+        or str(item.get("decision_impact", "")).lower() == "blocks_claim"
+    ]
+    requires_human = [
+        item
+        for item in checks
+        if str(item.get("decision_impact", "")).lower() == "requires_human"
+    ]
+    supporting = [
+        item
+        for item in checks
+        if str(item.get("status", "")).lower() in {"pass", "warn"}
+        and str(item.get("decision_impact", "")).lower() != "blocks_claim"
+    ]
 
     assumption_text = text_blob(
         [
@@ -412,7 +596,29 @@ def causal_identification_gate(summary: dict[str, Any], robustness: Optional[dic
         token in assumption_text for token in ["assumption", "identification", "ignorability", "parallel trends", "exclusion"]
     )
 
-    if not summary_tests and not checks:
+    if blocking:
+        return gate_result(
+            "causal_identification_tests",
+            "reject",
+            "none",
+            "failed or blocking causal identification checks block causal claims",
+            [
+                f"{item.get('name', 'causal check')}: status={item.get('status')}, decision_impact={item.get('decision_impact')}"
+                for item in blocking
+            ],
+        )
+    if requires_human:
+        return gate_result(
+            "causal_identification_tests",
+            "needs_human",
+            "strong",
+            "causal identification checks require human review",
+            [
+                f"{item.get('name', 'causal check')}: decision_impact={item.get('decision_impact')}"
+                for item in requires_human
+            ],
+        )
+    if not summary_tests and not supporting:
         return gate_result(
             "causal_identification_tests",
             "reject",
@@ -426,21 +632,46 @@ def causal_identification_gate(summary: dict[str, Any], robustness: Optional[dic
             "none",
             "causal claims require explicit identification assumptions",
         )
-    if any(str(item.get("status", "")).lower() == "warn" for item in checks):
+    if any(str(item.get("status", "")).lower() == "warn" for item in supporting):
         return gate_result(
             "causal_identification_tests",
             "cap",
             "moderate",
             "warning identification checks cap causal claims at moderate",
-            [f"supporting checks: {len(checks)}"],
+            [f"supporting checks: {len(supporting)}"],
         )
     return gate_result(
         "causal_identification_tests",
         "pass",
         "strong",
         "causal identification tests and assumptions are present",
-        [f"supporting checks: {len(checks)}", f"summary tests declared: {summary_tests}"],
+        [f"supporting checks: {len(supporting)}", f"summary tests declared: {summary_tests}"],
     )
+
+
+def robustness_decision_impact_gate(robustness: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    if not isinstance(robustness, dict):
+        return None
+    checks = [item for item in robustness.get("planned_checks", []) if isinstance(item, dict)]
+    blockers = [item for item in checks if str(item.get("decision_impact", "")).lower() == "blocks_claim"]
+    if blockers:
+        return gate_result(
+            "robustness_decision_impact",
+            "reject",
+            "none",
+            "robustness checks marked blocks_claim block result acceptance",
+            [f"{item.get('name', 'robustness check')}: {item.get('result', '')}" for item in blockers],
+        )
+    human_required = [item for item in checks if str(item.get("decision_impact", "")).lower() == "requires_human"]
+    if human_required:
+        return gate_result(
+            "robustness_decision_impact",
+            "needs_human",
+            "strong",
+            "robustness checks require human review",
+            [f"{item.get('name', 'robustness check')}: {item.get('result', '')}" for item in human_required],
+        )
+    return gate_result("robustness_decision_impact", "pass", "strong", "no robustness decision impacts block the claim")
 
 
 def robustness_support_gate(requested_strength: str, robustness: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
@@ -569,11 +800,14 @@ def evaluate_claim_gates(
     diagnostics: Optional[dict[str, Any]] = None,
     robustness: Optional[dict[str, Any]] = None,
     generated_at: Optional[str] = None,
+    trusted_identity: Optional[dict[str, str]] = None,
 ) -> dict[str, Any]:
     claim_type = normalize_claim_type(summary)
     requested_strength = requested_claim_strength(summary)
     gates = artifact_schema_gates({"metrics": metrics, "diagnostics": diagnostics, "robustness": robustness})
+    gates.extend(identity_gates(summary, {"metrics": metrics, "diagnostics": diagnostics, "robustness": robustness}, trusted_identity))
 
+    gates.append(claim_type_gate(summary, claim_type))
     gates.append(summary_limitations_gate(summary))
     gates.append(diagnostic_quality_gate(diagnostics))
 
@@ -581,6 +815,7 @@ def evaluate_claim_gates(
         gates.append(associative_gate(summary, metrics))
     if claim_type == "predictive":
         gates.append(predictive_gate(metrics))
+        gates.append(predictive_leakage_gate(diagnostics))
     if claim_type == "causal" or has_causal_language(summary):
         gates.append(causal_identification_gate(summary, robustness))
     if claim_type == "probabilistic" or has_probability_language(summary):
@@ -589,18 +824,22 @@ def evaluate_claim_gates(
     robustness_gate = robustness_support_gate(requested_strength, robustness)
     if robustness_gate is not None:
         gates.append(robustness_gate)
+    robustness_impact_gate = robustness_decision_impact_gate(robustness)
+    if robustness_impact_gate is not None:
+        gates.append(robustness_impact_gate)
 
     human_gate_result, human_gate_payload = human_gate(summary, requested_strength)
     gates.append(human_gate_result)
 
     decision, route, max_strength, reasons = choose_decision(requested_strength, gates)
+    identity = canonical_identity(summary, trusted_identity)
     return {
         "schema_version": SCHEMA_VERSION,
         "framework_version": FRAMEWORK_VERSION,
         "generated_at": generated_at or utc_now(),
-        "run_id": str(summary.get("run_id") or "RUN-0000"),
-        "experiment_plan_id": str(summary.get("experiment_plan_id") or "EXP-0000"),
-        "task_id": str(summary.get("task_id") or "TASK-0000"),
+        "run_id": identity["run_id"],
+        "experiment_plan_id": identity["experiment_plan_id"],
+        "task_id": identity["task_id"],
         "claim": str(summary.get("claim") or ""),
         "claim_type": claim_type,
         "requested_claim_strength": requested_strength,
@@ -620,6 +859,9 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--metrics", type=Path, help="analysis_metrics_v1.0 JSON artifact")
     parser.add_argument("--diagnostics", type=Path, help="analysis_diagnostics_v1.0 JSON artifact")
     parser.add_argument("--robustness", type=Path, help="analysis_robustness_v1.0 JSON artifact")
+    parser.add_argument("--run-id", help="Trusted run_id from caller context when the summary omits it")
+    parser.add_argument("--experiment-plan-id", help="Trusted experiment_plan_id from caller context when the summary omits it")
+    parser.add_argument("--task-id", help="Trusted task_id from caller context when the summary omits it")
     return parser.parse_args(list(argv))
 
 
@@ -634,7 +876,12 @@ def main(argv: Iterable[str]) -> int:
         print_json({"ok": False, "reason": "malformed_or_missing", "error": str(exc)})
         return MALFORMED
 
-    report = evaluate_claim_gates(summary, metrics, diagnostics, robustness)
+    trusted_identity = {
+        "run_id": args.run_id,
+        "experiment_plan_id": args.experiment_plan_id,
+        "task_id": args.task_id,
+    }
+    report = evaluate_claim_gates(summary, metrics, diagnostics, robustness, trusted_identity=trusted_identity)
     report_schema_errors = schema_errors(report, ARTIFACT_SCHEMAS["claim_gates"])
     if report_schema_errors:
         print_json(
