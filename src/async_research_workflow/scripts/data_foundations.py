@@ -23,6 +23,7 @@ from async_research_workflow.scripts.data_source_audit import (
     source_age_days,
     source_stale,
     split_table_row,
+    use_case_tokens,
     validate_rows,
 )
 
@@ -47,6 +48,8 @@ NO_VALUE_MARKERS = {"", "none", "n/a", "na", "unknown", "todo", "tbd", "yyyy-mm-
 ACTIVE_IDEA_STATUSES = {"", "candidate", "raw", "scored", "blocked"}
 INACTIVE_IDEA_STATUSES = {"parked", "rejected", "promoted"}
 REQUIRED_PROFILE_POLICY_FIELDS = ("approved_use_cases", "blocked_use_cases")
+SOURCE_USE_CASE_CHOICES = ("discovery", "experiment_planning", "accepted_evidence", "context")
+DEFAULT_DASHBOARD_USE_CASE = "experiment_planning"
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -741,6 +744,16 @@ def table_value(row: dict[str, str], *keys: str) -> str:
     return ""
 
 
+def source_use_case_status(row: dict[str, str], use_case: str) -> tuple[bool, str]:
+    approved_use_cases = use_case_tokens(row.get("approved_use_cases", ""))
+    blocked_use_cases = use_case_tokens(row.get("blocked_use_cases", ""))
+    if "all" in blocked_use_cases or use_case in blocked_use_cases:
+        return False, "use_case_blocked"
+    if "all" not in approved_use_cases and use_case not in approved_use_cases:
+        return False, "use_case_not_approved"
+    return True, "use_case_allowed"
+
+
 def source_dashboard_row(
     row: dict[str, str],
     now: datetime,
@@ -748,6 +761,7 @@ def source_dashboard_row(
     catalog_by_id: dict[str, dict[str, str]],
     access_by_id: dict[str, dict[str, str]],
     findings_by_id: dict[str, list[dict[str, Any]]],
+    use_case: str,
 ) -> dict[str, Any]:
     source_id = row["source_id"]
     profile = profiles_by_id.get(source_id, {})
@@ -756,13 +770,16 @@ def source_dashboard_row(
     access_row = access_by_id.get(source_id, {})
     stale = source_stale(row, now)
     approved = row.get("approval_status") in EXPERIMENT_READY_STATUSES
-    usable_today = approved and not stale
+    use_case_allowed, use_case_reason = source_use_case_status(row, use_case)
+    usable_today = approved and not stale and use_case_allowed
     if usable_today:
-        usability_reason = "approved_and_fresh"
+        usability_reason = "approved_fresh_and_use_case_allowed"
     elif row.get("approval_status") not in EXPERIMENT_READY_STATUSES:
         usability_reason = f"approval_status_{row.get('approval_status') or 'unknown'}"
-    else:
+    elif stale:
         usability_reason = "source_review_stale"
+    else:
+        usability_reason = use_case_reason
     profile_path = table_value(catalog_row, "profile_path") or str(profile.get("path") or "")
     return {
         "source_id": source_id,
@@ -771,6 +788,8 @@ def source_dashboard_row(
         "source_tier": row.get("source_tier"),
         "usable_today": usable_today,
         "usability_reason": usability_reason,
+        "use_case": use_case,
+        "use_case_allowed": use_case_allowed,
         "stale": stale,
         "last_reviewed": row.get("last_reviewed"),
         "age_days": source_age_days(row, now),
@@ -896,10 +915,37 @@ def data_blocked_ideas(
     return sorted(rows, key=lambda item: str(item.get("idea_id")))
 
 
-def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict[str, Any]:
+def catalog_dashboard_findings(catalog_summary: dict[str, Any]) -> list[dict[str, Any]]:
+    warnings = catalog_summary.get("warnings") if isinstance(catalog_summary.get("warnings"), list) else []
+    failures = catalog_summary.get("failures") if isinstance(catalog_summary.get("failures"), list) else []
+    findings: list[dict[str, Any]] = []
+    for item in warnings:
+        if isinstance(item, dict):
+            findings.append({**item, "surface": "idea_catalog", "severity": "warning"})
+    for item in failures:
+        if isinstance(item, dict):
+            findings.append({**item, "surface": "idea_catalog", "severity": "error"})
+    return findings
+
+
+def dashboard_exit_code(data_exit_code: int, catalog_summary: dict[str, Any]) -> int:
+    if data_exit_code == MALFORMED:
+        return MALFORMED
+    warning_count = int(catalog_summary.get("warning_count") or 0)
+    failure_count = int(catalog_summary.get("failure_count") or 0)
+    if warning_count or failure_count:
+        return VALIDATION_FINDINGS
+    return data_exit_code
+
+
+def data_dashboard_report(
+    ops_dir: Path,
+    now: Optional[datetime] = None,
+    use_case: str = DEFAULT_DASHBOARD_USE_CASE,
+) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     validation = data_foundation_report(ops_dir, now=current)
-    exit_code = validation_exit_code(validation)
+    data_exit_code = validation_exit_code(validation)
     audit_register = ops_dir / "data_source_audit.md"
     data_dir = ops_dir / DATA_DIR_NAME
     audit_rows: list[dict[str, str]] = []
@@ -925,10 +971,12 @@ def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict
     catalog_by_id = row_by_source_id(catalog_rows)
     access_by_id = row_by_source_id(access_rows)
     source_rows = [
-        source_dashboard_row(row, current, profiles_by_id, catalog_by_id, access_by_id, findings_by_id)
+        source_dashboard_row(row, current, profiles_by_id, catalog_by_id, access_by_id, findings_by_id, use_case)
         for row in sorted(audit_rows, key=lambda item: item["source_id"])
     ]
     catalog_summary = catalog_surface_summary(ops_dir)
+    catalog_findings = catalog_dashboard_findings(catalog_summary)
+    exit_code = dashboard_exit_code(data_exit_code, catalog_summary)
     active_gap_refs = validation.get("active_idea_gap_refs") if isinstance(validation.get("active_idea_gap_refs"), list) else []
     gap_rows_dashboard = gap_dashboard_rows(gap_rows, active_gap_refs)
     join_rows_dashboard = join_dashboard_rows(join_rows, audit_by_id)
@@ -943,12 +991,15 @@ def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict
     ideas_blocked = data_blocked_ideas(catalog_summary, active_gap_refs)
     join_caveats = [row for row in join_rows_dashboard if row["has_caveats"] or row["missing_source_ids"]]
     table_parse_errors = catalog_errors + access_errors + join_errors + gap_errors
+    catalog_failure_count = int(catalog_summary.get("failure_count") or 0)
+    catalog_warning_count = int(catalog_summary.get("warning_count") or 0)
     return {
-        "ok": validation.get("ok") is True,
+        "ok": validation.get("ok") is True and catalog_failure_count == 0,
         "action": "data_dashboard_rendered",
         "ops_dir": str(ops_dir),
         "audit_register": str(audit_register),
         "data_dir": str(data_dir),
+        "use_case": use_case,
         "read_only": True,
         "changed": False,
         "generated_from": "data_foundation_validator_and_read_model",
@@ -968,8 +1019,11 @@ def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict
             "join_caveat_count": len(join_caveats),
             "validator_warning_count": validation.get("warning_count", 0),
             "validator_error_count": validation.get("error_count", 0),
+            "catalog_warning_count": catalog_warning_count,
+            "catalog_failure_count": catalog_failure_count,
         },
         "operator_summary": {
+            "use_case": use_case,
             "usable_today_source_ids": [row["source_id"] for row in usable_today],
             "attention_needed": sorted(
                 set(
@@ -993,10 +1047,17 @@ def data_dashboard_report(ops_dir: Path, now: Optional[datetime] = None) -> dict
             "join_paths": join_rows_dashboard,
             "join_caveats": join_caveats,
             "validator_findings": validator_findings,
+            "catalog_findings": catalog_findings,
         },
         "validation": validation,
-        "read_model_warnings": profile_warnings,
-        "read_model_errors": audit_errors + table_parse_errors + profile_errors,
+        "catalog": {
+            "ok": catalog_summary.get("ok") is True,
+            "validation_exit_code": catalog_summary.get("validation_exit_code"),
+            "warning_count": catalog_warning_count,
+            "failure_count": catalog_failure_count,
+        },
+        "read_model_warnings": profile_warnings + list(catalog_summary.get("warnings", [])),
+        "read_model_errors": audit_errors + table_parse_errors + profile_errors + list(catalog_summary.get("failures", [])),
         "ignored_templates": ignored_templates,
     }
 
@@ -1038,7 +1099,7 @@ def command_dashboard(args: argparse.Namespace) -> int:
             "changed": False,
         })
         return MALFORMED
-    report = data_dashboard_report(args.ops_dir, now=now)
+    report = data_dashboard_report(args.ops_dir, now=now, use_case=args.use_case)
     print_json(report)
     return int(report["validation_exit_code"])
 
@@ -1061,6 +1122,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dashboard.add_argument("ops_dir", type=Path, help="Path to research_ops.")
     dashboard.add_argument("--now", help="Override current time for deterministic freshness checks.")
+    dashboard.add_argument("--use-case", choices=SOURCE_USE_CASE_CHOICES, default=DEFAULT_DASHBOARD_USE_CASE, help="Use case for usable-today source policy.")
     dashboard.set_defaults(func=command_dashboard)
     return parser
 

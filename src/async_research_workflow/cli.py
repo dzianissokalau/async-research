@@ -454,6 +454,7 @@ def run_data_dashboard_command(args: argparse.Namespace) -> int:
     argv = ["dashboard", str(args.ops_dir)]
     if args.now:
         argv.extend(["--now", args.now])
+    argv.extend(["--use-case", args.use_case])
     return module_main("data_foundations", argv)
 
 
@@ -1242,6 +1243,7 @@ def register_data_commands(subparsers) -> None:
     )
     add_common_ops(dashboard)
     dashboard.add_argument("--now", help="Override current time for deterministic source freshness checks.")
+    dashboard.add_argument("--use-case", choices=SOURCE_USE_CASE_CHOICES, default="experiment_planning", help="Source use case for usable-today policy.")
     dashboard.set_defaults(func=run_data_dashboard_command)
 
 
