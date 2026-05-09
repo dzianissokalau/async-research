@@ -14,7 +14,7 @@ requiring a specific modeling library.
   "experiment_plan_id": "EXP-0001",
   "task_id": "TASK-0004",
   "primary_metric_name": "Out-of-sample MAE reduction versus baseline",
-  "metric_rows": [
+  "baseline_metrics": [
     {
       "metric_name": "MAE",
       "role": "baseline",
@@ -26,7 +26,9 @@ requiring a specific modeling library.
       "source": "analysis output table",
       "planned_metric_ref": "experiment_plan.metrics.primary_metric",
       "notes": "Naive local median baseline."
-    },
+    }
+  ],
+  "candidate_metrics": [
     {
       "metric_name": "MAE",
       "role": "candidate",
@@ -40,6 +42,21 @@ requiring a specific modeling library.
       "notes": "Candidate method from the accepted plan."
     }
   ],
+  "validation_metrics": [
+    {
+      "metric_name": "MAE",
+      "role": "validation",
+      "value": 9.7,
+      "unit": "target units",
+      "direction": "decrease",
+      "split": "validation",
+      "segment": "all",
+      "source": "analysis output table",
+      "planned_metric_ref": "experiment_plan.metrics.primary_metric",
+      "notes": "Primary validation split metric used for result acceptance."
+    }
+  ],
+  "metric_rows": [],
   "baseline_comparisons": [
     {
       "baseline_name": "Local median baseline",
@@ -62,8 +79,9 @@ requiring a specific modeling library.
       "geography_scope": "accepted plan geography",
       "sample_size": 1250,
       "metric_refs": [
-        "metric_rows[0]",
-        "metric_rows[1]"
+        "baseline_metrics[0]",
+        "candidate_metrics[0]",
+        "validation_metrics[0]"
       ],
       "notes": "Split follows the accepted experiment plan."
     }

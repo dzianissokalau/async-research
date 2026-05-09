@@ -22,7 +22,8 @@ impact, and claim boundaries without requiring a specific analysis library.
       "status": "pass",
       "result": "Candidate remains better than the planned baseline in the adjacent window.",
       "metric_refs": [
-        "analysis_metrics.metric_rows[1]"
+        "analysis_metrics.candidate_metrics[0]",
+        "analysis_metrics.validation_metrics[0]"
       ],
       "decision_impact": "supports_claim",
       "limitation": "One adjacent window does not prove stability across all future periods."

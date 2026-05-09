@@ -333,7 +333,6 @@ research_ops/tasks/TASK-0004-run-analysis/
       diagnostics.json
       diagnostics.md
       robustness_checks.json
-      leakage_checks.json
       model_outputs/
       tables/
       figures/
@@ -641,8 +640,10 @@ Implementation steps:
 1. Share read helpers with preflight.
 2. Validate manifest and structured output schemas.
 3. Compare manifest, outputs, and result summary against the accepted plan.
-4. Emit machine-readable blockers and warnings.
-5. Add CLI tests for valid artifacts, missing manifest, missing baseline,
+4. Enforce cross-field semantic rules that schemas cannot express, such as
+   `not_run` robustness checks being unable to support claims.
+5. Emit machine-readable blockers and warnings.
+6. Add CLI tests for valid artifacts, missing manifest, missing baseline,
    unplanned metric changes, and claim gate failures.
 
 Acceptance:

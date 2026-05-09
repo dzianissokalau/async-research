@@ -2,8 +2,8 @@
 
 Use this fenced JSON block as `artifacts/analysis_run/diagnostics.json` for
 completed `run_analysis` tasks. It records missingness, join quality, leakage,
-segment diagnostics, optional calibration or uncertainty checks, and limitations
-in a reviewer-readable structure.
+segment diagnostics, explicit calibration or uncertainty applicability, and
+limitations in a reviewer-readable structure.
 
 ```json
 {
@@ -29,6 +29,7 @@ in a reviewer-readable structure.
   "join_quality_checks": [
     {
       "name": "Feature-to-outcome join",
+      "applicable": true,
       "left_source_id": "DS-0001",
       "right_source_id": "DS-0001",
       "join_keys": [

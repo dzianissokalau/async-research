@@ -635,13 +635,18 @@ async_research_workflow/templates/artifact_templates/analysis_diagnostics_templa
 async_research_workflow/templates/artifact_templates/analysis_robustness_checks_template.md
 ```
 
-The metrics contract records baseline metrics, candidate metrics, validation
-split metrics, baseline comparisons, and limitations. The diagnostics contract
-records missingness, join quality, leakage checks, segment diagnostics,
-calibration or uncertainty checks when relevant, and limitations. The
-robustness contract records planned robustness checks, pass/warn/fail state,
-decision impact, strongest supported claim class, and limitations. These are
-contracts for reviewers and validators, not a modeling library.
+The metrics contract requires explicit baseline, candidate, and validation
+metric arrays, plus baseline comparisons, validation split metadata, and
+limitations. The diagnostics contract records missingness, join quality,
+leakage checks, segment diagnostics, explicit calibration and uncertainty
+applicability, and limitations. Single-source or no-join analyses should record
+a `join_quality_checks` row with `applicable: false` and
+`status: "not_applicable"` rather than inventing fake join keys. The robustness
+contract records planned robustness checks, pass/warn/fail state, decision
+impact, strongest supported claim class, and limitations. Phase 5 semantic
+validators will enforce cross-field rules such as a `not_run` robustness check
+not being allowed to support a claim. These are contracts for reviewers and
+validators, not a modeling library.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:

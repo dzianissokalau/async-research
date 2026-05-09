@@ -10,7 +10,9 @@
     "experiment_plan_id",
     "task_id",
     "primary_metric_name",
-    "metric_rows",
+    "baseline_metrics",
+    "candidate_metrics",
+    "validation_metrics",
     "baseline_comparisons",
     "validation_splits",
     "limitations"
@@ -46,9 +48,191 @@
     "primary_metric_name": {
       "type": "string"
     },
-    "metric_rows": {
+    "baseline_metrics": {
       "type": "array",
       "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_name",
+          "role",
+          "value",
+          "unit",
+          "direction",
+          "split",
+          "segment",
+          "source"
+        ],
+        "properties": {
+          "metric_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "baseline"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease",
+              "match_target",
+              "not_applicable"
+            ]
+          },
+          "split": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "planned_metric_ref": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "candidate_metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_name",
+          "role",
+          "value",
+          "unit",
+          "direction",
+          "split",
+          "segment",
+          "source"
+        ],
+        "properties": {
+          "metric_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "candidate"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease",
+              "match_target",
+              "not_applicable"
+            ]
+          },
+          "split": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "planned_metric_ref": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validation_metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_name",
+          "role",
+          "value",
+          "unit",
+          "direction",
+          "split",
+          "segment",
+          "source"
+        ],
+        "properties": {
+          "metric_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "validation"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease",
+              "match_target",
+              "not_applicable"
+            ]
+          },
+          "split": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "planned_metric_ref": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metric_rows": {
+      "type": "array",
       "items": {
         "type": "object",
         "required": [

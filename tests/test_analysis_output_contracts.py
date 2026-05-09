@@ -6,6 +6,7 @@ import copy
 import json
 import re
 import unittest
+from pathlib import Path
 
 from async_research_workflow.resources import schema_path, template_path
 from async_research_workflow.scripts.validate_json_artifact import (
@@ -29,6 +30,7 @@ CONTRACTS = {
         "template": "analysis_robustness_checks_template.md",
     },
 }
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def template_payload(template_name: str) -> dict:
@@ -47,6 +49,10 @@ def schema_errors(payload: dict, schema_name: str) -> list[dict[str, str]]:
     return [error.to_dict() for error in validate(payload, schema)]
 
 
+def repo_root_text(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
 class AnalysisOutputContractTests(unittest.TestCase):
     def test_output_schemas_use_supported_validator_subset(self) -> None:
         for name, contract in CONTRACTS.items():
@@ -60,34 +66,44 @@ class AnalysisOutputContractTests(unittest.TestCase):
                 payload = template_payload(contract["template"])
                 self.assertEqual([], schema_errors(payload, contract["schema"]))
 
-    def test_metrics_require_baseline_and_validation_outputs(self) -> None:
+    def test_metrics_require_baseline_candidate_and_validation_outputs(self) -> None:
         payload = template_payload("analysis_metrics_template.md")
-        payload["baseline_comparisons"] = []
-        payload["validation_splits"] = []
+        payload["baseline_metrics"] = []
+        payload["candidate_metrics"] = []
+        payload["validation_metrics"] = []
 
         errors = schema_errors(payload, "analysis_metrics.schema.json")
         paths = {error["path"] for error in errors}
 
-        self.assertIn("$.baseline_comparisons", paths)
-        self.assertIn("$.validation_splits", paths)
+        self.assertIn("$.baseline_metrics", paths)
+        self.assertIn("$.candidate_metrics", paths)
+        self.assertIn("$.validation_metrics", paths)
 
-    def test_metrics_rows_capture_role_value_split_segment_and_source(self) -> None:
+    def test_metrics_arrays_capture_role_value_split_segment_and_source(self) -> None:
         payload = template_payload("analysis_metrics_template.md")
         broken = copy.deepcopy(payload)
-        del broken["metric_rows"][0]["role"]
-        del broken["metric_rows"][0]["value"]
-        del broken["metric_rows"][0]["split"]
-        del broken["metric_rows"][0]["segment"]
-        del broken["metric_rows"][0]["source"]
+        del broken["baseline_metrics"][0]["role"]
+        del broken["baseline_metrics"][0]["value"]
+        del broken["baseline_metrics"][0]["split"]
+        del broken["baseline_metrics"][0]["segment"]
+        del broken["baseline_metrics"][0]["source"]
 
         errors = schema_errors(broken, "analysis_metrics.schema.json")
         paths = {error["path"] for error in errors}
 
-        self.assertIn("$.metric_rows[0].role", paths)
-        self.assertIn("$.metric_rows[0].value", paths)
-        self.assertIn("$.metric_rows[0].split", paths)
-        self.assertIn("$.metric_rows[0].segment", paths)
-        self.assertIn("$.metric_rows[0].source", paths)
+        self.assertIn("$.baseline_metrics[0].role", paths)
+        self.assertIn("$.baseline_metrics[0].value", paths)
+        self.assertIn("$.baseline_metrics[0].split", paths)
+        self.assertIn("$.baseline_metrics[0].segment", paths)
+        self.assertIn("$.baseline_metrics[0].source", paths)
+
+    def test_metrics_reject_wrong_role_in_required_metric_arrays(self) -> None:
+        payload = template_payload("analysis_metrics_template.md")
+        payload["baseline_metrics"][0]["role"] = "diagnostic"
+
+        errors = schema_errors(payload, "analysis_metrics.schema.json")
+
+        self.assertIn("$.baseline_metrics[0].role", {error["path"] for error in errors})
 
     def test_diagnostics_require_missingness_join_leakage_segments_and_limitations(self) -> None:
         payload = template_payload("analysis_diagnostics_template.md")
@@ -95,6 +111,8 @@ class AnalysisOutputContractTests(unittest.TestCase):
         payload["join_quality_checks"] = []
         payload["leakage_checks"] = []
         payload["segment_diagnostics"] = []
+        payload["calibration_checks"] = []
+        payload["uncertainty_checks"] = []
         payload["limitations"] = []
 
         errors = schema_errors(payload, "analysis_diagnostics.schema.json")
@@ -104,7 +122,22 @@ class AnalysisOutputContractTests(unittest.TestCase):
         self.assertIn("$.join_quality_checks", paths)
         self.assertIn("$.leakage_checks", paths)
         self.assertIn("$.segment_diagnostics", paths)
+        self.assertIn("$.calibration_checks", paths)
+        self.assertIn("$.uncertainty_checks", paths)
         self.assertIn("$.limitations", paths)
+
+    def test_diagnostics_allow_no_join_without_fake_source_ids_or_keys(self) -> None:
+        payload = template_payload("analysis_diagnostics_template.md")
+        payload["join_quality_checks"] = [
+            {
+                "name": "No join used",
+                "applicable": False,
+                "status": "not_applicable",
+                "evidence": "Single-source run; no join was performed."
+            }
+        ]
+
+        self.assertEqual([], schema_errors(payload, "analysis_diagnostics.schema.json"))
 
     def test_diagnostics_allow_nonapplicable_calibration_and_uncertainty(self) -> None:
         payload = template_payload("analysis_diagnostics_template.md")
@@ -112,6 +145,30 @@ class AnalysisOutputContractTests(unittest.TestCase):
         self.assertEqual("not_applicable", payload["calibration_checks"][0]["status"])
         self.assertEqual("not_applicable", payload["uncertainty_checks"][0]["status"])
         self.assertEqual([], schema_errors(payload, "analysis_diagnostics.schema.json"))
+
+    def test_diagnostics_require_explicit_calibration_and_uncertainty_rows(self) -> None:
+        payload = template_payload("analysis_diagnostics_template.md")
+        del payload["calibration_checks"]
+        del payload["uncertainty_checks"]
+
+        errors = schema_errors(payload, "analysis_diagnostics.schema.json")
+        paths = {error["path"] for error in errors}
+
+        self.assertIn("$.calibration_checks", paths)
+        self.assertIn("$.uncertainty_checks", paths)
+
+    def test_diagnostic_rates_cannot_exceed_one(self) -> None:
+        payload = template_payload("analysis_diagnostics_template.md")
+        payload["missingness_checks"][0]["missing_rate"] = 1.01
+        payload["join_quality_checks"][0]["unmatched_rate"] = 1.01
+        payload["join_quality_checks"][0]["duplicate_key_rate"] = 1.01
+
+        errors = schema_errors(payload, "analysis_diagnostics.schema.json")
+        paths = {error["path"] for error in errors}
+
+        self.assertIn("$.missingness_checks[0].missing_rate", paths)
+        self.assertIn("$.join_quality_checks[0].unmatched_rate", paths)
+        self.assertIn("$.join_quality_checks[0].duplicate_key_rate", paths)
 
     def test_robustness_requires_planned_checks_summary_and_limitations(self) -> None:
         payload = template_payload("analysis_robustness_checks_template.md")
@@ -125,6 +182,19 @@ class AnalysisOutputContractTests(unittest.TestCase):
         self.assertIn("$.planned_checks", paths)
         self.assertIn("$.summary.strongest_supported_claim", paths)
         self.assertIn("$.limitations", paths)
+
+    def test_robustness_not_run_supporting_claim_is_phase_five_semantic_gap(self) -> None:
+        payload = template_payload("analysis_robustness_checks_template.md")
+        payload["planned_checks"][0]["status"] = "not_run"
+        payload["planned_checks"][0]["decision_impact"] = "supports_claim"
+        payload["summary"]["overall_status"] = "pass"
+
+        self.assertEqual([], schema_errors(payload, "analysis_robustness_checks.schema.json"))
+
+    def test_roadmap_no_longer_advertises_separate_leakage_checks_json(self) -> None:
+        roadmap = repo_root_text("roadmaps/in_progress_hypothesis_testing_framework_roadmap.md")
+
+        self.assertNotIn("leakage_checks.json", roadmap)
 
     def test_output_contracts_do_not_require_specific_modeling_libraries(self) -> None:
         forbidden = ["sklearn", "statsmodels", "pandas", "xgboost", "torch", "tensorflow"]
