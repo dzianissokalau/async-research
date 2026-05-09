@@ -1,5 +1,11 @@
 # Research Foundations Roadmap
 
+Status: In Progress
+Current phase: Knowledge Library remains
+Last updated: 2026-05-09
+Next action: Deliver Knowledge Library MVP
+Blocked by: None
+
 Created: 2026-05-05
 
 ## Goal
@@ -36,17 +42,17 @@ progress.
 
 Implement these as separate, shippable features:
 
-1. [Knowledge Library Roadmap](./knowledge_library_roadmap.md)
+1. [Knowledge Library Roadmap](./not_started_knowledge_library_roadmap.md)
    - Create trusted source and claim memory from literature, posts, books,
      user notes, and accepted evidence.
    - Feeds discovery, planning, review, and future library update tasks.
 
-2. [Data Foundations Roadmap](./data_foundations_roadmap.md)
+2. [Data Foundations Roadmap](./delivered_data_foundations_roadmap.md)
    - Make data availability, access, readiness, joins, restrictions, and gaps
      explicit before expensive experiments start.
    - Extends `data_source_audit.md` with data catalog and source profiles.
 
-3. [Idea Catalog Roadmap](./idea_catalog_roadmap.md)
+3. [Idea Catalog Roadmap](./delivered_idea_catalog_roadmap.md)
    - Turn rough ideas into a managed research portfolio with scoring, dedupe,
      blockers, kill criteria, and next-task recommendations.
    - Bridges foundations into the existing queue and task loop.

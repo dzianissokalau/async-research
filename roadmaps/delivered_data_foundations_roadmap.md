@@ -1,5 +1,11 @@
 # Data Foundations Roadmap
 
+Status: Delivered
+Current phase: Dashboard surface complete
+Last updated: 2026-05-09
+Next action: Monitor workflow simulations and patch regressions
+Blocked by: None
+
 Created: 2026-05-05
 
 ## Summary

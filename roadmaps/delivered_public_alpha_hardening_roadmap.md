@@ -1,8 +1,10 @@
 # Async Research Public Alpha Hardening Roadmap
 
-Status: public alpha hardening roadmap
-
-Last reviewed: 2026-05-05
+Status: Delivered
+Current phase: Complete
+Last updated: 2026-05-09
+Next action: Maintenance fixes from dogfood and external review
+Blocked by: None
 
 ## Project Summary
 

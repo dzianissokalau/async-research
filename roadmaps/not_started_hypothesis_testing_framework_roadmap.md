@@ -1,5 +1,11 @@
 # Hypothesis Testing Framework Roadmap
 
+Status: Not Started
+Current phase: Phase 0
+Last updated: 2026-05-09
+Next action: Start after foundations or explicit user request
+Blocked by: None
+
 Created: 2026-05-07
 
 ## Summary

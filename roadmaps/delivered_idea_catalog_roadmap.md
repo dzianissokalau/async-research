@@ -1,5 +1,11 @@
 # Idea Catalog Roadmap
 
+Status: Delivered
+Current phase: V2.9 acceptance complete
+Last updated: 2026-05-09
+Next action: Monitor dogfood feedback and patch regressions
+Blocked by: None
+
 Created: 2026-05-05
 
 ## Summary

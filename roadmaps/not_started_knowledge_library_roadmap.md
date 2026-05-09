@@ -1,5 +1,11 @@
 # Knowledge Library Roadmap
 
+Status: Not Started
+Current phase: Phase 0
+Last updated: 2026-05-09
+Next action: Lock decisions, then add starter files and validator
+Blocked by: None
+
 Created: 2026-05-05
 
 ## Summary

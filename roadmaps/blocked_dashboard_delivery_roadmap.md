@@ -1,5 +1,11 @@
 # Dashboard Delivery Roadmap
 
+Status: Blocked
+Current phase: Slice 1
+Last updated: 2026-05-09
+Next action: Revisit after Knowledge Library MVP is delivered
+Blocked by: Knowledge Library MVP
+
 Created: 2026-05-05
 
 ## Goal

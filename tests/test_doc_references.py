@@ -96,6 +96,14 @@ INTERNAL_HELPER_DIRECT_INVOCATION_RE = re.compile(
     + r"|metrics_history)\b"
 )
 INTERNAL_HELPER_LABELS = ("advanced/internal", "internal helper", "advanced helper")
+ROADMAP_STATUS_PREFIXES = {
+    "delivered_": "Delivered",
+    "in_progress_": "In Progress",
+    "not_started_": "Not Started",
+    "blocked_": "Blocked",
+    "paused_": "Paused",
+    "superseded_": "Superseded",
+}
 
 
 def iter_documentation_files() -> list[Path]:
@@ -186,6 +194,32 @@ class DocumentationReferenceTests(unittest.TestCase):
             for index, line in enumerate(lines):
                 if INTERNAL_HELPER_DIRECT_INVOCATION_RE.search(line) and not has_internal_helper_label(lines, index):
                     failures.append(f"{path.relative_to(ROOT)}:{index + 1} -> unlabeled internal helper invocation")
+
+        self.assertEqual([], failures)
+
+    def test_roadmap_files_include_status_in_filename_header_and_index(self) -> None:
+        failures: list[str] = []
+        roadmaps_dir = ROOT / "roadmaps"
+        index_text = (roadmaps_dir / "README.md").read_text(encoding="utf-8")
+        for path in sorted(roadmaps_dir.glob("*.md")):
+            if path.name == "README.md":
+                continue
+            matched_status = None
+            for prefix, status in ROADMAP_STATUS_PREFIXES.items():
+                if path.name.startswith(prefix):
+                    matched_status = status
+                    break
+            if matched_status is None:
+                failures.append(f"{path.relative_to(ROOT)} missing lifecycle status filename prefix")
+                continue
+
+            header = "\n".join(path.read_text(encoding="utf-8").splitlines()[:10])
+            if f"Status: {matched_status}" not in header:
+                failures.append(f"{path.relative_to(ROOT)} missing matching header Status: {matched_status}")
+            if f"./{path.name}" not in index_text:
+                failures.append(f"roadmaps/README.md missing link to {path.name}")
+            if f"| {matched_status} |" not in index_text:
+                failures.append(f"roadmaps/README.md missing status table entry for {matched_status}")
 
         self.assertEqual([], failures)
 

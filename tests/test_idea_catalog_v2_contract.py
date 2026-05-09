@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ROADMAP = ROOT / "roadmaps" / "idea_catalog_roadmap.md"
+ROADMAP = ROOT / "roadmaps" / "delivered_idea_catalog_roadmap.md"
 CONTRACT = ROOT / "src" / "async_research_workflow" / "docs" / "idea_catalog_contract.md"
 
 

@@ -64,7 +64,7 @@ The main cost reduction comes from:
 32. [Cost Controls](./cost_controls.md)
 33. [Async Research Console Specification](./async_research_console_spec.md)
 34. [Internal Helper Boundary](./internal_helper_boundary.md)
-35. [Dashboard Delivery Roadmap](../../../roadmaps/dashboard_delivery_roadmap.md)
+35. [Dashboard Delivery Roadmap](../../../roadmaps/blocked_dashboard_delivery_roadmap.md)
 36. [Implementation Plan](./implementation_plan.md)
 37. [Sources](./sources.md)
 
