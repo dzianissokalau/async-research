@@ -42,6 +42,7 @@ from async_research_workflow.idea_catalog import markdown_cells
 from async_research_workflow.idea_catalog import prioritization_markers
 from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
+from async_research_workflow.idea_catalog import text_contains
 from async_research_workflow.idea_catalog import validate_candidate_record
 from async_research_workflow.scripts import task_transaction
 from async_research_workflow.scripts.version_metadata import apply_default_versions
@@ -76,6 +77,7 @@ TASK_LIMITS = {
     "hypothesis_card": {"max_minutes": 45, "max_turns": 4, "review_tier": 1},
     "experiment_plan": {"max_minutes": 90, "max_turns": 6, "review_tier": 2},
 }
+LIBRARY_SUPPORT_REQUIRED_TASK_TYPES = {"hypothesis_card", "experiment_plan"}
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -1820,9 +1822,67 @@ def promotion_refs(payload: dict[str, Any]) -> dict[str, list[str]]:
     }
 
 
+def library_support_status(ops_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    refs = list_field(payload, "library_refs")
+    target = ops_dir / "library" / "source_library.md"
+    if not refs:
+        return {
+            "status": "not_declared",
+            "library_refs": [],
+            "resolved_refs": [],
+            "unresolved_refs": [],
+            "target": str(target),
+        }
+
+    resolved = [ref for ref in refs if text_contains(target, ref)]
+    unresolved = [ref for ref in refs if ref not in resolved]
+    status = "resolved" if not unresolved else "missing_library_support"
+    return {
+        "status": status,
+        "library_refs": refs,
+        "resolved_refs": resolved,
+        "unresolved_refs": unresolved,
+        "target": str(target),
+    }
+
+
+def non_library_evidence_refs(payload: dict[str, Any]) -> dict[str, list[str]]:
+    refs = promotion_refs(payload)
+    return {
+        field: values
+        for field, values in refs.items()
+        if field != "library_refs" and values
+    }
+
+
 def evidence_is_thin(payload: dict[str, Any]) -> bool:
     refs = promotion_refs(payload)
     return not any(refs.values()) and not str(payload.get("source_discovery_path") or "").strip()
+
+
+def promotion_evidence_support(ops_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    library_support = library_support_status(ops_dir, payload)
+    other_refs = non_library_evidence_refs(payload)
+    source_discovery_path = str(payload.get("source_discovery_path") or "").strip()
+    if evidence_is_thin(payload):
+        status = "thin_evidence"
+        message = "No library_refs, data_refs, accepted/rejected refs, evidence seeds, or source discovery path are present."
+    elif library_support["unresolved_refs"] and not other_refs and not source_discovery_path:
+        status = "missing_library_support"
+        message = "The idea names library_refs, but they do not resolve against research_ops/library/source_library.md."
+    elif library_support["unresolved_refs"]:
+        status = "partial_library_support"
+        message = "Some library_refs are unresolved; non-library evidence refs or source discovery context are still available."
+    else:
+        status = "supported"
+        message = "Promotion has at least one support ref or source discovery context."
+    return {
+        "status": status,
+        "message": message,
+        "library_support": library_support,
+        "non_library_refs": other_refs,
+        "source_discovery_path": source_discovery_path or None,
+    }
 
 
 def data_refs_are_audited(ops_dir: Path, data_refs: list[str]) -> bool:
@@ -1925,6 +1985,18 @@ def promotion_blockers(
             }
         )
 
+    evidence_support = promotion_evidence_support(ops_dir, payload)
+    library_support = evidence_support["library_support"]
+    if evidence_support["status"] == "missing_library_support" and task_type in LIBRARY_SUPPORT_REQUIRED_TASK_TYPES:
+        blockers.append(
+            {
+                "reason": "missing_library_support",
+                "message": f"{task_type} promotion requires resolved library_refs or a prior literature_extract task",
+                "unresolved_refs": library_support["unresolved_refs"],
+                "target": library_support["target"],
+            }
+        )
+
     # Keep warnings visible without blocking the proposal.
     for warning in record_warnings:
         if warning.get("reason") in {"library_ref_unresolved"}:
@@ -1933,6 +2005,9 @@ def promotion_blockers(
                     "reason": "non_blocking_catalog_warning",
                     "warning_reason": warning.get("reason"),
                     "message": warning.get("message"),
+                    "ref": warning.get("ref"),
+                    "ref_field": warning.get("ref_field"),
+                    "target": warning.get("target"),
                     "blocking": False,
                 }
             )
@@ -2280,6 +2355,7 @@ def promotion_task_proposal(
     slug = str(task_identity["task_dir_name"])
     limits = TASK_LIMITS[task_type]
     refs = promotion_refs(payload)
+    evidence_support = promotion_evidence_support(ops_dir, payload)
     objective = (
         f"Advance catalog idea {idea_id} with one {task_type} task that can be accepted, revised, or killed independently."
     )
@@ -2361,6 +2437,7 @@ def promotion_task_proposal(
         "title": task_title,
         "objective": objective,
         "scope": promotion_scope(task_type, payload),
+        "evidence_support": evidence_support,
         "required_sources": {
             "source_discovery_path": payload.get("source_discovery_path"),
             "library_refs": refs["library_refs"],
@@ -2446,6 +2523,7 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         "catalog_summary": candidate_summary(record),
         "selected_task_type": task_type,
         "route_reason": route_reason,
+        "evidence_support": promotion_evidence_support(args.ops_dir, record["payload"]),
         "promotion_preflight_hash": preflight_hash,
         "idempotency_key": idempotency_key,
         "task_identity": task_identity,

@@ -90,11 +90,13 @@ discovery_inbox.md
 The promotion command is split into a read-only planning pass and a guarded
 write pass. The dry-run proposal remains authoritative for task type, scope,
 reserved task identity, validation commands, review tier, and
-`promotion_preflight_hash`. Write mode must receive the matching
-`--preflight-hash`; it creates one reserved task folder, appends one `queue.md`
-row, appends the planner-facing proposal reference to `inbox.md`, updates the
-selected idea's `promoted_task_id` and proposal refs, and regenerates catalog
-projections under the catalog lock.
+`evidence_support.status`. `thin_evidence` means there are no support refs or
+source discovery context; `missing_library_support` means `library_refs` did
+not resolve against `research_ops/library/source_library.md`. Write mode must
+receive the matching `--preflight-hash`; it creates one reserved task folder,
+appends one `queue.md` row, appends the planner-facing proposal reference to
+`inbox.md`, updates the selected idea's `promoted_task_id` and proposal refs,
+and regenerates catalog projections under the catalog lock.
 
 Before writing a task from a catalog idea, run:
 

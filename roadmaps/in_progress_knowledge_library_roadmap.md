@@ -1,9 +1,9 @@
 # Knowledge Library Roadmap
 
 Status: In Progress
-Current phase: Phase 4
+Current phase: Phase 5
 Last updated: 2026-05-09
-Next action: Complete idea catalog route-specific library support explanation
+Next action: Add library extraction/update task guidance
 Blocked by: None
 
 Created: 2026-05-05
@@ -299,7 +299,7 @@ Last updated: 2026-05-09
 | 1 | Starter files, contracts, and safe init | Complete | Add `research_ops/library/` starter files to generic and real-estate templates, document table contracts, and add idempotent `library init`. | Adds library starter files, starter README guidance, public `async-research library init` dry-run/write behavior, packaged-resource coverage, safe migration tests, and a legacy `research_ops/knowledge/` regression guard. |
 | 2 | Library parser and validator | Complete | Add read-only parsing and `async-research library validate research_ops` with cold-start warnings, duplicate ID checks, row-shape checks, provenance checks, and source-ref checks. | Adds generated-block parsing, warning-only cold start, duplicate/malformed hard failures, metadata warnings, deterministic `LIT-*` source-ref checks, stale-date warnings when configured, update-log provenance warnings, and validator regression tests. |
 | 3 | CLI, README, and docs integration | Complete | Wire public CLI help, README command tables, exit-code docs, starter README guidance, and package resource tests. | Public `library` help exposes `init` and `validate`; root README documents library commands, exit codes, workspace files, and the accepted-output boundary; starter READMEs explain cold-start and accepted-output separation; packaged-resource and doc-reference tests cover the full library starter file set and docs contract. |
-| 4 | Idea catalog reference alignment | Partially complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | The canonical target fix shipped with Phase 0; route-specific promotion explanation remains future work. |
+| 4 | Idea catalog reference alignment | Complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | Catalog validation resolves `library_refs` only against `library/source_library.md`; promotion dry-run now reports `evidence_support.status` so planners can distinguish `thin_evidence` from `missing_library_support`; unresolved refs remain warning-level for normal validation/data-readiness routing, while library-dependent routes block until support resolves or extraction runs first. |
 | 5 | Library extraction task guidance | Not started | Add the chosen task contract for library extraction/update proposals and clarify allowed paths, required caveats, claim-strength rules, and update-log provenance. | Depends on Phase 0 task type decision. |
 | 6 | Health, readiness, and weekly surfaces | Not started | Surface missing, stale, disputed, unsupported, and open-question library state without blocking all cold-start work. | Should consume validator output, not reparsed Markdown. |
 | 7 | Dashboard surface | Not started | Add read-only dashboard views for source coverage, reviewed sources, stale/disputed claims, open questions, and proposed update tasks. | Deferred until parser/validator behavior is stable. |

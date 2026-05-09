@@ -161,6 +161,8 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, thin_code, thin_payload)
             self.assertEqual("literature_extract", thin_payload["proposal"]["task_type"])
             self.assertEqual("evidence_is_thin", thin_payload["proposal"]["route_reason"])
+            self.assertEqual("thin_evidence", thin_payload["evidence_support"]["status"])
+            self.assertEqual("thin_evidence", thin_payload["proposal"]["evidence_support"]["status"])
 
             override_code, override_payload = run_cli_json(
                 ["idea", "promote", ops_dir, "IDEA-7302", "--task-type", "hypothesis_card"]
@@ -241,6 +243,77 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             proposal = payload["proposal"]
             self.assertEqual("data_readiness", proposal["task_type"])
             self.assertEqual("data_plausible_but_unaudited", proposal["route_reason"])
+            self.assertEqual("missing_library_support", payload["evidence_support"]["status"])
+            self.assertEqual(["LIT-7312"], payload["evidence_support"]["library_support"]["unresolved_refs"])
+            self.assertEqual("missing_library_support", proposal["evidence_support"]["status"])
+            self.assertTrue(
+                any(
+                    item["reason"] == "non_blocking_catalog_warning"
+                    and item["warning_reason"] == "library_ref_unresolved"
+                    and item["ref"] == "LIT-7312"
+                    and item["target"].endswith("research_ops/library/source_library.md")
+                    and item["blocking"] is False
+                    for item in payload["blockers"]
+                )
+            )
+
+    def test_promote_blocks_library_required_route_when_library_ref_is_unresolved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7313", "Missing library support idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["required_data"] = []
+            candidate["library_refs"] = ["LIT-7313"]
+            write_json(ops_dir / "ideas" / "IDEA-7313.json", candidate)
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7313"])
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("idea_promotion_blocked", payload["action"])
+            self.assertEqual("hypothesis_card", payload["selected_task_type"])
+            self.assertEqual("missing_library_support", payload["evidence_support"]["status"])
+            blocker = next(item for item in payload["blockers"] if item["reason"] == "missing_library_support")
+            self.assertEqual(["LIT-7313"], blocker["unresolved_refs"])
+            self.assertTrue(blocker["target"].endswith("research_ops/library/source_library.md"))
+            self.assertIsNone(payload["proposal"])
+
+    def test_promote_allows_library_required_route_when_library_ref_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7314", "Resolved library support idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["required_data"] = []
+            candidate["library_refs"] = ["LIT-7314"]
+            write_json(ops_dir / "ideas" / "IDEA-7314.json", candidate)
+            write_text(
+                ops_dir / "library" / "source_library.md",
+                "# Source Library\n\n| source_id | title |\n| --- | --- |\n| LIT-7314 | Fixture source |\n",
+            )
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7314"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("hypothesis_card", payload["proposal"]["task_type"])
+            self.assertEqual("supported", payload["evidence_support"]["status"])
+            self.assertEqual(["LIT-7314"], payload["evidence_support"]["library_support"]["resolved_refs"])
+
+    def test_promote_keeps_partial_library_support_warning_nonblocking_when_other_evidence_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = promotable_candidate("IDEA-7315", "Partial library support idea")
+            candidate["recommended_next_task"] = "hypothesis_card"
+            candidate["required_data"] = []
+            candidate["library_refs"] = ["LIT-7315"]
+            candidate["accepted_output_refs"] = ["TASK-7315"]
+            write_json(ops_dir / "ideas" / "IDEA-7315.json", candidate)
+            write_text(ops_dir / "accepted_outputs_index.md", "# Accepted Outputs\n\nTASK-7315\n")
+
+            code, payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7315"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("hypothesis_card", payload["proposal"]["task_type"])
+            self.assertEqual("partial_library_support", payload["evidence_support"]["status"])
+            self.assertFalse(any(item["reason"] == "missing_library_support" for item in payload["blockers"]))
 
     def test_promote_duplicate_requires_explicit_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

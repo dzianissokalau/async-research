@@ -175,9 +175,14 @@ or decision use.
 The promotion proposal chooses the cheapest safe next task:
 
 - thin evidence -> `literature_extract`
+- missing library support -> resolve `library_refs` in `source_library.md` or
+  run `literature_extract` before library-dependent routes
 - plausible but unaudited data -> `data_readiness`
 - bounded hypothesis work -> `hypothesis_card`
 - `experiment_plan` only when audited data refs and hard gates already pass
+
+Promotion dry-run exposes `evidence_support.status` so planners can distinguish
+true thin evidence from unresolved `LIT-*` support.
 
 Write mode creates the reserved task folder, `status.json`, `task.md`, one
 `queue.md` row, the planner-facing `inbox.md` proposal reference, and the

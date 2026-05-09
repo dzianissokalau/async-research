@@ -277,15 +277,17 @@ Planner promotion rule:
 
 1. Run `async-research idea catalog validate research_ops`.
 2. Run `async-research idea promote research_ops IDEA-0001 --dry-run`.
-3. Write a task only when the proposal returns `action=idea_promotion_planned`
+3. Inspect `evidence_support.status`; unresolved library support should be
+   resolved or routed through extraction before library-dependent task types.
+4. Write a task only when the proposal returns `action=idea_promotion_planned`
    and `ok=true`.
-4. Run `async-research idea promote research_ops IDEA-0001 --write
+5. Run `async-research idea promote research_ops IDEA-0001 --write
    --preflight-hash <promotion_preflight_hash>`, adding `--human-override` only
    for recorded high-risk human decisions.
-5. Let write mode create the reserved task folder, append the single `queue.md`
+6. Let write mode create the reserved task folder, append the single `queue.md`
    row, append the `inbox.md` proposal reference, update `promoted_task_id`, and
    regenerate catalog projections.
-6. Run `async-research idea catalog validate research_ops` and
+7. Run `async-research idea catalog validate research_ops` and
    `async-research idea catalog dashboard research_ops`; the promoted idea link
    should be `link_status=available`.
 

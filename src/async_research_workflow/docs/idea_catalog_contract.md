@@ -111,9 +111,9 @@ decision_history
 
 `library_refs` are optional background references to `LIT-*` source IDs in
 `research_ops/library/source_library.md`. They are warning-level support for
-planning and review until the knowledge library feature ships its validator.
-They must not point to `research_ops/knowledge/`, and they do not replace
-source-level citation in final accepted claims.
+normal catalog validation and cold-start planning. They must not point to
+`research_ops/knowledge/`, and they do not replace source-level citation in
+final accepted claims.
 
 Stored idea statuses are:
 
@@ -320,10 +320,21 @@ routes to `literature_extract`; plausible but unaudited data routes to
 `data_refs` exist and hard gates pass. Duplicate or near-duplicate ideas require
 an explicit `--allow-duplicate` human override before a proposal is emitted.
 
+Promotion dry-run reports `evidence_support` separately from route choice so
+planners can distinguish true thin evidence from missing library support.
+`thin_evidence` means the idea has no refs or source discovery context.
+`missing_library_support` means `library_refs` were present but did not resolve
+against `research_ops/library/source_library.md`. Normal catalog validation and
+data-readiness routing keep unresolved `library_refs` warning-level, but routes
+that rely on library support, such as `hypothesis_card` or `experiment_plan`,
+block until the refs resolve or a prior `literature_extract` task creates the
+needed support.
+
 The JSON proposal includes the reserved task id and slug, task type, title,
-objective, scope, required sources and refs, allowed paths, max minutes, max
-turns, kill reason, validation commands, blockers, draft task/status content,
-and a `promotion_preflight_hash` that write mode must receive unchanged.
+objective, scope, `evidence_support`, required sources and refs, allowed paths,
+max minutes, max turns, kill reason, validation commands, blockers, draft
+task/status content, and a `promotion_preflight_hash` that write mode must
+receive unchanged.
 
 ## Current Planner Promotion Behavior
 
@@ -347,6 +358,10 @@ Rules for planner promotion writes:
 - promote few ideas, normally at most 3 catalog ideas per planner run
 - create the cheapest killable next task that the proposal selects
 - use `literature_extract` when evidence is thin
+- inspect `evidence_support.status` before writing tasks; unresolved
+  `library_refs` are normal warning-level catalog state, but
+  `missing_library_support` means a library-dependent proposal needs resolved
+  `LIT-*` support or an earlier extraction task
 - use `data_readiness` when data is plausible but unaudited; generated
   data-readiness tasks may update `data_source_audit.md` and `data/**`, must
   produce profile/audit recommendations, and should run both source and data

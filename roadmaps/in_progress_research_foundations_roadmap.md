@@ -1,9 +1,9 @@
 # Research Foundations Roadmap
 
 Status: In Progress
-Current phase: Knowledge Library post-MVP integration
+Current phase: Knowledge Library task guidance
 Last updated: 2026-05-09
-Next action: Continue Knowledge Library Phase 4 idea-catalog support explanation
+Next action: Continue Knowledge Library Phase 5 extraction/update task guidance
 Blocked by: None
 
 Created: 2026-05-05
