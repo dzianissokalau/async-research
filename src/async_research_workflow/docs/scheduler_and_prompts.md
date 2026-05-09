@@ -282,13 +282,14 @@ Task:
 10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
 11. For `idea_discovery` tasks, run the advanced/internal helper `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
 12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
-13. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
-14. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
-15. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
-16. Run async-research schema-check research_ops.
-17. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
-18. If schema or transition validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
-19. Release LOCK/ only after final writes and validation or recovery are complete.
+13. For `run_analysis` tasks, write artifacts/analysis_run/run_manifest.json conforming to async_research_workflow/schemas/analysis_run.schema.json, and make the result summary cite that manifest.
+14. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
+15. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
+16. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
+17. Run async-research schema-check research_ops.
+18. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
+19. If schema or transition validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
+20. Release LOCK/ only after final writes and validation or recovery are complete.
 
 Rules:
 - Do not edit queue.md unless the task explicitly allows it.

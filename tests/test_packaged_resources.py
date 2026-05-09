@@ -61,8 +61,10 @@ class PackagedResourceTests(unittest.TestCase):
         required = [
             ("schemas", "task_status.schema.json"),
             ("schemas", "experiment_plan.schema.json"),
+            ("schemas", "analysis_run.schema.json"),
             ("benchmarks", "autonomy_benchmark_cases.json"),
             ("templates", "artifact_templates", "task_template.md"),
+            ("templates", "artifact_templates", "analysis_run_manifest_template.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "README.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "ideas", "idea_catalog.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "ideas", "prioritization.md"),

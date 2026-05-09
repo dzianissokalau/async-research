@@ -13,7 +13,7 @@ claim caps and evidence ledger updates.
   "result_id": "RESULT-0001",
   "experiment_plan_id": "EXP-0001",
   "run_id": "RUN-0001",
-  "run_manifest_path": "research_ops/tasks/TASK-0004/artifacts/run_manifest.json",
+  "run_manifest_path": "research_ops/tasks/TASK-0004-run-analysis/artifacts/analysis_run/run_manifest.json",
   "artifact_version": "git:e55ec7a",
   "dataset_versions": [
     {

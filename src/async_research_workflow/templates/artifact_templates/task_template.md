@@ -84,6 +84,11 @@ Write `worker_output.md` with:
   conforming to `async_research_workflow/schemas/experiment_plan.schema.json`, and must
   pass `async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
   before review.
+- For `run_analysis` tasks, write
+  `artifacts/analysis_run/run_manifest.json` conforming to
+  `async_research_workflow/schemas/analysis_run.schema.json`; the manifest is
+  the canonical record of what actually ran and any deviations from the accepted
+  experiment plan.
 - For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result
   summary following
   `async_research_workflow/templates/artifact_templates/result_summary_template.md`;

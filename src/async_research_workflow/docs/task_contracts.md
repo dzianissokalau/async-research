@@ -333,9 +333,12 @@ routes. Accepted routes write `review_panel/result_acceptance.json` and update
 
 For `run_analysis` and `evaluate_results` tasks, `worker_output.md` must include
 a fenced JSON block following
-`async_research_workflow/templates/artifact_templates/result_summary_template.md`. Predictive
-results cap at `moderate`, causal claims without identification tests cap at
-`weak`, and public/high-stakes or strong claims need human approval.
+`async_research_workflow/templates/artifact_templates/result_summary_template.md`.
+For `run_analysis` tasks, the result summary must point to
+`artifacts/analysis_run/run_manifest.json`, which is the canonical record of
+what actually ran. Predictive results cap at `moderate`, causal claims without
+identification tests cap at `weak`, and public/high-stakes or strong claims need
+human approval.
 
 ## Task Folder
 
@@ -565,6 +568,29 @@ The validator enforces audited data refs, approved baseline families,
 time/spatial validation design, leakage checklist, success/failure criteria,
 budget limits, output manifest path, and bounded claim limits. Failed validation
 routes to revision or human review; it must not advance to `run_analysis`.
+
+`run_analysis` tasks must include an analysis run manifest at:
+
+```text
+research_ops/tasks/TASK-0001/artifacts/analysis_run/run_manifest.json
+```
+
+The manifest must conform to:
+
+```text
+async_research_workflow/schemas/analysis_run.schema.json
+```
+
+Use the packaged template:
+
+```text
+async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md
+```
+
+The manifest records the accepted experiment plan, data versions, code version,
+runner type, method family, baseline refs, primary metric, planned outputs,
+cost, deviations from plan, and reproducibility notes. It is not an approval to
+change the accepted plan; deviations must be explicit and reviewable.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:

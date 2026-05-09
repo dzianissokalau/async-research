@@ -30,5 +30,5 @@ explicitly requested follow-ups.
 | [Research Foundations Roadmap](./delivered_research_foundations_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor foundation dogfood feedback and patch regressions. | None |
 | [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md) | Not Started | Phase 0 | 2026-05-09 | Decide sequencing versus HTF, then start Review Authoring UX. | None |
-| [Hypothesis Testing Framework Roadmap](./not_started_hypothesis_testing_framework_roadmap.md) | Not Started | Phase 0 | 2026-05-09 | Start after foundations or explicit user request. | None |
+| [Hypothesis Testing Framework Roadmap](./in_progress_hypothesis_testing_framework_roadmap.md) | In Progress | Phase 2 ready | 2026-05-09 | Implement Phase 2 preflight validator. | None |
 | [Dashboard Delivery Roadmap](./not_started_dashboard_delivery_roadmap.md) | Not Started | Slice 1 | 2026-05-09 | Start after explicit user request or dashboard track selection. | None |

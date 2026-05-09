@@ -73,6 +73,10 @@ experimentation, and result acceptance frameworks have reached this point:
 - `experimentation_v1.0` is backed by
   `async_research_workflow/schemas/experiment_plan.schema.json` and
   `async_research_workflow/scripts/validate_experiment_plan.py`
+- `analysis_run_v1.0` is backed by
+  `async_research_workflow/schemas/analysis_run.schema.json` and the packaged
+  `async_research_workflow/templates/artifact_templates/analysis_run_manifest_template.md`;
+  validators are planned in the Hypothesis Testing Framework roadmap
 - `result_acceptance_v1.0` is backed by
   `async_research_workflow/schemas/result_acceptance.schema.json` and
   `async_research_workflow/scripts/validate_result_acceptance.py`

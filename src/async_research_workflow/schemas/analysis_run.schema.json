@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Analysis Run Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "run_id",
+    "task_id",
+    "task_type",
+    "experiment_plan_id",
+    "accepted_plan_task_id",
+    "accepted_plan_path",
+    "accepted_plan_result_acceptance_path",
+    "analysis_config_path",
+    "data_versions",
+    "code_version",
+    "runner",
+    "method_family",
+    "candidate_method",
+    "baseline_refs",
+    "primary_metric",
+    "planned_outputs",
+    "output_paths",
+    "started_at",
+    "completed_at",
+    "runtime_minutes",
+    "cost",
+    "deviations_from_plan",
+    "reproducibility"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "analysis_run_v1.0"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^RUN-[0-9]{4}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "run_analysis"
+      ]
+    },
+    "experiment_plan_id": {
+      "type": "string",
+      "pattern": "^EXP-[0-9]{4}$"
+    },
+    "accepted_plan_task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "accepted_plan_path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.).+$"
+    },
+    "accepted_plan_result_acceptance_path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.).+$"
+    },
+    "analysis_config_path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.).+$"
+    },
+    "data_versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "version",
+          "accessed_at",
+          "role"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^DS-[0-9]{4}$"
+          },
+          "version": {
+            "type": "string"
+          },
+          "accessed_at": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "artifact_path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+          }
+        }
+      }
+    },
+    "code_version": {
+      "type": "object",
+      "required": [
+        "type",
+        "value",
+        "dirty"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "git",
+            "archive",
+            "manual",
+            "other"
+          ]
+        },
+        "value": {
+          "type": "string"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "required": [
+        "type",
+        "entrypoint",
+        "execution_environment"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "local_script",
+            "notebook",
+            "sql",
+            "dbt",
+            "warehouse_job",
+            "python_function",
+            "other"
+          ]
+        },
+        "entrypoint": {
+          "type": "string"
+        },
+        "parameters_ref": {
+          "type": "string",
+          "pattern": "^(none|(?!/)(?!.*\\.\\.).+)$"
+        },
+        "execution_environment": {
+          "type": "string"
+        }
+      }
+    },
+    "method_family": {
+      "type": "string",
+      "enum": [
+        "descriptive_statistics",
+        "associative_analysis",
+        "regression",
+        "matching",
+        "forecasting",
+        "classification",
+        "predictive_model",
+        "causal_design",
+        "simulation",
+        "other"
+      ]
+    },
+    "candidate_method": {
+      "type": "object",
+      "required": [
+        "name",
+        "planned_method_ref"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "planned_method_ref": {
+          "type": "string"
+        },
+        "implementation_ref": {
+          "type": "string"
+        }
+      }
+    },
+    "baseline_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "planned_baseline_ref",
+          "expected_output_path"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "planned_baseline_ref": {
+            "type": "string"
+          },
+          "expected_output_path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+          }
+        }
+      }
+    },
+    "primary_metric": {
+      "type": "object",
+      "required": [
+        "name",
+        "direction",
+        "planned_metric_ref"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "increase",
+            "decrease",
+            "match_target",
+            "not_applicable"
+          ]
+        },
+        "planned_metric_ref": {
+          "type": "string"
+        }
+      }
+    },
+    "planned_outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "required_for_acceptance"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.).+$"
+          },
+          "required_for_acceptance": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "output_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!.*\\.\\.).+$"
+      }
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "completed_at": {
+      "type": "string"
+    },
+    "runtime_minutes": {
+      "type": "number",
+      "minimum": 0
+    },
+    "cost": {
+      "type": "object",
+      "required": [
+        "api_usd",
+        "compute_usd",
+        "total_usd"
+      ],
+      "properties": {
+        "api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "total_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "deviations_from_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "field",
+          "planned_value",
+          "actual_value",
+          "reason",
+          "reviewer_action_required"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "planned_value": {
+            "type": "string"
+          },
+          "actual_value": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewer_action_required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "required": [
+        "rerun_possible",
+        "rerun_command",
+        "environment",
+        "random_seed",
+        "determinism_notes"
+      ],
+      "properties": {
+        "rerun_possible": {
+          "type": "boolean"
+        },
+        "rerun_command": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "random_seed": {
+          "type": "string"
+        },
+        "determinism_notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
