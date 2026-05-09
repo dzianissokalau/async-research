@@ -1,9 +1,9 @@
 # Research Foundations Roadmap
 
-Status: In Progress
-Current phase: Knowledge Library dashboard surface
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-09
-Next action: Continue Knowledge Library Phase 7 dashboard surface
+Next action: Monitor foundation dogfood feedback and patch regressions
 Blocked by: None
 
 Created: 2026-05-05
@@ -42,7 +42,7 @@ progress.
 
 Implement these as separate, shippable features:
 
-1. [Knowledge Library Roadmap](./in_progress_knowledge_library_roadmap.md)
+1. [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md)
    - Create trusted source and claim memory from literature, posts, books,
      user notes, and accepted evidence.
    - Feeds discovery, planning, review, and future library update tasks.
@@ -69,14 +69,16 @@ Implement these as separate, shippable features:
 - Human-provided notes, source lists, local data paths, and rough ideas are
   first-class inputs.
 
-## Suggested Overall Sequence
+## Delivered Overall Sequence
 
-1. Continue Knowledge Library post-MVP integrations.
-2. Keep delivered data foundations and idea catalog behavior aligned with
+1. Delivered Knowledge Library post-MVP integrations.
+2. Kept delivered data foundations and idea catalog behavior aligned with
    library references.
-3. Add planner integration so missing foundations become small setup tasks.
-4. Add dashboard surfaces for library coverage, data readiness, and idea
+3. Preserved warning-only foundation gaps so missing foundations can become
+   small setup tasks rather than blocking all cold starts.
+4. Added dashboard surfaces for library coverage, data readiness, and idea
    backlog.
 
-This sequence keeps implementation incremental while still moving toward the
-larger research-program workflow.
+The planned foundation tracks are now delivered. Future planner, importer, or
+strict gating work should start from a new roadmap or an explicit follow-up
+request.

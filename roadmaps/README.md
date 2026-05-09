@@ -27,7 +27,7 @@ explicitly requested follow-ups.
 | [Public Alpha Hardening Roadmap](./delivered_public_alpha_hardening_roadmap.md) | Delivered | Complete | 2026-05-09 | Maintenance fixes from dogfood and external review. | None |
 | [Idea Catalog Roadmap](./delivered_idea_catalog_roadmap.md) | Delivered | V2.9 acceptance complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Data Foundations Roadmap](./delivered_data_foundations_roadmap.md) | Delivered | Dashboard surface complete | 2026-05-09 | Monitor workflow simulations and patch regressions. | None |
-| [Research Foundations Roadmap](./in_progress_research_foundations_roadmap.md) | In Progress | Knowledge Library dashboard surface | 2026-05-09 | Continue Knowledge Library Phase 7 dashboard surface. | None |
-| [Knowledge Library Roadmap](./in_progress_knowledge_library_roadmap.md) | In Progress | Phase 7 | 2026-05-09 | Add read-only knowledge library dashboard surface. | None |
+| [Research Foundations Roadmap](./delivered_research_foundations_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor foundation dogfood feedback and patch regressions. | None |
+| [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Hypothesis Testing Framework Roadmap](./not_started_hypothesis_testing_framework_roadmap.md) | Not Started | Phase 0 | 2026-05-09 | Start after foundations or explicit user request. | None |
 | [Dashboard Delivery Roadmap](./not_started_dashboard_delivery_roadmap.md) | Not Started | Slice 1 | 2026-05-09 | Start after explicit user request or dashboard track selection. | None |

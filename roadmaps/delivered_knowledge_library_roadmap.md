@@ -1,9 +1,9 @@
 # Knowledge Library Roadmap
 
-Status: In Progress
-Current phase: Phase 7
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-09
-Next action: Add read-only knowledge library dashboard surface
+Next action: Monitor dogfood feedback and patch regressions
 Blocked by: None
 
 Created: 2026-05-05
@@ -39,6 +39,7 @@ V1 includes:
 - idempotent `async-research library init research_ops --dry-run`
 - explicit `async-research library init research_ops --write`
 - read-only `async-research library validate research_ops`
+- read-only `async-research library dashboard research_ops`
 - `library_refs` resolution against the canonical library path
 - task guidance for reviewed library extraction and update proposals
 - warning-only health, readiness, and weekly digest signals
@@ -50,7 +51,6 @@ V1 defers:
 - automatic crawling, embedding, RAG, or background source ingestion
 - automatic library mutation from accepted outputs
 - strict planning blocks for missing library coverage
-- dashboard views until the parser and validator are stable
 
 ### Source Of Truth
 
@@ -286,8 +286,8 @@ Delivery boundary:
   idempotent init, and read-only validation.
 - V1 post-MVP: Phases 4 through 6. This adds idea-catalog ref alignment, task
   guidance, and operational surfaces.
-- V2: Phase 7 dashboard views, import helpers, automated extraction, semantic
-  freshness policies, and stricter library-dependency gates.
+- V2: import helpers, automated extraction, semantic freshness policies, and
+  stricter library-dependency gates.
 
 ## Progress
 
@@ -302,7 +302,7 @@ Last updated: 2026-05-09
 | 4 | Idea catalog reference alignment | Complete | Resolve `library_refs` against `research_ops/library/source_library.md` and keep unresolved refs warning-level unless a route explicitly requires them. | Catalog validation resolves `library_refs` only against `library/source_library.md`; promotion dry-run now reports `evidence_support.status` so planners can distinguish `thin_evidence` from `missing_library_support`; unresolved refs remain warning-level for normal validation/data-readiness routing, while library-dependent routes block until support resolves or extraction runs first. |
 | 5 | Library extraction task guidance | Complete | Add the chosen task contract for library extraction/update proposals and clarify allowed paths, required caveats, claim-strength rules, and update-log provenance. | V1 keeps `literature_extract`; promotion proposals now require proposed generated-block library rows, source status/trust tier rationale, claim-strength caveats, reviewer notes, exact update targets, `library_update_log.md` provenance, and `async-research library validate research_ops`; worker library writes remain task-folder-only unless `allowed_paths` grants library files; library-dependent promotion support resolves `LIT-*` refs from parsed generated `source_library.md` source rows rather than generic text presence. |
 | 6 | Health, readiness, and weekly surfaces | Complete | Surface missing, stale, disputed, unsupported, and open-question library state without blocking all cold-start work. | Health, readiness, and surface update now consume `knowledge_library.library_report` validator output; missing/warning-only library state is warning-only, malformed library state blocks only active library-dependent work with declared `library_refs`, weekly and daily surfaces include source coverage and open questions, and source/data-governed gates remain separate from library memory. |
-| 7 | Dashboard surface | Not started | Add read-only dashboard views for source coverage, reviewed sources, stale/disputed claims, open questions, and proposed update tasks. | Deferred until parser/validator behavior is stable. |
+| 7 | Dashboard surface | Complete | Add read-only dashboard views for source coverage, reviewed sources, stale/disputed claims, open questions, and proposed update tasks. | Public `async-research library dashboard research_ops` renders validator-backed topic coverage, source counts, recently reviewed/stale source and claim state, risky claims, open questions, proposed library update tasks, and idea support gaps without mutating library files. |
 
 ## Framework Integration
 
@@ -713,6 +713,21 @@ Acceptance:
 - operator can understand library state without opening raw Markdown files
 - dashboard reports warnings from the validator
 - dashboard does not mutate library files in the first version
+
+Delivered 2026-05-09:
+
+- added public `async-research library dashboard research_ops` CLI wiring with
+  `--now` and `--stale-days`
+- generated the dashboard from the shared Knowledge Library validator read
+  model rather than ad hoc Markdown reparsing
+- surfaced topic coverage, source status/trust counts, recently reviewed and
+  stale sources, stale and risky claims, open questions, proposed
+  `literature_extract` update tasks, and active ideas with unresolved or thin
+  support
+- kept the surface read-only with `read_only: true`, `changed: false`, and
+  no library-file writes
+- documented dashboard command and exit-code behavior in README and the
+  Knowledge Library contract
 
 ## AI Implementation Pattern
 

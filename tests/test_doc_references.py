@@ -226,7 +226,7 @@ class DocumentationReferenceTests(unittest.TestCase):
         self.assertEqual([], failures)
 
     def test_knowledge_library_roadmap_tracks_row_level_ref_hardening(self) -> None:
-        roadmap = (ROOT / "roadmaps" / "in_progress_knowledge_library_roadmap.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "roadmaps" / "delivered_knowledge_library_roadmap.md").read_text(encoding="utf-8")
         normalized = " ".join(roadmap.split())
         for snippet in [
             "structured library parser/validator source rows, not generic text presence in `source_library.md`",

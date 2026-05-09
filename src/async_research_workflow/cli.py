@@ -476,6 +476,15 @@ def run_library_validate_command(args: argparse.Namespace) -> int:
     return module_main("knowledge_library", argv)
 
 
+def run_library_dashboard_command(args: argparse.Namespace) -> int:
+    argv = ["dashboard", str(args.ops_dir)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    if args.stale_days is not None:
+        argv.extend(["--stale-days", str(args.stale_days)])
+    return module_main("knowledge_library", argv)
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -1295,6 +1304,17 @@ def register_library_commands(subparsers) -> None:
     validate.add_argument("--now", help="Override current time for deterministic stale review checks.")
     validate.add_argument("--stale-days", type=int, help="Warn when reviewed_date is older than this many days.")
     validate.set_defaults(func=run_library_validate_command)
+    dashboard = add_command(
+        library_sub,
+        "dashboard",
+        help="Render a read-only knowledge library dashboard.",
+        description="Read-only dashboard for topic coverage, source status/trust counts, reviewed sources, stale reviews, risky claims, open questions, proposed library update tasks, and idea library-support gaps.",
+        epilog="Exits 0 when dashboard data is clean, 2 when validator warnings or dashboard read-model warnings are present, 3 for invalid request flags, and 4 when malformed library state prevents reliable dashboard state.",
+    )
+    add_common_ops(dashboard)
+    dashboard.add_argument("--now", help="Override current time for deterministic stale review checks.")
+    dashboard.add_argument("--stale-days", type=int, default=180, help="Report sources and claims older than this many days.")
+    dashboard.set_defaults(func=run_library_dashboard_command)
 
 
 def register_cost_commands(subparsers) -> None:

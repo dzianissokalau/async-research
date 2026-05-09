@@ -121,6 +121,17 @@ SOURCE_STATUSES = {"candidate", "trusted", "context_only", "disputed", "deprecat
 TRUST_TIERS = {"primary", "supporting", "background", "weak", "unknown"}
 CLAIM_STRENGTHS = {"none", "weak", "suggestive", "moderate", "strong"}
 NO_VALUE_MARKERS = {"", "none", "n/a", "na", "unknown", "todo", "tbd", "yyyy-mm-dd"}
+RISKY_SOURCE_STATUSES = {"context_only", "disputed", "deprecated"}
+ACTIVE_IDEA_STATUSES = {"candidate", "promote", "needs_human"}
+SUPPORT_REF_FIELDS = (
+    "library_refs",
+    "data_refs",
+    "accepted_output_refs",
+    "rejected_idea_refs",
+    "rejected_result_refs",
+    "evidence_seeds",
+)
+TASK_FINAL_STATUSES = {"accepted", "cancelled", "closed", "complete", "completed", "done", "rejected"}
 TABLE_SPECS = {
     Path(LIBRARY_DIR) / SOURCE_LIBRARY_FILE: {
         "start": "<!-- LIBRARY-SOURCES: schema_version=1.0 -->",
@@ -589,7 +600,282 @@ def open_question_previews(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return previews
 
 
-def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int | None = None) -> dict[str, Any]:
+def row_age_days(row: dict[str, Any], field: str, now: datetime) -> int | None:
+    parsed = date_value(row.get(field))
+    if parsed is None:
+        return None
+    return (now - parsed).days
+
+
+def list_payload_field(payload: dict[str, Any], field: str) -> list[str]:
+    values = payload.get(field)
+    if not isinstance(values, list):
+        return []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def topic_coverage_previews(
+    rows: list[dict[str, Any]],
+    path: Path,
+    source_ids: set[str],
+) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        line = int(row.get("_line") or 0)
+        refs, _errors = parse_source_refs(row.get("source_refs"), path, line, "source_refs")
+        preview = row_preview(row, ["topic", "summary", "confidence", "caveats", "updated_at"])
+        preview["source_refs"] = refs
+        preview["source_count"] = len(refs)
+        unresolved = [ref for ref in refs if ref not in source_ids]
+        if unresolved:
+            preview["unresolved_source_refs"] = unresolved
+        previews.append(preview)
+    return sorted(previews, key=lambda item: str(item.get("topic", "")))
+
+
+def recently_reviewed_source_previews(
+    rows: list[dict[str, Any]],
+    now: datetime,
+) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        age = row_age_days(row, "reviewed_date", now)
+        if age is None:
+            continue
+        preview = row_preview(row, ["source_id", "status", "trust_tier", "title", "location", "reviewed_date", "notes"])
+        preview["age_days"] = age
+        previews.append(preview)
+    return sorted(previews, key=lambda item: str(item.get("reviewed_date", "")), reverse=True)
+
+
+def stale_row_previews(
+    rows: list[dict[str, Any]],
+    fields: list[str],
+    now: datetime,
+    stale_days: int | None,
+    date_field: str = "reviewed_date",
+) -> list[dict[str, Any]]:
+    if stale_days is None:
+        return []
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        age = row_age_days(row, date_field, now)
+        if age is None or age <= stale_days:
+            continue
+        preview = row_preview(row, fields)
+        preview["age_days"] = age
+        preview["stale_days"] = stale_days
+        previews.append(preview)
+    return previews
+
+
+def risky_claim_previews(
+    rows: list[dict[str, Any]],
+    path: Path,
+    source_status_by_id: dict[str, str],
+) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        line = int(row.get("_line") or 0)
+        refs, _errors = parse_source_refs(row.get("source_refs"), path, line, "source_refs")
+        risky_ref_statuses = {
+            ref: source_status_by_id[ref]
+            for ref in refs
+            if source_status_by_id.get(ref) in RISKY_SOURCE_STATUSES
+        }
+        disputed_status = normalize_text(row.get("disputed_status")).lower()
+        if disputed_status not in RISKY_SOURCE_STATUSES and not risky_ref_statuses:
+            continue
+        preview = row_preview(row, ["claim", "claim_strength", "disputed_status", "caveats", "reviewed_date"])
+        preview["source_refs"] = refs
+        if risky_ref_statuses:
+            preview["risky_source_refs"] = risky_ref_statuses
+        previews.append(preview)
+    return previews
+
+
+def empty_library_read_model() -> dict[str, Any]:
+    return {
+        "source_ids": [],
+        "coverage_by_topic": [],
+        "source_counts": {
+            "by_status": {},
+            "by_trust_tier": {},
+        },
+        "recently_reviewed_sources": [],
+        "stale_sources": [],
+        "stale_claims": [],
+        "risky_claims": [],
+        "risky_sources": [],
+        "open_questions": [],
+    }
+
+
+def library_read_model(
+    ops_dir: Path,
+    rows_by_relative: dict[str, list[dict[str, Any]]],
+    source_ids: set[str],
+    now: datetime,
+    stale_days: int | None,
+) -> dict[str, Any]:
+    source_relative = str(Path(LIBRARY_DIR) / SOURCE_LIBRARY_FILE)
+    knowledge_relative = str(Path(LIBRARY_DIR) / KNOWLEDGE_INDEX_FILE)
+    claim_relative = str(Path(LIBRARY_DIR) / CLAIM_MAP_FILE)
+    open_question_relative = str(Path(LIBRARY_DIR) / OPEN_QUESTIONS_FILE)
+    source_rows = rows_by_relative.get(source_relative, [])
+    knowledge_rows = rows_by_relative.get(knowledge_relative, [])
+    claim_rows = rows_by_relative.get(claim_relative, [])
+    open_question_rows = rows_by_relative.get(open_question_relative, [])
+    source_status_by_id = {
+        normalize_text(row.get("source_id")): normalize_text(row.get("status")).lower()
+        for row in source_rows
+        if normalize_text(row.get("source_id"))
+    }
+    risky_sources = [
+        row_preview(row, ["source_id", "status", "trust_tier", "title", "location", "reviewed_date", "notes"])
+        for row in source_rows
+        if normalize_text(row.get("status")).lower() in RISKY_SOURCE_STATUSES
+    ]
+    return {
+        "source_ids": sorted(source_ids),
+        "coverage_by_topic": topic_coverage_previews(
+            knowledge_rows,
+            ops_dir / LIBRARY_DIR / KNOWLEDGE_INDEX_FILE,
+            source_ids,
+        ),
+        "source_counts": {
+            "by_status": count_by_value(source_rows, "status"),
+            "by_trust_tier": count_by_value(source_rows, "trust_tier"),
+        },
+        "recently_reviewed_sources": recently_reviewed_source_previews(source_rows, now),
+        "stale_sources": stale_row_previews(
+            source_rows,
+            ["source_id", "status", "trust_tier", "title", "location", "reviewed_date", "notes"],
+            now,
+            stale_days,
+        ),
+        "stale_claims": stale_row_previews(
+            claim_rows,
+            ["claim", "source_refs", "claim_strength", "disputed_status", "caveats", "reviewed_date"],
+            now,
+            stale_days,
+        ),
+        "risky_claims": risky_claim_previews(
+            claim_rows,
+            ops_dir / LIBRARY_DIR / CLAIM_MAP_FILE,
+            source_status_by_id,
+        ),
+        "risky_sources": risky_sources,
+        "open_questions": open_question_previews(open_question_rows),
+    }
+
+
+def proposed_library_update_tasks(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    tasks_dir = ops_dir / "tasks"
+    if not tasks_dir.exists() or not tasks_dir.is_dir():
+        return [], []
+    tasks: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    for status_path in sorted(tasks_dir.glob("*/status.json")):
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            warnings.append(issue("warning", "library_dashboard_task_status_unreadable", status_path, f"cannot read task status for dashboard: {exc}"))
+            continue
+        if not isinstance(payload, dict):
+            warnings.append(issue("warning", "library_dashboard_task_status_not_object", status_path, "task status must be a JSON object"))
+            continue
+        task_type = normalize_text(payload.get("type")).lower()
+        status = normalize_text(payload.get("status")).lower()
+        proposed_targets = list_payload_field(payload, "proposed_library_update_targets")
+        if task_type != "literature_extract" and not proposed_targets:
+            continue
+        if status in TASK_FINAL_STATUSES:
+            continue
+        tasks.append(
+            {
+                "task_id": normalize_text(payload.get("id")) or status_path.parent.name,
+                "task_dir": str(status_path.parent),
+                "status": status or "unknown",
+                "type": task_type or "unknown",
+                "title": normalize_text(payload.get("title")),
+                "catalog_idea_id": normalize_text(payload.get("catalog_idea_id")),
+                "updated_at": normalize_text(payload.get("updated_at")),
+                "proposed_library_update_targets": proposed_targets,
+            }
+        )
+    return tasks, warnings
+
+
+def ideas_with_library_support_gaps(
+    ops_dir: Path,
+    source_ids: set[str],
+    library_has_errors: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ideas_dir = ops_dir / "ideas"
+    if not ideas_dir.exists() or not ideas_dir.is_dir():
+        return [], []
+    gaps: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    for idea_path in sorted(ideas_dir.glob("IDEA-*.json")):
+        try:
+            payload = json.loads(idea_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            warnings.append(issue("warning", "library_dashboard_idea_unreadable", idea_path, f"cannot read idea JSON for dashboard: {exc}"))
+            continue
+        if not isinstance(payload, dict):
+            warnings.append(issue("warning", "library_dashboard_idea_not_object", idea_path, "idea JSON must be an object"))
+            continue
+        status = (normalize_text(payload.get("status")) or "candidate").lower()
+        if status not in ACTIVE_IDEA_STATUSES:
+            continue
+        library_refs = list_payload_field(payload, "library_refs")
+        resolved_refs = [ref for ref in library_refs if ref in source_ids]
+        unresolved_refs = [ref for ref in library_refs if ref not in source_ids]
+        non_library_refs = {
+            field: list_payload_field(payload, field)
+            for field in SUPPORT_REF_FIELDS
+            if field != "library_refs" and list_payload_field(payload, field)
+        }
+        source_discovery_path = normalize_text(payload.get("source_discovery_path"))
+        support_status = ""
+        reasons: list[str] = []
+        if library_refs and library_has_errors:
+            support_status = "invalid_library_state"
+            reasons.append("library_has_validator_errors")
+        elif unresolved_refs:
+            support_status = "unresolved_library_refs"
+            reasons.append("unresolved_library_refs")
+        elif not library_refs and not non_library_refs and not source_discovery_path:
+            support_status = "thin_evidence"
+            reasons.append("no_library_data_accepted_or_discovery_support")
+        if not support_status:
+            continue
+        gaps.append(
+            {
+                "idea_id": normalize_text(payload.get("id")) or idea_path.stem,
+                "status": status,
+                "title": normalize_text(payload.get("title")),
+                "recommended_next_task": normalize_text(payload.get("recommended_next_task")),
+                "support_status": support_status,
+                "reasons": reasons,
+                "library_refs": library_refs,
+                "resolved_library_refs": resolved_refs,
+                "unresolved_library_refs": unresolved_refs,
+                "non_library_refs": non_library_refs,
+                "source_discovery_path": source_discovery_path or None,
+                "path": str(idea_path),
+            }
+        )
+    return gaps, warnings
+
+
+def library_report(
+    ops_dir: Path,
+    now: datetime | None = None,
+    stale_days: int | None = None,
+    include_read_model: bool = False,
+) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     library_dir = ops_dir / LIBRARY_DIR
     warnings: list[dict[str, Any]] = []
@@ -598,7 +884,7 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
 
     if not ops_dir.exists() or not ops_dir.is_dir():
         errors.append(issue("error", "ops_dir_missing", ops_dir, "research_ops directory does not exist or is not a directory"))
-        return {
+        report = {
             "ok": False,
             "action": "knowledge_library_validated",
             "ops_dir": str(ops_dir),
@@ -610,10 +896,13 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
             "error_count": len(errors),
             "errors": errors,
         }
+        if include_read_model:
+            report["read_model"] = empty_library_read_model()
+        return report
 
     if not library_dir.exists():
         warnings.append(issue("warning", "library_dir_missing", library_dir, "research_ops/library is missing; run library init to bootstrap it"))
-        return {
+        report = {
             "ok": True,
             "action": "knowledge_library_validated",
             "ops_dir": str(ops_dir),
@@ -625,9 +914,12 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
             "error_count": 0,
             "errors": [],
         }
+        if include_read_model:
+            report["read_model"] = empty_library_read_model()
+        return report
     if not library_dir.is_dir():
         errors.append(issue("error", "library_path_not_directory", library_dir, "research_ops/library must be a directory"))
-        return {
+        report = {
             "ok": False,
             "action": "knowledge_library_validated",
             "ops_dir": str(ops_dir),
@@ -639,6 +931,9 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
             "error_count": len(errors),
             "errors": errors,
         }
+        if include_read_model:
+            report["read_model"] = empty_library_read_model()
+        return report
 
     for relative, _template in STARTER_FILES:
         path = ops_dir / relative
@@ -689,7 +984,7 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
         if normalize_text(row.get("status")).lower() in {"context_only", "disputed", "deprecated"}
     ]
     row_counts = {relative: len(rows) for relative, rows in sorted(rows_by_relative.items())}
-    return {
+    report = {
         "ok": not errors,
         "action": "knowledge_library_validated",
         "ops_dir": str(ops_dir),
@@ -712,6 +1007,9 @@ def library_report(ops_dir: Path, now: datetime | None = None, stale_days: int |
         "error_count": len(errors),
         "errors": errors,
     }
+    if include_read_model:
+        report["read_model"] = library_read_model(ops_dir, rows_by_relative, source_ids, current, stale_days)
+    return report
 
 
 def validation_exit_code(report: dict[str, Any]) -> int:
@@ -720,6 +1018,92 @@ def validation_exit_code(report: dict[str, Any]) -> int:
     if report.get("warning_count", 0):
         return VALIDATION_FINDINGS
     return SUCCESS
+
+
+def library_dashboard_report(
+    ops_dir: Path,
+    now: datetime | None = None,
+    stale_days: int | None = SURFACE_STALE_DAYS,
+) -> dict[str, Any]:
+    current = now or datetime.now(timezone.utc)
+    validation = library_report(ops_dir, now=current, stale_days=stale_days, include_read_model=True)
+    read_model = validation.get("read_model") if isinstance(validation.get("read_model"), dict) else empty_library_read_model()
+    source_ids = set(str(source_id) for source_id in read_model.get("source_ids", []) if str(source_id))
+    proposed_tasks, task_warnings = proposed_library_update_tasks(ops_dir)
+    support_gaps, idea_warnings = ideas_with_library_support_gaps(
+        ops_dir,
+        source_ids,
+        bool(validation.get("error_count", 0)),
+    )
+    read_model_warnings = task_warnings + idea_warnings
+    exit_code = validation_exit_code(validation)
+    if exit_code == SUCCESS and read_model_warnings:
+        exit_code = VALIDATION_FINDINGS
+    validator_findings = list(validation.get("errors", [])) + list(validation.get("warnings", []))
+    source_counts = read_model.get("source_counts") if isinstance(read_model.get("source_counts"), dict) else {}
+    sections = {
+        "coverage_by_topic": read_model.get("coverage_by_topic", []),
+        "source_counts": source_counts,
+        "recently_reviewed_sources": read_model.get("recently_reviewed_sources", []),
+        "stale_sources": read_model.get("stale_sources", []),
+        "stale_claims": read_model.get("stale_claims", []),
+        "risky_sources": read_model.get("risky_sources", []),
+        "risky_claims": read_model.get("risky_claims", []),
+        "open_questions": read_model.get("open_questions", []),
+        "proposed_library_update_tasks": proposed_tasks,
+        "ideas_with_library_support_gaps": support_gaps,
+        "validator_findings": validator_findings,
+    }
+    return {
+        "ok": validation.get("ok") is True,
+        "action": "knowledge_library_dashboard_rendered",
+        "ops_dir": str(ops_dir),
+        "library_dir": str(ops_dir / LIBRARY_DIR),
+        "read_only": True,
+        "changed": False,
+        "generated_from": "knowledge_library_validator_read_model",
+        "stale_days": stale_days,
+        "validation_exit_code": exit_code,
+        "summary": {
+            "source_count": validation.get("source_count", 0),
+            "topic_count": validation.get("topic_count", 0),
+            "claim_count": validation.get("claim_count", 0),
+            "method_count": validation.get("method_count", 0),
+            "open_question_count": validation.get("open_question_count", 0),
+            "recently_reviewed_source_count": len(sections["recently_reviewed_sources"]),
+            "stale_source_count": len(sections["stale_sources"]),
+            "stale_claim_count": len(sections["stale_claims"]),
+            "risky_source_count": len(sections["risky_sources"]),
+            "risky_claim_count": len(sections["risky_claims"]),
+            "proposed_library_update_task_count": len(proposed_tasks),
+            "idea_library_support_gap_count": len(support_gaps),
+            "validator_warning_count": validation.get("warning_count", 0),
+            "validator_error_count": validation.get("error_count", 0),
+            "read_model_warning_count": len(read_model_warnings),
+        },
+        "operator_summary": {
+            "attention_source_ids": sorted(
+                {
+                    str(item.get("source_id"))
+                    for item in list(sections["stale_sources"]) + list(sections["risky_sources"])
+                    if item.get("source_id")
+                }
+            ),
+            "open_question_ids": [
+                item.get("question_id")
+                for item in sections["open_questions"]
+                if isinstance(item, dict) and item.get("question_id")
+            ],
+            "idea_ids_with_support_gaps": [
+                item.get("idea_id")
+                for item in support_gaps
+                if isinstance(item, dict) and item.get("idea_id")
+            ],
+        },
+        "sections": sections,
+        "validation": validation,
+        "read_model_warnings": read_model_warnings,
+    }
 
 
 def command_init(args: argparse.Namespace) -> int:
@@ -822,6 +1206,21 @@ def command_validate(args: argparse.Namespace) -> int:
     return validation_exit_code(report)
 
 
+def command_dashboard(args: argparse.Namespace) -> int:
+    try:
+        now = parse_now(args.now)
+    except ValueError as exc:
+        print_json({"ok": False, "action": "knowledge_library_dashboard_rendered", "reason": "invalid_now", "message": str(exc), "read_only": True, "changed": False})
+        return INVALID_REQUEST
+    stale_days = args.stale_days
+    if stale_days is not None and stale_days < 0:
+        print_json({"ok": False, "action": "knowledge_library_dashboard_rendered", "reason": "invalid_stale_days", "message": "--stale-days must be non-negative", "read_only": True, "changed": False})
+        return INVALID_REQUEST
+    report = library_dashboard_report(args.ops_dir, now=now, stale_days=stale_days)
+    print_json(report)
+    return int(report["validation_exit_code"])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Initialize knowledge library workspace files.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -844,6 +1243,15 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--now", help="Override current time for deterministic stale review checks.")
     validate.add_argument("--stale-days", type=int, help="Warn when reviewed_date is older than this many days.")
     validate.set_defaults(func=command_validate)
+    dashboard = sub.add_parser(
+        "dashboard",
+        help="Render a read-only knowledge library dashboard.",
+        description="Render topic coverage, source status, stale reviews, risky claims, open questions, library update tasks, and idea support gaps without writing files.",
+    )
+    dashboard.add_argument("ops_dir", type=Path, help="Path to research_ops workspace.")
+    dashboard.add_argument("--now", help="Override current time for deterministic stale review checks.")
+    dashboard.add_argument("--stale-days", type=int, default=SURFACE_STALE_DAYS, help="Report sources and claims older than this many days.")
+    dashboard.set_defaults(func=command_dashboard)
     return parser
 
 

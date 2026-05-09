@@ -92,6 +92,18 @@ Validation is read-only. It checks generated blocks, table shape, duplicate
 `LIT-*` IDs, source refs, source metadata, caveats, reviewed dates, and update
 provenance.
 
+Render the dashboard:
+
+```bash
+async-research library dashboard research_ops
+```
+
+The dashboard is read-only. It is generated from the validator read model and
+shows topic coverage, source counts by status and trust tier, recently reviewed
+sources, stale sources and claims, disputed/deprecated/context-only claims,
+open questions, proposed library update tasks, ideas with unresolved or thin
+library support, and validator findings.
+
 Exit codes:
 
 | Code | Meaning |
@@ -100,6 +112,9 @@ Exit codes:
 | 2 | Warning-only findings with usable state. |
 | 3 | Invalid request flags such as malformed `--now`. |
 | 4 | Malformed generated blocks, duplicate IDs, invalid vocabularies, or unresolved source refs. |
+
+For `library dashboard`, code `2` also covers warning-only dashboard read-model
+issues such as an unreadable active idea or task status file.
 
 Cold-start workspaces are allowed. A missing or empty library warns or passes
 depending on the state, but it must not block discovery, idea scoring, data
