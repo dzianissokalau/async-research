@@ -75,6 +75,21 @@ has shifted from packaging safety toward CLI surface governance: deciding which
 script-backed operations deserve public wrappers, which should remain advanced,
 and how docs should migrate only after the public contract exists.
 
+## Manus 2026-05-09 Follow-Up
+
+The May 9, 2026 Manus review confirmed that the core alpha hardening posture is
+working: tests, benchmark, acceptance suite, starter smokes, `simulate-week`,
+strict transitions, reviewer isolation, accepted memory, source governance, and
+structured failure paths all held up under simulation.
+
+The review's new concern is not P0/P1 package safety. It is first-user and
+operator ergonomics: review authoring, quickstart clarity, dashboard
+observability, workflow orchestration, discovery-inbox robustness, and
+operational metrics. Those follow-ups are tracked in the
+[Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md)
+so this delivered hardening roadmap can remain closed except for maintenance
+fixes.
+
 ## Progress Table
 
 | Date | Area | Status | What was done | How it was done | Evidence |

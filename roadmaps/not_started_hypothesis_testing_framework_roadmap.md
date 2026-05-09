@@ -20,6 +20,14 @@ gates. Project-specific repositories should own the actual data loading,
 regression code, causal inference implementation, model fitting, and
 domain-specific diagnostics.
 
+Sequencing note: this remains the next research-capability roadmap after the
+foundation stack. The May 9, 2026 Manus review also identified a separate
+adoption track, captured in the
+[Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md).
+If the goal is smoother dogfooding and first-user success, implement the
+operator UX P1s first; if the goal is empirical research capability, start this
+roadmap.
+
 ## Product Decision
 
 The framework should be called the **Hypothesis Testing Framework** in product

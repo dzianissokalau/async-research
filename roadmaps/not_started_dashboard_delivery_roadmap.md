@@ -33,6 +33,18 @@ The first useful version should be fast to deliver. A fuller local operator
 dashboard should be achievable within a short implementation window if each
 slice is kept small and AI workers are given clear ownership.
 
+The May 9, 2026 Manus review moved this from "eventual polish" to a major
+adoption lever. The review found the framework's correctness story strong but
+said operators still need a gentler way to see queue state, review blockers,
+accepted/rejected ledgers, costs, readiness, and human review work without
+keeping many docs and JSON outputs open at once.
+
+This roadmap owns the web UI implementation. The
+[Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md)
+owns adjacent CLI ergonomics such as review drafting, a one-page quickstart,
+workflow orchestration, and operational metrics. Dashboard slices should consume
+those public commands and read models rather than reimplementing workflow logic.
+
 Delivery sequence:
 
 ```text
@@ -102,7 +114,10 @@ Build:
 - stale lock detection
 - human decision count
 - accepted output count
+- rejected result count
+- idea/data/library dashboard summaries when available
 - cost summary from `cost_ledger.csv`
+- readiness and health verdicts with actionable next steps
 - recent run artifact discovery
 
 Demo:
@@ -117,6 +132,7 @@ Acceptance:
 - works when `research_ops/tasks/` is empty
 - malformed task status appears as a warning
 - command does not mutate files
+- missing optional foundation files render as `unavailable`
 
 ### Slice 2: Local Dashboard Shell
 
@@ -142,6 +158,8 @@ Dashboard cards:
 - blocked tasks
 - human decisions
 - delivered projects
+- rejected results
+- idea, data, and library summary cards
 - cost this month/week
 - stale locks
 
@@ -157,6 +175,7 @@ Acceptance:
 - dashboard shows real snapshot data
 - missing optional files do not break rendering
 - no mutation endpoints exist yet
+- state-machine and human-gate blockers are visible without opening raw JSON
 
 ### Slice 3: Setup And Health Actions
 
