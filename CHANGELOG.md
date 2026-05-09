@@ -5,6 +5,17 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## 0.2.0a3 - 2026-05-09
+
+- Added Knowledge Library starter files, Markdown contracts, idempotent
+  `library init`, read-only `library validate`, and read-only
+  `library dashboard` surfaces.
+- Wired Knowledge Library state into idea-catalog `library_refs`, literature
+  extraction task guidance, health, readiness, daily status, and weekly digest
+  surfaces while preserving cold-start warning behavior.
+- Completed the Research Foundations track by marking Knowledge Library, Data
+  Foundations, and Idea Catalog roadmaps delivered.
+
 ## 0.2.0a2 - 2026-05-09
 
 - Added data-foundation starter files and profile contracts for source
