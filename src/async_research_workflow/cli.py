@@ -1272,7 +1272,7 @@ def register_library_commands(subparsers) -> None:
         epilog="Without --write this command is a dry run. Exits 0 when missing files are reported or created, 3 for conflicting flags, and 4 for malformed workspace paths or write failures.",
     )
     add_common_ops(init)
-    init.add_argument("--dry-run", action="store_true", help="Report missing library files without writing. This is the default.")
+    init.add_argument("--dry-run", action="store_true", help="Explicitly report missing library files without writing.")
     init.add_argument("--write", action="store_true", help="Create only missing library files.")
     init.set_defaults(func=run_library_init_command)
 

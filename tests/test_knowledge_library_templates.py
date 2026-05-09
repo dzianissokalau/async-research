@@ -26,7 +26,10 @@ class KnowledgeLibraryTemplateTests(unittest.TestCase):
                 self.assertTrue(library_dir.is_dir())
                 for relative, template in expected.items():
                     path = starter / relative
-                    self.assertEqual(template, path.read_text(encoding="utf-8"), str(relative))
+                    text = path.read_text(encoding="utf-8")
+                    self.assertEqual(template, text, str(relative))
+                    self.assertIn("Free-form notes. Tooling must not edit this section.", text)
+                    self.assertIn("Empty library state", text)
 
     def test_starter_readmes_explain_empty_library_state(self) -> None:
         for starter in STARTERS:

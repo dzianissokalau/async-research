@@ -32,8 +32,8 @@ SOURCE_LIBRARY_TEMPLATE = """# Source Library
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 KNOWLEDGE_INDEX_TEMPLATE = """# Knowledge Index
@@ -45,8 +45,8 @@ KNOWLEDGE_INDEX_TEMPLATE = """# Knowledge Index
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 CLAIM_MAP_TEMPLATE = """# Claim Map
@@ -58,8 +58,8 @@ CLAIM_MAP_TEMPLATE = """# Claim Map
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 METHOD_INDEX_TEMPLATE = """# Method Index
@@ -71,8 +71,8 @@ METHOD_INDEX_TEMPLATE = """# Method Index
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 OPEN_QUESTIONS_TEMPLATE = """# Open Questions
@@ -84,8 +84,8 @@ OPEN_QUESTIONS_TEMPLATE = """# Open Questions
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 UPDATE_LOG_TEMPLATE = """# Library Update Log
@@ -97,8 +97,8 @@ UPDATE_LOG_TEMPLATE = """# Library Update Log
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
 """
 
 STARTER_FILES = (
@@ -279,7 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Preview or add missing research_ops/library starter files without overwriting existing files.",
     )
     init.add_argument("ops_dir", type=Path, help="Path to research_ops workspace.")
-    init.add_argument("--dry-run", action="store_true", help="Report missing library files without writing. This is the default.")
+    init.add_argument("--dry-run", action="store_true", help="Explicitly report missing library files without writing.")
     init.add_argument("--write", action="store_true", help="Create only missing library files.")
     init.set_defaults(func=command_init)
     return parser

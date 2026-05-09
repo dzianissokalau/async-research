@@ -7,5 +7,5 @@
 
 ## Notes
 
-Empty library state is valid during cold start. Keep manual notes outside the
-generated block.
+Free-form notes. Tooling must not edit this section. Empty library state
+is valid during cold start.
