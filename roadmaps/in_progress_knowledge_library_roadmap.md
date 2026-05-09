@@ -617,6 +617,9 @@ The task should specify:
 - anti-context and dead ends
 - proposed output update targets
 - validation commands to run
+- library-dependent task routes must resolve `LIT-*` support through the
+  structured library parser/validator source rows, not generic text presence in
+  `source_library.md`
 
 Output should include:
 
@@ -635,6 +638,8 @@ Acceptance:
 - reviewer can accept, revise, reject, or route to human
 - accepted library updates are traceable to a reviewed task
 - task guidance says to run `async-research library validate research_ops`
+- task guidance treats row-level source IDs from the generated
+  `source_library.md` block as authoritative for library-dependent support
 - high-stakes or `strong` claims route to human approval before publication use
 
 ## Phase 6: Health, Readiness, And Weekly Surfaces
@@ -655,7 +660,8 @@ Acceptance:
 
 - `health` and `readiness` explain library warnings without blocking all work
 - `weekly_digest.md` can summarize library coverage and open questions
-- surfaces consume validator output rather than reparsing tables separately
+- surfaces consume validator output rather than reparsing tables separately or
+  resolving `LIT-*` refs through ad hoc text search
 - source-dependent experiment and result gates continue to rely on source/data
   governance, not library memory alone
 
@@ -772,6 +778,8 @@ Regression scenarios:
 - update log row without task ID or approver
 - idea candidate `library_refs` resolved against `library/source_library.md`
 - unresolved idea candidate `library_refs` warning-only in cold start
+- library-dependent routes resolve `library_refs` from structured
+  `source_library.md` generated rows, not generic text presence
 - old `knowledge/knowledge_index.md` path does not reappear in warning targets
 - `library init --write` preserves existing manual notes
 

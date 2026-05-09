@@ -225,6 +225,17 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_knowledge_library_roadmap_tracks_row_level_ref_hardening(self) -> None:
+        roadmap = (ROOT / "roadmaps" / "in_progress_knowledge_library_roadmap.md").read_text(encoding="utf-8")
+        normalized = " ".join(roadmap.split())
+        for snippet in [
+            "structured library parser/validator source rows, not generic text presence in `source_library.md`",
+            "row-level source IDs from the generated `source_library.md` block",
+            "surfaces consume validator output rather than reparsing tables separately or resolving `LIT-*` refs through ad hoc text search",
+            "library-dependent routes resolve `library_refs` from structured `source_library.md` generated rows, not generic text presence",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
+
     def test_direct_internal_helper_invocations_are_labeled(self) -> None:
         failures: list[str] = []
         for path in iter_documentation_files():
