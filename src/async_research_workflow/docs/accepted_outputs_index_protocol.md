@@ -47,6 +47,9 @@ The helper:
 
 - scans `research_ops/tasks/*/status.json`
 - selects tasks with `status = accepted`
+- refuses accepted `run_analysis` and `evaluate_results` tasks unless
+  `review_panel/result_acceptance.json` exists, passes schema validation, and
+  records `analysis_run.validation.ok = true`
 - extracts accepted date, title, claim type, freshness window, source IDs, claim
   strength, evidence link, key finding, caveats, supersession links, and
   follow-ups. When `review_panel/result_acceptance.json` exists, its accepted

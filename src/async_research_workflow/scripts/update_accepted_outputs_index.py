@@ -12,6 +12,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
+from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
+
 
 SUCCESS = 0
 INVALID = 2
@@ -42,6 +45,8 @@ CLAIM_ORDER = {"none": 0, "weak": 1, "suggestive": 2, "moderate": 3, "strong": 4
 DEFAULT_INDEX_NAME = "accepted_outputs_index.md"
 REVALIDATION_SCHEDULE_NAME = "revalidation_schedule.md"
 MANUAL_REVIEW = "manual_review"
+RESULT_ACCEPTANCE_SCHEMA = schema_path("result_acceptance.schema.json")
+RESULT_TASK_TYPES = {"run_analysis", "evaluate_results"}
 SOURCE_REF_PATTERN = re.compile(r"\bDS-[0-9]{4}\b")
 CLAIM_TYPE_FRESHNESS: dict[str, int | str] = {
     "market_price": 45,
@@ -230,7 +235,7 @@ def revalidation_status(next_recheck: str, now: datetime, explicit: Any = None, 
     if explicit_text in {"stale", "due", MANUAL_REVIEW}:
         return explicit_text
     if next_recheck == MANUAL_REVIEW:
-        return explicit_text if explicit_text in REVALIDATION_STATUSES else MANUAL_REVIEW
+        return explicit_text if explicit_text in {"scheduled", "revalidated"} else MANUAL_REVIEW
     parsed = parse_datetime(next_recheck)
     if parsed is None:
         return "stale"
@@ -319,6 +324,139 @@ def read_json(path: Path) -> Optional[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def result_acceptance_schema_errors(payload: dict[str, Any]) -> list[dict[str, str]]:
+    try:
+        schema = load_json(RESULT_ACCEPTANCE_SCHEMA)
+    except ValueError as exc:
+        return [{"path": str(RESULT_ACCEPTANCE_SCHEMA), "message": str(exc)}]
+    if not isinstance(schema, dict):
+        return [{"path": str(RESULT_ACCEPTANCE_SCHEMA), "message": "schema is not an object"}]
+    return [error.to_dict() for error in validate(payload, schema)]
+
+
+def load_empirical_result_acceptance(task_dir: Path, status: dict[str, Any]) -> tuple[Optional[dict[str, Any]], list[dict[str, Any]]]:
+    task_type = str(status.get("type", ""))
+    path = task_dir / "review_panel" / "result_acceptance.json"
+    if task_type not in RESULT_TASK_TYPES:
+        return read_json(path), []
+
+    blockers: list[dict[str, Any]] = []
+    if not path.exists():
+        return None, [
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_exists",
+                "message": "accepted empirical tasks require review_panel/result_acceptance.json before accepted memory update",
+                "path": str(path),
+            }
+        ]
+    try:
+        payload = load_json(path)
+    except ValueError as exc:
+        return None, [
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_malformed",
+                "message": str(exc),
+                "path": str(path),
+            }
+        ]
+    if not isinstance(payload, dict):
+        return None, [
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_object",
+                "message": "result_acceptance.json must be a JSON object",
+                "path": str(path),
+            }
+        ]
+
+    schema_errors = result_acceptance_schema_errors(payload)
+    if schema_errors:
+        blockers.append(
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_schema",
+                "message": "result_acceptance.json failed schema validation",
+                "details": schema_errors,
+                "path": str(path),
+            }
+        )
+    if payload.get("task_id") != status.get("id"):
+        blockers.append(
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_task_identity",
+                "message": "result_acceptance task_id must match accepted task status id",
+                "details": {"status_id": status.get("id"), "acceptance_task_id": payload.get("task_id")},
+            }
+        )
+    if payload.get("route") not in {"accept_as_evidence", "accept_negative_result"}:
+        blockers.append(
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_route",
+                "message": "accepted empirical task must have an accepted result_acceptance route",
+                "details": {"route": payload.get("route")},
+            }
+        )
+
+    analysis_run = payload.get("analysis_run")
+    if not isinstance(analysis_run, dict):
+        blockers.append(
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "analysis_run_provenance",
+                "message": "accepted empirical result_acceptance.json must include analysis_run provenance",
+            }
+        )
+    else:
+        validation = analysis_run.get("validation") if isinstance(analysis_run.get("validation"), dict) else {}
+        artifact_paths = analysis_run.get("artifact_paths") if isinstance(analysis_run.get("artifact_paths"), dict) else {}
+        diagnostics = analysis_run.get("diagnostics") if isinstance(analysis_run.get("diagnostics"), dict) else {}
+        claim_gates = analysis_run.get("claim_gates") if isinstance(analysis_run.get("claim_gates"), dict) else {}
+        missing = [
+            field
+            for field, value in (
+                ("run_manifest_path", analysis_run.get("run_manifest_path")),
+                ("data_versions", analysis_run.get("data_versions")),
+                ("diagnostics.path", diagnostics.get("path")),
+                ("artifact_paths.claim_gates", artifact_paths.get("claim_gates")),
+                ("claim_gates", claim_gates),
+            )
+            if value in (None, "", "none") or value == []
+        ]
+        if missing:
+            blockers.append(
+                {
+                    "task_id": status.get("id") or task_dir.name,
+                    "task_type": task_type,
+                    "gate": "analysis_run_provenance_complete",
+                    "message": "accepted empirical analysis_run provenance is incomplete",
+                    "details": {"missing": missing},
+                }
+            )
+        if validation.get("ok") is not True:
+            blockers.append(
+                {
+                    "task_id": status.get("id") or task_dir.name,
+                    "task_type": task_type,
+                    "gate": "analysis_run_validation_ok",
+                    "message": "accepted empirical analysis_run.validation.ok must be true before accepted memory update",
+                    "details": validation,
+                }
+            )
+
+    return payload, blockers
 
 
 def extract_json_objects(text: str) -> list[dict[str, Any]]:
@@ -629,12 +767,19 @@ def task_relative_link(ops_dir: Path, path: Path) -> str:
         return path.as_posix()
 
 
-def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Optional[datetime] = None) -> dict[str, str]:
+def row_from_task(
+    ops_dir: Path,
+    task_dir: Path,
+    status: dict[str, Any],
+    now: Optional[datetime] = None,
+    acceptance: Optional[dict[str, Any]] = None,
+) -> dict[str, str]:
     current = now or utc_now()
     worker_output = task_dir / "worker_output.md"
     result = result_object(status)
     summary = load_result_summary(task_dir)
-    acceptance = read_json(task_dir / "review_panel" / "result_acceptance.json")
+    if acceptance is None:
+        acceptance = read_json(task_dir / "review_panel" / "result_acceptance.json")
     accepted_memory = acceptance.get("accepted_memory") if isinstance(acceptance, dict) and isinstance(acceptance.get("accepted_memory"), dict) else {}
     acceptance_ledger = acceptance.get("evidence_ledger") if isinstance(acceptance, dict) and isinstance(acceptance.get("evidence_ledger"), dict) else {}
     followups = followups_for_task(status, task_dir, summary, acceptance)
@@ -691,17 +836,22 @@ def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Op
     return canonical_index_row(row, now=current)
 
 
-def accepted_task_rows(ops_dir: Path, now: Optional[datetime] = None) -> list[dict[str, str]]:
+def accepted_task_rows(ops_dir: Path, now: Optional[datetime] = None) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     tasks_dir = ops_dir / "tasks"
     rows: list[dict[str, str]] = []
+    blockers: list[dict[str, Any]] = []
     if not tasks_dir.exists():
-        return rows
+        return rows, blockers
     for status_path in sorted(tasks_dir.glob("*/status.json")):
         status = read_json(status_path)
         if not status or status.get("status") != "accepted":
             continue
-        rows.append(row_from_task(ops_dir, status_path.parent, status, now=now))
-    return rows
+        acceptance, acceptance_blockers = load_empirical_result_acceptance(status_path.parent, status)
+        blockers.extend(acceptance_blockers)
+        if acceptance_blockers:
+            continue
+        rows.append(row_from_task(ops_dir, status_path.parent, status, now=now, acceptance=acceptance))
+    return rows, blockers
 
 
 def upsert_rows(existing: list[dict[str, str]], accepted_rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], int, int]:
@@ -836,7 +986,19 @@ def run_update(args: argparse.Namespace) -> int:
         return INVALID
     index_path = args.index if args.index else ops_dir / DEFAULT_INDEX_NAME
     existing = read_index_rows(index_path, now=now)
-    accepted_rows = accepted_task_rows(ops_dir, now=now)
+    accepted_rows, blockers = accepted_task_rows(ops_dir, now=now)
+    if blockers:
+        print_json(
+            {
+                "ok": False,
+                "reason": "accepted_empirical_result_acceptance_invalid",
+                "index": str(index_path),
+                "accepted_tasks_found": len(accepted_rows),
+                "blocker_count": len(blockers),
+                "blockers": blockers,
+            }
+        )
+        return INVALID
     rows, added, updated = upsert_rows(existing, accepted_rows)
     rows = refresh_memory_rows(rows, now=now)
     if not args.dry_run:

@@ -19,6 +19,7 @@
     "human_gate",
     "source_governance",
     "accepted_memory",
+    "analysis_run",
     "evidence_ledger",
     "rejection_logging",
     "followups",
@@ -329,6 +330,20 @@
         "object",
         "null"
       ],
+      "required": [
+        "required",
+        "task_dir",
+        "run_manifest_path",
+        "run_id",
+        "experiment_plan_id",
+        "accepted_plan_task_id",
+        "data_versions",
+        "artifact_paths",
+        "diagnostics",
+        "claim_gates",
+        "validation",
+        "revalidation_triggers"
+      ],
       "properties": {
         "required": {
           "type": "boolean"
@@ -364,16 +379,72 @@
           }
         },
         "artifact_paths": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "metrics",
+            "diagnostics",
+            "robustness",
+            "claim_gates"
+          ],
+          "properties": {
+            "metrics": {
+              "type": "string"
+            },
+            "diagnostics": {
+              "type": "string"
+            },
+            "robustness": {
+              "type": "string"
+            },
+            "claim_gates": {
+              "type": "string"
+            }
+          }
         },
         "diagnostics": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "path",
+            "status_counts"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "generated_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status_counts": {
+              "type": "object"
+            }
+          }
         },
         "claim_gates": {
           "type": "object"
         },
         "validation": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "ok",
+            "failure_count",
+            "warning_count"
+          ],
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "failure_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "warning_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         },
         "revalidation_triggers": {
           "type": "array",

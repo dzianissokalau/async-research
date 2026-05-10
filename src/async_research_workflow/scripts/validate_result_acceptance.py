@@ -509,7 +509,7 @@ def diagnostic_review_triggers(diagnostics: Optional[dict[str, Any]]) -> list[di
     return triggers
 
 
-def revalidation_status_from_triggers(existing: Any, triggers: list[dict[str, Any]]) -> str:
+def revalidation_status_from_triggers(existing: Any, triggers: list[dict[str, Any]], freshness_window_days: str = "") -> str:
     explicit = str(existing or "current").strip().lower()
     if any(trigger.get("severity") == "stale" for trigger in triggers):
         return "stale"
@@ -517,6 +517,10 @@ def revalidation_status_from_triggers(existing: Any, triggers: list[dict[str, An
         return "manual_review"
     if any(trigger.get("severity") == "due" for trigger in triggers):
         return "due"
+    if freshness_window_days == "manual_review":
+        return "manual_review"
+    if explicit in {"", "current"}:
+        return "current"
     return explicit or "current"
 
 
@@ -1046,7 +1050,11 @@ def build_acceptance_record(
     freshness_window = freshness_window_for(memory_claim_type, result.get("freshness_window_days") or result.get("freshness_window"))
     memory_next_recheck = next_recheck_date(accepted_date, freshness_window, result.get("next_recheck_date"))
     revalidation_triggers = analysis_run.get("revalidation_triggers", []) if isinstance(analysis_run, dict) else []
-    memory_revalidation_status = revalidation_status_from_triggers(result.get("revalidation_status"), revalidation_triggers)
+    memory_revalidation_status = revalidation_status_from_triggers(
+        result.get("revalidation_status"),
+        revalidation_triggers,
+        freshness_window,
+    )
     accepted_memory = {
         "claim_type": memory_claim_type,
         "freshness_window_days": freshness_window,

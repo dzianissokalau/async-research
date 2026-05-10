@@ -362,6 +362,7 @@ def valid_result_acceptance() -> dict:
             "supersedes": "none",
             "superseded_by": "none",
         },
+        "analysis_run": None,
         "evidence_ledger": {
             "required": False,
             "ledger_path": "research_ops/evidence_ledger.md",

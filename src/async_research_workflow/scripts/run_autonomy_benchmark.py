@@ -286,6 +286,7 @@ def accepted_plan_result_acceptance(plan_task_id: str) -> dict[str, Any]:
             "logged": False,
             "evidence_link": f"research_ops/tasks/{plan_task_id}-experiment-plan/worker_output.md",
         },
+        "analysis_run": None,
         "rejection_logging": {"required": False, "log_path": "research_ops/rejected_results.md", "logged": False},
         "followups": [],
         "review_notes": ["benchmark accepted plan"],
