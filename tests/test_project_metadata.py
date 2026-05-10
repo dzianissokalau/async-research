@@ -4,6 +4,8 @@ import tomllib
 import unittest
 from pathlib import Path
 
+from async_research_workflow import __version__
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,6 +35,11 @@ class ProjectMetadataTests(unittest.TestCase):
         ]
         missing = [path for path in required if not (ROOT / path).is_file()]
         self.assertEqual([], missing)
+
+    def test_project_version_matches_package_version(self) -> None:
+        data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+        self.assertEqual(data["project"]["version"], __version__)
 
 
 if __name__ == "__main__":

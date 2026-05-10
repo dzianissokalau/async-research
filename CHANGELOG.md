@@ -5,6 +5,18 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## 0.2.0a4 - 2026-05-10
+
+- Added the hypothesis-testing framework contracts: analysis run manifests,
+  metrics, diagnostics, robustness checks, claim gates, result summaries, and
+  result-acceptance provenance for empirical evidence.
+- Added read-only analysis preflight, completed-run validation,
+  result-validation, and dashboard surfaces, with accepted-memory integration
+  for empirical results.
+- Added optional local-script runner adapters gated by clean preflight and
+  hardened them against unsafe entrypoints, path escapes, malformed validator
+  output, unbounded output capture, and timeout child-process leaks.
+
 ## 0.2.0a3 - 2026-05-09
 
 - Added Knowledge Library starter files, Markdown contracts, idempotent
