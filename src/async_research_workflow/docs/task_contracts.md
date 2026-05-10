@@ -293,6 +293,13 @@ acceptance. Unsupported runner types such as notebook, SQL, dbt, warehouse job,
 or manual runs remain valid manifest descriptions; workers can run them outside
 the adapter and use the same validation path.
 
+For `local_script`, `runner.entrypoint` must start with an existing
+project-owned script path inside the workspace and outside `research_ops/tasks`;
+it must not start with an interpreter or shell such as `python -c` or
+`bash -lc`. Any path-like command arguments must resolve inside the current task
+folder so adapters cannot write across task boundaries or into unrelated
+workspace files.
+
 ## Exploration Cycle
 
 Use `research_ops/discovery/source_register.md` as the approved discovery source

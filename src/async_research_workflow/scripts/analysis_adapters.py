@@ -11,6 +11,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import threading
 import time
 from typing import Any, Iterable, Optional
 
@@ -64,18 +65,49 @@ def path_text(path: Path, base: Path) -> str:
         return path.as_posix()
 
 
+def output_tail(value: str) -> str:
+    if len(value) <= MAX_CAPTURE_CHARS:
+        return value
+    return value[-MAX_CAPTURE_CHARS:]
+
+
 def run_json(entrypoint, argv: list[str | Path]) -> tuple[int, dict[str, Any]]:
     stream = io.StringIO()
     with contextlib.redirect_stdout(stream):
         code = entrypoint.main([str(arg) for arg in argv])
     text = stream.getvalue().strip()
     if not text:
-        return code, {}
+        return (
+            MALFORMED,
+            {
+                "ok": False,
+                "reason": "validator_output_empty",
+                "validator_exit_code": code,
+            },
+        )
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        return code, {"ok": code == SUCCESS, "raw_output": text}
-    return code, payload if isinstance(payload, dict) else {"ok": False, "payload": payload}
+        return (
+            MALFORMED,
+            {
+                "ok": False,
+                "reason": "validator_output_malformed",
+                "validator_exit_code": code,
+                "raw_output_tail": output_tail(text),
+            },
+        )
+    if not isinstance(payload, dict):
+        return (
+            MALFORMED,
+            {
+                "ok": False,
+                "reason": "validator_output_not_object",
+                "validator_exit_code": code,
+                "payload_type": type(payload).__name__,
+            },
+        )
+    return code, payload
 
 
 def load_manifest(task_dir: Path) -> tuple[Optional[dict[str, Any]], Optional[str]]:
@@ -84,12 +116,6 @@ def load_manifest(task_dir: Path) -> tuple[Optional[dict[str, Any]], Optional[st
     except PreflightMalformed as exc:
         return None, str(exc)
     return payload, None
-
-
-def output_tail(value: str) -> str:
-    if len(value) <= MAX_CAPTURE_CHARS:
-        return value
-    return value[-MAX_CAPTURE_CHARS:]
 
 
 def command_tokens(entrypoint: Any) -> tuple[list[str], Optional[str]]:
@@ -110,14 +136,51 @@ def token_looks_like_path(token: str) -> bool:
     return "/" in token or token.startswith(".")
 
 
-def command_path_issues(command: list[str], cwd: Path, root: Path) -> list[dict[str, Any]]:
+def resolve_command_path(token: str, cwd: Path) -> Path:
+    path = Path(token)
+    return resolved(path if path.is_absolute() else cwd / path)
+
+
+def executable_issue(command: list[str], cwd: Path, root: Path, ops_dir: Path) -> Optional[dict[str, Any]]:
+    token = command[0]
+    if not token_looks_like_path(token):
+        return {
+            "reason": "runner_entrypoint_executable_not_project_path",
+            "message": "local_script runner.entrypoint must start with an existing project-owned script path, not an interpreter or shell command",
+            "token": token,
+        }
+    executable = resolve_command_path(token, cwd)
+    if not is_relative_to(executable, root):
+        return {
+            "reason": "runner_entrypoint_outside_workspace",
+            "token": token,
+            "workspace_root": str(root),
+            "resolved_path": str(executable),
+        }
+    if is_relative_to(executable, resolved(ops_dir) / "tasks"):
+        return {
+            "reason": "runner_entrypoint_inside_task_artifacts",
+            "token": token,
+            "resolved_path": str(executable),
+            "message": "runner adapters execute project-owned scripts outside research_ops/tasks; task artifacts stay data-only",
+        }
+    if not executable.is_file():
+        return {
+            "reason": "runner_entrypoint_missing",
+            "token": token,
+            "resolved_path": str(executable),
+        }
+    return None
+
+
+def command_path_issues(command: list[str], cwd: Path, root: Path, task_dir: Path) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     for index, token in enumerate(command):
+        if index == 0:
+            continue
         if not token_looks_like_path(token):
             continue
-        path = Path(token)
-        candidate = path if path.is_absolute() else cwd / path
-        resolved_candidate = resolved(candidate)
+        resolved_candidate = resolve_command_path(token, cwd)
         if not is_relative_to(resolved_candidate, root):
             issues.append(
                 {
@@ -125,6 +188,17 @@ def command_path_issues(command: list[str], cwd: Path, root: Path) -> list[dict[
                     "token": token,
                     "reason": "path_outside_workspace",
                     "workspace_root": str(root),
+                    "resolved_path": str(resolved_candidate),
+                }
+            )
+            continue
+        if not is_relative_to(resolved_candidate, task_dir):
+            issues.append(
+                {
+                    "token_index": index,
+                    "token": token,
+                    "reason": "path_outside_task_folder",
+                    "task_dir": str(resolved(task_dir)),
                     "resolved_path": str(resolved_candidate),
                 }
             )
@@ -184,7 +258,11 @@ def adapter_plan(task_dir: Path, ops_dir: Path, manifest: dict[str, Any], cwd: P
     if parse_error is not None:
         return None, {"reason": "runner_entrypoint_invalid", "message": parse_error}
     root = workspace_root(ops_dir)
-    path_issues = command_path_issues(command, cwd, root)
+    entrypoint_issue = executable_issue(command, cwd, root, ops_dir)
+    if entrypoint_issue is not None:
+        return None, entrypoint_issue
+    executable_path = resolve_command_path(command[0], cwd)
+    path_issues = command_path_issues(command, cwd, root, task_dir)
     if path_issues:
         return None, {"reason": "runner_command_path_unsafe", "issues": path_issues}
     return (
@@ -192,6 +270,7 @@ def adapter_plan(task_dir: Path, ops_dir: Path, manifest: dict[str, Any], cwd: P
             "runner_type": runner_type,
             "command": command,
             "command_display": " ".join(shlex.quote(part) for part in command),
+            "executable_path": str(executable_path),
             "cwd": str(cwd),
             "task_dir": str(task_dir),
             "manifest_path": str(task_dir / MANIFEST_RELATIVE_PATH),
@@ -202,16 +281,64 @@ def adapter_plan(task_dir: Path, ops_dir: Path, manifest: dict[str, Any], cwd: P
     )
 
 
+class TailCapture:
+    """Thread-safe bounded text capture for subprocess streams."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self._parts: list[str] = []
+        self._size = 0
+        self._lock = threading.Lock()
+
+    def append(self, chunk: str) -> None:
+        if not chunk:
+            return
+        if len(chunk) > self.limit:
+            chunk = chunk[-self.limit :]
+        with self._lock:
+            self._parts.append(chunk)
+            self._size += len(chunk)
+            while self._size > self.limit and self._parts:
+                overflow = self._size - self.limit
+                first = self._parts[0]
+                if len(first) <= overflow:
+                    self._parts.pop(0)
+                    self._size -= len(first)
+                else:
+                    self._parts[0] = first[overflow:]
+                    self._size -= overflow
+
+    def text(self) -> str:
+        with self._lock:
+            return "".join(self._parts)
+
+
+def drain_stream(stream, capture: TailCapture) -> None:
+    if stream is None:
+        return
+    try:
+        while True:
+            chunk = stream.read(1024)
+            if not chunk:
+                break
+            capture.append(chunk)
+    finally:
+        stream.close()
+
+
 def execute_command(plan: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
     started = time.monotonic()
+    stdout_capture = TailCapture(MAX_CAPTURE_CHARS)
+    stderr_capture = TailCapture(MAX_CAPTURE_CHARS)
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             plan["command"],
             cwd=plan["cwd"],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout_seconds,
-            check=False,
+            encoding="utf-8",
+            errors="replace",
         )
     except FileNotFoundError as exc:
         return {
@@ -220,20 +347,42 @@ def execute_command(plan: dict[str, Any], timeout_seconds: float) -> dict[str, A
             "error": str(exc),
             "duration_seconds": round(time.monotonic() - started, 3),
         }
-    except subprocess.TimeoutExpired as exc:
+    except OSError as exc:
+        return {
+            "ok": False,
+            "reason": "runner_command_start_failed",
+            "error": str(exc),
+            "duration_seconds": round(time.monotonic() - started, 3),
+        }
+
+    stdout_thread = threading.Thread(target=drain_stream, args=(process.stdout, stdout_capture), daemon=True)
+    stderr_thread = threading.Thread(target=drain_stream, args=(process.stderr, stderr_capture), daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+    timed_out = False
+    try:
+        returncode = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        process.kill()
+        returncode = process.wait()
+    stdout_thread.join(timeout=1.0)
+    stderr_thread.join(timeout=1.0)
+
+    if timed_out:
         return {
             "ok": False,
             "reason": "runner_command_timeout",
             "timeout_seconds": timeout_seconds,
-            "stdout_tail": output_tail(exc.stdout or ""),
-            "stderr_tail": output_tail(exc.stderr or ""),
+            "stdout_tail": stdout_capture.text(),
+            "stderr_tail": stderr_capture.text(),
             "duration_seconds": round(time.monotonic() - started, 3),
         }
     return {
-        "ok": completed.returncode == 0,
-        "exit_code": completed.returncode,
-        "stdout_tail": output_tail(completed.stdout or ""),
-        "stderr_tail": output_tail(completed.stderr or ""),
+        "ok": returncode == 0,
+        "exit_code": returncode,
+        "stdout_tail": stdout_capture.text(),
+        "stderr_tail": stderr_capture.text(),
         "duration_seconds": round(time.monotonic() - started, 3),
     }
 

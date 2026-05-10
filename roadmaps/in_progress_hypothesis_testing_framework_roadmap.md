@@ -869,12 +869,17 @@ Delivered in Phase 9:
   default.
 - `--execute` runs only `runner.type="local_script"` commands after clean
   `analysis preflight`; warning-only or blocked preflights refuse execution.
+- Local-script entrypoints must start with an existing workspace script outside
+  `research_ops/tasks`; shell/interpreter inline commands are rejected, and
+  path-like arguments must stay in the current task folder.
 - The adapter never marks results accepted and always returns the required
   `analysis validate-run` and `analysis validate-results` commands.
 - Unsupported runner types remain valid descriptive manifest runners, preserving
   manual/notebook/SQL/dbt/warehouse workflows without adapters.
 - Tests cover dry-run planning, successful local execution, preflight-blocked
-  non-execution, unsupported runner types, and CLI routing.
+  and warning-only non-execution, unsafe entrypoints and paths, malformed
+  validator output, failure/timeout paths, unsupported runner types, and CLI
+  routing.
 
 ## MVP Definition
 
