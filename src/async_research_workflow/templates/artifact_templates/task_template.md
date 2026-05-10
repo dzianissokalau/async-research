@@ -106,20 +106,25 @@ can support, and reviewers/claim gates may cap it further.
   Blockers or warnings must be resolved or reviewed before execution.
 - After execution, update `run_manifest.json` to the actual run status and
   write `metrics.json`, `diagnostics.json`, and `robustness_checks.json` under
-  `artifacts/analysis_run/` using the packaged analysis output templates. If a
-  result claim is made, write `claim_gates.json` and make the result summary
-  cite `artifacts/analysis_run/run_manifest.json`.
+  `artifacts/analysis_run/` using the packaged analysis output templates. If
+  `worker_output.md` includes a result summary, write `claim_gates.json` even
+  when `claim_strength` is `none`, and make the result summary cite
+  `artifacts/analysis_run/run_manifest.json`.
 - Before review, run
   `async-research analysis validate-run <task-dir> --ops-dir research_ops`.
-  If a result summary and `claim_gates.json` are present, also run
+  If `worker_output.md` includes a result summary, also run
   `async-research analysis validate-results <task-dir> --ops-dir research_ops`.
   Do not mark the task `awaiting_review` until blockers are fixed or explicitly
   routed to `needs_human`.
 - For `evaluate_results` tasks, do not rerun or silently reinterpret the
   analysis. Evaluate the existing manifest, metrics, diagnostics, robustness,
   claim gates, and reviewer notes. The result summary must cite the upstream
-  `artifacts/analysis_run/run_manifest.json`; accepted/rejected review
-  aggregates must pass `async-research result-acceptance`.
+  `artifacts/analysis_run/run_manifest.json`. Run
+  `async-research analysis validate-run <upstream-run-analysis-task-dir> --ops-dir research_ops`
+  and
+  `async-research analysis validate-results <upstream-run-analysis-task-dir> --ops-dir research_ops`
+  against that upstream run before review; accepted/rejected review aggregates
+  must pass `async-research result-acceptance`.
 
 ## Cross-Task Anti-Context
 

@@ -735,7 +735,10 @@ Delivered in Phase 6:
 - `scheduler_and_prompts.md` gives the planner bounded accepted-plan-to-
   `run_analysis` creation rules, worker artifact/validation instructions, and
   primary/methodology/result reviewer checklists tied to machine-readable
-  artifacts.
+  artifacts. Result summaries require `claim_gates.json` and
+  `analysis validate-results`; higher-risk outputs route to Tier 3; and
+  `evaluate_results` reviewers validate the upstream analysis run with public
+  analysis commands.
 - `task_contracts.md` documents the accepted-plan provenance required for
   `run_analysis`, deviation handling, and reviewer checklist.
 - Docs tests assert the public `async-research analysis preflight`,

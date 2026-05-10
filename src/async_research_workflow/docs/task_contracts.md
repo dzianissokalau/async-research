@@ -588,8 +588,9 @@ The planned task must be bounded before any worker starts: `status.json.type`
 is `run_analysis`, `allowed_paths` is limited to the analysis task folder plus
 explicit read-only input artifacts, `max_minutes` and budget do not exceed the
 accepted plan, and `review_policy` is at least Tier 1. If the result will make
-a moderate/strong, public, high-stakes, causal, or otherwise methodology-
-sensitive claim, the planner should require Tier 2 or route to human review.
+a routine methodology-sensitive claim, the planner should require Tier 2. If
+the result may be moderate, strong, public, high-stakes, high-impact, causal,
+or probabilistic, the planner should require Tier 3 or route to human review.
 Do not create `run_analysis` tasks from discovery, idea catalog, or
 hypothesis-card records without an accepted experiment plan in between.
 
@@ -717,6 +718,12 @@ Reviewer checklist for `run_analysis` and `evaluate_results`:
   artifacts.
 - The result summary cites the manifest and does not request a stronger claim
   than the accepted plan, validation evidence, and reviewer notes support.
+- A `run_analysis` result summary always has `claim_gates.json`, including
+  summaries with `claim_strength: "none"`, and `analysis validate-results`
+  has been run against the same task directory.
+- An `evaluate_results` review reruns `analysis validate-run` and
+  `analysis validate-results` against the upstream `run_analysis` task
+  directory cited by `run_manifest_path`.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
