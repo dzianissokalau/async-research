@@ -295,10 +295,12 @@ the adapter and use the same validation path.
 
 For `local_script`, `runner.entrypoint` must start with an existing
 project-owned script path inside the workspace and outside `research_ops/tasks`;
-it must not start with an interpreter or shell such as `python -c` or
-`bash -lc`. Any path-like command arguments must resolve inside the current task
-folder so adapters cannot write across task boundaries or into unrelated
-workspace files.
+it must not start with an interpreter, shell, dependency-bin executable, or
+inline-evaluation command such as `python -c`, `.venv/bin/python -c`,
+`node_modules/.bin/tsx -e`, or `bash -lc`. Any path-like command arguments,
+including bare output filenames and `--option=path` values, must resolve inside
+the current task folder so adapters cannot write across task boundaries or into
+unrelated workspace files.
 
 ## Exploration Cycle
 

@@ -7,7 +7,10 @@ import argparse
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
+import re
+import signal
 import shlex
 import subprocess
 import sys
@@ -36,6 +39,59 @@ KNOWN_RUNNER_TYPES = {
     "other",
 }
 MAX_CAPTURE_CHARS = 4000
+INTERPRETER_OR_SHELL_NAMES = {
+    "bash",
+    "babel-node",
+    "bun",
+    "csh",
+    "dash",
+    "deno",
+    "fish",
+    "jiti",
+    "ksh",
+    "node",
+    "nodejs",
+    "perl",
+    "php",
+    "pwsh",
+    "ruby",
+    "r",
+    "rscript",
+    "sh",
+    "tcsh",
+    "ts-node",
+    "tsx",
+    "vite-node",
+    "zsh",
+}
+DEPENDENCY_BIN_DIRS = {".venv/bin", "venv/bin", "env/bin", "node_modules/.bin"}
+PATHLIKE_SUFFIXES = {
+    ".arrow",
+    ".csv",
+    ".db",
+    ".feather",
+    ".html",
+    ".json",
+    ".jsonl",
+    ".log",
+    ".md",
+    ".ndjson",
+    ".out",
+    ".parquet",
+    ".pickle",
+    ".pkl",
+    ".png",
+    ".py",
+    ".r",
+    ".sh",
+    ".sql",
+    ".sqlite",
+    ".tsv",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -131,14 +187,62 @@ def command_tokens(entrypoint: Any) -> tuple[list[str], Optional[str]]:
 
 
 def token_looks_like_path(token: str) -> bool:
-    if not token or token.startswith("-") or "://" in token:
+    if not token or "://" in token:
         return False
-    return "/" in token or token.startswith(".")
+    if "/" in token or token.startswith(".") or Path(token).is_absolute():
+        return True
+    return Path(token).suffix.lower() in PATHLIKE_SUFFIXES
+
+
+def executable_name(path: Path) -> str:
+    name = path.name.lower()
+    if name.endswith(".exe"):
+        return name[:-4]
+    return name
+
+
+def is_interpreter_or_shell_name(name: str) -> bool:
+    return name in INTERPRETER_OR_SHELL_NAMES or re.fullmatch(r"python(\d+(\.\d+)*)?|pypy(\d+)?", name) is not None
+
+
+def is_dependency_bin_executable(path: Path, root: Path) -> bool:
+    try:
+        relative = path.relative_to(resolved(root)).as_posix()
+    except ValueError:
+        return False
+    parent = Path(relative).parent.as_posix()
+    return parent in DEPENDENCY_BIN_DIRS
+
+
+def absolute_command_path(token: str, cwd: Path) -> Path:
+    path = Path(token).expanduser()
+    candidate = path if path.is_absolute() else cwd / path
+    return Path(os.path.abspath(candidate))
 
 
 def resolve_command_path(token: str, cwd: Path) -> Path:
     path = Path(token)
     return resolved(path if path.is_absolute() else cwd / path)
+
+
+def command_argument_path_values(token: str) -> list[tuple[str, str]]:
+    if not token or "://" in token:
+        return []
+    if token.startswith("-"):
+        if "=" not in token:
+            return []
+        option, value = token.split("=", 1)
+        if token_looks_like_path(value):
+            return [(option, value)]
+        return []
+    if "=" in token:
+        name, value = token.split("=", 1)
+        if token_looks_like_path(value):
+            return [(name, value)]
+        return []
+    if token_looks_like_path(token):
+        return [("", token)]
+    return []
 
 
 def executable_issue(command: list[str], cwd: Path, root: Path, ops_dir: Path) -> Optional[dict[str, Any]]:
@@ -170,6 +274,21 @@ def executable_issue(command: list[str], cwd: Path, root: Path, ops_dir: Path) -
             "token": token,
             "resolved_path": str(executable),
         }
+    lexical_executable = absolute_command_path(token, cwd)
+    resolved_name = executable_name(executable)
+    lexical_name = executable_name(lexical_executable)
+    if (
+        is_interpreter_or_shell_name(resolved_name)
+        or is_interpreter_or_shell_name(lexical_name)
+        or is_dependency_bin_executable(lexical_executable, root)
+    ):
+        return {
+            "reason": "runner_entrypoint_interpreter_or_shell",
+            "token": token,
+            "resolved_path": str(executable),
+            "entrypoint_path": str(lexical_executable),
+            "message": "local_script runner.entrypoint must start with a project-owned script, not an interpreter, shell, or dependency-bin executable",
+        }
     return None
 
 
@@ -178,30 +297,34 @@ def command_path_issues(command: list[str], cwd: Path, root: Path, task_dir: Pat
     for index, token in enumerate(command):
         if index == 0:
             continue
-        if not token_looks_like_path(token):
-            continue
-        resolved_candidate = resolve_command_path(token, cwd)
-        if not is_relative_to(resolved_candidate, root):
-            issues.append(
-                {
-                    "token_index": index,
-                    "token": token,
-                    "reason": "path_outside_workspace",
-                    "workspace_root": str(root),
-                    "resolved_path": str(resolved_candidate),
-                }
-            )
-            continue
-        if not is_relative_to(resolved_candidate, task_dir):
-            issues.append(
-                {
-                    "token_index": index,
-                    "token": token,
-                    "reason": "path_outside_task_folder",
-                    "task_dir": str(resolved(task_dir)),
-                    "resolved_path": str(resolved_candidate),
-                }
-            )
+        for option, value in command_argument_path_values(token):
+            resolved_candidate = resolve_command_path(value, cwd)
+            issue: dict[str, Any] = {
+                "token_index": index,
+                "token": token,
+                "path_value": value,
+            }
+            if option:
+                issue["option"] = option
+            if not is_relative_to(resolved_candidate, root):
+                issues.append(
+                    {
+                        **issue,
+                        "reason": "path_outside_workspace",
+                        "workspace_root": str(root),
+                        "resolved_path": str(resolved_candidate),
+                    }
+                )
+                continue
+            if not is_relative_to(resolved_candidate, task_dir):
+                issues.append(
+                    {
+                        **issue,
+                        "reason": "path_outside_task_folder",
+                        "task_dir": str(resolved(task_dir)),
+                        "resolved_path": str(resolved_candidate),
+                    }
+                )
     return issues
 
 
@@ -326,11 +449,26 @@ def drain_stream(stream, capture: TailCapture) -> None:
         stream.close()
 
 
+def kill_process_group(process: subprocess.Popen[str]) -> None:
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            return
+        except ProcessLookupError:
+            return
+        except OSError:
+            pass
+    process.kill()
+
+
 def execute_command(plan: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
     started = time.monotonic()
     stdout_capture = TailCapture(MAX_CAPTURE_CHARS)
     stderr_capture = TailCapture(MAX_CAPTURE_CHARS)
     try:
+        popen_kwargs: dict[str, Any] = {}
+        if hasattr(os, "setsid"):
+            popen_kwargs["start_new_session"] = True
         process = subprocess.Popen(
             plan["command"],
             cwd=plan["cwd"],
@@ -339,6 +477,7 @@ def execute_command(plan: dict[str, Any], timeout_seconds: float) -> dict[str, A
             text=True,
             encoding="utf-8",
             errors="replace",
+            **popen_kwargs,
         )
     except FileNotFoundError as exc:
         return {
@@ -364,7 +503,7 @@ def execute_command(plan: dict[str, Any], timeout_seconds: float) -> dict[str, A
         returncode = process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         timed_out = True
-        process.kill()
+        kill_process_group(process)
         returncode = process.wait()
     stdout_thread.join(timeout=1.0)
     stderr_thread.join(timeout=1.0)
