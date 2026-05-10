@@ -136,8 +136,9 @@ class CliHelpTests(unittest.TestCase):
             (["revision", "inspect"], ["revision fields", "--schema"]),
             (["revision", "scan-limits"], ["revision-limit hits", "--markdown"]),
             (["result-acceptance"], ["result_acceptance.json", "--update-ledgers"]),
-            (["analysis"], ["Preflight", "dashboard", "preflight", "validate-run", "validate-results"]),
+            (["analysis"], ["Preflight", "dashboard", "run-adapter", "preflight", "validate-run", "validate-results"]),
             (["analysis", "dashboard"], ["Read-only dashboard", "active run_analysis", "accepted empirical evidence", "--max-items", "--now"]),
+            (["analysis", "run-adapter"], ["Optional", "local_script", "--execute", "--timeout-seconds", "validate-run"]),
             (["analysis", "preflight"], ["Read-only", "accepted experiment plan", "--ops-dir", "--now", "stale accepted memory"]),
             (["analysis", "validate-run"], ["completed run_analysis", "metrics", "robustness", "--ops-dir", "--now"]),
             (["analysis", "validate-results"], ["result summary", "claim_gates.json", "accepted experiment plan", "--ops-dir", "--now"]),
@@ -215,6 +216,7 @@ class CliHelpTests(unittest.TestCase):
             "| `starter-smoke` | `0` all starter checks passed.",
             "| `result-acceptance` | `0` gates passed.",
             "| `analysis dashboard` | `0` dashboard rendered and analysis surface state is clean.",
+            "| `analysis run-adapter` | `0` adapter plan or execution succeeded.",
             "| `analysis preflight`, `analysis validate-run`, and `analysis validate-results` | `0` clean preflight or validation.",
             "| `simulate-week` | `0` simulated week passed.",
         ]:

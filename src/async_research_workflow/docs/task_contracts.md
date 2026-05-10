@@ -279,6 +279,20 @@ preflight blockers, completed runs missing validation, accepted empirical
 evidence, stale or due empirical evidence, and claim caps or human-review
 requirements.
 
+## Analysis Phase 9 Optional Adapters
+
+`async-research analysis run-adapter <task-dir> --ops-dir research_ops` is an
+optional helper, not an execution queue. It supports only
+`runner.type="local_script"` in V1 and reads the command from
+`run_manifest.json` `runner.entrypoint`.
+
+The adapter always runs `analysis preflight` first and refuses to execute unless
+preflight is clean. After execution, the task still must pass
+`analysis validate-run` and `analysis validate-results` before result
+acceptance. Unsupported runner types such as notebook, SQL, dbt, warehouse job,
+or manual runs remain valid manifest descriptions; workers can run them outside
+the adapter and use the same validation path.
+
 ## Exploration Cycle
 
 Use `research_ops/discovery/source_register.md` as the approved discovery source

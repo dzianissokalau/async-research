@@ -1714,6 +1714,39 @@ def register_analysis_commands(subparsers) -> None:
     dashboard.add_argument("--max-items", type=int, default=10, help="Maximum rows per dashboard section.")
     dashboard.set_defaults(func=lambda a: module_main("analysis_surface", ["dashboard", str(a.ops_dir), "--max-items", str(a.max_items)] + (["--now", a.now] if a.now else [])))
 
+    run_adapter = add_command(
+        analysis_sub,
+        "run-adapter",
+        help="Plan or execute a preflight-gated local analysis adapter.",
+        description=(
+            "Optional thin adapter runner for run_analysis tasks. It supports runner.type=local_script, "
+            "runs only after clean analysis preflight, and never replaces validate-run or validate-results."
+        ),
+        epilog="Exits 0 for a clean dry-run plan or successful adapter execution, 2 for preflight findings or command failure, 3 for unsupported adapters or invalid requests, and 4 for malformed task state.",
+    )
+    run_adapter.add_argument("task_dir", type=Path, help="run_analysis task directory.")
+    run_adapter.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
+    run_adapter.add_argument("--execute", action="store_true", help="Actually execute the adapter command; omitted means dry-run plan only.")
+    run_adapter.add_argument("--timeout-seconds", type=float, default=900.0, help="Maximum adapter execution time.")
+    run_adapter.add_argument("--cwd", type=Path, help="Command working directory; defaults to the workspace root.")
+    run_adapter.add_argument("--now", help="Override current time for deterministic preflight checks.")
+    run_adapter.set_defaults(
+        func=lambda a: module_main(
+            "analysis_adapters",
+            [
+                "run-adapter",
+                str(a.task_dir),
+                "--ops-dir",
+                str(a.ops_dir),
+                "--timeout-seconds",
+                str(a.timeout_seconds),
+            ]
+            + (["--execute"] if a.execute else [])
+            + (["--cwd", str(a.cwd)] if a.cwd else [])
+            + (["--now", a.now] if a.now else []),
+        )
+    )
+
     preflight = add_command(
         analysis_sub,
         "preflight",

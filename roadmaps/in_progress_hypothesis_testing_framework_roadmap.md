@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 9 ready
+Current phase: Phase 9 complete
 Last updated: 2026-05-10
-Next action: Decide whether optional runner adapters are worth implementing for V1 workflows
+Next action: External review and adoption hardening
 Blocked by: None
 
 Created: 2026-05-07
@@ -280,7 +280,7 @@ Last updated: 2026-05-10
 | 6 | Task templates and prompts | Complete | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Adds bounded run-analysis planner guidance, worker/reviewer prompt checklists, result-summary guidance, and docs tests for public analysis validation commands. |
 | 7 | Result acceptance integration | Complete | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence cites manifest, data versions, diagnostics, claim gates, and validation status; accepted memory updates fail closed for invalid empirical acceptance records. |
 | 8 | Read-only surfaces | Complete | Surface analysis status, blockers, diagnostics, stale runs, and empirical evidence in weekly digest, health, readiness, and dashboard views. | Adds `analysis dashboard`, health/readiness integration, daily/weekly analysis summaries, and fail-closed malformed surface handling. |
-| 9 | Optional runner adapters | Not Started | Consider thin local script, notebook, SQL, dbt, warehouse, or Python entrypoint wrappers. | Adapters remain optional and cannot bypass preflight or validation. |
+| 9 | Optional runner adapters | Complete | Add a thin optional local-script adapter while leaving notebook, SQL, dbt, warehouse, and manual runs valid without adapters. | `analysis run-adapter` plans or executes `runner.type=local_script` only after clean preflight and always points back to validate-run / validate-results. |
 
 ## Framework Integration
 
@@ -861,6 +861,20 @@ Acceptance:
 - adapters are optional
 - validation works without adapters
 - adapters cannot bypass preflight or result validation
+
+Delivered in Phase 9:
+
+- `async-research analysis run-adapter <task-dir> --ops-dir research_ops`
+  plans local-script execution from `run_manifest.json` without running it by
+  default.
+- `--execute` runs only `runner.type="local_script"` commands after clean
+  `analysis preflight`; warning-only or blocked preflights refuse execution.
+- The adapter never marks results accepted and always returns the required
+  `analysis validate-run` and `analysis validate-results` commands.
+- Unsupported runner types remain valid descriptive manifest runners, preserving
+  manual/notebook/SQL/dbt/warehouse workflows without adapters.
+- Tests cover dry-run planning, successful local execution, preflight-blocked
+  non-execution, unsupported runner types, and CLI routing.
 
 ## MVP Definition
 
