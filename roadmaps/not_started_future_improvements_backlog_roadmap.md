@@ -217,3 +217,90 @@ Current shipped baseline:
   follow-up tasks use before any reviewed apply commands exist?
 - Which dedupe inputs are safe and useful without adding embeddings or leaking
   sensitive source snippets into derived indexes?
+
+## Hypothesis Testing Framework
+
+Current shipped baseline:
+
+- canonical task artifact path: `research_ops/tasks/*/artifacts/analysis_run/`
+- public commands: `analysis preflight`, `analysis validate-run`,
+  `analysis validate-results`, `analysis dashboard`, and `analysis run-adapter`
+- packaged contracts: analysis run manifests, metrics, diagnostics,
+  robustness checks, claim gates, and result-summary manifest linkage
+- integrations: accepted experiment plans, source/data governance, budget and
+  method preflight, result acceptance, evidence ledger, accepted outputs index,
+  rejected empirical anti-context, revalidation schedule, health, readiness,
+  daily status, weekly digest, and dashboard summaries
+- V1 execution posture: the package owns contracts, validators, provenance,
+  claim gates, and read models; project repositories own statistics, data
+  loading, feature engineering, and domain-specific methods
+- Phase 9 adapter posture: only tightly constrained `local_script` adapters are
+  executable, only after clean preflight; notebook, SQL, dbt, warehouse, and
+  manual runs remain valid without adapters
+
+### Future Improvements
+
+| Improvement | Summary | Dependencies | Important notes |
+| --- | --- | --- | --- |
+| End-to-end dogfood fixture | Add a canonical fixture that exercises the whole empirical loop: accepted experiment plan, planned manifest, clean preflight, completed run artifacts, claim gates, `validate-run`, `validate-results`, result acceptance, accepted index refresh, and analysis dashboard. | Stable starter fixture data; existing experiment-plan/result-acceptance validators; deterministic analysis artifacts; acceptance-suite runtime budget. | This should be an installed-package smoke and regression fixture, not a statistics benchmark. Keep the sample small, deterministic, and readable enough for future LLM reviewers. |
+| Installed package analysis smoke | Extend wheel/sdist or acceptance-suite checks to run the public analysis commands from an installed package, including packaged schemas/templates and CLI help for every `analysis` subcommand. | Build workflow; installed-wheel smoke harness; packaged resource coverage; version metadata tests. | This catches packaging drift after the roadmap is closed. It should not depend on editable-install behavior or local repo-only file paths. |
+| Analysis artifact authoring helper | Add a proposal-only helper that scaffolds a valid planned `run_manifest.json` and empty structured output templates for a `run_analysis` task from an accepted experiment plan. | Accepted-plan parser; task status and task.md conventions; template resources; path-containment rules; operator UX decisions. | Start dry-run/proposal-only. Do not infer methods after results exist and do not mutate the accepted experiment plan. The helper should explain missing inputs rather than inventing them. |
+| Validator explanation UX | Improve validator outputs and docs so operators can quickly understand blockers, warnings, next steps, and which artifact field caused a failure. | Current `analysis preflight`, `validate-run`, `validate-results`, and dashboard JSON; operator UX roadmap; stable blocker taxonomy. | Keep machine-readable JSON stable. Add concise summaries or remediation references without weakening fail-closed behavior. |
+| Reviewer packet bundling | Add a read-only command or option that prepares a reviewer packet containing the accepted plan, run manifest, metrics, diagnostics, robustness, claim gates, result summary, and validator reports. | Existing review context preparation patterns; analysis artifact discovery; redaction/privacy policy; methodology/result reviewer prompt requirements. | Packet generation must not mark validation as passed. It should make human review easier while preserving repo files as the source of truth. |
+| Example packs by claim type | Add small worked examples for descriptive, associative, predictive, causal, and probabilistic claims with expected pass/cap/reject/human-review outcomes. | Stable artifact schemas; deterministic fixtures; docs packaging policy; claim-gate test matrix. | Examples should teach the contract boundaries. They should avoid implying that the core package performs statistical estimation. |
+| Workspace run index | Build a derived, rebuildable `research_ops/runs/` or dashboard-side index over completed analysis runs, validation state, accepted evidence, stale diagnostics, and rerun needs. | Analysis dashboard read model; result acceptance provenance; stale/revalidation policy; derived-index rebuild command. | The index must be disposable and regenerated from task artifacts. It must not become a second source of truth or hold unique manual edits. |
+| Automated rerun planning | Propose rerun tasks when accepted empirical evidence becomes stale because data versions, diagnostics, source policy, or claim-gate assumptions changed. | Revalidation schedule; accepted outputs index; source/data freshness signals; task creation policy; human approval for costly reruns. | Start proposal-only. Do not execute reruns automatically or reuse stale accepted memory as current evidence. |
+| Notebook, SQL, dbt, and warehouse adapters | Add thin optional adapters for common project execution patterns while preserving manual execution as valid. | Mature local-script adapter policy; connector/credential boundaries; output path containment; timeout/resource limits; preflight/read-only validator stability. | Adapters must stay preflight-gated and validation-subordinate. SQL/warehouse/dbt variants need explicit credential, network, and cost controls before execution. |
+| Project-specific adapter policy | Allow project repositories to declare approved adapter locations, allowed script roots, timeout limits, environment expectations, and blocked argument patterns. | Existing local-script adapter hardening; project config location decision; security review; tests for unsafe policy expansion. | Defaults should remain restrictive. Policy should never allow inline shell/interpreter execution unless a separate human-approved design explicitly accepts that risk. |
+| Claim-gate calibration metrics | Track how often analysis claims are accepted, capped, rejected, or sent to human review by claim type, method family, diagnostics status, and reviewer outcome. | Accepted/rejected ledgers; claim gate artifacts; metrics-history schema decision; dogfood examples. | Use metrics to tune future gates and docs. Avoid optimizing for higher acceptance rates at the cost of evidence quality. |
+| Cross-run comparison and regression checks | Compare newer runs against prior accepted runs for the same hypothesis, metric, data source, or method family, and surface materially different results. | Workspace run index or accepted evidence metadata; stable run IDs; baseline/candidate metric normalization; reviewer guidance. | Read-only first. Differences should prompt review, not silently supersede accepted memory. |
+
+### Suggested Sequencing
+
+1. End-to-end dogfood fixture to prove the delivered V1 loop from accepted plan
+   through accepted empirical evidence.
+2. Installed package analysis smoke so packaged schemas, templates, and public
+   commands are tested outside editable installs.
+3. Validator explanation UX and reviewer packet bundling to reduce dogfood
+   friction without changing trust boundaries.
+4. Analysis artifact authoring helper in dry-run/proposal-only mode.
+5. Example packs by claim type to make the contract teachable.
+6. Workspace run index as a disposable derived read model.
+7. Claim-gate calibration metrics and cross-run comparison once enough runs
+   exist to make the telemetry meaningful.
+8. Automated rerun planning after stale-evidence behavior is well understood.
+9. Notebook, SQL, dbt, warehouse, and project-specific adapter policy only
+   after local-script adapter hardening has survived dogfood usage.
+
+### Cross-Track Dependencies
+
+- Experiment Planning: accepted plans remain the authority for hypotheses,
+  metrics, methods, baselines, budgets, and pre-result constraints.
+- Data Foundations: analysis preflight and accepted-evidence freshness depend
+  on `DS-*` governance, profiles, access notes, joins, and data gaps.
+- Knowledge Library: literature context can inform hypotheses and limitations,
+  but it must not bypass accepted-plan or source/data governance gates.
+- Idea Catalog: promoted ideas may create experiment plans that later feed HTF;
+  HTF outputs should feed accepted memory and anti-context, not rewrite idea
+  records.
+- Result Acceptance: empirical claims enter durable memory only through
+  reviewed acceptance records that cite the manifest, validation state,
+  diagnostics, and claim gates.
+- Operator UX and Dashboard Delivery: future screens should consume public
+  analysis validators/read models and avoid dashboard-only mutation paths.
+
+### Open Decisions
+
+- Should run manifests live only under task artifacts, or should a rebuildable
+  workspace-level run index also exist for operator navigation?
+- What is the minimum useful authoring helper: manifest-only, manifest plus
+  output templates, or a guided accepted-plan-to-task workflow?
+- Which claim-type examples should be packaged first: predictive baseline
+  comparison, causal placebo failure, probabilistic calibration failure, or
+  descriptive source-scope limits?
+- Which rerun triggers should be proposal-only warnings versus hard blockers
+  for accepted evidence reuse?
+- Which adapter types are worth adding after local scripts: notebook export,
+  SQL file execution, dbt job wrappers, or warehouse job status polling?
+- What project-level adapter policy can improve ergonomics without reopening
+  inline-code, path-escape, credential, or cost-control risks?

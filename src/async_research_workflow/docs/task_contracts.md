@@ -744,8 +744,8 @@ diagnostics, robustness, accepted-plan alignment, planned metric/check refs,
 malformed structured outputs, and semantic rules such as a `not_run` robustness
 check being unable to support claims. `validate-results` compares the result
 summary substance and `claim_gates.json` to the structured run artifacts and
-fails stale or unrelated gate reports. Phase 7 will wire the gate report into
-durable result acceptance records.
+fails stale or unrelated gate reports. Result acceptance consumes the gate
+report and records analysis provenance in durable empirical evidence records.
 
 Reviewer checklist for `run_analysis` and `evaluate_results`:
 

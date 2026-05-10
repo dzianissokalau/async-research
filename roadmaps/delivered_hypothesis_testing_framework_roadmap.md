@@ -1,16 +1,16 @@
 # Hypothesis Testing Framework Roadmap
 
-Status: In Progress
-Current phase: Phase 9 complete
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-10
-Next action: External review and adoption hardening
+Next action: Monitor dogfood feedback and split adoption or V2 work from the Future Improvements Backlog when explicitly requested
 Blocked by: None
 
 Created: 2026-05-07
 
 ## Summary
 
-Build a framework for turning accepted hypotheses and experiment plans into
+Delivered a framework for turning accepted hypotheses and experiment plans into
 reviewable empirical tests. The feature should standardize analysis runs,
 diagnostics, robustness checks, and claim limits without turning
 `async-research` into a statistics library.
@@ -20,17 +20,14 @@ gates. Project-specific repositories should own the actual data loading,
 regression code, causal inference implementation, model fitting, and
 domain-specific diagnostics.
 
-Sequencing note: this remains the next research-capability roadmap after the
-foundation stack. The May 9, 2026 Manus review also identified a separate
-adoption track, captured in the
-[Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md).
-If the goal is smoother dogfooding and first-user success, implement the
-operator UX P1s first; if the goal is empirical research capability, start this
-roadmap.
+This roadmap is closed. Post-delivery adoption hardening, examples, and V2
+execution helpers are tracked in the
+[Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md)
+until one focused item is explicitly promoted into its own roadmap.
 
 ## Execution Decisions
 
-V1 should be contract-first, read-only-first, and backward-compatible. The
+V1 is contract-first, read-only-first, and backward-compatible. The
 first execution goal is to make the analysis run manifest and validation path
 real without executing project-owned analysis code.
 
@@ -39,7 +36,7 @@ language and the **analysis run framework** in implementation contracts.
 
 ### V1 Scope
 
-V1 includes:
+V1 delivered:
 
 - analysis run manifest schema and template
 - read-only `analysis preflight`
@@ -54,15 +51,19 @@ V1 includes:
 - read-only weekly digest, health, readiness, or dashboard summaries after the
   validators are stable
 
-V1 defers:
+V1 still defers:
 
 - general-purpose statistical modeling
 - project-owned data loading or feature engineering
-- notebook, SQL, dbt, warehouse, or local script execution adapters
+- notebook, SQL, dbt, and warehouse execution adapters
 - automatic reruns of stale analyses
 - a workspace-level `research_ops/runs/` cache
 - strict causal inference reference implementations
 - any mutation of accepted experiment plans from a `run_analysis` task
+
+Post-MVP Phase 9 delivered a tightly constrained optional `local_script`
+adapter, but validation remains the authority and manual/notebook/SQL/dbt/
+warehouse runs remain valid without adapters.
 
 ### Authority Model
 
@@ -262,8 +263,9 @@ Delivery boundary:
   output contracts, validation CLI, claim gates, and task guidance.
 - V1 post-MVP: Phases 7 through 8. This adds result acceptance integration and
   read-only operational surfaces.
-- V2: Phase 9 optional runner adapters, workspace-level run indexes, automated
-  reruns, and stricter project-specific execution helpers.
+- Post-MVP hardening: Phase 9 optional local-script runner adapters.
+- V2 candidates: workspace-level run indexes, automated reruns, notebook/SQL/
+  dbt/warehouse adapters, and stricter project-specific execution helpers.
 
 ## Progress
 
@@ -916,13 +918,6 @@ The V1 feature is complete when:
 
 ## Open Questions
 
-- Should run manifests live only under task artifacts, or also be indexed under
-  a workspace-level `research_ops/runs/` cache after V1?
-- Should the core package define method families only, or also provide small
-  reference implementations for common diagnostics after contracts stabilize?
-- Should probability calibration be mandatory only for probability claims, or
-  also for ranking/risk-score outputs?
-- How strict should deviation handling be for exploratory analysis tasks that
-  are explicitly not meant to produce accepted evidence?
-- Should `evaluate_results` have a separate result-evaluation manifest, or is
-  the result summary plus run manifest enough?
+Open V2 and adoption questions were moved to the
+[Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md)
+when this roadmap closed on 2026-05-10.

@@ -192,7 +192,7 @@ class AnalysisOutputContractTests(unittest.TestCase):
         self.assertEqual([], schema_errors(payload, "analysis_robustness_checks.schema.json"))
 
     def test_roadmap_no_longer_advertises_separate_leakage_checks_json(self) -> None:
-        roadmap = repo_root_text("roadmaps/in_progress_hypothesis_testing_framework_roadmap.md")
+        roadmap = repo_root_text("roadmaps/delivered_hypothesis_testing_framework_roadmap.md")
 
         self.assertNotIn("leakage_checks.json", roadmap)
 
