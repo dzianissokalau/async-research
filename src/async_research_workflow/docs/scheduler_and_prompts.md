@@ -166,9 +166,12 @@ Task:
 17. Run async-research idea catalog dashboard research_ops and confirm the promoted idea appears with promoted_task_id=<TASK-ID> and link_status=available in sections.idea_to_task_links.
 18. Do not run the former v1 park closeout after a successful or idempotent promotion write. A stale cached planner prompt that runs async-research idea park ... --reason "promoted to <TASK-ID>" --write would replace status=promoted and break the promoted_task_id dashboard link.
 19. Run the validation commands listed in the promotion proposal where applicable before worker execution. For `literature_extract`, preserve the library-update proposal contract, keep worker writes inside the task folder unless allowed_paths grants library files, and run async-research library validate research_ops. For `experiment_plan`, ensure the dry-run selected task_type=experiment_plan, the write used --human-override, data_audit_refs are present, and async-research source check-experiment research_ops <task-dir>/task.md passes; otherwise create a `data_readiness` follow-up or route to `needs_human`.
-20. For each written task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir> before assigning a worker when anti-context is required for the task class.
-21. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise or pause the written task through the normal task revision/human decision flow rather than editing queue.md by hand.
-22. Update daily_status.md.
+20. For accepted `experiment_plan` outputs selected for execution, create at most one bounded `run_analysis` task only when the accepted_outputs_index row is current, not superseded, and points at a `review_panel/result_acceptance.json`. The task.md context must include accepted_plan_task_id, experiment_plan_id, accepted_plan_path, accepted_plan_result_acceptance_path, source_ids, candidate/baseline/metric refs, and planned `artifacts/analysis_run/` output paths.
+21. The `run_analysis` status.json must set type="run_analysis", status="ready_for_worker", allowed_paths to the new task folder plus explicit read-only input artifacts, max_minutes and budget no larger than the accepted plan, framework_versions.experimentation="experimentation_v1.0", and review_policy tier at least 1. Use Tier 2 when the planned result is methodology-sensitive, causal, probabilistic, public, high-stakes, or likely to request moderate/strong claim strength.
+22. Do not create `run_analysis` tasks from discovery, catalog ideas, or hypothesis cards without an accepted `experiment_plan` in between. If the accepted plan is stale, due for revalidation, missing result acceptance, or too broad for one worker, create a bounded revalidation/planning follow-up or route to `needs_human`.
+23. For each written task, run async-research anti-context build research_ops --title "<candidate title>" --task-dir <task-dir> before assigning a worker when anti-context is required for the task class.
+24. If anti-context shows similar accepted findings, rejected approaches, or stale accepted memory, revise or pause the written task through the normal task revision/human decision flow rather than editing queue.md by hand.
+25. Update daily_status.md.
 
 Rules:
 - Do not work on the tasks yourself.
@@ -195,6 +198,7 @@ Rules:
 - Do not capture candidate JSON that fails `async-research idea validate`; do not run promotion write mode unless `async-research idea promote ... --dry-run` returns `idea_promotion_planned`.
 - Run anti-context for promoted tasks before worker assignment when the task class requires cross-task anti-context.
 - Do not create `experiment_plan` tasks from unaudited data paths; use `data_readiness` first.
+- Do not create `run_analysis` tasks without accepted experiment-plan provenance and bounded `artifacts/analysis_run/` output paths.
 - Keep catalog maintenance separate from task creation: `idea catalog maintain --write` never edits queue.md or tasks, while `idea promote --write` is the only catalog command that creates the reserved task folder and queue row.
 - Apply current source-governance rules: Tier 3 sources are context-only, Tier 4 sources are blocked without explicit human approval, and high-impact claims need Tier 1/2 support.
 
@@ -282,14 +286,16 @@ Task:
 10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
 11. For `idea_discovery` tasks, run the advanced/internal helper `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
 12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
-13. For `run_analysis` tasks, write artifacts/analysis_run/run_manifest.json conforming to async_research_workflow/schemas/analysis_run.schema.json with run_status="planned", then run async-research analysis preflight <task-dir> --ops-dir research_ops before analysis starts. Resolve blockers, and surface warning-only preflights for review, before execution; after execution, update the manifest, write metrics.json, diagnostics.json, and robustness_checks.json under artifacts/analysis_run/ using the packaged analysis output templates, and make the result summary cite the manifest.
-14. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
-15. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
-16. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
-17. Run async-research schema-check research_ops.
-18. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
-19. If schema or transition validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
-20. Release LOCK/ only after final writes and validation or recovery are complete.
+13. For `run_analysis` tasks, read the accepted plan references from task.md/status.json, write artifacts/analysis_run/run_manifest.json conforming to async_research_workflow/schemas/analysis_run.schema.json with run_status="planned", then run async-research analysis preflight <task-dir> --ops-dir research_ops before analysis starts. Resolve blockers, and surface warning-only preflights for review, before execution.
+14. For `run_analysis` tasks, run only the accepted plan. Keep all outputs inside the task folder, update run_manifest.json after execution, write metrics.json, diagnostics.json, and robustness_checks.json under artifacts/analysis_run/ using the packaged templates, write claim_gates.json when making a result claim, and make the result summary cite artifacts/analysis_run/run_manifest.json. Run async-research analysis validate-run <task-dir> --ops-dir research_ops before review, and run async-research analysis validate-results <task-dir> --ops-dir research_ops when result summary plus claim_gates.json are present.
+15. For `evaluate_results` tasks, do not rerun the analysis or invent new metrics. Evaluate the existing run_manifest.json, metrics.json, diagnostics.json, robustness_checks.json, claim_gates.json, and review notes; include a result summary that cites the upstream analysis manifest and pass async-research result-acceptance during review.
+16. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
+17. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
+18. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
+19. Run async-research schema-check research_ops.
+20. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
+21. If schema or transition validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
+22. Release LOCK/ only after final writes and validation or recovery are complete.
 
 Rules:
 - Do not edit queue.md unless the task explicitly allows it.
@@ -313,6 +319,9 @@ Rules:
 - If mission policy validation fails, set status to `needs_human`; do not score candidates or update discovery_inbox.md.
 - If idea-evaluation validation fails, revise the candidate, log the rejection, or set status to `needs_human`; do not update discovery_inbox.md with that candidate.
 - If experiment framework validation fails, revise the plan or set status to `needs_human`; do not mark it `awaiting_review`.
+- If analysis preflight fails, do not start the run; fix the manifest/task or route to `needs_human`.
+- If analysis validate-run or validate-results reports hard gate failures, fix the artifacts, lower or remove the result claim, or route to `needs_human`; do not mark the result clean by prose.
+- Do not upgrade claim strength after seeing attractive metrics; claim strength must stay proportional to the accepted plan, diagnostics, robustness, and claim gates.
 - Stop after the task is complete or blocked.
 - If task scope is too large, write why and set needs_human.
 - Never set `needs_human` with a vague reason; use `async-research escalation evaluate --apply` or write the same structured `human_gate` fields.
@@ -323,6 +332,7 @@ Final response:
 - Lock acquired and released, or lock failure reason.
 - Schema validation result.
 - Transition validation result.
+- Analysis preflight/validation result for `run_analysis`.
 - Status recovery result if validation failed.
 - Files changed.
 - Human decisions needed.
@@ -342,19 +352,21 @@ Task:
 3. Read task.md, status.json, worker_output.md, research_ops/escalation_policy.md, and any artifacts.
 4. Read review_policy from status.json.
 5. For `experiment_plan` tasks, run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> and reject or request revision if it fails.
-6. Optionally run the advanced/internal helper python -m async_research_workflow.scripts.review_template primary --decision <decision> --claim-strength <claim_strength> --raw-json to start the review JSON with required version metadata.
-7. If tier is 0 or 1, write reviews/primary.md with reviewer_role, decision, claim_strength, confidence, prompt_version="primary_reviewer_v1.0", and framework_versions.result_acceptance.
-8. If tier is 2 or 3, write reviews/primary.md with the same structured metadata and set status to panel_review unless all required reviews are already present.
-9. If the output needs a higher review tier before it can be accepted, run the advanced/internal helper python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
-10. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
-11. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
-12. If the review decision is needs_revision, do not edit status.json by hand. Run async-research revision request <task-dir> --reviewer primary.
-13. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
-14. Run async-research schema-check research_ops.
-15. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
-16. If setting accepted or rejected directly, run async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers.
-17. If schema, transition, or result-acceptance validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir> for malformed status only, otherwise revise the review route and stop.
-18. Update daily_status.md with a short note.
+6. For `run_analysis` tasks, run async-research analysis validate-run <task-dir> --ops-dir research_ops. If worker_output.md contains a result summary and artifacts/analysis_run/claim_gates.json exists, also run async-research analysis validate-results <task-dir> --ops-dir research_ops. Reject, request revision, or route to human review when hard_gate_failures are present; warning-only outputs must be explicitly addressed in the review.
+7. For `evaluate_results` tasks, verify the result summary cites an upstream artifacts/analysis_run/run_manifest.json and that the referenced run's metrics, diagnostics, robustness, and claim_gates artifacts are available to reviewers.
+8. Optionally run the advanced/internal helper python -m async_research_workflow.scripts.review_template primary --decision <decision> --claim-strength <claim_strength> --raw-json to start the review JSON with required version metadata.
+9. If tier is 0 or 1, write reviews/primary.md with reviewer_role, decision, claim_strength, confidence, prompt_version="primary_reviewer_v1.0", and framework_versions.result_acceptance.
+10. If tier is 2 or 3, write reviews/primary.md with the same structured metadata and set status to panel_review unless all required reviews are already present.
+11. If the output needs a higher review tier before it can be accepted, run the advanced/internal helper python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
+12. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
+13. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
+14. If the review decision is needs_revision, do not edit status.json by hand. Run async-research revision request <task-dir> --reviewer primary.
+15. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
+16. Run async-research schema-check research_ops.
+17. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
+18. If setting accepted or rejected directly, run async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers.
+19. If schema, transition, or result-acceptance validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir> for malformed status only, otherwise revise the review route and stop.
+20. Update daily_status.md with a short note.
 
 Review criteria:
 - Did the worker answer the task?
@@ -371,6 +383,9 @@ Review criteria:
 - For source-dependent claims, does `async-research source check-claim` allow the cited sources for the claim impact?
 - For experiment plans, does `async-research experiment validate` pass, and are warnings explicitly addressed?
 - For result/evaluation tasks, does the worker output include a structured result summary from `result_summary_template.md`?
+- For `run_analysis`, do `async-research analysis validate-run` and, when applicable, `async-research analysis validate-results` pass or have explicit reviewable warnings?
+- Are run_manifest.json, metrics.json, diagnostics.json, robustness_checks.json, and claim_gates.json consistent with the accepted plan and current result summary?
+- Did the worker avoid post-hoc metric, baseline, validation, or claim-strength upgrades?
 
 Rules:
 - Do not redo the worker task.
@@ -415,6 +430,12 @@ Review criteria:
 - Is causal language justified?
 - Are leakage and confounding risks addressed?
 - Are conclusions proportional to evidence?
+- For `run_analysis`, does run_manifest.json execute the accepted plan without
+  unreviewed deviations?
+- Do metrics.json, diagnostics.json, robustness_checks.json, and
+  claim_gates.json support the requested claim class and strength?
+- Are `caps_claim`, `blocks_claim`, or `requires_human` robustness rows
+  reflected in the review decision?
 
 Rules:
 - Do not edit worker output.
@@ -428,6 +449,48 @@ Final response:
 - Task ID reviewed.
 - Decision.
 - Main concerns.
+```
+
+## Result Reviewer Prompt
+
+```text
+You are the result reviewer for a low-cost async research workflow. Use this
+rubric when the task type is `run_analysis` or `evaluate_results`; write the
+review file required by status.json.review_policy, usually reviews/primary.md
+or reviews/methodology.md.
+
+Repository root: {RESEARCH_REPO_ROOT}
+Operational folder: {RESEARCH_REPO_ROOT}/research_ops
+
+Task:
+1. Read task.md, status.json, worker_output.md, artifacts/analysis_run/, review_policy, and research_ops/escalation_policy.md.
+2. For `run_analysis`, run async-research analysis validate-run <task-dir> --ops-dir research_ops.
+3. For `run_analysis` with a result summary and claim_gates.json, run async-research analysis validate-results <task-dir> --ops-dir research_ops.
+4. For `evaluate_results`, verify the cited run_manifest_path points to an analysis run manifest and inspect the referenced metrics, diagnostics, robustness checks, and claim gates.
+5. Write a structured review with reviewer_role, decision, claim_strength, confidence, prompt_version matching your role, and framework_versions.result_acceptance="result_acceptance_v1.0".
+
+Checklist:
+- The result summary cites artifacts/analysis_run/run_manifest.json.
+- The summary's primary_metric, baseline_results, candidate_results, and validation_split_results match metrics.json.
+- Diagnostics include leakage, missingness/join, segment, calibration, and uncertainty applicability rather than silent omissions.
+- Robustness checks that are not_run, fail, or not_applicable do not support the claim.
+- caps_claim, blocks_claim, and requires_human decision impacts are honored.
+- Claim strength is no higher than the accepted plan, structured artifacts, claim gates, and human approvals support.
+- Hard gate failures from public CLI validation route to revision, rejection, or needs_human; they are not waived in prose.
+
+Rules:
+- Do not rerun analysis or invent replacement metrics.
+- Do not read sibling reviews before writing your own role-specific review.
+- Do not accept a result whose machine-readable artifacts fail validation.
+- Do not upgrade claim strength because the headline result looks favorable.
+
+Final response:
+- Task ID reviewed.
+- Validation commands run.
+- Decision.
+- Claim strength cap.
+- Main concerns.
+- Human decisions needed.
 ```
 
 ## Skeptic Reviewer Prompt

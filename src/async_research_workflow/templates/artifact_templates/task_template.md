@@ -21,6 +21,13 @@ Write `worker_output.md` with:
 - recommendation
 - proposed follow-ups
 
+For result-bearing `run_analysis` and `evaluate_results` tasks, also include a
+fenced JSON result summary from
+`async_research_workflow/templates/artifact_templates/result_summary_template.md`.
+Do not upgrade `claim_strength` after seeing attractive results; the summary
+should request the strongest claim the accepted plan and validation artifacts
+can support, and reviewers/claim gates may cap it further.
+
 ## Acceptance Criteria
 
 - Output answers the objective.
@@ -84,21 +91,35 @@ Write `worker_output.md` with:
   conforming to `async_research_workflow/schemas/experiment_plan.schema.json`, and must
   pass `async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>`
   before review.
-- For `run_analysis` tasks, write
+- For `run_analysis` tasks, the task context must name the accepted plan:
+  `accepted_plan_task_id`, `experiment_plan_id`, `accepted_plan_path`, and
+  `accepted_plan_result_acceptance_path`. Run only that accepted plan, or record
+  every deviation in the manifest with `reviewer_action_required: true`.
+- For `run_analysis` tasks, write every output inside this task folder,
+  normally under `artifacts/analysis_run/`. The accepted experiment plan and
+  source/data artifacts are inputs, not writable outputs.
+- Before analysis starts, write
   `artifacts/analysis_run/run_manifest.json` conforming to
-  `async_research_workflow/schemas/analysis_run.schema.json`; the manifest is
-  created with `run_status: "planned"` before analysis starts, then updated as
-  the canonical record of what actually ran and any deviations from the accepted
-  experiment plan. Run
-  `async-research analysis preflight <task-dir> --ops-dir research_ops` before
-  starting the analysis; blockers or warnings must be resolved or reviewed
-  before execution. After execution, write `metrics.json`, `diagnostics.json`,
-  and `robustness_checks.json` under `artifacts/analysis_run/` using the
-  packaged analysis output templates.
-- For `run_analysis` and `evaluate_results` tasks, include a fenced JSON result
-  summary following
-  `async_research_workflow/templates/artifact_templates/result_summary_template.md`;
-  accepted/rejected review aggregates must pass `async-research result-acceptance`.
+  `async_research_workflow/schemas/analysis_run.schema.json` with
+  `run_status: "planned"`, then run
+  `async-research analysis preflight <task-dir> --ops-dir research_ops`.
+  Blockers or warnings must be resolved or reviewed before execution.
+- After execution, update `run_manifest.json` to the actual run status and
+  write `metrics.json`, `diagnostics.json`, and `robustness_checks.json` under
+  `artifacts/analysis_run/` using the packaged analysis output templates. If a
+  result claim is made, write `claim_gates.json` and make the result summary
+  cite `artifacts/analysis_run/run_manifest.json`.
+- Before review, run
+  `async-research analysis validate-run <task-dir> --ops-dir research_ops`.
+  If a result summary and `claim_gates.json` are present, also run
+  `async-research analysis validate-results <task-dir> --ops-dir research_ops`.
+  Do not mark the task `awaiting_review` until blockers are fixed or explicitly
+  routed to `needs_human`.
+- For `evaluate_results` tasks, do not rerun or silently reinterpret the
+  analysis. Evaluate the existing manifest, metrics, diagnostics, robustness,
+  claim gates, and reviewer notes. The result summary must cite the upstream
+  `artifacts/analysis_run/run_manifest.json`; accepted/rejected review
+  aggregates must pass `async-research result-acceptance`.
 
 ## Cross-Task Anti-Context
 

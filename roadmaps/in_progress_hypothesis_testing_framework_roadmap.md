@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 6 ready
+Current phase: Phase 7 ready
 Last updated: 2026-05-10
-Next action: Implement Phase 6 task templates and prompts
+Next action: Implement Phase 7 result acceptance integration
 Blocked by: None
 
 Created: 2026-05-07
@@ -277,7 +277,7 @@ Last updated: 2026-05-10
 | 3 | Output contracts | Complete | Add structured metrics, diagnostics, and robustness schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Adds `analysis_metrics`, `analysis_diagnostics`, and `analysis_robustness` schemas plus packaged artifact templates and contract tests. |
 | 4 | Claim gates | Complete | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Adds `analysis_claim_gates_v1.0`, a packaged template, and reusable evaluator tests for accepted, capped, rejected, and human-gated routes. |
 | 5 | Analysis validation CLI | Complete | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Adds read-only public CLI commands backed by `analysis_validation.py`, with tests for valid artifacts, missing manifest, missing baseline output, unplanned metric changes, robustness semantic failures, and claim gate blockers. |
-| 6 | Task templates and prompts | Not Started | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Completes the MVP usability loop. |
+| 6 | Task templates and prompts | Complete | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Adds bounded run-analysis planner guidance, worker/reviewer prompt checklists, result-summary guidance, and docs tests for public analysis validation commands. |
 | 7 | Result acceptance integration | Not Started | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence should cite manifest, data versions, diagnostics, and claim gates. |
 | 8 | Read-only surfaces | Not Started | Surface analysis status, blockers, diagnostics, stale runs, and empirical evidence in weekly digest, health, readiness, and dashboard views. | Build only after validators are stable. |
 | 9 | Optional runner adapters | Not Started | Consider thin local script, notebook, SQL, dbt, warehouse, or Python entrypoint wrappers. | Adapters remain optional and cannot bypass preflight or validation. |
@@ -724,6 +724,23 @@ Acceptance:
 - worker instructions are clear enough for Codex or another agent
 - reviewers have a checklist tied to machine-readable artifacts
 - docs use the public CLI commands rather than internal helper paths
+
+Delivered in Phase 6:
+
+- `task_template.md` separates `run_analysis` and `evaluate_results`
+  expectations, including accepted-plan provenance, task-folder-only outputs,
+  preflight, completed-run validation, and result-summary manifest linkage.
+- `result_summary_template.md` explains canonical manifest references and
+  requires summary metric fields to stay consistent with `metrics.json`.
+- `scheduler_and_prompts.md` gives the planner bounded accepted-plan-to-
+  `run_analysis` creation rules, worker artifact/validation instructions, and
+  primary/methodology/result reviewer checklists tied to machine-readable
+  artifacts.
+- `task_contracts.md` documents the accepted-plan provenance required for
+  `run_analysis`, deviation handling, and reviewer checklist.
+- Docs tests assert the public `async-research analysis preflight`,
+  `validate-run`, and `validate-results` commands are used in analysis prompt
+  guidance.
 
 ## Phase 7: Result Acceptance Integration
 

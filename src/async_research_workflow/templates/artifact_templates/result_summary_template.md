@@ -6,6 +6,13 @@ derive routine artifact acceptance from `status.json`, `worker_output.md`, and
 review aggregation, but result-bearing tasks need this structured summary for
 claim caps and evidence ledger updates.
 
+For `run_analysis`, `run_manifest_path` must point at the same task's canonical
+`artifacts/analysis_run/run_manifest.json`. For `evaluate_results`, it must
+point at the upstream analysis run being evaluated. Keep `primary_metric`,
+`baseline_results`, `candidate_results`, and `validation_split_results`
+consistent with the structured `metrics.json`; do not use this summary to
+upgrade the accepted plan's claim strength after seeing favorable results.
+
 ```json
 {
   "schema_version": "1.0",

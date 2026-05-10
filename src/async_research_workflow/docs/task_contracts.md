@@ -570,6 +570,29 @@ time/spatial validation design, leakage checklist, success/failure criteria,
 budget limits, output manifest path, and bounded claim limits. Failed validation
 routes to revision or human review; it must not advance to `run_analysis`.
 
+Planner-created `run_analysis` tasks are allowed only from an accepted
+`experiment_plan` whose result acceptance record is current. The task context
+must include:
+
+```text
+accepted_plan_task_id
+experiment_plan_id
+accepted_plan_path
+accepted_plan_result_acceptance_path
+source_ids
+planned candidate/baseline/metric refs
+planned artifacts/analysis_run/ output paths
+```
+
+The planned task must be bounded before any worker starts: `status.json.type`
+is `run_analysis`, `allowed_paths` is limited to the analysis task folder plus
+explicit read-only input artifacts, `max_minutes` and budget do not exceed the
+accepted plan, and `review_policy` is at least Tier 1. If the result will make
+a moderate/strong, public, high-stakes, causal, or otherwise methodology-
+sensitive claim, the planner should require Tier 2 or route to human review.
+Do not create `run_analysis` tasks from discovery, idea catalog, or
+hypothesis-card records without an accepted experiment plan in between.
+
 `run_analysis` tasks must include an analysis run manifest at:
 
 ```text
@@ -595,6 +618,12 @@ accepted experiment plan, data versions, code version, runner type, method
 family, baseline refs, primary metric, planned outputs, deviations from plan,
 and reproducibility notes. It is not an approval to change the accepted plan;
 deviations must be explicit and reviewable.
+
+Workers may only run the accepted plan named by the manifest. If they need to
+change the data window, baseline, candidate method, primary metric, validation
+design, runner, or output layout, they must record the deviation in
+`deviations_from_plan` with `reviewer_action_required: true` or route the task
+to `needs_human` before continuing.
 
 Run the read-only preflight before starting the analysis:
 
@@ -674,6 +703,20 @@ check being unable to support claims. `validate-results` compares the result
 summary substance and `claim_gates.json` to the structured run artifacts and
 fails stale or unrelated gate reports. Phase 7 will wire the gate report into
 durable result acceptance records.
+
+Reviewer checklist for `run_analysis` and `evaluate_results`:
+
+- `run_manifest.json` names the accepted plan and has no unreviewed deviations.
+- `metrics.json` represents every planned baseline and planned metric used by
+  the claim.
+- `diagnostics.json` records leakage, join/missingness, calibration, and
+  uncertainty applicability instead of omitting inconvenient checks.
+- `robustness_checks.json` cannot use `not_run`, `fail`, or `not_applicable`
+  rows to support a claim; `caps_claim` rows must appear in the claim gates.
+- `claim_gates.json` matches the current result summary and structured
+  artifacts.
+- The result summary cites the manifest and does not request a stronger claim
+  than the accepted plan, validation evidence, and reviewer notes support.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:
