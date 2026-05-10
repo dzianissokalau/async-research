@@ -649,8 +649,10 @@ a `join_quality_checks` row with `applicable: false` and
 contract records planned robustness checks, pass/warn/fail state, decision
 impact, strongest supported claim class, and limitations. The analysis
 validation CLI enforces cross-field rules such as a `not_run` robustness check
-not being allowed to support a claim. These are contracts for reviewers and
-validators, not a modeling library.
+not being allowed to support a claim, planned metric/check refs matching the
+accepted plan, and `caps_claim` robustness checks being reflected in claim
+gates. These are contracts for reviewers and validators, not a modeling
+library.
 
 The claim gate contract records the maximum supported claim strength and the
 route for result acceptance: accepted, capped, rejected, or human-gated. The
@@ -666,11 +668,12 @@ async-research analysis validate-results research_ops/tasks/TASK-0001 --ops-dir 
 ```
 
 `validate-run` checks the completed manifest, required outputs, metrics,
-diagnostics, robustness, accepted-plan alignment, and semantic rules such as a
-`not_run` robustness check being unable to support claims. `validate-results`
-compares the result summary and `claim_gates.json` to the structured run
-artifacts. Phase 7 will wire the gate report into durable result acceptance
-records.
+diagnostics, robustness, accepted-plan alignment, planned metric/check refs,
+malformed structured outputs, and semantic rules such as a `not_run` robustness
+check being unable to support claims. `validate-results` compares the result
+summary substance and `claim_gates.json` to the structured run artifacts and
+fails stale or unrelated gate reports. Phase 7 will wire the gate report into
+durable result acceptance records.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:

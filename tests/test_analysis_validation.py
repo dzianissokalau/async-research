@@ -42,6 +42,10 @@ def gate_names(payload: dict) -> set[str]:
     return {item["gate"] for item in payload.get("hard_gate_failures", [])}
 
 
+def warning_names(payload: dict) -> set[str]:
+    return {item["gate"] for item in payload.get("warnings", [])}
+
+
 def write_worker_summary(task_dir: Path, summary: dict) -> None:
     task_dir.joinpath("worker_output.md").write_text(
         "Completed fixture analysis.\n\n```json\n" + json.dumps(summary, indent=2, sort_keys=True) + "\n```\n",
@@ -225,6 +229,31 @@ class AnalysisValidationTests(unittest.TestCase):
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("primary_metric_matches_plan", gate_names(payload))
 
+    def test_validate_run_rejects_unplanned_metric_rows(self) -> None:
+        metrics = analysis_metrics()
+        metrics["candidate_metrics"][0]["planned_metric_ref"] = "experiment_plan.metrics.secondary_metrics[99]"
+        metrics["metric_rows"].append(
+            {
+                "metric_name": "AUC",
+                "role": "validation",
+                "value": 0.9,
+                "unit": "ratio",
+                "direction": "increase",
+                "split": "validation",
+                "segment": "all",
+                "source": "post-hoc table",
+                "planned_metric_ref": "experiment_plan.metrics.secondary_metrics[99]",
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, metrics=metrics)
+
+            code, payload = run_json(analysis_validation, ["validate-run", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("planned_metrics_match_plan", gate_names(payload))
+
     def test_validate_run_rejects_not_run_robustness_supporting_claim(self) -> None:
         robustness = analysis_robustness()
         robustness["planned_checks"][0]["status"] = "not_run"
@@ -237,6 +266,133 @@ class AnalysisValidationTests(unittest.TestCase):
 
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("robustness_semantics", gate_names(payload))
+
+    def test_validate_run_rejects_unplanned_robustness_ref(self) -> None:
+        robustness = analysis_robustness()
+        robustness["planned_checks"][0]["planned_check_ref"] = "experiment_plan.robustness_checks[99]"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, robustness=robustness)
+
+            code, payload = run_json(analysis_validation, ["validate-run", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("robustness_checks_match_plan", gate_names(payload))
+
+    def test_validate_run_warns_when_robustness_caps_claim(self) -> None:
+        robustness = analysis_robustness()
+        robustness["planned_checks"][0]["decision_impact"] = "caps_claim"
+        robustness["planned_checks"][0]["status"] = "warn"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, robustness=robustness)
+
+            code, payload = run_json(analysis_validation, ["validate-run", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("robustness_caps_claim", warning_names(payload))
+
+    def test_validate_results_rejects_summary_substance_mismatches(self) -> None:
+        summary = result_summary(
+            run_manifest_path="research_ops/tasks/TASK-9999-run-analysis/artifacts/analysis_run/run_manifest.json",
+            primary_metric="RMSE lower is better",
+            baseline_results="Baseline RMSE 1.2",
+            candidate_results="Candidate RMSE 1.0",
+            validation_split_results="random full sample",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, summary=summary)
+
+            code, payload = run_json(analysis_validation, ["validate-results", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("result_summary_matches_outputs", gate_names(payload))
+
+    def test_validate_results_rejects_stale_claim_gate_artifact(self) -> None:
+        claim_gates = analysis_claim_gates.evaluate_claim_gates(
+            result_summary(claim="A previous claim that should not be reused."),
+            metrics=analysis_metrics(),
+            diagnostics=analysis_diagnostics(),
+            robustness=analysis_robustness(),
+            generated_at=NOW,
+            trusted_identity={"run_id": "RUN-8002", "experiment_plan_id": "EXP-8001", "task_id": "TASK-8002"},
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, claim_gates=claim_gates)
+
+            code, payload = run_json(analysis_validation, ["validate-results", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("claim_gates_match_outputs", gate_names(payload))
+
+    def test_validate_results_requires_caps_claim_in_claim_gates(self) -> None:
+        robustness = analysis_robustness()
+        robustness["planned_checks"][0]["decision_impact"] = "caps_claim"
+        robustness["planned_checks"][0]["status"] = "warn"
+        stale_claim_gates = analysis_claim_gates.evaluate_claim_gates(
+            result_summary(),
+            metrics=analysis_metrics(),
+            diagnostics=analysis_diagnostics(),
+            robustness=analysis_robustness(),
+            generated_at=NOW,
+            trusted_identity={"run_id": "RUN-8002", "experiment_plan_id": "EXP-8001", "task_id": "TASK-8002"},
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir, robustness=robustness, claim_gates=stale_claim_gates)
+
+            code, payload = run_json(analysis_validation, ["validate-results", analysis_dir, "--ops-dir", ops_dir, "--now", NOW])
+
+        self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
+        self.assertIn("claim_gates_match_outputs", gate_names(payload))
+        self.assertIn("robustness_caps_claim", warning_names(payload))
+
+    def test_validate_results_returns_malformed_for_bad_completed_artifacts(self) -> None:
+        artifact_paths = [
+            "artifacts/analysis_run/metrics.json",
+            "artifacts/analysis_run/diagnostics.json",
+            "artifacts/analysis_run/robustness_checks.json",
+            "artifacts/analysis_run/claim_gates.json",
+        ]
+        for artifact_path in artifact_paths:
+            with self.subTest(artifact_path=artifact_path):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+                    write_completed_artifacts(analysis_dir)
+                    (analysis_dir / artifact_path).write_text("{", encoding="utf-8")
+
+                    code, payload = run_json(
+                        analysis_validation,
+                        ["validate-results", analysis_dir, "--ops-dir", ops_dir, "--now", NOW],
+                    )
+
+                self.assertEqual(analysis_validation.MALFORMED, code, payload)
+                self.assertFalse(payload.get("ok", False))
+                self.assertEqual("malformed_task_state", payload.get("reason"))
+
+    def test_validate_run_returns_malformed_for_bad_structured_outputs(self) -> None:
+        artifact_paths = [
+            "artifacts/analysis_run/metrics.json",
+            "artifacts/analysis_run/diagnostics.json",
+            "artifacts/analysis_run/robustness_checks.json",
+        ]
+        for artifact_path in artifact_paths:
+            with self.subTest(artifact_path=artifact_path):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+                    write_completed_artifacts(analysis_dir)
+                    (analysis_dir / artifact_path).write_text("{", encoding="utf-8")
+
+                    code, payload = run_json(
+                        analysis_validation,
+                        ["validate-run", analysis_dir, "--ops-dir", ops_dir, "--now", NOW],
+                    )
+
+                self.assertEqual(analysis_validation.MALFORMED, code, payload)
+                self.assertFalse(payload.get("ok", False))
+                self.assertEqual("malformed_task_state", payload.get("reason"))
 
     def test_validate_results_rejects_claim_gate_failure(self) -> None:
         summary = result_summary(

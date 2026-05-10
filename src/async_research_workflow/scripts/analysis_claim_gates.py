@@ -671,6 +671,15 @@ def robustness_decision_impact_gate(robustness: Optional[dict[str, Any]]) -> Opt
             "robustness checks require human review",
             [f"{item.get('name', 'robustness check')}: {item.get('result', '')}" for item in human_required],
         )
+    caps = [item for item in checks if str(item.get("decision_impact", "")).lower() == "caps_claim"]
+    if caps:
+        return gate_result(
+            "robustness_decision_impact",
+            "cap",
+            "suggestive",
+            "robustness checks marked caps_claim cap result acceptance strength",
+            [f"{item.get('name', 'robustness check')}: {item.get('result', '')}" for item in caps],
+        )
     return gate_result("robustness_decision_impact", "pass", "strong", "no robustness decision impacts block the claim")
 
 

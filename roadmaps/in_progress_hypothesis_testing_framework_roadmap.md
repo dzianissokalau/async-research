@@ -663,17 +663,19 @@ Implementation steps:
    `not_run` robustness checks being unable to support claims.
 5. Emit machine-readable blockers and warnings.
 6. Add CLI tests for valid artifacts, missing manifest, missing baseline,
-   unplanned metric changes, and claim gate failures.
+   unplanned metric changes, summary mismatches, malformed artifacts,
+   robustness semantics, and claim gate failures.
 
 Delivered in Phase 5:
 
 - `async-research analysis validate-run` validates completed manifests,
   structured metrics/diagnostics/robustness artifacts, accepted-plan alignment,
-  required output files, baseline evidence, unplanned metric changes, and
-  robustness semantics.
+  required output files, baseline evidence, planned metric/check refs,
+  malformed structured outputs, unplanned metric changes, and robustness
+  semantics.
 - `async-research analysis validate-results` validates result summaries and
-  `claim_gates.json` against the completed run artifacts and recomputed claim
-  gates.
+  `claim_gates.json` against the completed run artifacts, summary substance,
+  robustness caps, and recomputed claim gates.
 - Both commands are read-only and emit machine-readable
   `hard_gate_failures`, `warnings`, and `next_step` fields.
 
@@ -682,7 +684,9 @@ Acceptance:
 - valid run artifacts pass
 - missing manifest fails
 - missing baseline fails
-- unplanned metric changes fail or require human decision
+- unplanned metric/check refs fail or require human decision
+- malformed completed-run artifacts return JSON with exit `4`
+- result-summary substance must match the current manifest and metrics
 - claim gates produce machine-readable blockers and warnings
 
 ## Phase 6: Task Templates And Prompts
