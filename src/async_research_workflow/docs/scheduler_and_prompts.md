@@ -673,13 +673,15 @@ Task:
 1. Run async-research health research_ops.
 2. Read research_ops/health_report.json.
 3. Do not modify task folders or route task statuses.
-4. If alerts exist, summarize them in the final response, including schema_version_warnings.
+4. Inspect checks.analysis_surface for analysis preflight blockers, missing validation, empirical revalidation needs, and capped or human-review claims.
+5. If alerts exist, summarize them in the final response, including schema_version_warnings and analysis_surface findings.
 
 Rules:
 - Run independently of worker and reviewer jobs.
 - Do not clean stale locks automatically.
 - Do not approve, reject, or retry tasks.
 - Treat health_report.json as the source of truth.
+- Use async-research analysis dashboard research_ops for a read-only drill-down when analysis alerts are present.
 
 Final response:
 - Health report path.

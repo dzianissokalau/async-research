@@ -822,6 +822,22 @@ Acceptance:
 - operator can see why an empirical claim is blocked or capped
 - dashboard and weekly digest do not mutate task artifacts
 
+Delivered in Phase 8:
+
+- `async-research analysis dashboard research_ops` renders a read-only JSON
+  dashboard for active `run_analysis` preflights, safe-to-run tasks, blockers,
+  completed runs missing validation, accepted empirical evidence, stale/due
+  revalidation needs, and capped or human-review claim gates.
+- Health and readiness reports consume the same analysis read model under
+  `checks.analysis_surface`; readiness blocks active analysis workers when
+  preflight blockers are present and warns on validation, revalidation, or claim
+  cap findings.
+- `surface update` writes an `Analysis Surface` section to `daily_status.md`
+  and `weekly_digest.md` without mutating task artifacts.
+- Tests cover dashboard read-only behavior, preflight blockers, missing
+  validation, accepted empirical revalidation, capped claims, CLI routing,
+  weekly digest integration, and health/readiness integration.
+
 ## Phase 9: Optional Runner Adapters
 
 Purpose: reduce repetitive glue after contracts are stable.

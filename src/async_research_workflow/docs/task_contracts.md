@@ -265,6 +265,20 @@ update` writes Knowledge Library summaries to `daily_status.md` and
 Source-dependent experiment and result gates remain governed by source/data
 audit rules, not by library memory alone.
 
+## Analysis Phase 8 Surfaces
+
+`async-research analysis dashboard research_ops` is the read-only operator view
+for analysis work. It consumes the public analysis preflight and validation
+commands plus result-acceptance records; it does not create tasks, mutate task
+artifacts, or replace review gates.
+
+`health`, `readiness`, and `surface update` include the same analysis read model
+under `checks.analysis_surface` or the `Analysis Surface` daily/weekly digest
+section. Operators can see active `run_analysis` tasks that are safe to run,
+preflight blockers, completed runs missing validation, accepted empirical
+evidence, stale or due empirical evidence, and claim caps or human-review
+requirements.
+
 ## Exploration Cycle
 
 Use `research_ops/discovery/source_register.md` as the approved discovery source

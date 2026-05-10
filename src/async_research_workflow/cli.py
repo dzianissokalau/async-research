@@ -1695,10 +1695,25 @@ def register_analysis_commands(subparsers) -> None:
     analysis = add_command(
         subparsers,
         "analysis",
-        help="Preflight and validate analysis-run tasks.",
-        description="Preflight analysis tasks before execution and validate completed run artifacts before result acceptance.",
+        help="Preflight, validate, and surface analysis-run tasks.",
+        description="Preflight analysis tasks before execution, validate completed run artifacts before result acceptance, and render read-only analysis surfaces.",
     )
     analysis_sub = analysis.add_subparsers(dest="analysis_command", required=True)
+    dashboard = add_command(
+        analysis_sub,
+        "dashboard",
+        help="Render a read-only analysis dashboard.",
+        description=(
+            "Read-only dashboard for active run_analysis preflight state, completed-run validation gaps, "
+            "accepted empirical evidence, revalidation triggers, and blocked or capped claims."
+        ),
+        epilog="Exits 0 when dashboard data is clean, 2 when analysis warnings or blockers are present, and 4 when malformed state prevents reliable dashboard output.",
+    )
+    add_common_ops(dashboard)
+    dashboard.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    dashboard.add_argument("--max-items", type=int, default=10, help="Maximum rows per dashboard section.")
+    dashboard.set_defaults(func=lambda a: module_main("analysis_surface", ["dashboard", str(a.ops_dir), "--max-items", str(a.max_items)] + (["--now", a.now] if a.now else [])))
+
     preflight = add_command(
         analysis_sub,
         "preflight",

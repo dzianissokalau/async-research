@@ -23,6 +23,7 @@ from async_research_workflow.scripts.check_schema_versions import (
 )
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts.analysis_surface import analysis_dashboard_report
 from async_research_workflow.scripts.data_source_audit import (
     EXPERIMENT_READY_STATUSES,
     parse_register,
@@ -693,6 +694,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     idea_catalog = catalog_surface_summary(ops_dir)
     data_foundations = data_foundation_report(ops_dir, now)
     library = knowledge_library.library_report(ops_dir, now, args.library_stale_days)
+    analysis_surface = analysis_dashboard_report(ops_dir, now=now, max_items=10)
 
     invalids: list[dict[str, Any]] = []
     human: list[dict[str, Any]] = []
@@ -826,6 +828,68 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "refresh or inspect catalog projections before relying on portfolio summaries",
             )
         )
+    analysis_summary = analysis_surface.get("summary") if isinstance(analysis_surface.get("summary"), dict) else {}
+    analysis_sections = analysis_surface.get("sections") if isinstance(analysis_surface.get("sections"), dict) else {}
+    if analysis_summary.get("malformed_read_model_count", 0):
+        invalids.append(
+            issue(
+                "error",
+                "analysis_surface_malformed_inputs",
+                f"{analysis_summary.get('malformed_read_model_count', 0)} analysis surface input(s) are missing or malformed",
+                analysis_sections.get("malformed_read_model_inputs", []),
+                "repair malformed analysis status or acceptance inputs before scheduling workers",
+            )
+        )
+    if analysis_summary.get("preflight_blocked_count", 0):
+        human.append(
+            issue(
+                "error",
+                "analysis_preflight_blockers",
+                f"{analysis_summary.get('preflight_blocked_count', 0)} active analysis task(s) have preflight blockers",
+                analysis_sections.get("preflight_blockers", []),
+                "resolve analysis preflight blockers before running analysis workers",
+            )
+        )
+    if analysis_summary.get("preflight_warning_count", 0):
+        warnings.append(
+            issue(
+                "warning",
+                "analysis_preflight_warnings",
+                f"{analysis_summary.get('preflight_warning_count', 0)} active analysis task(s) need warning review before execution",
+                analysis_sections.get("preflight_warnings", []),
+                "review warning-only analysis preflights before starting those runs",
+            )
+        )
+    if analysis_summary.get("completed_missing_validation_count", 0):
+        warnings.append(
+            issue(
+                "warning",
+                "analysis_validation_missing",
+                f"{analysis_summary.get('completed_missing_validation_count', 0)} completed analysis run(s) are missing clean validation",
+                analysis_sections.get("completed_runs_missing_validation", []),
+                "run analysis validate-run and validate-results before accepting empirical results",
+            )
+        )
+    if analysis_summary.get("revalidation_needed_count", 0):
+        warnings.append(
+            issue(
+                "warning",
+                "analysis_revalidation_needed",
+                f"{analysis_summary.get('revalidation_needed_count', 0)} empirical evidence item(s) need revalidation attention",
+                analysis_sections.get("revalidation_needed", []),
+                "review stale, due, or manual-review empirical evidence before reusing it as current memory",
+            )
+        )
+    if analysis_summary.get("claim_caps_or_human_review_count", 0):
+        warnings.append(
+            issue(
+                "warning",
+                "analysis_claim_caps_or_human_review",
+                f"{analysis_summary.get('claim_caps_or_human_review_count', 0)} empirical claim(s) are capped, blocked, or need human review",
+                analysis_sections.get("claim_caps_and_human_review", []),
+                "revise the claim, lower the claim strength, or complete human review before acceptance",
+            )
+        )
 
     decision, exit_code = classify_decision(invalids, human, skips, warnings)
     blockers = invalids + human + skips
@@ -859,6 +923,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "latest_metrics_snapshot": latest_metrics_snapshot(ops_dir),
             "accepted_memory": memory_decay_report(ops_dir, now=now),
             "idea_catalog": idea_catalog,
+            "analysis_surface": analysis_surface,
         },
         "thresholds": {
             "max_active": args.max_active,

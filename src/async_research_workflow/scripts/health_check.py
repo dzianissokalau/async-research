@@ -22,6 +22,7 @@ from async_research_workflow.scripts.check_schema_versions import (
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts.analysis_surface import analysis_dashboard_report
 from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
@@ -508,6 +509,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     library = knowledge_library.library_report(ops_dir, now, args.library_stale_days)
     accepted_memory = memory_decay_report(ops_dir, now=now)
     idea_catalog = catalog_surface_summary(ops_dir)
+    analysis_surface = analysis_dashboard_report(ops_dir, now=now, max_items=10)
     cost = scan_cost_ledger(
         ops_dir / "cost_ledger.csv",
         args.monthly_budget_usd,
@@ -668,6 +670,55 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             f"idea catalog has {len(idea_catalog['stale_projection_warnings'])} stale projection warning(s)",
             idea_catalog["stale_projection_warnings"],
         )
+    analysis_summary = analysis_surface.get("summary") if isinstance(analysis_surface.get("summary"), dict) else {}
+    if analysis_summary.get("preflight_blocked_count", 0):
+        add_alert(
+            alerts,
+            "warning",
+            "analysis_preflight_blockers",
+            f"{analysis_summary.get('preflight_blocked_count', 0)} active analysis task(s) have preflight blockers",
+            analysis_surface.get("sections", {}).get("preflight_blockers") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
+    if analysis_summary.get("preflight_warning_count", 0):
+        add_alert(
+            alerts,
+            "warning",
+            "analysis_preflight_warnings",
+            f"{analysis_summary.get('preflight_warning_count', 0)} active analysis task(s) need warning review before execution",
+            analysis_surface.get("sections", {}).get("preflight_warnings") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
+    if analysis_summary.get("completed_missing_validation_count", 0):
+        add_alert(
+            alerts,
+            "warning",
+            "analysis_validation_missing",
+            f"{analysis_summary.get('completed_missing_validation_count', 0)} completed analysis run(s) are missing clean validation",
+            analysis_surface.get("sections", {}).get("completed_runs_missing_validation") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
+    if analysis_summary.get("revalidation_needed_count", 0):
+        add_alert(
+            alerts,
+            "warning",
+            "analysis_revalidation_needed",
+            f"{analysis_summary.get('revalidation_needed_count', 0)} empirical evidence item(s) need revalidation attention",
+            analysis_surface.get("sections", {}).get("revalidation_needed") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
+    if analysis_summary.get("claim_caps_or_human_review_count", 0):
+        add_alert(
+            alerts,
+            "warning",
+            "analysis_claim_caps_or_human_review",
+            f"{analysis_summary.get('claim_caps_or_human_review_count', 0)} empirical claim(s) are capped, blocked, or need human review",
+            analysis_surface.get("sections", {}).get("claim_caps_and_human_review") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
+    if analysis_summary.get("malformed_read_model_count", 0):
+        add_alert(
+            alerts,
+            "error",
+            "analysis_surface_malformed_inputs",
+            f"{analysis_summary.get('malformed_read_model_count', 0)} analysis surface input(s) are missing or malformed",
+            analysis_surface.get("sections", {}).get("malformed_read_model_inputs") if isinstance(analysis_surface.get("sections"), dict) else None,
+        )
 
     monthly_ratio = cost.get("monthly_usage_ratio")
     if monthly_ratio is not None and monthly_ratio >= args.budget_threshold:
@@ -713,6 +764,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "knowledge_library": library,
             "accepted_memory": accepted_memory,
             "idea_catalog": idea_catalog,
+            "analysis_surface": analysis_surface,
         },
         "thresholds": {
             "stale_lock_minutes": args.stale_lock_minutes,

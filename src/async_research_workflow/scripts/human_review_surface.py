@@ -18,6 +18,7 @@ import sys
 from typing import Any, Iterable, Optional
 
 from async_research_workflow.idea_catalog import catalog_surface_summary
+from async_research_workflow.scripts.analysis_surface import analysis_dashboard_report, analysis_digest_section
 from async_research_workflow.scripts.cost_tracking import cost_window, ledger_path
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
@@ -68,7 +69,11 @@ DAILY_REQUIRED_HEADINGS = [
     "Needs Human Decision",
     "Budget Used",
     "Risky Or Stale Sources",
+    "Data Foundations",
+    "Analysis Surface",
+    "Knowledge Library",
     "Current Queue State",
+    "Idea Catalog",
     "Next Scheduled Tasks",
 ]
 
@@ -414,6 +419,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
     cost = cost_window(ledger_path(ops_dir), now, None, None)
     source = source_governance_report(ops_dir, now=now)
     data_foundations = data_foundation_report(ops_dir, now=now)
+    analysis_surface = analysis_dashboard_report(ops_dir, now=now, max_items=10)
     library = knowledge_library.library_report(ops_dir, now=now, stale_days=knowledge_library.SURFACE_STALE_DAYS)
     metrics = latest_metrics_snapshot(ops_dir)
     queue_depth = markdown_table_row_count(ops_dir / "queue.md")
@@ -437,6 +443,7 @@ def surface_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "cost": cost,
         "source": source,
         "data_foundations": data_foundations,
+        "analysis_surface": analysis_surface,
         "knowledge_library": library,
         "metrics": metrics,
         "queue_depth": queue_depth,
@@ -688,6 +695,20 @@ def daily_status_markdown(model: dict[str, Any]) -> str:
     lines.extend(["", "## Data Foundations", ""])
     lines.extend(data_foundation_lines(model["data_foundations"]))
 
+    lines.extend(["", "## Analysis Surface", ""])
+    analysis_summary = model["analysis_surface"].get("summary") if isinstance(model["analysis_surface"].get("summary"), dict) else {}
+    lines.extend(
+        [
+            f"- Active run_analysis: {analysis_summary.get('active_run_analysis_count', 0)}",
+            f"- Safe to run: {analysis_summary.get('safe_to_run_count', 0)}",
+            f"- Preflight blocked / warnings: {analysis_summary.get('preflight_blocked_count', 0)} / {analysis_summary.get('preflight_warning_count', 0)}",
+            f"- Completed runs missing validation: {analysis_summary.get('completed_missing_validation_count', 0)}",
+            f"- Accepted empirical evidence: {analysis_summary.get('accepted_empirical_evidence_count', 0)}",
+            f"- Revalidation needed: {analysis_summary.get('revalidation_needed_count', 0)}",
+            f"- Claim caps or human review: {analysis_summary.get('claim_caps_or_human_review_count', 0)}",
+        ]
+    )
+
     lines.extend(["", "## Knowledge Library", ""])
     lines.extend(knowledge_library_lines(model["knowledge_library"]))
 
@@ -840,6 +861,10 @@ def weekly_knowledge_library_section(model: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def weekly_analysis_section(model: dict[str, Any]) -> str:
+    return analysis_digest_section(model["analysis_surface"])
+
+
 def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
     path = ops_dir / WEEKLY_NAME
     text = path.read_text(encoding="utf-8") if path.exists() else "# Weekly Digest\n"
@@ -850,9 +875,11 @@ def update_weekly_digest(ops_dir: Path, model: dict[str, Any]) -> Path:
         + "\n\n"
         + weekly_data_foundations_section(model).rstrip()
         + "\n\n"
+        + weekly_analysis_section(model).rstrip()
+        + "\n\n"
         + weekly_knowledge_library_section(model).rstrip()
     )
-    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface|Data Foundations Surface|Knowledge Library Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
+    pattern = re.compile(r"\n?## (?:Human Review Surface|Idea Catalog Surface|Data Foundations Surface|Analysis Surface|Knowledge Library Surface)\n.*?(?=\n## |\Z)", re.DOTALL)
     stripped = pattern.sub("", text).rstrip()
     updated = stripped + "\n\n" + section.rstrip() + "\n"
     atomic_write_text(path, updated)

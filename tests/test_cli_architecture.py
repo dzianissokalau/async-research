@@ -186,7 +186,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["build"], list(anti_context_choices))
         self.assertEqual(["prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))
-        self.assertEqual(["preflight", "validate-run", "validate-results"], list(analysis_choices))
+        self.assertEqual(["dashboard", "preflight", "validate-run", "validate-results"], list(analysis_choices))
         self.assertEqual(["score", "validate", "capture", "promote", "park", "reject", "catalog"], list(idea_choices))
         self.assertEqual(["init", "validate", "list", "dashboard", "show", "maintain"], list(idea_catalog_choices))
         self.assertIs(accepted_choices["revalidation"], accepted_choices["revalidate"])
