@@ -90,6 +90,10 @@ experimentation, and result acceptance frameworks have reached this point:
   packaged `async_research_workflow/templates/artifact_templates/analysis_claim_gates_template.md`,
   and reusable claim gate evaluation in
   `async_research_workflow/scripts/analysis_claim_gates.py`
+- Completed analysis runs are checked by
+  `async_research_workflow/scripts/analysis_validation.py`, exposed through
+  `async-research analysis validate-run` and
+  `async-research analysis validate-results`
 - `result_acceptance_v1.0` is backed by
   `async_research_workflow/schemas/result_acceptance.schema.json` and
   `async_research_workflow/scripts/validate_result_acceptance.py`

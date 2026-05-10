@@ -1695,8 +1695,8 @@ def register_analysis_commands(subparsers) -> None:
     analysis = add_command(
         subparsers,
         "analysis",
-        help="Preflight analysis-run tasks.",
-        description="Preflight analysis run tasks against accepted experiment plans before execution starts.",
+        help="Preflight and validate analysis-run tasks.",
+        description="Preflight analysis tasks before execution and validate completed run artifacts before result acceptance.",
     )
     analysis_sub = analysis.add_subparsers(dest="analysis_command", required=True)
     preflight = add_command(
@@ -1714,6 +1714,37 @@ def register_analysis_commands(subparsers) -> None:
     preflight.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
     preflight.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
     preflight.set_defaults(func=lambda a: module_main("analysis_runs", ["preflight", str(a.task_dir), "--ops-dir", str(a.ops_dir)] + (["--now", a.now] if a.now else [])))
+
+    validate_run = add_command(
+        analysis_sub,
+        "validate-run",
+        help="Validate completed analysis-run artifacts.",
+        description=(
+            "Read-only validation for a completed run_analysis task: validates run_manifest.json, "
+            "structured metrics/diagnostics/robustness artifacts, accepted plan alignment, required outputs, "
+            "baseline evidence, metric changes, and robustness semantics."
+        ),
+        epilog="Exits 0 when clean, 2 for blockers or reviewable warnings, 3 for invalid requests, and 4 for malformed task state.",
+    )
+    validate_run.add_argument("task_dir", type=Path, help="run_analysis task directory to validate.")
+    validate_run.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
+    validate_run.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    validate_run.set_defaults(func=lambda a: module_main("analysis_validation", ["validate-run", str(a.task_dir), "--ops-dir", str(a.ops_dir)] + (["--now", a.now] if a.now else [])))
+
+    validate_results = add_command(
+        analysis_sub,
+        "validate-results",
+        help="Validate result summary and claim gates.",
+        description=(
+            "Read-only validation for completed analysis results: compares the result summary and claim_gates.json "
+            "with the run manifest, metrics, diagnostics, robustness checks, and accepted experiment plan."
+        ),
+        epilog="Exits 0 when clean, 2 for blockers or reviewable warnings, 3 for invalid requests, and 4 for malformed task state.",
+    )
+    validate_results.add_argument("task_dir", type=Path, help="run_analysis task directory to validate.")
+    validate_results.add_argument("--ops-dir", type=Path, required=True, help="research_ops directory.")
+    validate_results.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    validate_results.set_defaults(func=lambda a: module_main("analysis_validation", ["validate-results", str(a.task_dir), "--ops-dir", str(a.ops_dir)] + (["--now", a.now] if a.now else [])))
 
 
 def register_artifact_commands(subparsers) -> None:

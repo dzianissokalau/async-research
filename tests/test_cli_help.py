@@ -136,8 +136,10 @@ class CliHelpTests(unittest.TestCase):
             (["revision", "inspect"], ["revision fields", "--schema"]),
             (["revision", "scan-limits"], ["revision-limit hits", "--markdown"]),
             (["result-acceptance"], ["result_acceptance.json", "--update-ledgers"]),
-            (["analysis"], ["Preflight analysis", "preflight"]),
+            (["analysis"], ["Preflight analysis tasks", "preflight", "validate-run", "validate-results"]),
             (["analysis", "preflight"], ["Read-only", "accepted experiment plan", "--ops-dir", "--now", "stale accepted memory"]),
+            (["analysis", "validate-run"], ["completed run_analysis", "metrics", "robustness", "--ops-dir", "--now"]),
+            (["analysis", "validate-results"], ["result summary", "claim_gates.json", "accepted experiment plan", "--ops-dir", "--now"]),
             (["exploration"], ["exploration-cycle tasks", "validate"]),
             (["exploration", "validate"], ["worker output", "--task-dir"]),
             (["idea"], ["idea-evaluation JSON artifacts", "score", "validate", "capture", "promote", "park", "reject", "catalog"]),
@@ -211,7 +213,7 @@ class CliHelpTests(unittest.TestCase):
             "| `accepted check-memory-use` | `0` artifact does not cite stale accepted memory",
             "| `starter-smoke` | `0` all starter checks passed.",
             "| `result-acceptance` | `0` gates passed.",
-            "| `analysis preflight` | `0` clean preflight.",
+            "| `analysis preflight`, `analysis validate-run`, and `analysis validate-results` | `0` clean preflight or validation.",
             "| `simulate-week` | `0` simulated week passed.",
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)

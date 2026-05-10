@@ -647,8 +647,8 @@ applicability, and limitations. Single-source or no-join analyses should record
 a `join_quality_checks` row with `applicable: false` and
 `status: "not_applicable"` rather than inventing fake join keys. The robustness
 contract records planned robustness checks, pass/warn/fail state, decision
-impact, strongest supported claim class, and limitations. Phase 5 semantic
-validators will enforce cross-field rules such as a `not_run` robustness check
+impact, strongest supported claim class, and limitations. The analysis
+validation CLI enforces cross-field rules such as a `not_run` robustness check
 not being allowed to support a claim. These are contracts for reviewers and
 validators, not a modeling library.
 
@@ -657,9 +657,20 @@ route for result acceptance: accepted, capped, rejected, or human-gated. The
 reusable evaluator checks predictive baseline/validation evidence, causal
 language against identification evidence, probability claims against
 calibration or uncertainty diagnostics, diagnostic weakness caps, and
-public/high-stakes/strong human approval requirements. Phase 5 will expose
-these checks through the analysis validation CLI; Phase 7 will wire the gate
-report into durable result acceptance records.
+public/high-stakes/strong human approval requirements. Before result
+acceptance, run:
+
+```bash
+async-research analysis validate-run research_ops/tasks/TASK-0001 --ops-dir research_ops
+async-research analysis validate-results research_ops/tasks/TASK-0001 --ops-dir research_ops
+```
+
+`validate-run` checks the completed manifest, required outputs, metrics,
+diagnostics, robustness, accepted-plan alignment, and semantic rules such as a
+`not_run` robustness check being unable to support claims. `validate-results`
+compares the result summary and `claim_gates.json` to the structured run
+artifacts. Phase 7 will wire the gate report into durable result acceptance
+records.
 
 If `status.json` is malformed or invalid and blocks progress, preserve it and
 route the task to human review:

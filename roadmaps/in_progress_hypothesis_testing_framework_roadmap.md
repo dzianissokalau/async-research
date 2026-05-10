@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 5 ready
-Last updated: 2026-05-09
-Next action: Implement Phase 5 analysis validation CLI
+Current phase: Phase 6 ready
+Last updated: 2026-05-10
+Next action: Implement Phase 6 task templates and prompts
 Blocked by: None
 
 Created: 2026-05-07
@@ -267,7 +267,7 @@ Delivery boundary:
 
 ## Progress
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 | Phase | Step | Status | Description | Evidence / Notes |
 | ---: | --- | --- | --- | --- |
@@ -276,7 +276,7 @@ Last updated: 2026-05-09
 | 2 | Preflight validator | Complete | Add read-only `async-research analysis preflight` against task status, accepted experiment plan, source/data governance, budget, metric, method, and path safety. | Adds `analysis_runs.py`, public CLI wiring, help/architecture tests, and focused preflight tests for task type, accepted plan state, plan revalidation, source/data governance, stale accepted memory, budget, metric, method, and unsafe paths. |
 | 3 | Output contracts | Complete | Add structured metrics, diagnostics, and robustness schemas that are generic across regression, matching, forecasting, classification, and causal designs. | Adds `analysis_metrics`, `analysis_diagnostics`, and `analysis_robustness` schemas plus packaged artifact templates and contract tests. |
 | 4 | Claim gates | Complete | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Adds `analysis_claim_gates_v1.0`, a packaged template, and reusable evaluator tests for accepted, capped, rejected, and human-gated routes. |
-| 5 | Analysis validation CLI | Not Started | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Commands are read-only in V1. |
+| 5 | Analysis validation CLI | Complete | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Adds read-only public CLI commands backed by `analysis_validation.py`, with tests for valid artifacts, missing manifest, missing baseline output, unplanned metric changes, robustness semantic failures, and claim gate blockers. |
 | 6 | Task templates and prompts | Not Started | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Completes the MVP usability loop. |
 | 7 | Result acceptance integration | Not Started | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence should cite manifest, data versions, diagnostics, and claim gates. |
 | 8 | Read-only surfaces | Not Started | Surface analysis status, blockers, diagnostics, stale runs, and empirical evidence in weekly digest, health, readiness, and dashboard views. | Build only after validators are stable. |
@@ -318,6 +318,7 @@ src/async_research_workflow/templates/artifact_templates/analysis_robustness_che
 src/async_research_workflow/templates/artifact_templates/analysis_claim_gates_template.md
 src/async_research_workflow/scripts/analysis_runs.py
 src/async_research_workflow/scripts/analysis_claim_gates.py
+src/async_research_workflow/scripts/analysis_validation.py
 ```
 
 Recommended run artifact layout:
@@ -663,6 +664,18 @@ Implementation steps:
 5. Emit machine-readable blockers and warnings.
 6. Add CLI tests for valid artifacts, missing manifest, missing baseline,
    unplanned metric changes, and claim gate failures.
+
+Delivered in Phase 5:
+
+- `async-research analysis validate-run` validates completed manifests,
+  structured metrics/diagnostics/robustness artifacts, accepted-plan alignment,
+  required output files, baseline evidence, unplanned metric changes, and
+  robustness semantics.
+- `async-research analysis validate-results` validates result summaries and
+  `claim_gates.json` against the completed run artifacts and recomputed claim
+  gates.
+- Both commands are read-only and emit machine-readable
+  `hard_gate_failures`, `warnings`, and `next_step` fields.
 
 Acceptance:
 
