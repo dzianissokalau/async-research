@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 8 ready
+Current phase: Phase 9 ready
 Last updated: 2026-05-10
-Next action: Implement Phase 8 read-only health/readiness surfaces
+Next action: Decide whether optional runner adapters are worth implementing for V1 workflows
 Blocked by: None
 
 Created: 2026-05-07
@@ -278,8 +278,8 @@ Last updated: 2026-05-10
 | 4 | Claim gates | Complete | Add claim-type and claim-strength gate logic for descriptive, associative, predictive, causal, and probabilistic claims. | Adds `analysis_claim_gates_v1.0`, a packaged template, and reusable evaluator tests for accepted, capped, rejected, and human-gated routes. |
 | 5 | Analysis validation CLI | Complete | Add `analysis validate-run` and `analysis validate-results` with machine-readable blockers and warnings. | Adds read-only public CLI commands backed by `analysis_validation.py`, with tests for valid artifacts, missing manifest, missing baseline output, unplanned metric changes, robustness semantic failures, and claim gate blockers. |
 | 6 | Task templates and prompts | Complete | Update `run_analysis`, `evaluate_results`, methodology reviewer, and result reviewer guidance so workers emit the required artifacts. | Adds bounded run-analysis planner guidance, worker/reviewer prompt checklists, result-summary guidance, and docs tests for public analysis validation commands. |
-| 7 | Result acceptance integration | Not Started | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence should cite manifest, data versions, diagnostics, and claim gates. |
-| 8 | Read-only surfaces | Not Started | Surface analysis status, blockers, diagnostics, stale runs, and empirical evidence in weekly digest, health, readiness, and dashboard views. | Build only after validators are stable. |
+| 7 | Result acceptance integration | Complete | Extend result acceptance, evidence ledger, accepted outputs index, and revalidation schedule to consume run artifacts. | Accepted empirical evidence cites manifest, data versions, diagnostics, claim gates, and validation status; accepted memory updates fail closed for invalid empirical acceptance records. |
+| 8 | Read-only surfaces | Complete | Surface analysis status, blockers, diagnostics, stale runs, and empirical evidence in weekly digest, health, readiness, and dashboard views. | Adds `analysis dashboard`, health/readiness integration, daily/weekly analysis summaries, and fail-closed malformed surface handling. |
 | 9 | Optional runner adapters | Not Started | Consider thin local script, notebook, SQL, dbt, warehouse, or Python entrypoint wrappers. | Adapters remain optional and cannot bypass preflight or validation. |
 
 ## Framework Integration

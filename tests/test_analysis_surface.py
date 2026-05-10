@@ -110,6 +110,35 @@ class AnalysisSurfaceTests(unittest.TestCase):
             self.assertEqual("TASK-8002", missing["task_id"])
             self.assertFalse(missing["validate_results_ok"])
 
+    def test_review_stage_analysis_with_missing_manifest_is_malformed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            update_status(analysis_dir, status="awaiting_review", previous_status="in_progress")
+            (analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json").unlink()
+
+            code, payload = run_json(analysis_surface, ["dashboard", ops_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.MALFORMED, code, payload)
+            self.assertEqual(1, payload["summary"]["completed_missing_validation_count"])
+            self.assertEqual(1, payload["summary"]["malformed_read_model_count"])
+            malformed = payload["sections"]["malformed_read_model_inputs"][0]
+            self.assertEqual("TASK-8002", malformed["task_id"])
+            self.assertEqual("run_manifest_missing", malformed["reason"])
+
+    def test_active_analysis_malformed_preflight_propagates_dashboard_malformed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            manifest_path = analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json"
+            manifest_path.write_text("{not json", encoding="utf-8")
+
+            code, payload = run_json(analysis_surface, ["dashboard", ops_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.MALFORMED, code, payload)
+            self.assertEqual(1, payload["summary"]["preflight_blocked_count"])
+            self.assertEqual(1, payload["summary"]["malformed_read_model_count"])
+            malformed = payload["sections"]["malformed_read_model_inputs"][0]
+            self.assertEqual("analysis_preflight_malformed", malformed["reason"])
+
     def test_dashboard_surfaces_accepted_empirical_evidence_and_revalidation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
@@ -132,6 +161,35 @@ class AnalysisSurfaceTests(unittest.TestCase):
             self.assertEqual("predictive", evidence["claim_type"])
             self.assertEqual("stale", evidence["revalidation_status"])
 
+    def test_dashboard_rejects_invalid_accepted_empirical_result_acceptance(self) -> None:
+        cases = [
+            ("route", lambda record: record.update({"route": "reject"}), "result_acceptance_route"),
+            ("task_id", lambda record: record.update({"task_id": "TASK-8999"}), "result_acceptance_task_identity"),
+            ("task_type", lambda record: record.update({"task_type": "evaluate_results"}), "result_acceptance_task_type"),
+            ("analysis_run", lambda record: record.update({"analysis_run": None}), "analysis_run_provenance"),
+        ]
+        for label, mutate, expected_gate in cases:
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+                    write_completed_artifacts(analysis_dir)
+                    accept_analysis_task(analysis_dir)
+                    code, payload = run_json(validate_result_acceptance, [analysis_dir, "--ops-dir", ops_dir, "--write"])
+                    self.assertEqual(validate_result_acceptance.SUCCESS, code, payload)
+                    record_path = analysis_dir / "review_panel" / "result_acceptance.json"
+                    record = json.loads(record_path.read_text(encoding="utf-8"))
+                    mutate(record)
+                    write_json(record_path, record)
+
+                    code, dashboard = run_json(analysis_surface, ["dashboard", ops_dir, "--now", NOW])
+
+                    self.assertEqual(analysis_surface.MALFORMED, code, dashboard)
+                    self.assertEqual(0, dashboard["summary"]["accepted_empirical_evidence_count"])
+                    self.assertEqual(1, dashboard["summary"]["malformed_read_model_count"])
+                    malformed = dashboard["sections"]["malformed_read_model_inputs"][0]
+                    self.assertEqual("result_acceptance_invalid", malformed["reason"])
+                    self.assertIn(expected_gate, {item["gate"] for item in malformed["blockers"]})
+
     def test_dashboard_surfaces_capped_claims(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
@@ -147,6 +205,37 @@ class AnalysisSurfaceTests(unittest.TestCase):
             self.assertEqual(1, payload["summary"]["claim_caps_or_human_review_count"])
             attention = payload["sections"]["claim_caps_and_human_review"][0]
             self.assertEqual("capped", attention["claim_decision"])
+
+    def test_dashboard_surfaces_rejected_and_needs_human_claim_gates(self) -> None:
+        cases = [
+            ("rejected", "reject", {"required": False, "satisfied": True, "reason": "fixture rejection"}),
+            ("needs_human", "needs_human", {"required": True, "satisfied": False, "reason": "fixture human review"}),
+        ]
+        for decision, route, human_gate in cases:
+            with self.subTest(decision=decision):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+                    write_completed_artifacts(analysis_dir)
+                    update_status(analysis_dir, status="awaiting_review", previous_status="in_progress")
+                    claim_path = analysis_dir / "artifacts" / "analysis_run" / "claim_gates.json"
+                    claim_gates = json.loads(claim_path.read_text(encoding="utf-8"))
+                    claim_gates.update(
+                        {
+                            "claim_decision": decision,
+                            "recommended_route": route,
+                            "max_claim_strength": "none",
+                            "cap_reasons": ["fixture blocks claim"],
+                            "human_gate": human_gate,
+                        }
+                    )
+                    write_json(claim_path, claim_gates)
+
+                    code, payload = run_json(analysis_surface, ["dashboard", ops_dir, "--now", NOW])
+
+                    self.assertEqual(analysis_surface.VALIDATION_FINDINGS, code, payload)
+                    self.assertEqual(1, payload["summary"]["claim_caps_or_human_review_count"])
+                    attention = payload["sections"]["claim_caps_and_human_review"][0]
+                    self.assertEqual(decision, attention["claim_decision"])
 
     def test_cli_analysis_dashboard_routes_to_surface_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -174,6 +263,23 @@ class AnalysisSurfaceTests(unittest.TestCase):
             self.assertIn("## Analysis Surface", weekly)
             self.assertIn("Safe to run: 1", weekly)
             self.assertIn("## Analysis Surface", daily)
+            self.assertEqual(before_manifest, manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(before_status, status_path.read_text(encoding="utf-8"))
+
+    def test_surface_update_preserves_task_artifacts_with_malformed_analysis_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            manifest_path = analysis_dir / "artifacts" / "analysis_run" / "run_manifest.json"
+            status_path = analysis_dir / "status.json"
+            manifest_path.write_text("{not json", encoding="utf-8")
+            before_manifest = manifest_path.read_text(encoding="utf-8")
+            before_status = status_path.read_text(encoding="utf-8")
+
+            code, payload = run_json(human_review_surface, ["update", ops_dir, "--now", NOW])
+
+            self.assertEqual(human_review_surface.SUCCESS, code, payload)
+            weekly = (ops_dir / "weekly_digest.md").read_text(encoding="utf-8")
+            self.assertIn("Malformed inputs: 1", weekly)
             self.assertEqual(before_manifest, manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(before_status, status_path.read_text(encoding="utf-8"))
 

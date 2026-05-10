@@ -14,7 +14,10 @@ from typing import Any, Iterable, Optional
 
 from async_research_workflow.scripts import analysis_runs, analysis_validation
 from async_research_workflow.scripts.analysis_runs import MANIFEST_RELATIVE_PATH
-from async_research_workflow.scripts.update_accepted_outputs_index import read_index_rows
+from async_research_workflow.scripts.update_accepted_outputs_index import (
+    load_empirical_result_acceptance,
+    read_index_rows,
+)
 
 
 SUCCESS = 0
@@ -22,6 +25,15 @@ VALIDATION_FINDINGS = 2
 MALFORMED = 4
 
 ACTIVE_ANALYSIS_STATUSES = {"ready_for_worker", "in_progress"}
+REVIEWED_ANALYSIS_STATUSES = {
+    "awaiting_review",
+    "single_review",
+    "panel_review",
+    "accepted",
+    "needs_revision",
+    "needs_human",
+    "rejected",
+}
 EMPIRICAL_TASK_TYPES = {"run_analysis", "evaluate_results"}
 EMPIRICAL_CLAIM_TYPES = {"descriptive", "associative", "predictive", "causal", "probabilistic", "other"}
 RESULT_ACCEPTANCE_RELATIVE_PATH = Path("review_panel/result_acceptance.json")
@@ -62,6 +74,18 @@ def read_json_object(path: Path) -> Optional[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def read_json_object_issue(ops_dir: Path, path: Path, reason_prefix: str) -> Optional[dict[str, Any]]:
+    if not path.exists():
+        return {"path": relative_path(ops_dir, path), "reason": f"{reason_prefix}_missing"}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"path": relative_path(ops_dir, path), "reason": f"{reason_prefix}_malformed", "error": str(exc)}
+    if not isinstance(payload, dict):
+        return {"path": relative_path(ops_dir, path), "reason": f"{reason_prefix}_not_object"}
+    return None
 
 
 def relative_path(ops_dir: Path, path: Path) -> str:
@@ -161,12 +185,26 @@ def active_analysis_tasks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def completed_analysis_tasks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     completed = []
     for item in items:
-        if item["payload"].get("type") != "run_analysis":
+        payload = item["payload"]
+        if payload.get("type") != "run_analysis":
+            continue
+        if payload.get("status") in REVIEWED_ANALYSIS_STATUSES:
+            completed.append(item)
             continue
         manifest = read_json_object(item["task_dir"] / MANIFEST_RELATIVE_PATH)
         if isinstance(manifest, dict) and manifest.get("run_status") == "completed":
             completed.append(item)
     return completed
+
+
+def review_stage_manifest_issue(ops_dir: Path, item: dict[str, Any]) -> Optional[dict[str, Any]]:
+    payload = item["payload"]
+    if payload.get("type") != "run_analysis" or payload.get("status") not in REVIEWED_ANALYSIS_STATUSES:
+        return None
+    issue = read_json_object_issue(ops_dir, item["task_dir"] / MANIFEST_RELATIVE_PATH, "run_manifest")
+    if issue is None:
+        return None
+    return {**task_summary(ops_dir, item), **issue}
 
 
 def preflight_entry(ops_dir: Path, item: dict[str, Any], now: datetime, limit: int) -> dict[str, Any]:
@@ -184,6 +222,7 @@ def preflight_entry(ops_dir: Path, item: dict[str, Any], now: datetime, limit: i
         "preflight_ok": payload.get("ok") is True,
         "safe_to_run": code == SUCCESS and payload.get("ok") is True,
         "exit_code": code,
+        "malformed": code == MALFORMED,
         "next_step": payload.get("next_step"),
         "failure_count": int(payload.get("failure_count") or len(failures)),
         "warning_count": int(payload.get("warning_count") or len(warnings)),
@@ -214,6 +253,7 @@ def validation_entry(ops_dir: Path, item: dict[str, Any], now: datetime, limit: 
         "experiment_plan_id": run_payload.get("experiment_plan_id") or results_payload.get("experiment_plan_id"),
         "validate_run_exit_code": run_code,
         "validate_results_exit_code": results_code,
+        "malformed": run_code == MALFORMED or results_code == MALFORMED,
         "validate_run_ok": run_payload.get("ok") is True,
         "validate_results_ok": results_payload.get("ok") is True,
         "failure_count": int(run_payload.get("failure_count") or 0) + int(results_payload.get("failure_count") or 0),
@@ -222,6 +262,45 @@ def validation_entry(ops_dir: Path, item: dict[str, Any], now: datetime, limit: 
         "warnings": run_warnings + result_warnings,
         "next_step": "run analysis validate-run and validate-results, then repair blockers before result acceptance",
     }
+
+
+def malformed_validator_entries(
+    active_entries: list[dict[str, Any]],
+    validation_entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    malformed: list[dict[str, Any]] = []
+    for entry in active_entries:
+        if entry.get("exit_code") == MALFORMED:
+            malformed.append(
+                {
+                    "task_id": entry.get("task_id"),
+                    "task_dir": entry.get("task_dir"),
+                    "status": entry.get("status"),
+                    "type": entry.get("type"),
+                    "reason": "analysis_preflight_malformed",
+                    "validator": "analysis preflight",
+                    "blockers": entry.get("blockers", []),
+                }
+            )
+    for entry in validation_entries:
+        validators = []
+        if entry.get("validate_run_exit_code") == MALFORMED:
+            validators.append("analysis validate-run")
+        if entry.get("validate_results_exit_code") == MALFORMED:
+            validators.append("analysis validate-results")
+        if validators:
+            malformed.append(
+                {
+                    "task_id": entry.get("task_id"),
+                    "task_dir": entry.get("task_dir"),
+                    "status": entry.get("status"),
+                    "type": entry.get("type"),
+                    "reason": "analysis_validation_malformed",
+                    "validators": validators,
+                    "blockers": entry.get("blockers", []),
+                }
+            )
+    return malformed
 
 
 def claim_gate_payload(task_dir: Path) -> Optional[dict[str, Any]]:
@@ -325,7 +404,17 @@ def accepted_records(
         if payload.get("type") not in EMPIRICAL_TASK_TYPES or payload.get("status") != "accepted":
             continue
         record_path = item["task_dir"] / RESULT_ACCEPTANCE_RELATIVE_PATH
-        record = read_json_object(record_path)
+        record, blockers = load_empirical_result_acceptance(item["task_dir"], payload)
+        if blockers:
+            malformed.append(
+                {
+                    **task_summary(ops_dir, item),
+                    "path": relative_path(ops_dir, record_path),
+                    "reason": "result_acceptance_invalid",
+                    "blockers": blockers,
+                }
+            )
+            continue
         if record is None:
             malformed.append(
                 {
@@ -337,6 +426,13 @@ def accepted_records(
             continue
         entry = accepted_empirical_entry(ops_dir, item, record)
         if entry is None:
+            malformed.append(
+                {
+                    **task_summary(ops_dir, item),
+                    "path": relative_path(ops_dir, record_path),
+                    "reason": "analysis_run_provenance_missing",
+                }
+            )
             continue
         accepted.append(entry)
         revalidation_entry = acceptance_revalidation_entry(ops_dir, item, record, entry)
@@ -400,11 +496,12 @@ def analysis_dashboard_report(
     preflight_blockers = [entry for entry in active_entries if entry["failure_count"] > 0 or entry["preflight_ok"] is not True]
     preflight_warnings = [entry for entry in active_entries if entry["failure_count"] == 0 and entry["warning_count"] > 0]
     safe_to_run = [entry for entry in active_entries if entry["safe_to_run"]]
+    completed_tasks = completed_analysis_tasks(items)
     missing_validation = [
         entry
         for entry in (
             validation_entry(ops_dir, item, current, max_items)
-            for item in completed_analysis_tasks(items)
+            for item in completed_tasks
         )
         if entry is not None
     ]
@@ -413,10 +510,20 @@ def analysis_dashboard_report(
     revalidation_needed = acceptance_revalidation + index_revalidation_rows(ops_dir, accepted_task_ids, current, max_items)
     claim_attention = [
         entry
-        for entry in (claim_gate_attention(ops_dir, item) for item in completed_analysis_tasks(items))
+        for entry in (claim_gate_attention(ops_dir, item) for item in completed_tasks)
         if entry is not None
     ]
-    malformed = malformed_statuses + malformed_acceptance
+    review_manifest_issues = [
+        issue
+        for issue in (review_stage_manifest_issue(ops_dir, item) for item in completed_tasks)
+        if issue is not None
+    ]
+    malformed = (
+        malformed_statuses
+        + malformed_acceptance
+        + review_manifest_issues
+        + malformed_validator_entries(active_entries, missing_validation)
+    )
     summary = {
         "active_run_analysis_count": len(active_entries),
         "safe_to_run_count": len(safe_to_run),
@@ -484,6 +591,7 @@ def analysis_digest_section(report: dict[str, Any]) -> str:
         f"- Accepted empirical evidence: {format_count(summary.get('accepted_empirical_evidence_count'))}",
         f"- Revalidation needed: {format_count(summary.get('revalidation_needed_count'))}",
         f"- Claim caps or human review: {format_count(summary.get('claim_caps_or_human_review_count'))}",
+        f"- Malformed inputs: {format_count(summary.get('malformed_read_model_count'))}",
     ]
     if safe:
         lines.append("- Safe analyses:")

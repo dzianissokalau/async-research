@@ -706,6 +706,7 @@ def daily_status_markdown(model: dict[str, Any]) -> str:
             f"- Accepted empirical evidence: {analysis_summary.get('accepted_empirical_evidence_count', 0)}",
             f"- Revalidation needed: {analysis_summary.get('revalidation_needed_count', 0)}",
             f"- Claim caps or human review: {analysis_summary.get('claim_caps_or_human_review_count', 0)}",
+            f"- Malformed inputs: {analysis_summary.get('malformed_read_model_count', 0)}",
         ]
     )
 

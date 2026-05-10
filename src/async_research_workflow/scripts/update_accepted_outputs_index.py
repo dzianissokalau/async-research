@@ -398,6 +398,16 @@ def load_empirical_result_acceptance(task_dir: Path, status: dict[str, Any]) -> 
                 "details": {"status_id": status.get("id"), "acceptance_task_id": payload.get("task_id")},
             }
         )
+    if payload.get("task_type") != task_type:
+        blockers.append(
+            {
+                "task_id": status.get("id") or task_dir.name,
+                "task_type": task_type,
+                "gate": "result_acceptance_task_type",
+                "message": "result_acceptance task_type must match accepted task status type",
+                "details": {"status_type": task_type, "acceptance_task_type": payload.get("task_type")},
+            }
+        )
     if payload.get("route") not in {"accept_as_evidence", "accept_negative_result"}:
         blockers.append(
             {
