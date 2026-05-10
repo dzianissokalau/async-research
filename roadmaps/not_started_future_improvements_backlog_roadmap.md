@@ -30,6 +30,66 @@ when a shipped feature has intentional V1 boundaries.
 - High-stakes, public-facing, or `strong` claims should require human approval
   before publication use.
 
+## Data Foundations
+
+Current shipped baseline:
+
+- canonical paths: `research_ops/data/` and `research_ops/data_source_audit.md`
+- data source IDs: `DS-*` rows in `data_source_audit.md`
+- public commands: `data validate`, `data dashboard`, and existing `source`
+  commands
+- integrations: source governance, health, readiness, weekly digest, generated
+  data-readiness task guidance, experiment validation, result acceptance, and
+  idea gap refs
+- V1 write posture: workers propose profile/audit updates; tooling does not
+  automatically mutate data foundation files from worker output
+
+### Future Improvements
+
+| Improvement | Summary | Dependencies | Important notes |
+| --- | --- | --- | --- |
+| Automated access checks | Add explicit read-only checks for local files, server paths, database tables, buckets, APIs, and public URLs referenced from `data_access.md` and profiles. | Permission model for local/cloud/API access; safe connector boundaries; source-location conventions; timeout and credential-redaction policy. | Start opt-in and report-only. Do not crawl private paths or call external services without explicit operator permission. Cold-start workspaces must remain warning-only. |
+| Local profiling helpers | Add helpers that summarize fields, grain, null rates, row counts, sample date coverage, duplicate keys, and basic freshness for selected local datasets. | Stable profile fields; supported file/table formats; local path allowlist; privacy policy for samples; deterministic profile-output schema. | Profiling should produce proposed profile updates first. Never copy sensitive source data into roadmaps, dashboards, or accepted memory. |
+| Strict profile/data dependency policy | Add opt-in strict mode that blocks experiment planning or accepted-evidence use when required profiles, access notes, use-case policy, or freshness evidence are missing. | Warning-only telemetry from `data validate`; route-specific gate design; human override policy; tests for discovery and data-readiness cold starts. | Do not block all discovery because data foundations are sparse. Ship as explicit strict mode before making any default stricter. |
+| Reviewed data-readiness apply command | Add a reviewed write path that applies accepted data-readiness proposals to profiles, `data_source_audit.md`, `data_access.md`, `data_catalog.md`, `join_map.md`, or `known_data_gaps.md`. | Machine-readable proposal format; task/review acceptance signal; file lock or transaction helper; rollback reporting; post-write `source validate` and `data validate`. | Must be idempotent, preserve manual notes, and keep `data_source_audit.md` as the governance source of truth. |
+| Join IDs and richer join model | Introduce stable `JOIN-*` IDs, reusable join records, join-quality status, point-in-time/version rules, and references from profiles/tasks/results. | Existing join-map dogfood examples; join validation rules; result-acceptance metadata; hypothesis/analysis artifact needs. | Keep the current simple join map valid. Add richer semantics without breaking existing rows. |
+| Data quality metrics | Track source/profile coverage, stale review rates, blocked/candidate counts, unresolved data gaps, join caveat counts, and access-check health over time. | Dashboard read model; metrics-history schema decision; dogfood thresholds; stable warning taxonomy. | Use metrics to calibrate future gates instead of guessing strict thresholds up front. |
+| Source/profile proposal inspection | Teach `data validate` or a new read-only helper to inspect proposed profile/audit/data-table changes in worker outputs before reviewers apply them. | Proposal convention shared with data-readiness tasks; validator reuse; reviewer guidance; task artifact discovery. | This should remain read-only and should not treat proposed rows as authoritative state. |
+
+### Suggested Sequencing
+
+1. Source/profile proposal inspection for data-readiness outputs.
+2. Reviewed data-readiness apply command with transaction and rollback tests.
+3. Automated access checks in opt-in, report-only mode.
+4. Local profiling helpers that emit proposed profile updates.
+5. Data quality metrics from the dashboard and validator read model.
+6. Strict profile/data dependency policy after warning-only telemetry is useful.
+7. Join IDs and richer join semantics once joins become reused across tasks.
+
+### Cross-Track Dependencies
+
+- Source governance: `data_source_audit.md` remains the authority for source
+  tier, approval status, use-case policy, freshness, and citation rules.
+- Idea Catalog: idea data-gap refs and generated data-readiness tasks should use
+  the same proposal/apply convention once one exists.
+- Hypothesis Testing Framework and analysis work: stricter data gates should
+  apply only to routes that truly depend on audited data, not to broad discovery.
+- Knowledge Library: library memory can contextualize data needs but must not
+  bypass `DS-*` source approval or data profile requirements.
+- Operator UX and dashboard work: future dashboards should consume the
+  validator/read-model output rather than invent separate data write paths.
+
+### Open Decisions
+
+- What machine-readable proposal format should data-readiness workers use for
+  profile, access, catalog, join, gap, and audit updates?
+- Which access checks are safe to run by default, and which require explicit
+  connector, filesystem, network, or credential permission?
+- Which local profiling summaries are useful without leaking sensitive values?
+- Should strict profile requirements apply to every `DS-*` source, only
+  experiment-capable sources, or only cited sources for selected task routes?
+- When should join paths graduate from simple rows to stable `JOIN-*` entities?
+
 ## Knowledge Library
 
 Current shipped baseline:
