@@ -151,3 +151,69 @@ Current shipped baseline:
   paths, or only store external locations?
 - What is the minimum useful search/index capability before embeddings or RAG
   add more complexity than value?
+
+## Idea Catalog
+
+Current shipped baseline:
+
+- canonical path: `research_ops/ideas/`
+- idea IDs: `IDEA-*` JSON records in `research_ops/ideas/`
+- public commands: `idea catalog init`, `idea catalog validate`,
+  `idea catalog list`, `idea catalog show`, `idea catalog dashboard`,
+  `idea capture`, `idea catalog maintain`, `idea promote`, `idea park`, and
+  `idea reject`
+- integrations: discovery inbox capture, mission scoring, knowledge library
+  refs, data gap refs, health, readiness, daily status, weekly digest,
+  dashboard summaries, promotion proposals, task creation, and queue updates
+- V2 write posture: promotion write mode is shipped and guarded by explicit
+  `--write`, preflight hashes, catalog locking, deterministic task IDs,
+  transaction helpers, rollback reporting, and end-to-end acceptance coverage
+
+### Future Improvements
+
+| Improvement | Summary | Dependencies | Important notes |
+| --- | --- | --- | --- |
+| Discovery inbox robustness | Make `idea capture --from-inbox` easier to diagnose by surfacing non-canonical rows with line numbers and suggesting nearby candidate rows when a row or ID is not found. | Existing discovery inbox parser; capture command; operator UX roadmap; tests for malformed and free-form inbox content. | Stay warning-only for free-form text. Never automatically capture unmarked rows without explicit operator intent. |
+| Promotion traceability on tasks | Persist richer promotion context on created tasks, such as `origin_idea_id`, `promotion_score_snapshot`, routing reason, blocker snapshot, and promotion transaction metadata. | Existing promotion write mode; task `status.json` schema decision; dashboard task detail design; acceptance-suite promotion fixture. | Keep `ideas/IDEA-*.json` canonical for idea state. Task metadata should be a point-in-time trace, not a second editable idea record. |
+| Idea lifecycle metrics | Track time from capture to promotion, promotion to acceptance or rejection, parked aging, duplicate rate, blocker frequency, and cost per accepted promoted idea. | Operational metrics roadmap; timestamps in idea decision history, task status, queue, accepted output, rejected result, and cost ledgers. | Missing timestamps should render as `unavailable`, not zero. Use metrics to calibrate future gates rather than hard-coding thresholds too early. |
+| Dashboard integration polish | Feed Idea Catalog portfolio state, blockers, promoted task links, stale projections, and promotion-write recovery messages into the local dashboard snapshot and task views. | Dashboard delivery roadmap; existing `idea catalog dashboard` read model; console snapshot service; task board design. | Dashboard views must consume existing read models and stay read-only until mutation actions are explicitly designed. |
+| Route-specific stricter promotion gates | Add optional stricter gates for expensive or high-risk promotion routes, especially `experiment_plan`, high-cost work, weak library support, missing data profiles, or risky source state. | Warning-only telemetry from idea, library, data, source, and cost validators; human override policy; route-specific task templates. | Keep default cold-start discovery gentle. Ship strict behavior as explicit opt-in before making any route stricter by default. |
+| Proposal/apply convention alignment | Align generated data-readiness and library-update task outputs with Idea Catalog refs so accepted proposals can update supporting refs without manual copy/paste. | Future data/library proposal inspection and apply commands; review acceptance signal; shared proposal schema or fenced block convention. | Proposal inspection should land before writes. Apply paths must preserve manual notes and keep data/library sources of truth authoritative. |
+| Search and semantic dedupe | Build a rebuildable derived index over ideas, rejected ideas, accepted outputs, library refs, data gaps, and task outcomes to find repeated or near-duplicate ideas. | Stable parsers for each source; local storage/privacy decision; deterministic rebuild command; stale-index detection. | The index must be disposable and regenerated from repo files. It must not own unique state or bypass canonical duplicate checks. |
+
+### Suggested Sequencing
+
+1. Discovery inbox robustness for clearer capture failures.
+2. Promotion traceability on created tasks and queue/task detail surfaces.
+3. Idea lifecycle metrics from existing decision, task, result, and cost files.
+4. Dashboard integration polish using the existing catalog dashboard read model.
+5. Route-specific stricter promotion gates after warning-only telemetry is useful.
+6. Proposal/apply convention alignment with data and library follow-ups.
+7. Search and semantic dedupe once source parsers and privacy rules are stable.
+
+### Cross-Track Dependencies
+
+- Operator UX: capture diagnostics and workflow guidance should reduce first-use
+  confusion without weakening explicit write gates.
+- Dashboard Delivery: richer Idea Catalog state should be rendered from existing
+  read models and should not create a parallel dashboard-only source of truth.
+- Data Foundations: data gap refs, generated data-readiness tasks, and stricter
+  experiment gates should stay aligned with `DS-*` profile and access policy.
+- Knowledge Library: library support and open-question proposals should feed
+  promotion readiness without turning sparse cold-start libraries into global
+  blockers.
+- Hypothesis Testing Framework: stricter gates should apply only to routes that
+  depend on audited hypotheses, data, or evidence, not to broad discovery.
+
+### Open Decisions
+
+- Which task metadata fields should become schema-level requirements versus
+  optional promotion trace fields?
+- Should lifecycle metrics live in the future operational metrics read model,
+  the dashboard snapshot, or a dedicated `idea metrics` command?
+- Which routes should support opt-in strict promotion first: `experiment_plan`,
+  `hypothesis_card`, `data_readiness`, or `literature_extract`?
+- What shared proposal format should data-readiness, literature, and idea
+  follow-up tasks use before any reviewed apply commands exist?
+- Which dedupe inputs are safe and useful without adding embeddings or leaking
+  sensitive source snippets into derived indexes?
