@@ -49,7 +49,9 @@ The helper:
 - selects tasks with `status = accepted`
 - extracts accepted date, title, claim type, freshness window, source IDs, claim
   strength, evidence link, key finding, caveats, supersession links, and
-  follow-ups
+  follow-ups. When `review_panel/result_acceptance.json` exists, its accepted
+  memory fields take precedence so empirical analysis claims keep their
+  validator-derived claim type, claim strength, and revalidation status.
 - appends new task rows
 - updates existing rows for the same task id instead of duplicating them
 - writes `research_ops/accepted_outputs_index.md`
@@ -70,6 +72,12 @@ these default freshness windows unless a task result sets
 | `methodology_note` | 180 days |
 | `framework_workflow_doc` | manual review |
 | `evergreen_definition` | manual review |
+| `descriptive` | 90 days |
+| `associative` | 90 days |
+| `predictive` | 45 days |
+| `causal` | manual review |
+| `probabilistic` | 45 days |
+| `other` | manual review |
 
 Accepted task results should set:
 
@@ -91,6 +99,10 @@ Accepted task results should set:
 If `next_recheck_date` has passed, the helper marks the row `stale`. If it is
 within seven days, it marks the row `due`. Manual-review claim types are never
 treated as current market facts without a human decision.
+Analysis result acceptance can also set `stale`, `due`, or `manual_review`
+directly when old data versions, stale diagnostics, or diagnostic warnings are
+found; the index preserves those statuses even when the calendar recheck date is
+still in the future.
 
 Generate a deterministic revalidation report:
 

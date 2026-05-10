@@ -1,9 +1,9 @@
 # Hypothesis Testing Framework Roadmap
 
 Status: In Progress
-Current phase: Phase 7 ready
+Current phase: Phase 8 ready
 Last updated: 2026-05-10
-Next action: Implement Phase 7 result acceptance integration
+Next action: Implement Phase 8 read-only health/readiness surfaces
 Blocked by: None
 
 Created: 2026-05-07
@@ -776,6 +776,25 @@ Acceptance:
 - rejected results preserve reusable anti-context
 - stale data or stale diagnostics trigger revalidation
 - accepted evidence records claim type and claim strength
+
+Delivered in Phase 7:
+
+- `result-acceptance` loads the referenced analysis run manifest, structured
+  metrics, diagnostics, robustness checks, and `claim_gates.json` for accepted
+  `run_analysis` and `evaluate_results` outputs.
+- Analysis claim-gate caps are applied to accepted empirical evidence, and
+  stale or mismatched gate artifacts fail closed.
+- `result_acceptance.json` records analysis provenance: run manifest, data
+  versions, diagnostics summary, claim-gate artifact, validation status, and
+  revalidation triggers.
+- `evidence_ledger.md` rows now include claim type, claim strength, run
+  manifest, diagnostics, claim gates, and revalidation triggers for accepted
+  evidence.
+- `rejected_results.md` preserves empirical anti-context with claim text and
+  run-artifact links when available.
+- `accepted_outputs_index.md` refreshes from `result_acceptance.json` accepted
+  memory so empirical claim type, claim strength, and stale/due/manual-review
+  status survive index updates.
 
 ## Phase 8: Read-Only Surfaces
 

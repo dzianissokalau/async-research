@@ -52,6 +52,12 @@ CLAIM_TYPE_FRESHNESS: dict[str, int | str] = {
     "methodology_note": 180,
     "framework_workflow_doc": MANUAL_REVIEW,
     "evergreen_definition": MANUAL_REVIEW,
+    "descriptive": 90,
+    "associative": 90,
+    "predictive": 45,
+    "causal": MANUAL_REVIEW,
+    "probabilistic": 45,
+    "other": MANUAL_REVIEW,
     "general": 90,
 }
 TASK_TYPE_CLAIM_TYPES = {
@@ -220,6 +226,8 @@ def revalidation_status(next_recheck: str, now: datetime, explicit: Any = None, 
         return "superseded"
     explicit_text = str(explicit or "").strip().lower()
     if explicit_text == "superseded":
+        return explicit_text
+    if explicit_text in {"stale", "due", MANUAL_REVIEW}:
         return explicit_text
     if next_recheck == MANUAL_REVIEW:
         return explicit_text if explicit_text in REVALIDATION_STATUSES else MANUAL_REVIEW
@@ -627,9 +635,13 @@ def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Op
     result = result_object(status)
     summary = load_result_summary(task_dir)
     acceptance = read_json(task_dir / "review_panel" / "result_acceptance.json")
+    accepted_memory = acceptance.get("accepted_memory") if isinstance(acceptance, dict) and isinstance(acceptance.get("accepted_memory"), dict) else {}
+    acceptance_ledger = acceptance.get("evidence_ledger") if isinstance(acceptance, dict) and isinstance(acceptance.get("evidence_ledger"), dict) else {}
     followups = followups_for_task(status, task_dir, summary, acceptance)
 
     evidence_link = result.get("evidence_link")
+    if not isinstance(evidence_link, str) or not evidence_link.strip():
+        evidence_link = acceptance_ledger.get("evidence_link")
     if not isinstance(evidence_link, str) or not evidence_link.strip():
         evidence_link = task_relative_link(ops_dir, worker_output if worker_output.exists() else task_dir)
 
@@ -637,15 +649,22 @@ def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Op
 
     claim_strength = result.get("claim_strength")
     if claim_strength not in CLAIM_ORDER:
-        claim_strength = aggregate_claim_strength(task_dir) or "none"
+        acceptance_claim_strength = acceptance.get("claim_strength") if isinstance(acceptance, dict) else None
+        claim_strength = acceptance_claim_strength if acceptance_claim_strength in CLAIM_ORDER else aggregate_claim_strength(task_dir) or "none"
 
     task_type = str(status.get("type", ""))
-    claim_type = normalize_claim_type(result.get("claim_type") or result.get("memory_claim_type"), task_type)
-    freshness = freshness_window_for(claim_type, result.get("freshness_window_days") or result.get("freshness_window"))
+    claim_type = normalize_claim_type(
+        accepted_memory.get("claim_type") or result.get("claim_type") or result.get("memory_claim_type"),
+        task_type,
+    )
+    freshness = freshness_window_for(
+        claim_type,
+        accepted_memory.get("freshness_window_days") or result.get("freshness_window_days") or result.get("freshness_window"),
+    )
     accepted_date = iso_date(result.get("accepted_date") or status.get("updated_at") or status.get("created_at"))
-    next_recheck = next_recheck_date(accepted_date, freshness, result.get("next_recheck_date"))
-    supersedes = join_list(normalize_list(result.get("supersedes")))
-    superseded_by = join_list(normalize_list(result.get("superseded_by")))
+    next_recheck = next_recheck_date(accepted_date, freshness, accepted_memory.get("next_recheck_date") or result.get("next_recheck_date"))
+    supersedes = str(accepted_memory.get("supersedes") or join_list(normalize_list(result.get("supersedes"))))
+    superseded_by = str(accepted_memory.get("superseded_by") or join_list(normalize_list(result.get("superseded_by"))))
 
     row = {
         "accepted_date": accepted_date,
@@ -655,7 +674,12 @@ def row_from_task(ops_dir: Path, task_dir: Path, status: dict[str, Any], now: Op
         "claim_type": claim_type,
         "freshness_window_days": freshness,
         "next_recheck_date": next_recheck,
-        "revalidation_status": revalidation_status(next_recheck, current, result.get("revalidation_status"), superseded_by),
+        "revalidation_status": revalidation_status(
+            next_recheck,
+            current,
+            accepted_memory.get("revalidation_status") or result.get("revalidation_status"),
+            superseded_by,
+        ),
         "source_ids": join_list(source_ids_for_task(status, task_dir)),
         "claim_strength": str(claim_strength),
         "caveats": caveats_for_task(status, task_dir),

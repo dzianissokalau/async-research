@@ -340,6 +340,11 @@ what actually ran. Predictive results cap at `moderate`, causal claims without
 identification tests are blocked, and public/high-stakes or strong claims need
 human approval. Claim-gate artifacts must share `run_id`,
 `experiment_plan_id`, and `task_id` with the result summary or fail closed.
+Accepted empirical results also record the run manifest, data versions,
+diagnostics path, claim-gate path, claim type, claim strength, and any
+revalidation triggers in `result_acceptance.json` and `evidence_ledger.md`.
+Rejected empirical results remain in `rejected_results.md` as anti-context with
+the same run-artifact links when available.
 
 ## Task Folder
 

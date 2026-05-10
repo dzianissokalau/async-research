@@ -324,6 +324,65 @@
         }
       }
     },
+    "analysis_run": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "task_dir": {
+          "type": "string"
+        },
+        "run_manifest_path": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "experiment_plan_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accepted_plan_task_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_versions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "artifact_paths": {
+          "type": "object"
+        },
+        "diagnostics": {
+          "type": "object"
+        },
+        "claim_gates": {
+          "type": "object"
+        },
+        "validation": {
+          "type": "object"
+        },
+        "revalidation_triggers": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "evidence_ledger": {
       "type": "object",
       "required": [

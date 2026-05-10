@@ -12,6 +12,9 @@ point at the upstream analysis run being evaluated. Keep `primary_metric`,
 `baseline_results`, `candidate_results`, and `validation_split_results`
 consistent with the structured `metrics.json`; do not use this summary to
 upgrade the accepted plan's claim strength after seeing favorable results.
+Result acceptance loads the manifest, metrics, diagnostics, robustness checks,
+and `claim_gates.json`; accepted empirical claims inherit those caps and record
+the artifact provenance in `review_panel/result_acceptance.json`.
 
 ```json
 {

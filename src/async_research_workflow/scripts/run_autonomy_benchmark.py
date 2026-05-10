@@ -16,13 +16,15 @@ import importlib
 import io
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
-from async_research_workflow.resources import benchmark_cases_path, schema_path
+from async_research_workflow.resources import benchmark_cases_path, schema_path, template_path
+from async_research_workflow.scripts import analysis_claim_gates
 
 
 SUCCESS = 0
@@ -224,13 +226,116 @@ def markdown_table(path: Path, header: list[str], rows: Optional[list[list[str]]
     write_text(path, "\n".join(lines) + "\n")
 
 
+def artifact_template_payload(template_name: str) -> dict[str, Any]:
+    text = template_path("artifact_templates", template_name).read_text(encoding="utf-8")
+    match = re.search(r"```json\s*(.*?)```", text, re.DOTALL)
+    if match is None:
+        raise BenchmarkFailure(f"{template_name} has no fenced JSON payload")
+    payload = json.loads(match.group(1))
+    if not isinstance(payload, dict):
+        raise BenchmarkFailure(f"{template_name} JSON payload is not an object")
+    return payload
+
+
+def accepted_plan_result_acceptance(plan_task_id: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "framework_version": "result_acceptance_v1.0",
+        "task_id": plan_task_id,
+        "task_type": "experiment_plan",
+        "evaluated_at": utc_now(),
+        "route": "accept_as_evidence",
+        "recommended_decision": "ready",
+        "claim_strength": "none",
+        "max_claim_strength": "none",
+        "claim_strength_policy": "benchmark accepted plan",
+        "hard_gate_results": [{"gate": "benchmark_plan_acceptance", "passed": True, "reason": "accepted"}],
+        "scorecard": {
+            "plan_compliance": 5,
+            "reproducibility": 5,
+            "baseline_comparison": 5,
+            "metric_validity": 5,
+            "validation_strength": 5,
+            "robustness_strength": 5,
+            "leakage_safety": 5,
+            "limitation_honesty": 5,
+            "decision_usefulness": 5,
+            "claim_discipline": 5,
+        },
+        "reviewer_panel": {
+            "aggregate_present": True,
+            "aggregate_decision": "accepted",
+            "tier": 1,
+            "required_reviewers": ["primary"],
+            "reviewer_count": 1,
+            "disagreement_present": False,
+        },
+        "human_gate": {"required": False, "satisfied": True, "reason": "not required"},
+        "source_governance": {"required": True, "source_ids": ["DS-0001"], "ok": True, "warnings": [], "blocked": []},
+        "accepted_memory": {
+            "claim_type": "methodology_note",
+            "freshness_window_days": "manual_review",
+            "next_recheck_date": "manual_review",
+            "revalidation_status": "manual_review",
+            "supersedes": "none",
+            "superseded_by": "none",
+        },
+        "evidence_ledger": {
+            "required": False,
+            "ledger_path": "research_ops/evidence_ledger.md",
+            "logged": False,
+            "evidence_link": f"research_ops/tasks/{plan_task_id}-experiment-plan/worker_output.md",
+        },
+        "rejection_logging": {"required": False, "log_path": "research_ops/rejected_results.md", "logged": False},
+        "followups": [],
+        "review_notes": ["benchmark accepted plan"],
+    }
+
+
 def setup_ops(ops_dir: Path) -> None:
     (ops_dir / "tasks").mkdir(parents=True, exist_ok=True)
     (ops_dir / "discovery").mkdir(parents=True, exist_ok=True)
     (ops_dir / "batches").mkdir(parents=True, exist_ok=True)
     markdown_table(ops_dir / "accepted_outputs_index.md", ["date", "task_id", "title", "key_finding", "claim_strength", "evidence_link", "followups"])
-    markdown_table(ops_dir / "evidence_ledger.md", ["date", "task_id", "result_id", "claim_strength", "claim", "evidence_link", "limitations", "followups"])
-    markdown_table(ops_dir / "rejected_results.md", ["date", "task_id", "route", "claim_strength", "reason", "evidence_link"])
+    markdown_table(
+        ops_dir / "evidence_ledger.md",
+        [
+            "date",
+            "task_id",
+            "result_id",
+            "claim_type",
+            "claim_strength",
+            "source_ids",
+            "revalidation_status",
+            "revalidation_triggers",
+            "supersedes",
+            "superseded_by",
+            "run_manifest_path",
+            "diagnostics_path",
+            "claim_gates_path",
+            "claim",
+            "evidence_link",
+            "limitations",
+            "followups",
+        ],
+    )
+    markdown_table(
+        ops_dir / "rejected_results.md",
+        [
+            "date",
+            "task_id",
+            "route",
+            "claim_type",
+            "claim_strength",
+            "reason",
+            "claim",
+            "run_manifest_path",
+            "diagnostics_path",
+            "claim_gates_path",
+            "anti_context",
+            "evidence_link",
+        ],
+    )
     markdown_table(ops_dir / "queue.md", ["task", "priority", "status", "type", "next_runner", "notes"])
     markdown_table(ops_dir / "discovery_inbox.md", ["item", "title", "source", "status", "score", "next_task", "notes"])
     markdown_table(ops_dir / "discovery" / "rejected_ideas.md", ["item", "title", "reason", "rejected_at", "related_artifacts"])
@@ -320,20 +425,21 @@ def accepted_generic(case: dict[str, Any], ops_dir: Path) -> dict[str, Any]:
     return observed(path, ops_dir, "accepted_evidence", False, "not_applicable", "low", "accepted_by_primary", ["evidence"])
 
 
-def result_summary_payload(task_id: str) -> dict[str, Any]:
+def result_summary_payload(task_id: str, run_task_id: Optional[str] = None) -> dict[str, Any]:
+    manifest_task_id = run_task_id or task_id
     return {
         "schema_version": "1.0",
         "framework_version": "result_acceptance_v1.0",
         "result_id": f"RESULT-{task_id[-4:]}",
         "experiment_plan_id": f"EXP-{task_id[-4:]}",
         "run_id": f"RUN-{task_id[-4:]}",
-        "run_manifest_path": f"research_ops/tasks/{task_id}/artifacts/analysis_run/run_manifest.json",
+        "run_manifest_path": f"research_ops/tasks/{manifest_task_id}-run-analysis/artifacts/analysis_run/run_manifest.json",
         "artifact_version": "git:benchmark",
         "dataset_versions": [{"source_id": "DS-0001", "version": "benchmark"}],
         "primary_metric": "Out-of-sample MAE reduction",
-        "baseline_results": "Baseline MAE 1.00",
-        "candidate_results": "Candidate MAE 0.96",
-        "validation_split_results": "Train 2018-2022, validation 2023, test 2024-2025",
+        "baseline_results": "Baseline MAE 10.4",
+        "candidate_results": "Candidate MAE 9.7",
+        "validation_split_results": "2025 holdout validation split",
         "robustness_results": ["Stable by geography"],
         "leakage_check_results": ["No target aggregates outside train folds"],
         "limitations": ["Predictive only; not causal"],
@@ -355,6 +461,183 @@ def result_summary_payload(task_id: str) -> dict[str, Any]:
     }
 
 
+def write_benchmark_analysis_run(ops_dir: Path, evaluate_task_id: str, summary: dict[str, Any]) -> None:
+    run_task_id = f"TASK-8{evaluate_task_id[-3:]}"
+    plan_task_id = f"TASK-9{evaluate_task_id[-3:]}"
+    plan_dir = task_dir(ops_dir, plan_task_id, "experiment-plan")
+    run_dir = task_dir(ops_dir, run_task_id, "run-analysis")
+    experiment_id = summary["experiment_plan_id"]
+    run_id = summary["run_id"]
+
+    plan = artifact_template_payload("experiment_plan_template.md")
+    plan.update(
+        {
+            "experiment_id": experiment_id,
+            "task_id": plan_task_id,
+            "hypothesis_id": f"HYP-{evaluate_task_id[-4:]}",
+            "research_question": "Can the benchmark candidate improve predictive accuracy?",
+            "decision_use_case": "Decide whether the benchmark result can enter evidence memory.",
+            "target_outcome": "Benchmark prediction target.",
+            "population": "Benchmark fixture records.",
+            "geography": "Benchmark geography.",
+            "time_period": {"start": "2025-01", "end": "2025-12", "exclusion_lag": "none"},
+            "data_audit_refs": ["DS-0001"],
+            "dataset_versions": [{"source_id": "DS-0001", "version": "benchmark", "accessed_at": today(), "role": "outcome"}],
+            "baselines": [
+                {
+                    "name": "Local median baseline",
+                    "family": "naive_local_median",
+                    "implementation": "Benchmark median fixture.",
+                    "comparison_role": "baseline",
+                }
+            ],
+            "candidate_methods": [
+                {
+                    "name": "Benchmark regression",
+                    "method_class": "regression",
+                    "why_candidate": "Simple benchmark candidate.",
+                }
+            ],
+            "metrics": {
+                "primary_metric": "Out-of-sample MAE reduction",
+                "secondary_metrics": ["RMSE"],
+                "minimum_detectable_improvement": "1%",
+            },
+            "robustness_checks": ["Alternative validation window"],
+            "outputs": {
+                "output_dir": f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/",
+                "run_manifest_path": f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/run_manifest.json",
+                "artifact_paths": ["metrics.json", "diagnostics.json", "robustness_checks.json"],
+            },
+        }
+    )
+    plan_status = base_status(plan_dir, plan_task_id, "experiment_plan", "accepted", "panel_review", "benchmark_plan_accepted")
+    plan_status["data_audit_refs"] = ["DS-0001"]
+    plan_status["framework_versions"] = {"experimentation": "experimentation_v1.0"}
+    write_status(plan_dir, plan_status)
+    write_text(plan_dir / "worker_output.md", "Accepted benchmark plan.\n\n```json\n" + json.dumps(plan, indent=2, sort_keys=True) + "\n```\n")
+    write_json(plan_dir / "review_panel" / "result_acceptance.json", accepted_plan_result_acceptance(plan_task_id))
+    markdown_table(
+        ops_dir / "accepted_outputs_index.md",
+        [
+            "accepted_date",
+            "task_id",
+            "title",
+            "key_finding",
+            "claim_type",
+            "freshness_window_days",
+            "next_recheck_date",
+            "revalidation_status",
+            "source_ids",
+            "claim_strength",
+            "caveats",
+            "followups",
+            "supersedes",
+            "superseded_by",
+            "evidence_link",
+        ],
+        [
+            [
+                today(),
+                plan_task_id,
+                "Benchmark accepted experiment plan",
+                "Benchmark analysis plan accepted.",
+                "methodology_note",
+                "manual_review",
+                "manual_review",
+                "manual_review",
+                "DS-0001",
+                "none",
+                "benchmark only",
+                "none",
+                "none",
+                "none",
+                f"research_ops/tasks/{plan_task_id}-experiment-plan/worker_output.md",
+            ]
+        ],
+    )
+
+    baseline_path = f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/baseline_metrics.json"
+    metrics_path = f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/metrics.json"
+    diagnostics_path = f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/diagnostics.json"
+    robustness_path = f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/robustness_checks.json"
+    manifest = artifact_template_payload("analysis_run_manifest_template.md")
+    manifest.update(
+        {
+            "manifest_created_at": utc_now(),
+            "run_id": run_id,
+            "run_status": "completed",
+            "task_id": run_task_id,
+            "experiment_plan_id": experiment_id,
+            "accepted_plan_task_id": plan_task_id,
+            "accepted_plan_path": f"research_ops/tasks/{plan_task_id}-experiment-plan/worker_output.md",
+            "accepted_plan_result_acceptance_path": f"research_ops/tasks/{plan_task_id}-experiment-plan/review_panel/result_acceptance.json",
+            "analysis_config_path": "none",
+            "data_versions": [
+                {
+                    "source_id": "DS-0001",
+                    "version": "benchmark",
+                    "accessed_at": today(),
+                    "role": "outcome",
+                    "artifact_path": f"research_ops/tasks/{run_task_id}-run-analysis/artifacts/analysis_run/source_snapshot.json",
+                }
+            ],
+            "runner": {
+                "type": "manual",
+                "entrypoint": "benchmark fixture",
+                "parameters_ref": "none",
+                "execution_environment": "benchmark",
+            },
+            "method_family": "regression",
+            "candidate_method": {"name": "Benchmark regression", "planned_method_ref": "experiment_plan.candidate_methods[0]"},
+            "baseline_refs": [
+                {
+                    "name": "Local median baseline",
+                    "planned_baseline_ref": "experiment_plan.baselines[0]",
+                    "expected_output_path": baseline_path,
+                }
+            ],
+            "primary_metric": {
+                "name": "Out-of-sample MAE reduction",
+                "direction": "decrease",
+                "planned_metric_ref": "experiment_plan.metrics.primary_metric",
+            },
+            "planned_outputs": [
+                {"name": "baseline metrics", "path": baseline_path, "required_for_acceptance": True},
+                {"name": "candidate metrics", "path": metrics_path, "required_for_acceptance": True},
+                {"name": "diagnostics", "path": diagnostics_path, "required_for_acceptance": True},
+                {"name": "robustness checks", "path": robustness_path, "required_for_acceptance": True},
+            ],
+            "output_paths": [baseline_path, metrics_path, diagnostics_path, robustness_path],
+            "started_at": utc_now(),
+            "completed_at": utc_now(),
+            "runtime_minutes": 1,
+            "cost": {"api_usd": 0.0, "compute_usd": 0.0, "total_usd": 0.0},
+        }
+    )
+    write_status(run_dir, base_status(run_dir, run_task_id, "run_analysis", "accepted", "panel_review", "benchmark_analysis_completed", review_tier=2))
+    analysis_run_dir = run_dir / "artifacts" / "analysis_run"
+    write_json(analysis_run_dir / "run_manifest.json", manifest)
+    write_json(analysis_run_dir / "baseline_metrics.json", {"ok": True})
+    metrics = artifact_template_payload("analysis_metrics_template.md")
+    diagnostics = artifact_template_payload("analysis_diagnostics_template.md")
+    robustness = artifact_template_payload("analysis_robustness_checks_template.md")
+    for payload in (metrics, diagnostics, robustness):
+        payload.update({"run_id": run_id, "experiment_plan_id": experiment_id, "task_id": run_task_id})
+    metrics["primary_metric_name"] = "Out-of-sample MAE reduction"
+    write_json(analysis_run_dir / "metrics.json", metrics)
+    write_json(analysis_run_dir / "diagnostics.json", diagnostics)
+    write_json(analysis_run_dir / "robustness_checks.json", robustness)
+    claim_gates = analysis_claim_gates.evaluate_claim_gates(
+        summary,
+        metrics=metrics,
+        diagnostics=diagnostics,
+        robustness=robustness,
+        trusted_identity={"run_id": run_id, "experiment_plan_id": experiment_id, "task_id": run_task_id},
+    )
+    write_json(analysis_run_dir / "claim_gates.json", claim_gates)
+
+
 def accepted_result_summary(case: dict[str, Any], ops_dir: Path) -> dict[str, Any]:
     path = task_dir(ops_dir, case["task_id"], "valid-result")
     write_status(
@@ -369,9 +652,10 @@ def accepted_result_summary(case: dict[str, Any], ops_dir: Path) -> dict[str, An
             review_tier=2,
         ),
     )
-    summary = result_summary_payload(case["task_id"])
+    run_task_id = f"TASK-8{case['task_id'][-3:]}"
+    summary = result_summary_payload(case["task_id"], run_task_id=run_task_id)
+    write_benchmark_analysis_run(ops_dir, case["task_id"], summary)
     write_text(path / "worker_output.md", "Data audit refs: DS-0001\n\n```json\n" + json.dumps(summary, indent=2, sort_keys=True) + "\n```\n")
-    write_json(path / "artifacts" / "analysis_run" / "run_manifest.json", {"schema_version": "1.0", "run_id": summary["run_id"]})
     run_script("data_source_audit.py", ["init", str(ops_dir)])
     run_script(
         "data_source_audit.py",

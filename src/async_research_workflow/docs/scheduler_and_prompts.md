@@ -575,7 +575,10 @@ result acceptance for accepted/rejected routes, writes
 `review_panel/result_acceptance.json`, updates `status.json`, updates evidence
 or rejection ledgers, and validates the aggregate JSON plus task status
 transition. Missing required reviews, non-standard decision enums, or failed
-result acceptance gates fail closed.
+result acceptance gates fail closed. For `run_analysis` and `evaluate_results`,
+result acceptance also loads the referenced analysis manifest, structured run
+artifacts, diagnostics, and `claim_gates.json`; unsupported or capped empirical
+claims cannot enter accepted-output memory above the validator cap.
 
 If the aggregate route is `accepted`, refresh accepted-output memory:
 

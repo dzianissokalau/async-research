@@ -99,9 +99,16 @@ The validator builds a `result_acceptance.json` record with:
 - result task summaries include an analysis run manifest path, baseline,
   validation, robustness, leakage, limitation, artifact, dataset, and follow-up
   fields
+- result task acceptance loads and validates the referenced analysis manifest,
+  metrics, diagnostics, robustness checks, and `claim_gates.json`
+- empirical claim strength cannot exceed the cap computed from analysis claim
+  gates
+- accepted empirical results record run manifest, data versions, diagnostics,
+  claim gates, claim type, claim strength, and revalidation triggers
 - result tasks do not hide failed robustness checks
 - public/high-stakes outputs and strong claims require human approval
-- rejected results are logged to `rejected_results.md`
+- rejected empirical results are logged to `rejected_results.md` with reusable
+  anti-context and run-artifact links when available
 
 ## Claim Strength Caps
 
@@ -115,6 +122,7 @@ The executable caps are:
 - no robustness checks: `suggestive`
 - predictive validation only: at most `moderate`
 - causal claim without identification tests: at most `weak`
+- analysis claim gates: at most the computed `max_claim_strength`
 - reviewer decision disagreement: at most `suggestive`
 - public/high-stakes use without human approval: cannot be accepted
 - strong claim without human approval: cannot be accepted

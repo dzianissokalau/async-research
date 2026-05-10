@@ -8,11 +8,16 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.analysis_runs import (
+    MANIFEST_RELATIVE_PATH,
+    PreflightMalformed,
+    workspace_path,
+)
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import (
     SOURCE_REF_PATTERN,
@@ -38,6 +43,12 @@ ACCEPTANCE_SCHEMA = schema_path("result_acceptance.schema.json")
 CLAIM_ORDER = {"none": 0, "weak": 1, "suggestive": 2, "moderate": 3, "strong": 4}
 CLAIM_BY_SCORE = {score: claim for claim, score in CLAIM_ORDER.items()}
 RESULT_TASK_TYPES = {"run_analysis", "evaluate_results"}
+ANALYSIS_ARTIFACT_FILENAMES = {
+    "metrics": "metrics.json",
+    "diagnostics": "diagnostics.json",
+    "robustness": "robustness_checks.json",
+    "claim_gates": "claim_gates.json",
+}
 
 
 def utc_now() -> str:
@@ -368,11 +379,12 @@ def summary_missing_fields(summary: dict[str, Any]) -> list[str]:
         "follow_up_tasks",
     ]
     missing: list[str] = []
+    empty_list_allowed = {"follow_up_tasks"}
     for field in required:
         value = summary.get(field)
         if isinstance(value, str) and not value.strip():
             missing.append(field)
-        elif isinstance(value, list) and not value:
+        elif isinstance(value, list) and not value and field not in empty_list_allowed:
             missing.append(field)
         elif value is None:
             missing.append(field)
@@ -383,7 +395,317 @@ def valid_analysis_run_manifest_path(value: Any) -> bool:
     return nonempty_string(value) and str(value).replace("\\", "/").endswith("/artifacts/analysis_run/run_manifest.json")
 
 
-def cap_claim_strength(summary: Optional[dict[str, Any]], aggregate: Optional[dict[str, Any]], task_type: str = "") -> tuple[str, list[str]]:
+def canonical_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def ops_relative_path(ops_dir: Optional[Path], path: Optional[Path]) -> str:
+    if path is None:
+        return "none"
+    if ops_dir is None:
+        return path.as_posix()
+    try:
+        return path.relative_to(ops_dir.parent).as_posix()
+    except ValueError:
+        try:
+            return path.relative_to(ops_dir).as_posix()
+        except ValueError:
+            return path.as_posix()
+
+
+def parse_datetime_value(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            parsed = datetime.strptime(text[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def freshness_days(value: Any) -> Optional[int]:
+    try:
+        days = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return days if days > 0 else None
+
+
+def stale_artifact_triggers(
+    *,
+    accepted_date: str,
+    freshness_window_days: str,
+    manifest: Optional[dict[str, Any]],
+    diagnostics: Optional[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    days = freshness_days(freshness_window_days)
+    accepted_at = parse_datetime_value(accepted_date)
+    if days is None or accepted_at is None:
+        return []
+    cutoff = accepted_at - timedelta(days=days)
+    triggers: list[dict[str, Any]] = []
+    if isinstance(manifest, dict):
+        for index, item in enumerate(manifest.get("data_versions", [])):
+            if not isinstance(item, dict):
+                continue
+            accessed_at = parse_datetime_value(item.get("accessed_at"))
+            if accessed_at is not None and accessed_at < cutoff:
+                triggers.append(
+                    {
+                        "trigger": "stale_data_version",
+                        "severity": "stale",
+                        "field": f"data_versions[{index}].accessed_at",
+                        "source_id": item.get("source_id"),
+                        "accessed_at": item.get("accessed_at"),
+                        "freshness_window_days": freshness_window_days,
+                    }
+                )
+    if isinstance(diagnostics, dict):
+        generated_at = parse_datetime_value(diagnostics.get("generated_at"))
+        if generated_at is not None and generated_at < cutoff:
+            triggers.append(
+                {
+                    "trigger": "stale_diagnostics",
+                    "severity": "stale",
+                    "field": "diagnostics.generated_at",
+                    "generated_at": diagnostics.get("generated_at"),
+                    "freshness_window_days": freshness_window_days,
+                }
+            )
+    return triggers
+
+
+def diagnostics_status_counts(diagnostics: Optional[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    if not isinstance(diagnostics, dict):
+        return counts
+    for value in diagnostics.values():
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "").strip().lower()
+            if status:
+                counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def diagnostic_review_triggers(diagnostics: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    counts = diagnostics_status_counts(diagnostics)
+    triggers: list[dict[str, Any]] = []
+    if counts.get("fail", 0) > 0:
+        triggers.append({"trigger": "diagnostics_failures_present", "severity": "manual_review", "count": counts["fail"]})
+    if counts.get("warn", 0) > 0:
+        triggers.append({"trigger": "diagnostics_warnings_present", "severity": "due", "count": counts["warn"]})
+    return triggers
+
+
+def revalidation_status_from_triggers(existing: Any, triggers: list[dict[str, Any]]) -> str:
+    explicit = str(existing or "current").strip().lower()
+    if any(trigger.get("severity") == "stale" for trigger in triggers):
+        return "stale"
+    if any(trigger.get("severity") == "manual_review" for trigger in triggers):
+        return "manual_review"
+    if any(trigger.get("severity") == "due" for trigger in triggers):
+        return "due"
+    return explicit or "current"
+
+
+def resolve_analysis_manifest(
+    task_dir: Path,
+    ops_dir: Optional[Path],
+    task_type: str,
+    summary: Optional[dict[str, Any]],
+) -> tuple[Optional[Path], Optional[Path], list[str]]:
+    errors: list[str] = []
+    if not isinstance(summary, dict):
+        return None, None, ["structured result summary is absent"]
+    manifest_value = summary.get("run_manifest_path")
+    if not valid_analysis_run_manifest_path(manifest_value):
+        return None, None, ["run_manifest_path must end in artifacts/analysis_run/run_manifest.json"]
+    if task_type == "run_analysis":
+        expected = task_dir / MANIFEST_RELATIVE_PATH
+        resolved_manifest = workspace_path(ops_dir, manifest_value) if ops_dir is not None else Path(str(manifest_value))
+        if resolved_manifest is None:
+            errors.append("run_manifest_path could not be resolved")
+        elif canonical_path(resolved_manifest) != canonical_path(expected):
+            errors.append("run_analysis result summary must point to the same task's run manifest")
+        return expected, task_dir, errors
+    if ops_dir is None:
+        return None, None, ["evaluate_results requires --ops-dir to resolve upstream run_manifest_path"]
+    resolved_manifest = workspace_path(ops_dir, manifest_value)
+    if resolved_manifest is None:
+        return None, None, ["run_manifest_path could not be resolved"]
+    if resolved_manifest.name != "run_manifest.json" or resolved_manifest.parent.name != "analysis_run":
+        errors.append("run_manifest_path must point to an analysis_run/run_manifest.json artifact")
+    try:
+        analysis_task_dir = resolved_manifest.parents[2]
+    except IndexError:
+        analysis_task_dir = None
+        errors.append("run_manifest_path does not include an upstream task directory")
+    return resolved_manifest, analysis_task_dir, errors
+
+
+def analysis_failure_reasons(failures: list[dict[str, Any]]) -> list[str]:
+    reasons: list[str] = []
+    for item in failures:
+        reason = str(item.get("message") or item.get("reason") or item.get("gate") or "analysis validation failed")
+        details = item.get("details")
+        if details is not None:
+            detail_text = json.dumps(details, sort_keys=True, default=str) if not isinstance(details, str) else details
+            reason = f"{reason}: {detail_text}"
+        reasons.append(reason)
+    return reasons
+
+
+def validate_analysis_run_for_acceptance(
+    task_dir: Path,
+    ops_dir: Optional[Path],
+    summary: Optional[dict[str, Any]],
+    task_type: str,
+    *,
+    required: bool,
+    accepted_date: str,
+    freshness_window_days: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    record: dict[str, Any] = {
+        "required": required,
+        "task_dir": "none",
+        "run_manifest_path": "none",
+        "run_id": None,
+        "experiment_plan_id": None,
+        "accepted_plan_task_id": None,
+        "data_versions": [],
+        "artifact_paths": {},
+        "diagnostics": {"status_counts": {}},
+        "claim_gates": {},
+        "validation": {"ok": not required, "failure_count": 0, "warning_count": 0},
+        "revalidation_triggers": [],
+    }
+    gates: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    manifest_path, analysis_task_dir, resolution_errors = resolve_analysis_manifest(task_dir, ops_dir, task_type, summary)
+    if resolution_errors:
+        failures.append({"gate": "analysis_run_manifest_path", "message": "; ".join(resolution_errors)})
+    if analysis_task_dir is None or manifest_path is None:
+        record["validation"] = {"ok": False, "failure_count": len(failures), "warning_count": 0}
+        if required:
+            add_gate(gates, "analysis_run_artifacts_valid", False, "; ".join(analysis_failure_reasons(failures)))
+        return record, gates, warnings, failures
+
+    record["task_dir"] = ops_relative_path(ops_dir, analysis_task_dir)
+    record["run_manifest_path"] = ops_relative_path(ops_dir, manifest_path)
+    record["artifact_paths"] = {
+        name: ops_relative_path(ops_dir, analysis_task_dir / "artifacts" / "analysis_run" / filename)
+        for name, filename in ANALYSIS_ARTIFACT_FILENAMES.items()
+    }
+
+    if ops_dir is None:
+        failures.append({"gate": "analysis_ops_dir", "message": "analysis artifact validation requires --ops-dir"})
+    else:
+        from async_research_workflow.scripts import analysis_validation
+
+        report, context = analysis_validation.validate_common(
+            analysis_task_dir,
+            ops_dir,
+            None,
+            "result_acceptance_analysis_validation",
+        )
+        failures.extend(report.get("hard_gate_failures", []))
+        warnings.extend(report.get("warnings", []))
+        if context is not None:
+            manifest = context["manifest"]
+            record.update(
+                {
+                    "run_id": manifest.get("run_id"),
+                    "experiment_plan_id": manifest.get("experiment_plan_id"),
+                    "accepted_plan_task_id": manifest.get("accepted_plan_task_id"),
+                    "data_versions": manifest.get("data_versions") if isinstance(manifest.get("data_versions"), list) else [],
+                }
+            )
+            try:
+                outputs = analysis_validation.load_structured_outputs(
+                    analysis_task_dir,
+                    manifest,
+                    failures,
+                )
+                analysis_validation.validate_required_output_files(ops_dir, manifest, failures)
+                analysis_validation.validate_metrics_against_plan(outputs.get("metrics"), manifest, context.get("plan"), failures)
+                analysis_validation.validate_robustness_semantics(
+                    outputs.get("robustness"),
+                    context.get("plan"),
+                    failures,
+                    warnings,
+                )
+                if isinstance(summary, dict):
+                    analysis_validation.validate_summary_identity(summary, manifest, failures, warnings)
+                    analysis_validation.validate_summary_substance(
+                        ops_dir,
+                        analysis_task_dir,
+                        summary,
+                        manifest,
+                        outputs.get("metrics"),
+                        failures,
+                    )
+                    record["claim_gates"] = analysis_validation.validate_claim_gates(
+                        analysis_task_dir,
+                        manifest,
+                        summary,
+                        outputs,
+                        failures,
+                        warnings,
+                    )
+                diagnostics = outputs.get("diagnostics")
+                record["diagnostics"] = {
+                    "path": record["artifact_paths"].get("diagnostics", "none"),
+                    "generated_at": diagnostics.get("generated_at") if isinstance(diagnostics, dict) else None,
+                    "status_counts": diagnostics_status_counts(diagnostics),
+                }
+                record["revalidation_triggers"] = stale_artifact_triggers(
+                    accepted_date=accepted_date,
+                    freshness_window_days=freshness_window_days,
+                    manifest=manifest,
+                    diagnostics=diagnostics,
+                ) + diagnostic_review_triggers(diagnostics)
+            except PreflightMalformed as exc:
+                failures.append({"gate": "analysis_artifacts_malformed", "message": str(exc)})
+
+    record["validation"] = {
+        "ok": not failures,
+        "failure_count": len(failures),
+        "warning_count": len(warnings),
+    }
+    reason = "analysis run artifacts pass result acceptance validation" if not failures else "; ".join(analysis_failure_reasons(failures))
+    if required:
+        add_gate(gates, "analysis_run_artifacts_valid", not failures, reason)
+    return record, gates, warnings, failures
+
+
+def analysis_claim_gate_summary(analysis_run: Optional[dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(analysis_run, dict):
+        return {}
+    claim_gates = analysis_run.get("claim_gates") if isinstance(analysis_run.get("claim_gates"), dict) else {}
+    computed = claim_gates.get("computed") if isinstance(claim_gates.get("computed"), dict) else None
+    artifact = claim_gates.get("artifact") if isinstance(claim_gates.get("artifact"), dict) else None
+    return computed or artifact or {}
+
+
+def cap_claim_strength(
+    summary: Optional[dict[str, Any]],
+    aggregate: Optional[dict[str, Any]],
+    task_type: str = "",
+    analysis_run: Optional[dict[str, Any]] = None,
+) -> tuple[str, list[str]]:
     cap = CLAIM_ORDER["strong"]
     reasons: list[str] = []
 
@@ -426,6 +748,17 @@ def cap_claim_strength(summary: Optional[dict[str, Any]], aggregate: Optional[di
         if len(decisions) > 1:
             cap = min(cap, CLAIM_ORDER["suggestive"])
             reasons.append("reviewer decisions differ; unresolved disagreement caps claim at suggestive")
+
+    claim_gate = analysis_claim_gate_summary(analysis_run)
+    gate_cap = claim_gate.get("max_claim_strength")
+    gate_decision = claim_gate.get("claim_decision")
+    if gate_cap in CLAIM_ORDER:
+        cap = min(cap, CLAIM_ORDER[str(gate_cap)])
+        if gate_cap != "strong":
+            reasons.append(f"analysis claim gates cap claim at {gate_cap}")
+    if gate_decision in {"rejected", "needs_human"}:
+        cap = min(cap, CLAIM_ORDER["none"])
+        reasons.append(f"analysis claim gates decision is {gate_decision}")
 
     return CLAIM_BY_SCORE[cap], reasons
 
@@ -546,12 +879,52 @@ def build_acceptance_record(
     task_type = str(status.get("type", "admin"))
     current_route = route(status, summary)
     claim = claim_strength(status, aggregate, summary)
-    cap, cap_reasons = cap_claim_strength(summary, aggregate, task_type)
+    result = status.get("result") if isinstance(status.get("result"), dict) else {}
+    preliminary_claim_type_value = (
+        summary.get("claim_type")
+        if task_type in RESULT_TASK_TYPES and isinstance(summary, dict) and nonempty_string(summary.get("claim_type"))
+        else result.get("claim_type") or result.get("memory_claim_type")
+    )
+    preliminary_claim_type = normalize_claim_type(preliminary_claim_type_value, task_type)
+    accepted_date = accepted_iso_date(result.get("accepted_date") or status.get("updated_at") or status.get("created_at"))
+    preliminary_freshness_window = freshness_window_for(
+        preliminary_claim_type,
+        result.get("freshness_window_days") or result.get("freshness_window"),
+    )
     worker_output_present = (task_dir / "worker_output.md").exists() and bool((task_dir / "worker_output.md").read_text(encoding="utf-8").strip())
     gates: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     accepted = current_route in {"accept_as_evidence", "accept_negative_result"}
     rejected = current_route == "reject"
+    analysis_run: Optional[dict[str, Any]] = None
+    analysis_failures: list[dict[str, Any]] = []
+    if task_type in RESULT_TASK_TYPES and (accepted or rejected or isinstance(summary, dict)):
+        analysis_run, analysis_gates, analysis_warnings, analysis_failures = validate_analysis_run_for_acceptance(
+            task_dir,
+            ops_dir,
+            summary,
+            task_type,
+            required=accepted,
+            accepted_date=accepted_date,
+            freshness_window_days=preliminary_freshness_window,
+        )
+        gates.extend(analysis_gates)
+        if accepted:
+            warnings.extend(
+                {"gate": warning.get("gate", "analysis_validation"), "message": warning.get("message", str(warning))}
+                for warning in analysis_warnings
+            )
+        elif analysis_warnings:
+            warnings.extend(
+                {"gate": "analysis_validation_optional", "message": warning.get("message", str(warning))}
+                for warning in analysis_warnings
+            )
+        if not accepted and analysis_failures:
+            warnings.extend(
+                {"gate": "analysis_validation_optional", "message": reason}
+                for reason in analysis_failure_reasons(analysis_failures)
+            )
+    cap, cap_reasons = cap_claim_strength(summary, aggregate, task_type, analysis_run)
 
     worker_output_reason = "worker_output.md exists and is non-empty" if worker_output_present else "accepted evidence requires worker_output.md"
     if not accepted:
@@ -664,16 +1037,21 @@ def build_acceptance_record(
             "no DS-* source dependency detected for this accepted output",
         )
 
-    result = status.get("result") if isinstance(status.get("result"), dict) else {}
-    memory_claim_type = normalize_claim_type(result.get("claim_type") or result.get("memory_claim_type"), task_type)
-    accepted_date = accepted_iso_date(result.get("accepted_date") or status.get("updated_at") or status.get("created_at"))
+    analysis_claim_type = analysis_claim_gate_summary(analysis_run).get("claim_type")
+    summary_claim_type = summary.get("claim_type") if isinstance(summary, dict) else None
+    memory_claim_type_value = result.get("claim_type") or result.get("memory_claim_type")
+    if task_type in RESULT_TASK_TYPES:
+        memory_claim_type_value = analysis_claim_type or summary_claim_type or memory_claim_type_value
+    memory_claim_type = normalize_claim_type(memory_claim_type_value, task_type)
     freshness_window = freshness_window_for(memory_claim_type, result.get("freshness_window_days") or result.get("freshness_window"))
     memory_next_recheck = next_recheck_date(accepted_date, freshness_window, result.get("next_recheck_date"))
+    revalidation_triggers = analysis_run.get("revalidation_triggers", []) if isinstance(analysis_run, dict) else []
+    memory_revalidation_status = revalidation_status_from_triggers(result.get("revalidation_status"), revalidation_triggers)
     accepted_memory = {
         "claim_type": memory_claim_type,
         "freshness_window_days": freshness_window,
         "next_recheck_date": memory_next_recheck,
-        "revalidation_status": result.get("revalidation_status", "current"),
+        "revalidation_status": memory_revalidation_status,
         "supersedes": (
             ", ".join(str(item) for item in result.get("supersedes", []) if str(item).strip()) or "none"
             if isinstance(result.get("supersedes"), list)
@@ -691,6 +1069,14 @@ def build_acceptance_record(
         add_gate(gates, "human_gate", not human_required or human_satisfied, human_reason)
     if cap_reasons:
         warnings.extend({"gate": "claim_strength_cap", "message": reason} for reason in cap_reasons)
+    if accepted and revalidation_triggers:
+        warnings.extend(
+            {
+                "gate": "analysis_revalidation_trigger",
+                "message": f"{trigger.get('trigger')} marks accepted empirical evidence {trigger.get('severity', 'due')}",
+            }
+            for trigger in revalidation_triggers
+        )
 
     explicit_result_id = result_value(status, "result_id")
     result_id = (
@@ -724,6 +1110,7 @@ def build_acceptance_record(
         "human_gate": {"required": human_required, "satisfied": human_satisfied, "reason": human_reason},
         "source_governance": source_governance,
         "accepted_memory": accepted_memory,
+        "analysis_run": analysis_run,
         "evidence_ledger": {
             "required": accepted,
             "ledger_path": "research_ops/evidence_ledger.md",
@@ -741,6 +1128,24 @@ def build_acceptance_record(
             "result_id": result_id,
             "claim": summary.get("claim") if isinstance(summary, dict) else (result_value(status, "key_finding") or first_summary_line(task_dir) or "accepted output"),
             "limitations": "; ".join(summary.get("limitations", [])) if isinstance(summary, dict) and isinstance(summary.get("limitations"), list) else "see evidence",
+            "claim_type": accepted_memory.get("claim_type", "general"),
+            "run_manifest_path": analysis_run.get("run_manifest_path", "none") if isinstance(analysis_run, dict) else "none",
+            "diagnostics_path": (
+                (analysis_run.get("diagnostics") or {}).get("path", "none")
+                if isinstance(analysis_run, dict) and isinstance(analysis_run.get("diagnostics"), dict)
+                else "none"
+            ),
+            "claim_gates_path": (
+                (analysis_run.get("artifact_paths") or {}).get("claim_gates", "none")
+                if isinstance(analysis_run, dict) and isinstance(analysis_run.get("artifact_paths"), dict)
+                else "none"
+            ),
+            "revalidation_triggers": "; ".join(
+                str(trigger.get("trigger"))
+                for trigger in revalidation_triggers
+                if isinstance(trigger, dict) and trigger.get("trigger")
+            )
+            or "none",
         },
     }
 
@@ -762,11 +1167,16 @@ def update_ledgers(ops_dir: Path, record: dict[str, Any]) -> None:
                 "date",
                 "task_id",
                 "result_id",
+                "claim_type",
                 "claim_strength",
                 "source_ids",
                 "revalidation_status",
+                "revalidation_triggers",
                 "supersedes",
                 "superseded_by",
+                "run_manifest_path",
+                "diagnostics_path",
+                "claim_gates_path",
                 "claim",
                 "evidence_link",
                 "limitations",
@@ -776,11 +1186,16 @@ def update_ledgers(ops_dir: Path, record: dict[str, Any]) -> None:
                 "date": today(),
                 "task_id": task_id,
                 "result_id": ledger_payload.get("result_id") or task_id,
+                "claim_type": ledger_payload.get("claim_type") or accepted_memory.get("claim_type", "general"),
                 "claim_strength": record["claim_strength"],
                 "source_ids": source_ids,
                 "revalidation_status": accepted_memory.get("revalidation_status", "current"),
+                "revalidation_triggers": ledger_payload.get("revalidation_triggers") or "none",
                 "supersedes": accepted_memory.get("supersedes", "none"),
                 "superseded_by": accepted_memory.get("superseded_by", "none"),
+                "run_manifest_path": ledger_payload.get("run_manifest_path") or "none",
+                "diagnostics_path": ledger_payload.get("diagnostics_path") or "none",
+                "claim_gates_path": ledger_payload.get("claim_gates_path") or "none",
                 "claim": ledger_payload.get("claim") or "accepted output",
                 "evidence_link": record["evidence_ledger"]["evidence_link"],
                 "limitations": ledger_payload.get("limitations") or "see evidence",
@@ -793,13 +1208,32 @@ def update_ledgers(ops_dir: Path, record: dict[str, Any]) -> None:
         failed_gates = [gate["gate"] for gate in record["hard_gate_results"] if gate.get("passed") is not True]
         upsert_markdown_row(
             ops_dir / "rejected_results.md",
-            ["date", "task_id", "route", "claim_strength", "reason", "evidence_link"],
+            [
+                "date",
+                "task_id",
+                "route",
+                "claim_type",
+                "claim_strength",
+                "reason",
+                "claim",
+                "run_manifest_path",
+                "diagnostics_path",
+                "claim_gates_path",
+                "anti_context",
+                "evidence_link",
+            ],
             {
                 "date": today(),
                 "task_id": task_id,
                 "route": record["route"],
+                "claim_type": ledger_payload.get("claim_type") or record.get("accepted_memory", {}).get("claim_type", "general"),
                 "claim_strength": record["claim_strength"],
                 "reason": "; ".join(failed_gates) or "reviewer rejected",
+                "claim": ledger_payload.get("claim") or "rejected empirical result",
+                "run_manifest_path": ledger_payload.get("run_manifest_path") or "none",
+                "diagnostics_path": ledger_payload.get("diagnostics_path") or "none",
+                "claim_gates_path": ledger_payload.get("claim_gates_path") or "none",
+                "anti_context": ledger_payload.get("limitations") or "preserve as rejected empirical anti-context",
                 "evidence_link": record["evidence_ledger"]["evidence_link"],
             },
         )

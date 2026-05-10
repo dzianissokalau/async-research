@@ -58,10 +58,13 @@ REQUIRED_OPS_FILES = {
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
     ),
     "evidence_ledger.md": (
-        "| date | task_id | result_id | claim_strength | source_ids | revalidation_status | supersedes | superseded_by | claim | evidence_link | limitations | followups |\n"
+        "| date | task_id | result_id | claim_type | claim_strength | source_ids | revalidation_status | revalidation_triggers | supersedes | superseded_by | run_manifest_path | diagnostics_path | claim_gates_path | claim | evidence_link | limitations | followups |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    ),
+    "rejected_results.md": (
+        "| date | task_id | route | claim_type | claim_strength | reason | claim | run_manifest_path | diagnostics_path | claim_gates_path | anti_context | evidence_link |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
     ),
-    "rejected_results.md": "| date | task_id | route | claim_strength | reason | evidence_link |\n| --- | --- | --- | --- | --- | --- |\n",
     "discovery_inbox.md": "| item | title | source | status | score | next_task | notes |\n| --- | --- | --- | --- | ---: | --- | --- |\n",
     "decisions.md": "# Human Decisions\n\n| date | item_id | decision | approver | reason | next_status |\n| --- | --- | --- | --- | --- | --- |\n",
     "weekly_digest.md": "# Weekly Digest\n\nFixture scheduled-week simulation pending.\n",
