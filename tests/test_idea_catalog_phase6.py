@@ -202,6 +202,7 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
                         "| IDEA-7111 | First robust row | scan | candidate | 5 | data_readiness | catalog: candidate |",
                         "| IDEA-7112 | Second robust row | scan | candidate | 6 | literature_extract | catalog: candidate |",
                         "Free-form IDEA-7119 should not be selectable without a table row.",
+                        "| malformed | too few cells |",
                         "| IDEA-7113 | Third robust row | scan | candidate | 7 | hypothesis_card | catalog: candidate |",
                         "",
                     ]
@@ -223,9 +224,13 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             free_form_warning = next(item for item in failure["warnings"] if item["reason"] == "non_canonical_markdown_line")
             self.assertEqual(7, free_form_warning["line_number"])
             self.assertIn("IDEA-7119", free_form_warning["line"])
+            malformed_warning = next(item for item in failure["warnings"] if item["reason"] == "malformed_markdown_table_row")
+            self.assertEqual(8, malformed_warning["line_number"])
+            self.assertEqual(7, malformed_warning["expected_cells"])
+            self.assertEqual(2, malformed_warning["actual_cells"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
-    def test_inbox_capture_refuses_free_form_idea_without_table_row(self) -> None:
+    def test_inbox_capture_refuses_free_form_idea_before_table_without_table_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             write_text(
@@ -234,9 +239,10 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
                     [
                         "# Discovery Inbox",
                         "",
+                        "IDEA-7114 Free-form idea that still needs a proper table row.",
+                        "",
                         "| item | title | source | status | score | next_task | notes |",
                         "| --- | --- | --- | --- | ---: | --- | --- |",
-                        "IDEA-7114 Free-form idea that still needs a proper table row.",
                         "| IDEA-7115 | Proper table row | scan | candidate | 5 | data_readiness | catalog: candidate |",
                         "",
                     ]
@@ -251,8 +257,34 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("inbox_row_not_found", failure["reason"])
             self.assertEqual(["row-1"], [row["row_id"] for row in failure["nearby_candidate_rows"]])
             self.assertEqual("IDEA-7115", failure["nearby_candidate_rows"][0]["item"])
-            self.assertTrue(any(item["reason"] == "non_canonical_markdown_line" for item in failure["warnings"]))
+            free_form_warning = next(item for item in failure["warnings"] if item["reason"] == "non_canonical_markdown_line")
+            self.assertEqual(3, free_form_warning["line_number"])
+            self.assertIn("IDEA-7114", free_form_warning["line"])
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_default_markdown_table_parser_stays_quiet_around_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "notes.md"
+            write_text(
+                path,
+                "\n".join(
+                    [
+                        "# Notes",
+                        "Free-form prose before the table.",
+                        "| item | title |",
+                        "| --- | --- |",
+                        "| row-a | Canonical row |",
+                        "Free-form prose after the table.",
+                        "",
+                    ]
+                ),
+            )
+
+            rows, warnings = idea_catalog_script.parse_markdown_table_rows(path)
+
+            self.assertEqual(1, len(rows))
+            self.assertEqual("Canonical row", rows[0]["title"])
+            self.assertEqual([], warnings)
 
     def test_maintenance_dry_run_ignores_unmarked_rows_and_routes_duplicates_conservatively(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -341,6 +373,7 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
                         "| --- | --- | --- | --- | ---: | --- | --- |",
                         "| IDEA-7116 | Proper table row | scan | candidate | 5 | data_readiness | catalog: candidate |",
                         "Unstructured note about IDEA-7117 that should stay advisory only.",
+                        "| malformed | too few cells |",
                         "",
                     ]
                 ),
@@ -355,6 +388,10 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             warning = next(item for item in warnings if item["reason"] == "non_canonical_markdown_line")
             self.assertEqual(6, warning["line_number"])
             self.assertIn("IDEA-7117", warning["line"])
+            malformed_warning = next(item for item in warnings if item["reason"] == "malformed_markdown_table_row")
+            self.assertEqual(7, malformed_warning["line_number"])
+            self.assertEqual(7, malformed_warning["expected_cells"])
+            self.assertEqual(2, malformed_warning["actual_cells"])
             self.assertEqual(1, payload["sources_read"]["discovery_inbox"]["row_count"])
             self.assertEqual(before, file_snapshot(ops_dir))
 

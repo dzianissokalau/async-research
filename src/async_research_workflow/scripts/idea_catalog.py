@@ -574,7 +574,7 @@ def combined_row_text(row: dict[str, Any]) -> str:
     return " ".join(values)
 
 
-def parse_markdown_table_rows(path: Path, warn_non_table_after_header: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_markdown_table_rows(path: Path, warn_non_table_lines: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not path.exists():
         return [], [{"path": str(path), "reason": "markdown_table_missing"}]
     try:
@@ -590,7 +590,7 @@ def parse_markdown_table_rows(path: Path, warn_non_table_after_header: bool = Fa
     for line_number, raw in enumerate(lines, start=1):
         line = raw.strip()
         if not line.startswith("|"):
-            if warn_non_table_after_header and header is not None and line:
+            if warn_non_table_lines and line and not line.startswith("#"):
                 warnings.append(
                     {
                         "path": str(path),
@@ -881,7 +881,7 @@ def capture_source_from_args(args: argparse.Namespace) -> tuple[dict[str, Any] |
     if not args.from_inbox and not args.title:
         return None, [{"reason": "missing_capture_input", "message": "provide --from-inbox or --title"}], INVALID_REQUEST
     if args.from_inbox:
-        rows, warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md", warn_non_table_after_header=True)
+        rows, warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md", warn_non_table_lines=True)
         target = args.from_inbox.strip()
         match: dict[str, Any] | None = None
         row_id_match = re.fullmatch(r"row-([0-9]+)", target)
@@ -1432,7 +1432,7 @@ def run_capture(args: argparse.Namespace) -> int:
 
 
 def build_maintenance_plan(ops_dir: Path, model: dict[str, Any] | None = None) -> dict[str, Any]:
-    inbox_rows, inbox_warnings = parse_markdown_table_rows(ops_dir / "discovery_inbox.md", warn_non_table_after_header=True)
+    inbox_rows, inbox_warnings = parse_markdown_table_rows(ops_dir / "discovery_inbox.md", warn_non_table_lines=True)
     if model is None:
         model = read_catalog(ops_dir)
     proposals: list[dict[str, Any]] = []
