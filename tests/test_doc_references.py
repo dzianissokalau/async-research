@@ -414,7 +414,7 @@ class DocumentationReferenceTests(unittest.TestCase):
 
     def test_dashboard_mvp_coordination_contract_is_locked(self) -> None:
         dashboard_path = ROOT / "roadmaps" / "in_progress_dashboard_delivery_roadmap.md"
-        operator_path = ROOT / "roadmaps" / "in_progress_operator_ux_workflow_ergonomics_roadmap.md"
+        operator_path = ROOT / "roadmaps" / "delivered_operator_ux_workflow_ergonomics_roadmap.md"
         dashboard = dashboard_path.read_text(encoding="utf-8")
         operator = operator_path.read_text(encoding="utf-8")
         dashboard_normalized = " ".join(dashboard.split())

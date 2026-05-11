@@ -36,11 +36,29 @@ class DocsPackagingTests(unittest.TestCase):
 
         for snippet in [
             "Keep Markdown protocol and operator docs packaged",
+            "Do not split the docs into an optional extra or external download",
             "comfortably below the 1 MiB packaging threshold",
+            "The installed-wheel cost is about 154 KB (150 KiB) compressed",
+            "does not include a user or reviewer report about wheel-size, installation, or distribution pain",
             "Keep the packaged docs footprint below 1 MiB",
             "Verify key packaged docs through `importlib.resources`",
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
+
+    def test_policy_records_measured_artifact_footprint(self) -> None:
+        text = POLICY.read_text(encoding="utf-8")
+
+        for snippet in [
+            ".venv/bin/python -m build --outdir /private/tmp/arw-docs-packaging-review",
+            "| Wheel artifact | 586,416 bytes |",
+            "| Source distribution artifact | 589,490 bytes |",
+            "| Wheel package payload, uncompressed | 1,976,398 bytes |",
+            "| Packaged docs files | 47 Markdown files |",
+            "| Packaged docs, uncompressed | 427,255 bytes |",
+            "| Packaged docs, compressed in wheel | 153,593 bytes |",
+            "| Packaged docs share of compressed wheel | 26.2% |",
+        ]:
+            self.assertIn(snippet, text)
 
     def test_pyproject_keeps_docs_package_data_explicit(self) -> None:
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -77,6 +95,22 @@ class DocsPackagingTests(unittest.TestCase):
         ]
 
         self.assertEqual([], missing)
+
+    def test_operator_ux_roadmap_records_docs_packaging_completion(self) -> None:
+        roadmap = (ROOT / "roadmaps" / "delivered_operator_ux_workflow_ergonomics_roadmap.md").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(roadmap.split())
+
+        for snippet in [
+            "Status: Delivered",
+            "| 7 | Policy cleanup | Complete |",
+            "Docs packaging review keeps Markdown protocol docs packaged for alpha",
+            "586,416-byte wheel",
+            "153,593 compressed docs bytes",
+            "operator guidance demand without wheel-size or installation pain",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@ accepted/rejected ledgers, costs, readiness, and human review work without
 keeping many docs and JSON outputs open at once.
 
 This roadmap owns the web UI implementation. The
-[Operator UX And Workflow Ergonomics Roadmap](./in_progress_operator_ux_workflow_ergonomics_roadmap.md)
+[Operator UX And Workflow Ergonomics Roadmap](./delivered_operator_ux_workflow_ergonomics_roadmap.md)
 owns adjacent CLI ergonomics such as review drafting, a one-page quickstart,
 workflow orchestration, and operational metrics. Dashboard slices should consume
 those public commands and read models rather than reimplementing workflow logic.

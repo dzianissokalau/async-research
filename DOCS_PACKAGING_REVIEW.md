@@ -5,7 +5,8 @@ This review records the P3 decision for packaged protocol docs.
 ## Decision
 
 Keep Markdown protocol and operator docs packaged in `async_research_workflow`
-for the alpha line.
+for the alpha line. Do not split the docs into an optional extra or external
+download for the current alpha package.
 
 The package is intentionally file-backed and agent-facing. Operators and LLM
 implementers need the runbooks, scheduler prompts, artifact contracts, framework
@@ -14,11 +15,39 @@ only from a source checkout.
 
 ## Current Footprint
 
-At review time, the tracked packaged docs under
-`src/async_research_workflow/docs/` were comfortably below the 1 MiB packaging
-threshold.
-That is small compared with the templates, schemas, benchmark cases, and runtime
-code, and it does not justify removing useful offline guidance from the wheel.
+Reviewed again on 2026-05-11 with a fresh build:
+
+```bash
+.venv/bin/python -m build --outdir /private/tmp/arw-docs-packaging-review
+```
+
+| Measure | Value |
+| --- | ---: |
+| Wheel artifact | 586,416 bytes |
+| Source distribution artifact | 589,490 bytes |
+| Wheel package payload, uncompressed | 1,976,398 bytes |
+| Packaged docs files | 47 Markdown files |
+| Packaged docs, uncompressed | 427,255 bytes |
+| Packaged docs, compressed in wheel | 153,593 bytes |
+| Packaged docs share of compressed wheel | 26.2% |
+
+The tracked packaged docs under `src/async_research_workflow/docs/` remain
+comfortably below the 1 MiB packaging threshold. The installed-wheel cost is
+about 154 KB (150 KiB) compressed, which is not enough to justify removing
+useful offline guidance from the wheel.
+
+## Support Signal
+
+The support and review evidence recorded in this repo points toward clearer
+operator guidance, shorter quickstarts, public command paths, and better
+workflow surfaces. It does not include a user or reviewer report about
+wheel-size, installation, or distribution pain caused by packaged Markdown docs.
+
+Recent operator UX work also made the packaged docs more valuable: the first
+success quickstart, scheduler prompts, task contracts, review protocols,
+dashboard spec, and internal helper boundary are all meant to be reachable from
+an installed package. Splitting them out now would add release and support
+complexity without a measured user benefit.
 
 ## Packaging Rules
 
