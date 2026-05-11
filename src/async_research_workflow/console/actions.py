@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
 import io
 import json
 import shlex
@@ -16,6 +17,7 @@ from typing import Any
 
 from async_research_workflow import cli
 from async_research_workflow.console.snapshot import workspace_snapshot
+from async_research_workflow.resources import schema_path
 
 
 COMMAND_LOCK = threading.Lock()
@@ -28,6 +30,7 @@ class ActionSpec:
     description: str
     command: tuple[str, ...]
     mutates: bool
+    command_prefix: tuple[str, ...] = ("async-research",)
     ok_exit_codes: tuple[int, ...] = (0,)
     requires_confirmation: bool = False
     recovery_advice: str = "Review stdout and stderr, repair the reported issue, then rerun the command."
@@ -84,6 +87,40 @@ ACTION_SPECS: dict[str, ActionSpec] = {
 }
 
 
+TASK_ACTION_SPECS: dict[str, ActionSpec] = {
+    "task_status_validate": ActionSpec(
+        action_id="task_status_validate",
+        label="Validate Status",
+        description="Validate one task status.json against the packaged task status schema.",
+        command=("async_research_workflow.scripts.validate_json_artifact", "{status_path}", "--schema", "{schema_path}"),
+        command_prefix=("python", "-m"),
+        mutates=False,
+        recovery_advice="Repair the task status.json schema errors, then rerun status validation.",
+        success_next_step="Run transition validation or inspect the task lock.",
+    ),
+    "task_transition_validate": ActionSpec(
+        action_id="task_transition_validate",
+        label="Validate Transition",
+        description="Validate the task previous_status -> status state-machine transition.",
+        command=("async_research_workflow.scripts.validate_transition", "{task_dir}"),
+        command_prefix=("python", "-m"),
+        mutates=False,
+        recovery_advice="Repair previous_status, status, last_transition_reason, or required human-decision evidence.",
+        success_next_step="Inspect the lock state when preparing worker execution.",
+    ),
+    "task_lock_status": ActionSpec(
+        action_id="task_lock_status",
+        label="Inspect Lock",
+        description="Inspect the task-local LOCK directory without acquiring or releasing it.",
+        command=("async_research_workflow.scripts.task_lock", "status", "{task_dir}"),
+        command_prefix=("python", "-m"),
+        mutates=False,
+        recovery_advice="Review the lock owner and stale state before deciding whether recovery is needed.",
+        success_next_step="Refresh the task board when lock state changes.",
+    ),
+}
+
+
 def utc_timestamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -96,8 +133,19 @@ def action_command(spec: ActionSpec, ops_dir: Path) -> list[str]:
     return [part.format(ops_dir=str(ops_dir)) for part in spec.command]
 
 
-def command_string(argv: list[str]) -> str:
-    return shlex.join(["async-research", *argv])
+def task_action_command(spec: ActionSpec, task_dir: Path) -> list[str]:
+    return [
+        part.format(
+            task_dir=str(task_dir),
+            status_path=str(task_dir / "status.json"),
+            schema_path=str(schema_path("task_status.schema.json")),
+        )
+        for part in spec.command
+    ]
+
+
+def command_string(argv: list[str], prefix: tuple[str, ...] = ("async-research",)) -> str:
+    return shlex.join([*prefix, *argv])
 
 
 def parse_stdout_json(stdout: str) -> dict[str, Any] | None:
@@ -149,6 +197,22 @@ def run_cli_command(argv: list[str]) -> tuple[int, str, str]:
     return int(code), stdout.getvalue(), stderr.getvalue()
 
 
+def run_module_command(module_name: str, argv: list[str]) -> tuple[int, str, str]:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    with COMMAND_LOCK:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                module = importlib.import_module(module_name)
+                code = module.main(argv)
+            except SystemExit as exc:
+                code = exc.code if isinstance(exc.code, int) else 1
+            except Exception as exc:
+                print(f"unexpected console task action failure: {exc}", file=sys.stderr)
+                code = 1
+    return int(code), stdout.getvalue(), stderr.getvalue()
+
+
 def command_result(spec: ActionSpec, ops_dir: Path, argv: list[str], started_at: str, elapsed_ms: int, exit_code: int, stdout: str, stderr: str) -> dict[str, Any]:
     parsed_stdout = parse_stdout_json(stdout)
     status = exit_status(exit_code, spec.ok_exit_codes)
@@ -158,8 +222,8 @@ def command_result(spec: ActionSpec, ops_dir: Path, argv: list[str], started_at:
         "action": spec.action_id,
         "label": spec.label,
         "mutates": spec.mutates,
-        "command": command_string(argv),
-        "argv": ["async-research", *argv],
+        "command": command_string(argv, spec.command_prefix),
+        "argv": [*spec.command_prefix, *argv],
         "exit_code": exit_code,
         "stdout": stdout,
         "stderr": stderr,
@@ -169,6 +233,22 @@ def command_result(spec: ActionSpec, ops_dir: Path, argv: list[str], started_at:
         "elapsed_ms": elapsed_ms,
         "next_step": recovery_advice(spec, exit_code, parsed_stdout),
     }
+
+
+def task_action_catalog() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": spec.action_id,
+            "label": spec.label,
+            "description": spec.description,
+            "command_template": command_string(list(spec.command), spec.command_prefix),
+            "mutates": spec.mutates,
+            "requires_confirmation": spec.requires_confirmation,
+            "requires_task": True,
+            "status": "available",
+        }
+        for spec in TASK_ACTION_SPECS.values()
+    ]
 
 
 def init_spec(template: str) -> ActionSpec:
@@ -226,11 +306,92 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
         "ops_dir": str(ops_dir),
         "workspace": workspace,
         "actions": actions,
+        "task_actions": task_action_catalog(),
     }
+
+
+def resolve_task_dir(ops_dir: Path, request: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
+    if not ops_dir.is_dir():
+        return None, {
+            "ok": False,
+            "reason": "ops_dir_missing",
+            "message": "Initialize research_ops before running task inspection actions.",
+            "read_only": True,
+            "changed": False,
+        }
+    task_ref = request.get("task_dir") or request.get("status_path") or request.get("task_id")
+    if not isinstance(task_ref, str) or not task_ref.strip():
+        return None, {
+            "ok": False,
+            "reason": "missing_task",
+            "message": "Task inspection actions require task_id, task_dir, or status_path.",
+            "read_only": True,
+            "changed": False,
+        }
+    tasks_root = (ops_dir / "tasks").resolve()
+    ref = task_ref.strip()
+
+    for status_path in sorted((ops_dir / "tasks").glob("*/status.json")):
+        task_dir = status_path.parent
+        if ref in {task_dir.name, str(task_dir), str(status_path)}:
+            return task_dir, None
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict) and ref == str(payload.get("id") or ""):
+            return task_dir, None
+
+    candidate = Path(ref)
+    if not candidate.is_absolute():
+        candidate = ops_dir / "tasks" / ref
+    candidate = candidate.resolve()
+    if candidate.name == "status.json":
+        candidate = candidate.parent
+    try:
+        candidate.relative_to(tasks_root)
+    except ValueError:
+        return None, {
+            "ok": False,
+            "reason": "task_outside_workspace",
+            "message": "Task inspection is limited to task folders under research_ops/tasks.",
+            "read_only": True,
+            "changed": False,
+        }
+    if not candidate.is_dir():
+        return None, {
+            "ok": False,
+            "reason": "task_missing",
+            "message": f"Task folder does not exist: {candidate}",
+            "read_only": True,
+            "changed": False,
+        }
+    return candidate, None
+
+
+def run_task_action(spec: ActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    task_dir, error = resolve_task_dir(ops_dir, request)
+    if error is not None or task_dir is None:
+        return 409 if error and error.get("reason") == "ops_dir_missing" else 400, error or {}
+    argv = task_action_command(spec, task_dir)
+    module_name, module_argv = argv[0], argv[1:]
+    started_at = utc_timestamp()
+    start = time.monotonic()
+    exit_code, stdout, stderr = run_module_command(module_name, module_argv)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    result = command_result(spec, ops_dir, argv, started_at, elapsed_ms, exit_code, stdout, stderr)
+    result["task_dir"] = str(task_dir)
+    result["status_path"] = str(task_dir / "status.json")
+    result["read_only"] = True
+    result["changed"] = False
+    return 200, result
 
 
 def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
     request = payload or {}
+    task_spec = TASK_ACTION_SPECS.get(action_id)
+    if task_spec is not None:
+        return run_task_action(task_spec, ops_dir, request)
     if action_id == "init":
         template = str(request.get("template") or "generic")
         if template not in cli.TEMPLATES:

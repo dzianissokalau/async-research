@@ -214,12 +214,44 @@ class ConsoleSnapshotTests(unittest.TestCase):
                 "human_gate_reason",
                 "last_transition_reason",
                 "allowed_paths",
+                "allowed_next_statuses",
+                "status_validation",
+                "transition_validation",
+                "lock_state",
+                "files",
                 "task_dir",
                 "status_path",
             ]:
                 self.assertIn(key, human)
             self.assertEqual("TASK-1001", human["task_id"])
             self.assertEqual(human, payload["human_decisions"]["blocked_task_refs"][0])
+
+    def test_snapshot_includes_full_task_board_rows_and_invalid_statuses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-1003", "ready_for_worker")
+            malformed_dir = ops_dir / "tasks" / "TASK-1004-malformed"
+            malformed_dir.mkdir(parents=True)
+            (malformed_dir / "status.json").write_text("{not json", encoding="utf-8")
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            by_id = {task["task_id"]: task for task in payload["tasks"]["all"]}
+            self.assertIn("TASK-1003", by_id)
+            self.assertIn("TASK-1004-malformed", by_id)
+            valid = by_id["TASK-1003"]
+            self.assertTrue(valid["status_validation"]["valid"])
+            self.assertTrue(valid["transition_validation"]["valid"])
+            self.assertIn("in_progress", valid["allowed_next_statuses"])
+            self.assertEqual({"locked": False, "stale": False}, {key: valid["lock_state"][key] for key in ("locked", "stale")})
+            self.assertIn(str(task_dir / "status.json"), [item["path"] for item in valid["files"]])
+            invalid = by_id["TASK-1004-malformed"]
+            self.assertEqual("invalid", invalid["status"])
+            self.assertFalse(invalid["status_validation"]["valid"])
+            self.assertEqual("malformed_json", invalid["status_validation"]["reason"])
+            self.assertFalse(invalid["transition_validation"]["valid"])
+            self.assertIn("invalid", payload["tasks"]["status_filter_options"])
 
     def test_snapshot_surfaces_stale_locks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -234,6 +266,9 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual(1, len(payload["tasks"]["stale_locks"]))
             self.assertEqual(str(lock_dir), payload["tasks"]["stale_locks"][0]["lock_dir"])
+            task = payload["tasks"]["all"][0]
+            self.assertTrue(task["lock_state"]["locked"])
+            self.assertTrue(task["lock_state"]["stale"])
 
     def test_snapshot_surfaces_budget_pressure_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

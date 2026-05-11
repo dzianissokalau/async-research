@@ -4,6 +4,8 @@ const state = {
   results: {},
   loading: false,
   runningAction: null,
+  taskFilter: "all",
+  selectedTaskId: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -134,23 +136,170 @@ function renderList(target, rows, emptyText, renderer) {
   list.replaceChildren(...rows.map(renderer));
 }
 
+function taskStatusClass(task) {
+  if ((task.status_validation || {}).valid === false || task.status === "invalid") {
+    return "badge bad";
+  }
+  if ((task.lock_state || {}).stale) {
+    return "badge warn";
+  }
+  if (task.status === "accepted" || task.status === "synthesized") {
+    return "badge good";
+  }
+  if (task.requires_human || task.status === "needs_human" || task.status === "paused") {
+    return "badge warn";
+  }
+  return "badge neutral";
+}
+
+function renderTaskFilters(tasks, rows) {
+  const filters = tasks.status_filter_options || ["all"];
+  const counts = rows.reduce((acc, task) => {
+    const status = task.status || "unknown";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, { all: rows.length });
+  if (!filters.includes(state.taskFilter)) {
+    state.taskFilter = "all";
+  }
+  const buttons = filters.map((filter) => {
+    const button = document.createElement("button");
+    button.className = filter === state.taskFilter ? "filter-chip active" : "filter-chip";
+    button.type = "button";
+    button.textContent = `${statusLabel(filter)} ${counts[filter] || 0}`;
+    button.addEventListener("click", () => {
+      state.taskFilter = filter;
+      renderTasks(state.snapshot || {});
+    });
+    return button;
+  });
+  el("task-filters").replaceChildren(...buttons);
+}
+
+function filteredTasks(rows) {
+  if (state.taskFilter === "all") {
+    return rows;
+  }
+  return rows.filter((task) => task.status === state.taskFilter);
+}
+
+function taskBoardRow(task) {
+  const row = document.createElement("button");
+  row.className = task.task_id === state.selectedTaskId ? "task-row selected" : "task-row";
+  row.type = "button";
+  row.addEventListener("click", () => {
+    state.selectedTaskId = task.task_id;
+    renderTasks(state.snapshot || {});
+  });
+
+  const title = document.createElement("div");
+  title.className = "task-row-title";
+  title.textContent = `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`;
+
+  const meta = document.createElement("div");
+  meta.className = "task-row-meta";
+  meta.textContent = `${valueOrUnavailable(task.type)} / tier ${valueOrUnavailable(task.review_tier)} / rev ${valueOrUnavailable(task.revision_count)}`;
+
+  const badge = document.createElement("span");
+  badge.className = taskStatusClass(task);
+  badge.textContent = statusLabel(task.status);
+
+  row.append(title, badge, meta);
+  return row;
+}
+
+function selectedTask(rows) {
+  return rows.find((task) => task.task_id === state.selectedTaskId) || rows[0] || null;
+}
+
+function detailField(label, value) {
+  const node = document.createElement("div");
+  node.className = "detail-field";
+  const heading = document.createElement("h3");
+  heading.textContent = label;
+  const body = document.createElement("div");
+  body.className = "detail-value";
+  body.textContent = Array.isArray(value) ? value.join("\n") : valueOrUnavailable(value);
+  node.append(heading, body);
+  return node;
+}
+
+function detailPathLink(file) {
+  const link = document.createElement("a");
+  link.className = file.exists ? "file-link" : "file-link missing";
+  link.href = `file://${file.path}`;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = `${file.label}: ${file.path}${file.exists ? "" : " (missing)"}`;
+  return link;
+}
+
+function taskActionButton(action, task) {
+  const button = document.createElement("button");
+  button.className = "button";
+  button.type = "button";
+  button.textContent = state.runningAction === action.id ? "Running" : action.label;
+  button.disabled = Boolean(state.runningAction);
+  button.addEventListener("click", () => runTaskAction(action, task));
+  return button;
+}
+
+function renderTaskDetail(rows) {
+  const panel = el("task-detail");
+  const task = selectedTask(rows);
+  if (!task) {
+    panel.replaceChildren(empty("No task selected."));
+    return;
+  }
+  const title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`;
+
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Status", statusLabel(task.status)),
+    detailField("Type", task.type),
+    detailField("Review Tier", task.review_tier),
+    detailField("Revision", `${valueOrUnavailable(task.revision_count)} of ${valueOrUnavailable(task.max_revisions)}`),
+    detailField("Lock", (task.lock_state || {}).locked ? ((task.lock_state || {}).stale ? "stale" : "locked") : "unlocked"),
+    detailField("Transition", (task.transition_validation || {}).valid ? "valid" : valueOrUnavailable((task.transition_validation || {}).reason)),
+    detailField("Human Gate", task.human_gate_reason),
+    detailField("Last Transition", task.last_transition_reason),
+    detailField("Allowed Paths", task.allowed_paths || []),
+    detailField("Allowed Next", task.allowed_next_statuses || [])
+  );
+
+  const files = document.createElement("div");
+  files.className = "file-list";
+  for (const file of task.files || []) {
+    files.append(detailPathLink(file));
+  }
+
+  const actionRow = document.createElement("div");
+  actionRow.className = "detail-actions";
+  const taskActions = ((state.actions || {}).task_actions || []);
+  actionRow.replaceChildren(...taskActions.map((action) => taskActionButton(action, task)));
+
+  panel.replaceChildren(title, fields, files, actionRow);
+}
+
 function renderTasks(snapshot) {
   const tasks = snapshot.tasks || {};
-  el("task-total").textContent = asNumber(tasks.total);
-  renderList("active-tasks", tasks.active, "No active tasks.", (task) =>
-    record(
-      `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`,
-      `${valueOrUnavailable(task.status)} / ${valueOrUnavailable(task.type)}`,
-      `updated: ${valueOrUnavailable(task.last_transition_reason)}`
-    )
+  const rows = tasks.all || [];
+  el("task-total").textContent = asNumber(tasks.board_total || rows.length);
+  renderTaskFilters(tasks, rows);
+  if (rows.length > 0 && !rows.some((task) => task.task_id === state.selectedTaskId)) {
+    state.selectedTaskId = rows[0].task_id;
+  }
+  const visible = filteredTasks(rows);
+  if (visible.length > 0 && !visible.some((task) => task.task_id === state.selectedTaskId)) {
+    state.selectedTaskId = visible[0].task_id;
+  }
+  el("task-board").replaceChildren(
+    ...(visible.length ? visible.map(taskBoardRow) : [empty("No tasks match this filter.")])
   );
-  renderList("blocked-tasks", tasks.blocked, "No blocked tasks.", (task) =>
-    record(
-      `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`,
-      `${valueOrUnavailable(task.status)} / ${valueOrUnavailable(task.type)}`,
-      valueOrUnavailable(task.human_gate_reason || task.last_transition_reason)
-    )
-  );
+  renderTaskDetail(visible);
 }
 
 function renderDecisions(snapshot) {
@@ -442,6 +591,33 @@ async function runAction(action) {
   } finally {
     state.runningAction = null;
     renderSetup(state.snapshot || {}, state.actions || {});
+  }
+}
+
+async function runTaskAction(action, task) {
+  if (state.runningAction) {
+    return;
+  }
+  state.runningAction = action.id;
+  renderTasks(state.snapshot || {});
+  try {
+    const { result } = await postAction({ action: action.id, task_dir: task.task_dir });
+    state.results[`${action.id}:${task.task_id}`] = result;
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderTasks(state.snapshot || {});
   }
 }
 

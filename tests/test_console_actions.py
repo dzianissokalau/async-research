@@ -20,6 +20,38 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
+def write_task_status(ops_dir: Path, task_id: str = "TASK-2001", status: str = "ready_for_worker") -> Path:
+    task_dir = ops_dir / "tasks" / f"{task_id}-fixture"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "task.md").write_text(f"# {task_id}\n", encoding="utf-8")
+    (task_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "id": task_id,
+                "title": f"{task_id} fixture",
+                "type": "admin",
+                "status": status,
+                "previous_status": None,
+                "last_transition_reason": "fixture",
+                "priority": 2,
+                "revision_count": 0,
+                "max_revisions": 1,
+                "revision_limit_hit": False,
+                "allowed_paths": [f"research_ops/tasks/{task_dir.name}/**"],
+                "max_minutes": 10,
+                "requires_human": False,
+                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return task_dir
+
+
 class ConsoleActionTests(unittest.TestCase):
     def test_catalog_marks_missing_workspace_and_known_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -35,6 +67,9 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("async-research surface update", by_id["surface_update"]["command"])
         self.assertTrue(by_id["surface_update"]["mutates"])
         self.assertFalse(by_id["surface_validate"]["mutates"])
+        task_actions = {item["id"]: item for item in catalog["task_actions"]}
+        self.assertIn("task_status_validate", task_actions)
+        self.assertIn("python -m async_research_workflow.scripts.validate_transition", task_actions["task_transition_validate"]["command_template"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,6 +176,67 @@ class ConsoleActionTests(unittest.TestCase):
             status, result = actions.run_action("nope", Path(tmp) / "research_ops", {})
         self.assertEqual(404, status)
         self.assertEqual("unknown_console_action", result["reason"])
+
+    def test_task_inspection_actions_are_read_only_command_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir)
+            before = file_snapshot(ops_dir)
+
+            for action_id in ("task_status_validate", "task_transition_validate", "task_lock_status"):
+                with self.subTest(action_id=action_id):
+                    status, result = actions.run_action(action_id, ops_dir, {"task_dir": str(task_dir)})
+
+                    self.assertEqual(200, status, result)
+                    self.assertTrue(result["ok"], result)
+                    self.assertTrue(result["read_only"])
+                    self.assertFalse(result["changed"])
+                    self.assertFalse(result["mutates"])
+                    self.assertIn("python -m async_research_workflow.scripts.", result["command"])
+                    self.assertEqual(str(task_dir), result["task_dir"])
+                    self.assertEqual(str(task_dir / "status.json"), result["status_path"])
+                    self.assertEqual(0, result["exit_code"])
+                    self.assertIsInstance(result["stdout"], str)
+                    self.assertEqual("", result["stderr"])
+                    if result["stdout"].strip():
+                        json.loads(result["stdout"])
+
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_task_inspection_actions_validate_workspace_and_task_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+
+            status, result = actions.run_action("task_status_validate", ops_dir, {"task_id": "TASK-2001"})
+            self.assertEqual(409, status)
+            self.assertEqual("ops_dir_missing", result["reason"])
+
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+
+            status, result = actions.run_action("task_status_validate", ops_dir, {})
+            self.assertEqual(400, status)
+            self.assertEqual("missing_task", result["reason"])
+
+            status, result = actions.run_action("task_status_validate", ops_dir, {"task_dir": str(Path(tmp) / "outside")})
+            self.assertEqual(400, status)
+            self.assertEqual("task_outside_workspace", result["reason"])
 
 
 if __name__ == "__main__":

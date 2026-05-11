@@ -21,6 +21,7 @@ from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts import validate_transition
 
 
 SNAPSHOT_SCHEMA_VERSION = "console_snapshot_v1.0"
@@ -177,24 +178,148 @@ def task_id(payload: dict[str, Any], fallback: Path) -> str:
     return str(payload.get("id") or fallback.name)
 
 
-def task_row(item: dict[str, Any]) -> dict[str, Any]:
+def task_file_links(task_dir: Path, status_path: Path) -> list[dict[str, Any]]:
+    files = [
+        ("Task brief", task_dir / "task.md"),
+        ("Status JSON", status_path),
+        ("Worker output", task_dir / "worker_output.md"),
+        ("Review aggregate", task_dir / "review_panel" / "aggregate.md"),
+        ("Review aggregate JSON", task_dir / "review_panel" / "aggregate.json"),
+    ]
+    return [
+        {
+            "label": label,
+            "path": str(path),
+            "exists": path.exists(),
+        }
+        for label, path in files
+    ]
+
+
+def task_lock_state(task_dir: Path, now: datetime) -> dict[str, Any]:
+    lock_dir = task_dir / "LOCK"
+    if not lock_dir.exists():
+        return {
+            "locked": False,
+            "stale": False,
+            "lock_dir": str(lock_dir),
+            "age_minutes": None,
+            "owner": None,
+        }
+    try:
+        age_minutes = round((now.timestamp() - lock_dir.stat().st_mtime) / 60, 2)
+    except OSError:
+        age_minutes = None
+    return {
+        "locked": lock_dir.is_dir(),
+        "stale": bool(age_minutes is not None and age_minutes >= 60.0),
+        "lock_dir": str(lock_dir),
+        "age_minutes": age_minutes,
+        "owner": autonomy_readiness_gate.lock_owner(task_dir),
+    }
+
+
+def transition_summary(payload: dict[str, Any], status_path: Path) -> dict[str, Any]:
+    status = payload.get("status")
+    previous = payload.get("previous_status")
+    decisions_path = validate_transition.infer_decisions_path(status_path)
+    code, result = validate_transition.validate_payload(payload, decisions_path=decisions_path)
+    return {
+        "valid": code == validate_transition.SUCCESS,
+        "exit_code": code,
+        "reason": result.get("reason"),
+        "previous_status": previous,
+        "status": status,
+        "allowed_next_statuses": sorted(validate_transition.ALLOWED.get(status, set())) if isinstance(status, str) else [],
+    }
+
+
+def status_validation_entry(status_path: Path, malformed_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    issue_record = malformed_by_path.get(str(status_path))
+    if issue_record is None:
+        return {
+            "valid": True,
+            "reason": "valid",
+            "issues": [],
+        }
+    return {
+        "valid": False,
+        "reason": issue_record.get("reason", "invalid_status"),
+        "issues": issue_record.get("errors") or [issue_record],
+    }
+
+
+def task_row(item: dict[str, Any], now: datetime, malformed_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
     task_dir = item["task_dir"]
+    status_path = item["status_path"]
     payload = item["payload"]
+    transition = transition_summary(payload, status_path)
     return {
         "task_id": task_id(payload, task_dir),
         "title": payload.get("title", "unavailable"),
         "status": payload.get("status", "unknown"),
+        "previous_status": payload.get("previous_status"),
         "type": payload.get("type", "unavailable"),
         "review_tier": (payload.get("review_policy") or {}).get("tier", "unavailable")
         if isinstance(payload.get("review_policy"), dict)
         else "unavailable",
         "revision_count": payload.get("revision_count", "unavailable"),
+        "max_revisions": payload.get("max_revisions", "unavailable"),
+        "revision_limit_hit": payload.get("revision_limit_hit", "unavailable"),
         "requires_human": payload.get("requires_human", False),
         "human_gate_reason": payload.get("human_gate_reason"),
+        "human_gate": payload.get("human_gate") if isinstance(payload.get("human_gate"), dict) else None,
         "last_transition_reason": payload.get("last_transition_reason"),
         "allowed_paths": payload.get("allowed_paths", []),
+        "allowed_next_statuses": transition["allowed_next_statuses"],
+        "status_validation": status_validation_entry(status_path, malformed_by_path),
+        "transition_validation": transition,
+        "lock_state": task_lock_state(task_dir, now),
+        "files": task_file_links(task_dir, status_path),
         "task_dir": str(task_dir),
-        "status_path": str(item["status_path"]),
+        "status_path": str(status_path),
+    }
+
+
+def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
+    task_dir = Path(str(item.get("task_dir") or ""))
+    status_path = Path(str(item.get("status_path") or task_dir / "status.json"))
+    task_id_value = str(item.get("task_id") or task_dir.name or "unavailable")
+    return {
+        "task_id": task_id_value,
+        "title": "Invalid status.json",
+        "status": "invalid",
+        "previous_status": None,
+        "type": "unavailable",
+        "review_tier": "unavailable",
+        "revision_count": "unavailable",
+        "max_revisions": "unavailable",
+        "revision_limit_hit": "unavailable",
+        "requires_human": False,
+        "human_gate_reason": item.get("reason"),
+        "human_gate": None,
+        "last_transition_reason": item.get("error") or item.get("reason"),
+        "allowed_paths": [],
+        "allowed_next_statuses": [],
+        "status_validation": {
+            "valid": False,
+            "reason": item.get("reason", "invalid_status"),
+            "issues": item.get("errors") or [item],
+        },
+        "transition_validation": {
+            "valid": False,
+            "exit_code": validate_transition.MALFORMED,
+            "reason": item.get("reason", "invalid_status"),
+            "previous_status": None,
+            "status": "invalid",
+            "allowed_next_statuses": [],
+        },
+        "lock_state": task_lock_state(task_dir, now)
+        if str(task_dir)
+        else {"locked": False, "stale": False, "lock_dir": str(task_dir / "LOCK"), "age_minutes": None, "owner": None},
+        "files": task_file_links(task_dir, status_path) if str(task_dir) else [],
+        "task_dir": str(task_dir),
+        "status_path": str(status_path),
     }
 
 
@@ -204,16 +329,25 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
     statuses, malformed = health_check.load_task_statuses(tasks_dir, schema)
     counts = health_check.status_counts(statuses)
     stale_locks = autonomy_readiness_gate.scan_stale_locks_at(tasks_dir, 60.0, now)
-    active = [task_row(item) for item in autonomy_readiness_gate.active_tasks(statuses)]
-    review = [task_row(item) for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
+    malformed_by_path = {str(item.get("status_path")): item for item in malformed}
+    rows = [task_row(item, now, malformed_by_path) for item in statuses]
+    status_paths = {str(status["status_path"]) for status in statuses}
+    malformed_rows = [
+        malformed_task_row(item, now)
+        for item in malformed
+        if str(item.get("status_path")) not in status_paths
+    ]
+    all_rows = sorted([*rows, *malformed_rows], key=lambda item: (str(item.get("task_id")), str(item.get("task_dir"))))
+    active = [task_row(item, now, malformed_by_path) for item in autonomy_readiness_gate.active_tasks(statuses)]
+    review = [task_row(item, now, malformed_by_path) for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
     human = [
-        task_row(item)
+        task_row(item, now, malformed_by_path)
         for item in statuses
         if item["payload"].get("status") == "needs_human" or item["payload"].get("requires_human") is True
     ]
     blocked_statuses = {"needs_human", "paused"}
     blocked = [
-        task_row(item)
+        task_row(item, now, malformed_by_path)
         for item in statuses
         if item["payload"].get("status") in blocked_statuses or item["payload"].get("requires_human") is True
     ]
@@ -231,7 +365,10 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
         "tasks_dir": str(tasks_dir),
         "exists": tasks_dir.exists(),
         "total": len(statuses),
+        "board_total": len(all_rows),
         "status_counts": counts,
+        "status_filter_options": ["all", *sorted({str(item.get("status") or "unknown") for item in all_rows})],
+        "all": all_rows,
         "active": active,
         "blocked": blocked,
         "review": review,
@@ -499,7 +636,10 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "tasks_dir": str(ops_dir / "tasks"),
         "exists": False,
         "total": 0,
+        "board_total": 0,
         "status_counts": {},
+        "status_filter_options": ["all"],
+        "all": [],
         "active": [],
         "blocked": [],
         "review": [],

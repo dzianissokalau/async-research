@@ -309,6 +309,135 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.filter-chip {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.filter-chip:hover,
+.filter-chip.active {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: #e8f4f8;
+}
+
+.task-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.task-board {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.task-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-row:hover,
+.task-row.selected {
+  border-color: var(--accent);
+  background: #f1f8fb;
+}
+
+.task-row-title {
+  min-width: 0;
+  font-weight: 720;
+  overflow-wrap: anywhere;
+}
+
+.task-row-meta {
+  min-width: 0;
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.task-detail {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.detail-title {
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-field {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.detail-value {
+  color: var(--text);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.file-link {
+  color: var(--accent-dark);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.file-link.missing {
+  color: var(--muted);
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .action-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -458,7 +587,9 @@ h3 {
   }
 
   .topbar,
-  .split-grid {
+  .split-grid,
+  .task-layout,
+  .detail-grid {
     display: grid;
     grid-template-columns: 1fr;
   }
