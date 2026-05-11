@@ -336,8 +336,7 @@ def record_review_start_status(status: dict[str, Any], tier: int) -> dict[str, A
     updated["status"] = review_start_status_for_tier(tier)
     updated["last_transition_reason"] = "review_start_recorded_before_aggregate"
     updated["updated_at"] = transition_time
-    if not str(updated.get("review_started_at") or "").strip():
-        updated["review_started_at"] = transition_time
+    updated["review_started_at"] = transition_time
     return updated
 
 
@@ -370,7 +369,11 @@ def update_status(
     updated = dict(status)
     updated.setdefault("schema_version", SCHEMA_VERSION)
     apply_default_versions(updated)
-    if status.get("status") in {"single_review", "panel_review"} and not str(updated.get("review_started_at") or "").strip():
+    if status.get("status") in {"single_review", "panel_review"} and status.get("previous_status") == "awaiting_review":
+        started_at = status.get("updated_at")
+        if isinstance(started_at, str) and started_at.strip():
+            updated["review_started_at"] = started_at
+    elif status.get("status") in {"single_review", "panel_review"} and not str(updated.get("review_started_at") or "").strip():
         started_at = status.get("updated_at")
         if isinstance(started_at, str) and started_at.strip():
             updated["review_started_at"] = started_at
@@ -382,8 +385,7 @@ def update_status(
 
     if human_gate_required or route == "needs_human":
         updated["requires_human"] = True
-        if not str(updated.get("human_gate_opened_at") or "").strip():
-            updated["human_gate_opened_at"] = transition_time
+        updated["human_gate_opened_at"] = transition_time
         if not updated.get("human_gate_reason"):
             updated["human_gate_reason"] = reason
 

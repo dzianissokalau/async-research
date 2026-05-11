@@ -45,6 +45,31 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def parse_datetime(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def should_replace_cycle_timestamp(existing: Any, candidate: Any) -> bool:
+    if not isinstance(candidate, str) or not candidate.strip():
+        return False
+    if not isinstance(existing, str) or not existing.strip():
+        return True
+    existing_dt = parse_datetime(existing)
+    candidate_dt = parse_datetime(candidate)
+    return existing_dt is not None and candidate_dt is not None and candidate_dt > existing_dt
+
+
 def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
@@ -184,10 +209,9 @@ def run_resolve_task(args: argparse.Namespace) -> int:
     updated = dict(status)
     updated.setdefault("schema_version", SCHEMA_VERSION)
     apply_default_versions(updated)
-    if not str(updated.get("human_gate_opened_at") or "").strip():
-        opened_at = status.get("updated_at")
-        if isinstance(opened_at, str) and opened_at.strip():
-            updated["human_gate_opened_at"] = opened_at
+    opened_at = status.get("updated_at")
+    if should_replace_cycle_timestamp(updated.get("human_gate_opened_at"), opened_at):
+        updated["human_gate_opened_at"] = opened_at
     updated["previous_status"] = "needs_human"
     updated["status"] = new_status
     updated["last_transition_reason"] = f"human_decision_{args.decision}"

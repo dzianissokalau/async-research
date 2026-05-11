@@ -435,7 +435,7 @@ specific diagnostic.
 | `batch trust-status` | `0` outputs are trusted. | `2` outputs are still untrusted unless `--allow-untrusted` is set; `4` malformed manifest. |
 | `metrics append` | `0` snapshot appended. | `2` invalid request; `4` malformed workspace state. |
 | `metrics summarize` | `0` metrics summary printed or written. | No command-specific nonzero return from the backing script. |
-| `metrics operational` | `0` operational read model printed. | `3` invalid `--now`; `4` workspace missing or not a directory. Malformed task statuses are warning rows so dashboard/digest consumers still get a partial read model. |
+| `metrics operational` | `0` operational read model printed. | `3` invalid `--now`; `4` workspace missing or not a directory. Malformed or schema-invalid task statuses are warning rows so dashboard/digest consumers still get a partial read model. Partial or malformed cost coverage renders per-output cost as `unavailable`. |
 | `accepted update`, `accepted revalidation`, and `accepted check-duplicate` | `0` index/report/check succeeded. `check-duplicate` is advisory and reports duplicate risk in JSON. | `2` invalid accepted-memory state; `4` malformed input. |
 | `accepted check-memory-use` | `0` artifact does not cite stale accepted memory, or `--allow-stale` was set. | `2` stale accepted-memory reuse; `4` malformed input. |
 | `anti-context build` | `0` anti-context generated. | `2` invalid request such as a missing title. |

@@ -10,6 +10,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow import cli
 from async_research_workflow.resources import schema_path
@@ -555,6 +556,50 @@ class WorkflowRegressionTests(unittest.TestCase):
             self.assertIn("review_started_at", status)
             aggregate = json.loads((task_dir / "review_panel" / "aggregate.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["review_start_transition"], aggregate["review_start_transition"])
+
+    def test_review_and_human_gate_cycle_timestamps_reset_on_reentry(self):
+        old_started_at = "2026-05-01T00:00:00Z"
+        new_review_started_at = "2026-05-06T00:00:00Z"
+        human_gate_opened_at = "2026-05-07T00:00:00Z"
+
+        with mock.patch.object(aggregate_reviews, "iso_now", return_value=new_review_started_at):
+            review_started = aggregate_reviews.record_review_start_status(
+                {
+                    "schema_version": "1.0",
+                    "id": "TASK-2998",
+                    "status": "awaiting_review",
+                    "previous_status": "in_progress",
+                    "review_started_at": old_started_at,
+                    "revision_count": 0,
+                    "max_revisions": 1,
+                    "revision_limit_hit": False,
+                },
+                1,
+            )
+        self.assertEqual(new_review_started_at, review_started["review_started_at"])
+
+        with mock.patch.object(aggregate_reviews, "iso_now", return_value=human_gate_opened_at):
+            routed = aggregate_reviews.update_status(
+                {
+                    "schema_version": "1.0",
+                    "id": "TASK-2998",
+                    "status": "single_review",
+                    "previous_status": "awaiting_review",
+                    "updated_at": new_review_started_at,
+                    "review_started_at": old_started_at,
+                    "human_gate_opened_at": old_started_at,
+                    "revision_count": 0,
+                    "max_revisions": 1,
+                    "revision_limit_hit": False,
+                },
+                "needs_human",
+                "fixture",
+                True,
+                1,
+                "none",
+            )
+        self.assertEqual(new_review_started_at, routed["review_started_at"])
+        self.assertEqual(human_gate_opened_at, routed["human_gate_opened_at"])
 
     def test_result_acceptance_uses_accepted_index_freshness_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:

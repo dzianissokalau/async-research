@@ -456,6 +456,9 @@ class CliAuditSurfaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
             task_dir = write_task_status(ops_dir, "TASK-5003", "needs_human")
+            status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            status_payload["human_gate_opened_at"] = "2026-05-01T00:00:00Z"
+            (task_dir / "status.json").write_text(json.dumps(status_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             decisions = ops_dir / "decisions.md"
             before_decisions = decisions.read_text(encoding="utf-8")
             before_status = (task_dir / "status.json").read_text(encoding="utf-8")
@@ -510,7 +513,7 @@ class CliAuditSurfaceTests(unittest.TestCase):
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("ready_for_worker", status["status"])
             self.assertFalse(status["requires_human"])
-            self.assertIn("human_gate_opened_at", status)
+            self.assertEqual(NOW, status["human_gate_opened_at"])
 
     def test_escalation_list_and_scan_needs_human_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

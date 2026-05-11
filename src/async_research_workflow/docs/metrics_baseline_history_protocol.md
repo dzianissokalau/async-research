@@ -71,9 +71,17 @@ time in `needs_human`, review latency by tier, human-decision latency, promotion
 to terminal outcome latency, cost per accepted or rejected output, and revision
 loop counts. When a task does not have enough timestamp data to compute a
 duration, the duration field is `unavailable` rather than `0`.
-Review aggregation preserves `review_started_at`, and human-decision resolution
-preserves `human_gate_opened_at`, so future reports can compute closed-loop
-latency after those public commands have run.
+Backwards timestamp ranges also render as `unavailable`.
+Review aggregation resets `review_started_at` when a task enters a new review
+cycle, and `needs_human` routing resets `human_gate_opened_at` for each new
+human-gate cycle; human-decision resolution preserves the current cycle start so
+closed-loop latency remains computable.
+
+Malformed or schema-invalid task statuses are warning rows and are skipped from
+the read model. Cost coverage is conservative: per-output accepted/rejected cost
+is `unavailable` unless every accepted or rejected task has matching ledger rows
+with parseable amounts. The read model still reports known cost totals, unmatched
+task IDs, malformed cost-row counts, and warning rows for diagnostics.
 
 ## Metrics
 

@@ -50,12 +50,16 @@ def write_status(
         "type": "admin",
         "status": status,
         "previous_status": previous_status,
+        "last_transition_reason": "fixture",
         "priority": 2,
         "review_policy": {"tier": tier},
         "revision_count": revision_count,
         "max_revisions": max_revisions,
         "revision_limit_hit": revision_limit_hit,
+        "allowed_paths": [f"research_ops/tasks/{task_id}/**"],
+        "max_minutes": 10,
         "requires_human": requires_human,
+        "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
     }
     if created_at is not None:
         payload["created_at"] = created_at
@@ -73,8 +77,8 @@ def write_cost_ledger(ops_dir: Path) -> None:
     with (ops_dir / "cost_ledger.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["date", "item_id", "amount_usd", "human_minutes"])
         writer.writeheader()
-        writer.writerow({"date": "2026-05-04", "item_id": "TASK-accepted", "amount_usd": "30", "human_minutes": "0"})
-        writer.writerow({"date": "2026-05-05", "item_id": "TASK-rejected", "amount_usd": "15", "human_minutes": "0"})
+        writer.writerow({"date": "2026-05-04", "item_id": "TASK-1001", "amount_usd": "30", "human_minutes": "0"})
+        writer.writerow({"date": "2026-05-05", "item_id": "TASK-1002", "amount_usd": "15", "human_minutes": "0"})
         writer.writerow({"date": "2026-05-06", "item_id": "unmapped", "amount_usd": "5", "human_minutes": "0"})
 
 
@@ -84,7 +88,7 @@ def write_decisions(ops_dir: Path) -> None:
             [
                 "| date | item_id | decision | reason | approver | related_artifacts |",
                 "| --- | --- | --- | --- | --- | --- |",
-                "| 2026-05-10T00:00:00Z | TASK-human-resolved | resume | fixture | test | none |",
+                "| 2026-05-10T00:00:00Z | TASK-1006 | resume | fixture | test | none |",
             ]
         )
         + "\n",
@@ -107,7 +111,7 @@ class OperationalMetricsTests(unittest.TestCase):
             ops_dir.mkdir()
             write_status(
                 ops_dir,
-                "TASK-accepted",
+                "TASK-1001",
                 "accepted",
                 created_at="2026-05-01T00:00:00Z",
                 updated_at="2026-05-04T12:00:00Z",
@@ -117,7 +121,7 @@ class OperationalMetricsTests(unittest.TestCase):
             )
             write_status(
                 ops_dir,
-                "TASK-rejected",
+                "TASK-1002",
                 "rejected",
                 created_at="2026-05-02T00:00:00Z",
                 updated_at="2026-05-05T12:00:00Z",
@@ -128,7 +132,7 @@ class OperationalMetricsTests(unittest.TestCase):
             )
             write_status(
                 ops_dir,
-                "TASK-awaiting",
+                "TASK-1003",
                 "awaiting_review",
                 created_at="2026-05-10T00:00:00Z",
                 updated_at="2026-05-10T12:00:00Z",
@@ -136,7 +140,7 @@ class OperationalMetricsTests(unittest.TestCase):
             )
             write_status(
                 ops_dir,
-                "TASK-human-open",
+                "TASK-1004",
                 "needs_human",
                 created_at="2026-05-09T00:00:00Z",
                 updated_at="2026-05-10T00:00:00Z",
@@ -146,7 +150,7 @@ class OperationalMetricsTests(unittest.TestCase):
             )
             write_status(
                 ops_dir,
-                "TASK-human-missing",
+                "TASK-1005",
                 "needs_human",
                 created_at="2026-05-09T00:00:00Z",
                 updated_at=None,
@@ -155,7 +159,7 @@ class OperationalMetricsTests(unittest.TestCase):
             )
             write_status(
                 ops_dir,
-                "TASK-human-resolved",
+                "TASK-1006",
                 "ready_for_worker",
                 created_at="2026-05-09T00:00:00Z",
                 updated_at="2026-05-10T12:00:00Z",
@@ -184,7 +188,7 @@ class OperationalMetricsTests(unittest.TestCase):
             missing_items = [
                 item
                 for item in model["time_in_state"]["needs_human"]["items"]
-                if item["task_id"] == "TASK-human-missing"
+                if item["task_id"] == "TASK-1005"
             ]
             self.assertEqual("unavailable", missing_items[0]["age_hours"])
 
@@ -209,7 +213,7 @@ class OperationalMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"
             ops_dir.mkdir()
-            write_status(ops_dir, "TASK-accepted", "accepted", created_at=None, updated_at=None)
+            write_status(ops_dir, "TASK-1001", "accepted", created_at=None, updated_at=None)
 
             code, payload = run_cli_json(["metrics", "operational", ops_dir, "--now", NOW])
 
@@ -232,6 +236,74 @@ class OperationalMetricsTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(0, payload["read_model"]["task_count"])
             self.assertEqual("status_json_malformed", payload["warnings"][0]["reason"])
+
+    def test_schema_invalid_status_warns_and_is_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            write_status(ops_dir, "TASK-1001", "accepted")
+            write_status(ops_dir, "TASK-1002", "bogus")
+
+            code, payload = run_cli_json(["metrics", "operational", ops_dir, "--now", NOW])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(1, payload["read_model"]["task_count"])
+            self.assertEqual({"accepted": 1}, payload["read_model"]["status_counts"])
+            warning = payload["warnings"][0]
+            self.assertEqual("status_schema_invalid", warning["reason"])
+            self.assertIn("$.status", {error["path"] for error in warning["errors"]})
+
+    def test_partial_or_malformed_cost_coverage_keeps_per_output_cost_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            write_status(ops_dir, "TASK-1001", "accepted")
+            write_status(ops_dir, "TASK-1002", "accepted")
+            write_status(ops_dir, "TASK-1003", "rejected")
+            with (ops_dir / "cost_ledger.csv").open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["date", "item_id", "amount_usd"])
+                writer.writeheader()
+                writer.writerow({"date": "2026-05-04", "item_id": "TASK-1001", "amount_usd": "30"})
+                writer.writerow({"date": "2026-05-05", "item_id": "TASK-1003", "amount_usd": "not-a-number"})
+
+            code, payload = run_cli_json(["metrics", "operational", ops_dir, "--now", NOW])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            cost = payload["read_model"]["cost"]
+            self.assertEqual("unavailable", cost["total_cost_usd"])
+            self.assertEqual(30.0, cost["known_total_cost_usd"])
+            self.assertEqual(1, cost["malformed_cost_row_count"])
+            self.assertEqual(2, cost["accepted_output_count"])
+            self.assertEqual(1, cost["accepted_output_matched_count"])
+            self.assertEqual(1, cost["accepted_output_unmatched_count"])
+            self.assertEqual(["TASK-1002"], cost["accepted_output_unmatched_ids"])
+            self.assertEqual("unavailable", cost["cost_per_accepted_output_usd"])
+            self.assertEqual(1, cost["rejected_output_malformed_cost_row_count"])
+            self.assertEqual("unavailable", cost["cost_per_rejected_output_usd"])
+            self.assertEqual("cost_ledger_amount_unavailable", payload["warnings"][0]["reason"])
+
+    def test_backwards_timestamp_ranges_are_unavailable_not_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            write_status(
+                ops_dir,
+                "TASK-1001",
+                "accepted",
+                created_at="2026-05-10T00:00:00Z",
+                updated_at="2026-05-09T00:00:00Z",
+                review_started_at="2026-05-11T00:00:00Z",
+            )
+
+            code, payload = run_cli_json(["metrics", "operational", ops_dir, "--now", NOW])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            review_item = payload["read_model"]["review_latency"]["all"]["items"][0]
+            terminal_item = payload["read_model"]["promotion_to_terminal"]["all"]["items"][0]
+            self.assertEqual("unavailable", review_item["latency_hours"])
+            self.assertEqual("backwards_timestamp_range", review_item["unavailable_reason"])
+            self.assertEqual("unavailable", terminal_item["latency_hours"])
+            self.assertEqual("backwards_timestamp_range", terminal_item["unavailable_reason"])
 
     def test_invalid_now_and_missing_workspace_fail_with_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

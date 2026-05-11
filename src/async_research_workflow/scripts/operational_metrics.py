@@ -11,7 +11,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
+from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts.decision_log import read_decisions
+from async_research_workflow.scripts.validate_json_artifact import load_json as load_schema_json
+from async_research_workflow.scripts.validate_json_artifact import validate
 
 
 SUCCESS = 0
@@ -32,6 +35,7 @@ REVIEW_START_FIELDS = ("review_started_at", "review_panel_started_at", "awaiting
 OPEN_REVIEW_START_FIELDS = REVIEW_START_FIELDS + ("updated_at",)
 HUMAN_START_FIELDS = ("human_gate_opened_at", "needs_human_since", "updated_at")
 RESOLVED_HUMAN_START_FIELDS = ("human_gate_opened_at", "needs_human_since")
+STATUS_SCHEMA = load_schema_json(schema_path("task_status.schema.json"))
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -83,10 +87,12 @@ def first_datetime(payload: dict[str, Any], fields: Iterable[str]) -> tuple[Opti
     return None, UNAVAILABLE
 
 
-def hours_between(start: Optional[datetime], end: Optional[datetime]) -> Optional[float]:
+def duration_between(start: Optional[datetime], end: Optional[datetime]) -> tuple[Optional[float], Optional[str]]:
     if start is None or end is None:
-        return None
-    return rounded(max(0.0, (end - start).total_seconds() / 3600), 2)
+        return None, "missing_timestamp"
+    if end < start:
+        return None, "backwards_timestamp_range"
+    return rounded((end - start).total_seconds() / 3600, 2), None
 
 
 def read_json_object(path: Path) -> tuple[Optional[dict[str, Any]], Optional[str]]:
@@ -130,6 +136,10 @@ def task_record(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def status_schema_errors(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    return [error.to_dict() for error in validate(payload, STATUS_SCHEMA)]
+
+
 def read_task_records(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     tasks_dir = ops_dir / "tasks"
     warnings: list[dict[str, Any]] = []
@@ -141,6 +151,17 @@ def read_task_records(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[st
         payload, reason = read_json_object(status_path)
         if payload is None:
             warnings.append({"reason": reason, "path": str(status_path)})
+            continue
+        errors = status_schema_errors(payload)
+        if errors:
+            warnings.append(
+                {
+                    "reason": "status_schema_invalid",
+                    "path": str(status_path),
+                    "error_count": len(errors),
+                    "errors": errors[:5],
+                }
+            )
             continue
         records.append(task_record(status_path, payload))
     return records, warnings
@@ -175,7 +196,7 @@ def open_state_item(
     value_key: str,
 ) -> dict[str, Any]:
     start, start_field = first_datetime(record["payload"], start_fields)
-    duration = hours_between(start, now)
+    duration, reason = duration_between(start, now)
     item = {
         "task_id": record["task_id"],
         "status": record["status"],
@@ -184,7 +205,7 @@ def open_state_item(
     }
     if duration is None:
         item[value_key] = UNAVAILABLE
-        item["unavailable_reason"] = "missing_state_timestamp"
+        item["unavailable_reason"] = reason
     else:
         item[value_key] = duration
     return item
@@ -211,7 +232,7 @@ def review_latency_items(records: list[dict[str, Any]], now: datetime) -> list[d
         status = record["status"]
         if status in REVIEW_ACTIVE_STATUSES:
             start, start_field = first_datetime(payload, OPEN_REVIEW_START_FIELDS)
-            duration = hours_between(start, now)
+            duration, unavailable_reason = duration_between(start, now)
             item = {
                 "task_id": record["task_id"],
                 "status": status,
@@ -222,7 +243,7 @@ def review_latency_items(records: list[dict[str, Any]], now: datetime) -> list[d
         elif status in TERMINAL_STATUSES:
             start, start_field = first_datetime(payload, REVIEW_START_FIELDS)
             end, end_field = first_datetime(payload, ("updated_at",))
-            duration = hours_between(start, end)
+            duration, unavailable_reason = duration_between(start, end)
             item = {
                 "task_id": record["task_id"],
                 "status": status,
@@ -235,7 +256,7 @@ def review_latency_items(records: list[dict[str, Any]], now: datetime) -> list[d
             continue
         if duration is None:
             item["latency_hours"] = UNAVAILABLE
-            item["unavailable_reason"] = "missing_review_timestamp"
+            item["unavailable_reason"] = unavailable_reason
         else:
             item["latency_hours"] = duration
         items.append(item)
@@ -273,7 +294,7 @@ def human_decision_latency(records: list[dict[str, Any]], ops_dir: Path, now: da
         end_field = "decisions.md" if end is not None else UNAVAILABLE
         if end is None:
             end, end_field = first_datetime(payload, ("updated_at",))
-        duration = hours_between(start, end)
+        duration, unavailable_reason = duration_between(start, end)
         item = {
             "task_id": record["task_id"],
             "status": record["status"],
@@ -283,7 +304,7 @@ def human_decision_latency(records: list[dict[str, Any]], ops_dir: Path, now: da
         }
         if duration is None:
             item["latency_hours"] = UNAVAILABLE
-            item["unavailable_reason"] = "missing_human_decision_timestamp"
+            item["unavailable_reason"] = unavailable_reason
         else:
             item["latency_hours"] = duration
         resolved_items.append(item)
@@ -303,7 +324,7 @@ def terminal_progression(records: list[dict[str, Any]]) -> dict[str, Any]:
         payload = record["payload"]
         start, start_field = first_datetime(payload, PROMOTION_START_FIELDS)
         end, end_field = first_datetime(payload, ("updated_at",))
-        duration = hours_between(start, end)
+        duration, unavailable_reason = duration_between(start, end)
         item = {
             "task_id": record["task_id"],
             "status": record["status"],
@@ -313,7 +334,7 @@ def terminal_progression(records: list[dict[str, Any]]) -> dict[str, Any]:
         }
         if duration is None:
             item["latency_hours"] = UNAVAILABLE
-            item["unavailable_reason"] = "missing_promotion_or_terminal_timestamp"
+            item["unavailable_reason"] = unavailable_reason
         else:
             item["latency_hours"] = duration
         items.append(item)
@@ -324,7 +345,7 @@ def terminal_progression(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def amount_from_row(row: dict[str, str]) -> float:
+def amount_from_row(row: dict[str, str]) -> Optional[float]:
     for field in DIRECT_AMOUNT_FIELDS:
         value = safe_float(row.get(field))
         if value is not None:
@@ -336,7 +357,7 @@ def amount_from_row(row: dict[str, str]) -> float:
         if value is not None:
             found = True
             total += value
-    return total if found else 0.0
+    return total if found else None
 
 
 def read_cost_rows(ops_dir: Path) -> tuple[bool, list[dict[str, Any]]]:
@@ -346,14 +367,17 @@ def read_cost_rows(ops_dir: Path) -> tuple[bool, list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     with ledger.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
-        for raw in reader:
+        for line_number, raw in enumerate(reader, start=2):
             clean = {str(key): str(value) for key, value in raw.items() if key is not None}
             item_id = clean.get("item_id", "").strip()
+            amount = amount_from_row(clean)
             rows.append(
                 {
                     "item_id": item_id,
                     "item_key": Path(item_id).name if item_id else "",
-                    "amount_usd": amount_from_row(clean),
+                    "amount_usd": amount if amount is not None else UNAVAILABLE,
+                    "amount_available": amount is not None,
+                    "line_number": line_number,
                 }
             )
     return True, rows
@@ -363,41 +387,84 @@ def status_ids(records: list[dict[str, Any]], status: str) -> set[str]:
     return {record["task_id"] for record in records if record["status"] == status}
 
 
-def cost_for_ids(rows: list[dict[str, Any]], ids: set[str]) -> float:
-    return sum(
-        float(row["amount_usd"])
-        for row in rows
-        if row.get("item_id") in ids or row.get("item_key") in ids
-    )
+def row_matches_id(row: dict[str, Any], item_id: str) -> bool:
+    return row.get("item_id") == item_id or row.get("item_key") == item_id
 
 
-def per_output_cost(cost: float, count: int, available: bool) -> float | str:
-    if not available or count <= 0:
+def cost_coverage(rows: list[dict[str, Any]], ids: set[str]) -> dict[str, Any]:
+    matched_ids: set[str] = set()
+    known_cost = 0.0
+    malformed_rows = 0
+    for item_id in ids:
+        matches = [row for row in rows if row_matches_id(row, item_id)]
+        if not matches:
+            continue
+        matched_ids.add(item_id)
+        for row in matches:
+            if row.get("amount_available") is True:
+                known_cost += float(row["amount_usd"])
+            else:
+                malformed_rows += 1
+    unmatched_ids = sorted(ids - matched_ids)
+    return {
+        "known_cost_usd": rounded(known_cost, 4),
+        "matched_count": len(matched_ids),
+        "unmatched_count": len(unmatched_ids),
+        "unmatched_ids": unmatched_ids,
+        "malformed_cost_row_count": malformed_rows,
+        "complete": bool(ids) and len(unmatched_ids) == 0 and malformed_rows == 0,
+    }
+
+
+def per_output_cost(coverage: dict[str, Any], count: int, available: bool) -> float | str:
+    if not available or count <= 0 or coverage.get("complete") is not True:
         return UNAVAILABLE
-    return rounded(cost / count, 4)
+    return rounded(float(coverage["known_cost_usd"]) / count, 4)
 
 
 def cost_trends(records: list[dict[str, Any]], ops_dir: Path) -> dict[str, Any]:
     ledger_available, rows = read_cost_rows(ops_dir)
     accepted_ids = status_ids(records, "accepted")
     rejected_ids = status_ids(records, "rejected")
-    accepted_cost = cost_for_ids(rows, accepted_ids) if ledger_available else 0.0
-    rejected_cost = cost_for_ids(rows, rejected_ids) if ledger_available else 0.0
-    total_cost = sum(float(row["amount_usd"]) for row in rows) if ledger_available else 0.0
-    mapped_cost = accepted_cost + rejected_cost
+    accepted_coverage = cost_coverage(rows, accepted_ids) if ledger_available else cost_coverage([], accepted_ids)
+    rejected_coverage = cost_coverage(rows, rejected_ids) if ledger_available else cost_coverage([], rejected_ids)
+    known_total_cost = sum(float(row["amount_usd"]) for row in rows if row.get("amount_available") is True) if ledger_available else 0.0
+    malformed_row_count = sum(1 for row in rows if row.get("amount_available") is not True) if ledger_available else 0
+    mapped_cost = float(accepted_coverage["known_cost_usd"]) + float(rejected_coverage["known_cost_usd"])
+    warnings = [
+        {
+            "reason": "cost_ledger_amount_unavailable",
+            "path": str(ops_dir / "cost_ledger.csv"),
+            "line_number": row["line_number"],
+            "item_id": row.get("item_id", ""),
+        }
+        for row in rows
+        if row.get("amount_available") is not True
+    ]
 
     return {
         "status": "available" if ledger_available else UNAVAILABLE,
         "ledger_path": str(ops_dir / "cost_ledger.csv"),
         "ledger_row_count": len(rows),
-        "total_cost_usd": rounded(total_cost, 4) if ledger_available else UNAVAILABLE,
+        "total_cost_usd": rounded(known_total_cost, 4) if ledger_available and malformed_row_count == 0 else UNAVAILABLE,
+        "known_total_cost_usd": rounded(known_total_cost, 4) if ledger_available else UNAVAILABLE,
+        "malformed_cost_row_count": malformed_row_count if ledger_available else UNAVAILABLE,
         "accepted_output_count": len(accepted_ids),
-        "accepted_output_cost_usd": rounded(accepted_cost, 4) if ledger_available else UNAVAILABLE,
-        "cost_per_accepted_output_usd": per_output_cost(accepted_cost, len(accepted_ids), ledger_available),
+        "accepted_output_matched_count": accepted_coverage["matched_count"] if ledger_available else UNAVAILABLE,
+        "accepted_output_unmatched_count": accepted_coverage["unmatched_count"] if ledger_available else UNAVAILABLE,
+        "accepted_output_unmatched_ids": accepted_coverage["unmatched_ids"] if ledger_available else [],
+        "accepted_output_malformed_cost_row_count": accepted_coverage["malformed_cost_row_count"] if ledger_available else UNAVAILABLE,
+        "accepted_output_cost_usd": accepted_coverage["known_cost_usd"] if ledger_available else UNAVAILABLE,
+        "cost_per_accepted_output_usd": per_output_cost(accepted_coverage, len(accepted_ids), ledger_available),
         "rejected_output_count": len(rejected_ids),
-        "rejected_output_cost_usd": rounded(rejected_cost, 4) if ledger_available else UNAVAILABLE,
-        "cost_per_rejected_output_usd": per_output_cost(rejected_cost, len(rejected_ids), ledger_available),
-        "unmapped_cost_usd": rounded(max(0.0, total_cost - mapped_cost), 4) if ledger_available else UNAVAILABLE,
+        "rejected_output_matched_count": rejected_coverage["matched_count"] if ledger_available else UNAVAILABLE,
+        "rejected_output_unmatched_count": rejected_coverage["unmatched_count"] if ledger_available else UNAVAILABLE,
+        "rejected_output_unmatched_ids": rejected_coverage["unmatched_ids"] if ledger_available else [],
+        "rejected_output_malformed_cost_row_count": rejected_coverage["malformed_cost_row_count"] if ledger_available else UNAVAILABLE,
+        "rejected_output_cost_usd": rejected_coverage["known_cost_usd"] if ledger_available else UNAVAILABLE,
+        "cost_per_rejected_output_usd": per_output_cost(rejected_coverage, len(rejected_ids), ledger_available),
+        "unmapped_cost_usd": rounded(max(0.0, known_total_cost - mapped_cost), 4) if ledger_available else UNAVAILABLE,
+        "warnings": warnings,
     }
 
 
@@ -455,6 +522,9 @@ def build_read_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         HUMAN_START_FIELDS,
     )
 
+    cost = cost_trends(records, ops_dir)
+    warnings.extend(cost.pop("warnings", []))
+
     return {
         "task_count": len(records),
         "status_counts": status_counts(records),
@@ -469,7 +539,7 @@ def build_read_model(ops_dir: Path, now: datetime) -> dict[str, Any]:
         },
         "human_decision_latency": human_decision_latency(records, ops_dir, now),
         "promotion_to_terminal": terminal_progression(records),
-        "cost": cost_trends(records, ops_dir),
+        "cost": cost,
         "revision_loops": revision_loops(records),
         "warnings": warnings,
     }
