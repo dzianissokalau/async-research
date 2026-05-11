@@ -418,6 +418,8 @@ specific diagnostic.
 | `surface update` | `0` surface updated. | `4` malformed workspace state or missing required files. |
 | `surface validate` | `0` rendered surface matches workspace state. | `2` validation drift; `4` malformed workspace state or missing required files. |
 | `schema-check` | `0` schema versions pass. | `4` missing, malformed, mismatched, or unreadable versioned artifacts. |
+| `workflow check` | `0` workspace checks passed; readiness warning `2` is reported as a warning but does not fail the orchestration. | Returns the first failed subcommand code, such as `2` for surface drift or `4` for malformed workspace state. |
+| `workflow advance` | `0` dry-run checks passed or the canonical post-worker sequence completed; readiness warning `2` is reported as a warning but does not fail the orchestration. | `4` missing task, task/workspace mismatch, or malformed state; otherwise returns the first failed subcommand code. If a later step fails after an earlier mutating step succeeded, JSON sets `partial_mutation: true`. |
 | `source init` | `0` source register exists or was initialized. | No command-specific nonzero return from the backing script. |
 | `source upsert` | `0` source row written. | `2` register validation failed; `3` invalid source id, date, or freshness window; `4` malformed register. |
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |

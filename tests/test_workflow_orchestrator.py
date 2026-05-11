@@ -8,6 +8,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow import cli
 from async_research_workflow.scripts import workflow_orchestrator
@@ -166,6 +167,79 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
             self.assertNotIn("TASK-9105", (ops_dir / "accepted_outputs_index.md").read_text(encoding="utf-8"))
 
+    def test_advance_refuses_task_outside_matching_ops_dir_before_running_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root / "left")
+            other_ops_dir = self.init_ops(root / "right")
+            task_dir = self.write_task(ops_dir, "TASK-9106-mismatch", result=self.accepted_result())
+            self.write_review(task_dir, "accept")
+
+            with mock.patch.object(workflow_orchestrator, "module_main") as module_main:
+                code, payload = run_cli_json(["workflow", "advance", task_dir, "--ops-dir", other_ops_dir])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertEqual("task_dir_ops_mismatch", payload["reason"])
+            module_main.assert_not_called()
+            self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
+
+    def test_advance_refuses_non_task_folder_before_running_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root)
+            loose_task = root / "loose-task"
+            loose_task.mkdir()
+
+            with mock.patch.object(workflow_orchestrator, "module_main") as module_main:
+                code, payload = run_cli_json(["workflow", "advance", loose_task, "--ops-dir", ops_dir])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertEqual("task_dir_not_under_tasks", payload["reason"])
+            module_main.assert_not_called()
+
+    def test_only_readiness_warning_is_tolerated_in_advance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9107-warning-policy")
+
+            def readiness_warning_only(module_name: str, argv: list[str]) -> int:
+                return workflow_orchestrator.READINESS_WARNINGS if module_name == "autonomy_readiness_gate" else 0
+
+            with mock.patch.object(workflow_orchestrator, "module_main", side_effect=readiness_warning_only):
+                code, payload = run_cli_json(["workflow", "advance", task_dir, "--dry-run"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assert_step_status(payload, "readiness_dry_run", "warning")
+
+            def aggregate_validation_failure(module_name: str, argv: list[str]) -> int:
+                return workflow_orchestrator.VALIDATION_FAILED if module_name == "aggregate_reviews" else 0
+
+            with mock.patch.object(workflow_orchestrator, "module_main", side_effect=aggregate_validation_failure):
+                code, payload = run_cli_json(["workflow", "advance", task_dir, "--dry-run"])
+
+            self.assertEqual(workflow_orchestrator.VALIDATION_FAILED, code, payload)
+            self.assertEqual("review_aggregate", payload["failed_step"])
+            self.assert_step_status(payload, "review_aggregate", "failed")
+
+    def test_advance_reports_partial_mutation_when_later_step_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9108-partial-mutation")
+
+            def fail_after_aggregate(module_name: str, argv: list[str]) -> int:
+                if module_name == "update_accepted_outputs_index" and argv[:1] == ["update"]:
+                    return workflow_orchestrator.VALIDATION_FAILED
+                return 0
+
+            with mock.patch.object(workflow_orchestrator, "module_main", side_effect=fail_after_aggregate):
+                code, payload = run_cli_json(["workflow", "advance", task_dir])
+
+            self.assertEqual(workflow_orchestrator.VALIDATION_FAILED, code, payload)
+            self.assertEqual("accepted_update", payload["failed_step"])
+            self.assertTrue(payload["partial_mutation"])
+            self.assert_step_status(payload, "review_aggregate", "ok")
+            self.assert_step_status(payload, "accepted_update", "failed")
+
     def test_advance_routes_needs_revision_and_reports_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -197,6 +271,22 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertTrue(status["requires_human"])
             self.assert_step_status(payload, "surface_update", "ok")
 
+    def test_advance_routes_rejected_and_reports_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9109-rejected")
+            task_dir.joinpath("worker_output.md").write_text("Output should not be reused.\n", encoding="utf-8")
+            self.write_review(task_dir, "reject", claim_strength="none")
+
+            code, payload = run_cli_json(["workflow", "advance", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("rejected", payload["aggregate_decision"])
+            self.assertIn("rejected_results.md", payload["next_step"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("rejected", status["status"])
+            self.assertIn("TASK-9109", (ops_dir / "rejected_results.md").read_text(encoding="utf-8"))
+
     def test_advance_stops_on_invalid_state_before_mutating_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -210,6 +300,7 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertTrue(payload["stopped"])
             self.assertEqual("schema_check", payload["failed_step"])
+            self.assertFalse(payload["partial_mutation"])
             self.assertEqual(["schema_check"], [step["name"] for step in payload["steps"]])
             self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
 

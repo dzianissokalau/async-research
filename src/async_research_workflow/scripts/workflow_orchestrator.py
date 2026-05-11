@@ -62,12 +62,40 @@ def command_text(command: Sequence[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
-def ops_dir_for_task(task_dir: Path, explicit_ops_dir: Path | None = None) -> Path:
-    if explicit_ops_dir is not None:
-        return explicit_ops_dir
+def inferred_ops_dir_for_task(task_dir: Path) -> Path | None:
     if task_dir.parent.name == "tasks":
         return task_dir.parent.parent
-    return Path("research_ops")
+    return None
+
+
+def normalized_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def task_workspace_error(task_dir: Path, ops_dir: Path | None, reason: str) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "ok": False,
+        "action": "workflow_advance_refused",
+        "reason": reason,
+        "task_dir": str(task_dir),
+        "next_step": "pass a task directory directly under the matching research_ops/tasks/ folder",
+    }
+    if ops_dir is not None:
+        payload["ops_dir"] = str(ops_dir)
+    return payload
+
+
+def resolve_task_ops_dir(task_dir: Path, explicit_ops_dir: Path | None = None) -> tuple[Path | None, dict[str, Any] | None]:
+    inferred_ops_dir = inferred_ops_dir_for_task(task_dir)
+    if explicit_ops_dir is None:
+        if inferred_ops_dir is None:
+            return None, task_workspace_error(task_dir, None, "task_dir_not_under_tasks")
+        return inferred_ops_dir, None
+    if inferred_ops_dir is None:
+        return None, task_workspace_error(task_dir, explicit_ops_dir, "task_dir_not_under_tasks")
+    if normalized_path(inferred_ops_dir) != normalized_path(explicit_ops_dir):
+        return None, task_workspace_error(task_dir, explicit_ops_dir, "task_dir_ops_mismatch")
+    return explicit_ops_dir, None
 
 
 def plan_summary(steps: Sequence[WorkflowStep], dry_run: bool) -> list[dict[str, Any]]:
@@ -157,6 +185,10 @@ def aggregate_decision_from(results: Sequence[dict[str, Any]]) -> str | None:
         if isinstance(stdout_json, dict) and isinstance(stdout_json.get("aggregate_decision"), str):
             return stdout_json["aggregate_decision"]
     return None
+
+
+def partial_mutation_occurred(results: Sequence[dict[str, Any]]) -> bool:
+    return any(result.get("mutates") is True and result.get("status") == "ok" for result in results)
 
 
 def route_next_step(decision: str | None, dry_run: bool, stopped: bool) -> str:
@@ -307,23 +339,29 @@ def run_check(args: argparse.Namespace) -> int:
 
 def run_advance(args: argparse.Namespace) -> int:
     task_dir = args.task_dir
-    ops_dir = ops_dir_for_task(task_dir, args.ops_dir)
     if not task_dir.exists():
-        print_json(
-            {
-                "ok": False,
-                "action": "workflow_advance_refused",
-                "reason": "task_dir_missing",
-                "task_dir": str(task_dir),
-                "ops_dir": str(ops_dir),
-                "next_step": "choose an existing research_ops/tasks/<TASK-ID> directory",
-            }
-        )
+        ops_dir = args.ops_dir or inferred_ops_dir_for_task(task_dir)
+        payload: dict[str, Any] = {
+            "ok": False,
+            "action": "workflow_advance_refused",
+            "reason": "task_dir_missing",
+            "task_dir": str(task_dir),
+            "next_step": "choose an existing research_ops/tasks/<TASK-ID> directory",
+        }
+        if ops_dir is not None:
+            payload["ops_dir"] = str(ops_dir)
+        print_json(payload)
         return INVALID_STATE
+    ops_dir, workspace_error = resolve_task_ops_dir(task_dir, args.ops_dir)
+    if workspace_error is not None:
+        print_json(workspace_error)
+        return INVALID_STATE
+    assert ops_dir is not None
     steps = advance_steps(task_dir, ops_dir, args.dry_run)
     results, failed = run_steps(steps, dry_run=args.dry_run)
     decision = aggregate_decision_from(results)
     ok = failed is None
+    partial_mutation = failed is not None and partial_mutation_occurred(results)
     print_json(
         {
             "ok": ok,
@@ -335,6 +373,7 @@ def run_advance(args: argparse.Namespace) -> int:
             "steps": results,
             "stopped": failed is not None,
             "failed_step": None if failed is None else failed["name"],
+            "partial_mutation": partial_mutation,
             "aggregate_decision": decision,
             "next_step": route_next_step(decision, args.dry_run, failed is not None),
         }

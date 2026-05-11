@@ -415,11 +415,17 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             self.assertRegex(dashboard, rf"- `{re.escape(group)}`:")
 
+        for path in iter_documentation_files():
+            self.assertNotIn(
+                "not_started_dashboard_delivery_roadmap.md",
+                path.read_text(encoding="utf-8"),
+                f"stale dashboard roadmap link in {path.relative_to(ROOT)}",
+            )
+
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         console_spec = (PACKAGE_ROOT / "docs" / "async_research_console_spec.md").read_text(encoding="utf-8")
         roadmap_index = (ROOT / "roadmaps" / "README.md").read_text(encoding="utf-8")
         for text in [docs_index, console_spec, roadmap_index]:
-            self.assertNotIn("not_started_dashboard_delivery_roadmap.md", text)
             self.assertIn("in_progress_dashboard_delivery_roadmap.md", text)
 
 
