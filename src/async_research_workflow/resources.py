@@ -31,3 +31,7 @@ def docs_path(*parts: str):
 
 def examples_path(*parts: str):
     return package_root().joinpath("examples", *parts)
+
+
+def console_static_path(*parts: str):
+    return package_root().joinpath("console", "static", *parts)

@@ -264,6 +264,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research schema-check research_ops` | Validate schema versions for workflow JSON artifacts. | Task status files and other versioned JSON artifacts. | JSON to stdout only. |
 | `async-research readiness research_ops --dry-run` | Decide whether another autonomous loop is safe. | Queue, task status, locks, source audit, data foundations, knowledge-library validator output, accepted memory, cost, metrics, health state. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research health research_ops --dry-run` | Produce operational health status. | Queue, task status, locks, review state, cost, metrics, accepted memory, source audit, data foundations, knowledge-library validator output. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
+| `async-research console research_ops` | Serve the local read-only dashboard shell on `127.0.0.1:8765`. | Packaged console assets and the read-only snapshot API. | No workspace writes; serves static assets and `GET /api/snapshot` only. |
 | `async-research console snapshot research_ops --json` | Render the read-only dashboard snapshot. | Workspace files, readiness and health read models, task status, decisions, accepted/rejected ledgers, costs, foundation dashboards, and run artifacts. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research workflow check research_ops` | Run read-only schema, readiness, surface, and health checks as one JSON report. | Workspace state and rendered surfaces. | JSON to stdout only. |
 | `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
@@ -344,6 +345,7 @@ async-research exploration validate <worker-output> --ops-dir research_ops --tas
 async-research library init research_ops --dry-run
 async-research library validate research_ops
 async-research library dashboard research_ops
+async-research console research_ops
 async-research console snapshot research_ops --json
 async-research idea catalog init research_ops --dry-run
 async-research idea catalog validate research_ops
@@ -410,6 +412,7 @@ specific diagnostic.
 | `acceptance-suite` | `0` all checks passed. | `1` one or more acceptance checks failed. |
 | `readiness` | `0` safe; `2` warnings only. | `3` skip loop; `4` invalid state; `5` human required. |
 | `health` | `0` health report generated or printed. | `4` invalid input or malformed workspace state. |
+| `console` | `0` server stopped cleanly after serving the local dashboard. | `3` invalid console arguments. |
 | `console snapshot` | `0` snapshot rendered, including partial or unavailable optional groups. | `3` invalid request flags such as malformed `--now`. |
 | `queue discovery-gate` | `0` active queue capacity is available. | `2` discovery should be skipped because active task capacity is full or status files are malformed. |
 | `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |

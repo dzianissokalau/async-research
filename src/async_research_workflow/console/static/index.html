@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Async Research Console</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Console navigation">
+        <div class="brand">
+          <div class="brand-mark">AR</div>
+          <div>
+            <div class="brand-name">Async Research</div>
+            <div class="brand-subtitle">Local Console</div>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="#dashboard" class="nav-link active">Dashboard</a>
+          <a href="#tasks" class="nav-link">Tasks</a>
+          <a href="#decisions" class="nav-link">Decisions</a>
+          <a href="#outcomes" class="nav-link">Outcomes</a>
+          <a href="#foundations" class="nav-link">Foundations</a>
+          <a href="#runs" class="nav-link">Runs</a>
+          <a href="#warnings" class="nav-link">Warnings</a>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1>Dashboard</h1>
+            <p id="workspace-path" class="muted">Loading workspace...</p>
+          </div>
+          <div class="topbar-actions">
+            <span id="readiness-badge" class="badge neutral">Loading</span>
+            <button id="refresh-button" class="button" type="button" title="Refresh snapshot">Refresh</button>
+          </div>
+        </header>
+
+        <section id="dashboard" class="metric-grid" aria-label="Dashboard summary"></section>
+
+        <section id="tasks" class="section-band">
+          <div class="section-heading">
+            <h2>Tasks</h2>
+            <span id="task-total" class="section-count">0</span>
+          </div>
+          <div class="split-grid">
+            <div>
+              <h3>Active</h3>
+              <div id="active-tasks" class="record-list"></div>
+            </div>
+            <div>
+              <h3>Blocked</h3>
+              <div id="blocked-tasks" class="record-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="decisions" class="section-band">
+          <div class="section-heading">
+            <h2>Human Decisions</h2>
+            <span id="decision-total" class="section-count">0</span>
+          </div>
+          <div id="human-decisions" class="record-list"></div>
+        </section>
+
+        <section id="outcomes" class="section-band">
+          <div class="section-heading">
+            <h2>Outcomes</h2>
+          </div>
+          <div class="split-grid">
+            <div>
+              <h3>Accepted</h3>
+              <div id="accepted-outputs" class="record-list"></div>
+            </div>
+            <div>
+              <h3>Rejected</h3>
+              <div id="rejected-results" class="record-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="foundations" class="section-band">
+          <div class="section-heading">
+            <h2>Foundations</h2>
+          </div>
+          <div id="foundation-cards" class="foundation-grid"></div>
+        </section>
+
+        <section id="runs" class="section-band">
+          <div class="section-heading">
+            <h2>Runs</h2>
+            <span id="run-total" class="section-count">0</span>
+          </div>
+          <div id="recent-runs" class="record-list"></div>
+        </section>
+
+        <section id="warnings" class="section-band">
+          <div class="section-heading">
+            <h2>Warnings</h2>
+            <span id="warning-total" class="section-count">0</span>
+          </div>
+          <div id="warnings-list" class="record-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

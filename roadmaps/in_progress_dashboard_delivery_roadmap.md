@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 2
+Current phase: Slice 3
 Last updated: 2026-05-11
-Next action: Implement Slice 2 Local Dashboard Shell consuming the read-only snapshot
+Next action: Implement Slice 3 Setup And Health Actions with explicit command results
 Blocked by: None
 
 Created: 2026-05-05
@@ -148,7 +148,7 @@ Last updated: 2026-05-11
 | Phase | Description | Status |
 | ---: | --- | --- |
 | Slice 1 | Build the read-only snapshot backend and `async-research console snapshot research_ops --json`, including task counts, blockers, stale locks, costs, downstream dashboard summaries, readiness, health, recent runs, and warnings. | Complete |
-| Slice 2 | Serve the local dashboard shell with static assets, left navigation, manual refresh, and read-only `GET /api/snapshot` as the only API endpoint. | Pending |
+| Slice 2 | Serve the local dashboard shell with static assets, left navigation, manual refresh, and read-only `GET /api/snapshot` as the only API endpoint. | Complete |
 | Slice 3 | Add guarded setup and health actions for init, schema check, readiness dry run, health dry run, surface update, surface validate, and command-result inspection. | Pending |
 | Slice 4 | Add the read-mostly task board with status filters, task detail inspection, status validation, transition validation, and lock inspection. | Pending |
 | Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Pending |

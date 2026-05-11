@@ -326,6 +326,33 @@ def run_console_snapshot_command(args: argparse.Namespace) -> int:
     return snapshot.main(argv)
 
 
+def run_console_command(args: argparse.Namespace) -> int:
+    from async_research_workflow.console import server
+    from async_research_workflow.console import snapshot
+
+    console_args = list(args.console_args or [])
+    if console_args and console_args[0] == "snapshot":
+        argv = console_args[1:] or ["research_ops"]
+        if args.json:
+            argv.append("--json")
+        if args.now:
+            argv.extend(["--now", args.now])
+        return snapshot.main(argv)
+    if console_args and console_args[0] == "serve":
+        console_args = console_args[1:]
+    if len(console_args) > 1:
+        print_json(
+            {
+                "ok": False,
+                "reason": "invalid_console_args",
+                "message": "Use async-research console [research_ops] or async-research console snapshot [research_ops] --json.",
+            }
+        )
+        return 3
+    ops_dir = Path(console_args[0]) if console_args else Path("research_ops")
+    return server.main([str(ops_dir), "--host", args.host, "--port", str(args.port)])
+
+
 def run_version(args: argparse.Namespace) -> int:
     print_json({"ok": True, "version": __version__})
     return SUCCESS
@@ -1060,20 +1087,27 @@ def register_console_commands(subparsers) -> None:
         subparsers,
         "console",
         help="Render or serve the local operator console.",
-        description="Local read-only console surfaces for file-backed research_ops workspaces.",
+        description=(
+            "Serve the local read-only dashboard shell, or render the Slice 1 "
+            "snapshot with `console snapshot research_ops --json`."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  async-research console research_ops\n"
+            "  async-research console snapshot research_ops --json\n\n"
+            "Slice 2 serves static assets plus GET /api/snapshot only. No mutation endpoints are available."
+        ),
     )
-    console_sub = console.add_subparsers(dest="console_command", required=True)
-    snapshot = add_command(
-        console_sub,
-        "snapshot",
-        help="Render the read-only dashboard snapshot.",
-        description="Render the Slice 1 read-only dashboard snapshot with workspace, readiness, health, task, decision, accepted-output, rejected-result, cost, foundation, run, and warnings groups.",
-        epilog="Exits 0 when the snapshot is rendered, including partial or unavailable optional groups; exits 3 for invalid request flags.",
+    console.add_argument(
+        "console_args",
+        nargs="*",
+        help="Optional ops_dir, or `snapshot [ops_dir]` for the read-only JSON snapshot.",
     )
-    add_common_ops(snapshot)
-    snapshot.add_argument("--json", action="store_true", help="Render JSON output. JSON is the only Slice 1 output mode.")
-    snapshot.add_argument("--now", help="Override current time for deterministic snapshot rendering.")
-    snapshot.set_defaults(func=run_console_snapshot_command)
+    console.add_argument("--host", default="127.0.0.1", help="Host interface to bind for the dashboard server.")
+    console.add_argument("--port", type=int, default=8765, help="Port to bind for the dashboard server.")
+    console.add_argument("--json", action="store_true", help="Render JSON output when using `console snapshot`.")
+    console.add_argument("--now", help="Override current time when using `console snapshot`.")
+    console.set_defaults(func=run_console_command)
 
 
 def register_schema_command(subparsers) -> None:
