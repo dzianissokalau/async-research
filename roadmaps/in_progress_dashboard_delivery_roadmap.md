@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 1
+Current phase: Slice 2
 Last updated: 2026-05-11
-Next action: Implement Slice 1 Snapshot Backend with the read-only MVP contract
+Next action: Implement Slice 2 Local Dashboard Shell consuming the read-only snapshot
 Blocked by: None
 
 Created: 2026-05-05
@@ -140,6 +140,25 @@ http://127.0.0.1:8765
 
 Do not introduce a database in v1. Generated reporting files are acceptable when
 they are rebuildable from source artifacts.
+
+## Progress
+
+Last updated: 2026-05-11
+
+| Phase | Description | Status |
+| ---: | --- | --- |
+| Slice 1 | Build the read-only snapshot backend and `async-research console snapshot research_ops --json`, including task counts, blockers, stale locks, costs, downstream dashboard summaries, readiness, health, recent runs, and warnings. | Complete |
+| Slice 2 | Serve the local dashboard shell with static assets, left navigation, manual refresh, and read-only `GET /api/snapshot` as the only API endpoint. | Pending |
+| Slice 3 | Add guarded setup and health actions for init, schema check, readiness dry run, health dry run, surface update, surface validate, and command-result inspection. | Pending |
+| Slice 4 | Add the read-mostly task board with status filters, task detail inspection, status validation, transition validation, and lock inspection. | Pending |
+| Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Pending |
+| Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Pending |
+| Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Pending |
+| Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Pending |
+| Slice 9 | Add trigger-now dry run with command preview, readiness check, concurrency check, disabled-job blocking, and run-id preview. | Pending |
+| Slice 10 | Add bounded trigger-now execution, process/run artifacts, logs, event capture, usage ingestion where available, and run history. | Pending |
+| Slice 11 | Add cost, source, and health detail views with budget pressure, source governance, stale accepted evidence, and recovery commands. | Pending |
+| Slice 12 | Harden packaging, fixtures, smoke tests, acceptance-suite hooks, malformed-file handling, static asset inclusion, and dashboard recovery docs. | Pending |
 
 ## Product Slices
 

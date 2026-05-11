@@ -1,0 +1,509 @@
+"""Read-only console snapshot for local dashboard consumers."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Iterable
+
+from async_research_workflow.idea_catalog import catalog_dashboard_report
+from async_research_workflow.scripts import analysis_surface
+from async_research_workflow.scripts import autonomy_readiness_gate
+from async_research_workflow.scripts import data_foundations
+from async_research_workflow.scripts import health_check
+from async_research_workflow.scripts import knowledge_library
+
+
+SNAPSHOT_SCHEMA_VERSION = "console_snapshot_v1.0"
+RECENT_LIMIT = 5
+
+
+def print_json(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def parse_now(value: str | None) -> datetime:
+    if not value:
+        return utc_now()
+    parsed = health_check.parse_datetime(value)
+    if parsed is None:
+        raise ValueError(f"invalid --now value: {value}")
+    return parsed
+
+
+def iso_now(now: datetime) -> str:
+    return now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def issue(severity: str, reason: str, message: str, path: Path | str | None = None, details: Any = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "severity": severity,
+        "reason": reason,
+        "message": message,
+    }
+    if path is not None:
+        payload["path"] = str(path)
+    if details is not None:
+        payload["details"] = details
+    return payload
+
+
+def unavailable(reason: str, message: str, path: Path | str | None = None, details: Any = None) -> dict[str, Any]:
+    payload = {
+        "available": False,
+        "status": "unavailable",
+        "reason": reason,
+        "message": message,
+        "summary": {},
+        "warnings": [issue("warning", reason, message, path, details)],
+    }
+    if path is not None:
+        payload["path"] = str(path)
+    return payload
+
+
+def compact_dashboard(report: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "available": True,
+        "status": "available",
+        "action": report.get("action"),
+        "ok": report.get("ok"),
+        "summary": report.get("summary", {}),
+        "warnings": report.get("warnings", []),
+        "sections": report.get("sections", {}),
+    }
+
+
+def guarded_dashboard(
+    ops_dir: Path,
+    required_path: Path | None,
+    name: str,
+    loader: Callable[[], dict[str, Any]],
+) -> dict[str, Any]:
+    if required_path is not None and not required_path.exists():
+        return unavailable(
+            f"{name}_files_missing",
+            f"{name} dashboard files are missing",
+            required_path,
+        )
+    try:
+        return compact_dashboard(loader())
+    except Exception as exc:
+        return unavailable(
+            f"{name}_dashboard_unavailable",
+            f"{name} dashboard summary could not be rendered",
+            ops_dir,
+            str(exc),
+        )
+
+
+def markdown_table_rows(path: Path) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    warnings: list[dict[str, Any]] = []
+    if not path.exists():
+        return [], warnings
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header: list[str] | None = None
+    rows: list[dict[str, str]] = []
+    for line_number, raw in enumerate(lines, start=1):
+        line = raw.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if all(cell.replace("-", "").strip() == "" for cell in cells):
+            continue
+        if header is None:
+            header = cells
+            continue
+        if len(cells) != len(header):
+            warnings.append(
+                issue(
+                    "warning",
+                    "malformed_markdown_table_row",
+                    "markdown table row has a different number of cells than the header",
+                    path,
+                    {"line_number": line_number, "cell_count": len(cells), "header_count": len(header)},
+                )
+            )
+            continue
+        rows.append(dict(zip(header, cells)))
+    return rows, warnings
+
+
+def recent_markdown_rows(path: Path, limit: int = RECENT_LIMIT) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    rows, warnings = markdown_table_rows(path)
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "count": len(rows),
+        "recent_rows": rows[-limit:],
+    }, warnings
+
+
+def revalidation_state(rows: list[dict[str, str]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("revalidation_status") or "unavailable").strip() or "unavailable"
+        counts[status] = counts.get(status, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def task_id(payload: dict[str, Any], fallback: Path) -> str:
+    return str(payload.get("id") or fallback.name)
+
+
+def task_row(item: dict[str, Any]) -> dict[str, Any]:
+    task_dir = item["task_dir"]
+    payload = item["payload"]
+    return {
+        "task_id": task_id(payload, task_dir),
+        "title": payload.get("title", "unavailable"),
+        "status": payload.get("status", "unknown"),
+        "type": payload.get("type", "unavailable"),
+        "review_tier": (payload.get("review_policy") or {}).get("tier", "unavailable")
+        if isinstance(payload.get("review_policy"), dict)
+        else "unavailable",
+        "revision_count": payload.get("revision_count", "unavailable"),
+        "requires_human": payload.get("requires_human", False),
+        "human_gate_reason": payload.get("human_gate_reason"),
+        "last_transition_reason": payload.get("last_transition_reason"),
+        "allowed_paths": payload.get("allowed_paths", []),
+        "task_dir": str(task_dir),
+        "status_path": str(item["status_path"]),
+    }
+
+
+def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) -> dict[str, Any]:
+    tasks_dir = ops_dir / "tasks"
+    schema = health_check.load_status_schema(health_check.DEFAULT_STATUS_SCHEMA)
+    statuses, malformed = health_check.load_task_statuses(tasks_dir, schema)
+    counts = health_check.status_counts(statuses)
+    stale_locks = autonomy_readiness_gate.scan_stale_locks_at(tasks_dir, 60.0, now)
+    active = [task_row(item) for item in autonomy_readiness_gate.active_tasks(statuses)]
+    review = [task_row(item) for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
+    human = autonomy_readiness_gate.needs_human_tasks(statuses)
+    blocked_statuses = {"needs_human", "paused"}
+    blocked = [
+        task_row(item)
+        for item in statuses
+        if item["payload"].get("status") in blocked_statuses or item["payload"].get("requires_human") is True
+    ]
+    for item in malformed:
+        warnings.append(
+            issue(
+                "warning",
+                "malformed_task_status",
+                "task status could not be parsed or failed schema validation",
+                item.get("status_path"),
+                item,
+            )
+        )
+    return {
+        "tasks_dir": str(tasks_dir),
+        "exists": tasks_dir.exists(),
+        "total": len(statuses),
+        "status_counts": counts,
+        "active": active,
+        "blocked": blocked,
+        "review": review,
+        "human": human,
+        "malformed_statuses": malformed,
+        "stale_locks": stale_locks,
+    }
+
+
+def workspace_snapshot(ops_dir: Path) -> dict[str, Any]:
+    required = []
+    for relative in autonomy_readiness_gate.REQUIRED_OPERATIONAL_FILES:
+        path = ops_dir / relative
+        required.append({"path": str(path), "relative_path": relative, "exists": path.exists()})
+    missing = [item for item in required if not item["exists"]]
+    return {
+        "ops_dir": str(ops_dir),
+        "exists": ops_dir.exists(),
+        "is_dir": ops_dir.is_dir(),
+        "starter_files": {
+            "required_count": len(required),
+            "available_count": len(required) - len(missing),
+            "missing_count": len(missing),
+            "missing": missing,
+        },
+    }
+
+
+def readiness_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    if not ops_dir.is_dir():
+        return unavailable("ops_dir_missing", "readiness is unavailable until research_ops exists", ops_dir)
+    args = autonomy_readiness_gate.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
+    report, exit_code = autonomy_readiness_gate.build_gate_report(args)
+    blockers = report.get("blockers", [])
+    next_step = (
+        "resolve blockers before running autonomous workers"
+        if blockers
+        else ("review warnings before starting expensive workers" if report.get("warnings") else "no readiness blockers")
+    )
+    return {
+        "available": True,
+        "status": "available",
+        "verdict": report.get("decision"),
+        "exit_code": exit_code,
+        "blockers": blockers,
+        "warnings": report.get("warnings", []),
+        "next_step": next_step,
+        "summary": report.get("summary", {}),
+    }
+
+
+def health_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    if not ops_dir.is_dir():
+        return unavailable("ops_dir_missing", "health is unavailable until research_ops exists", ops_dir)
+    args = health_check.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
+    report = health_check.build_report(args)
+    alerts = report.get("alerts", [])
+    blockers = [item for item in alerts if item.get("severity") == "error"]
+    next_step = (
+        "repair health errors before continuing"
+        if blockers
+        else ("review health warnings" if alerts else "no health alerts")
+    )
+    return {
+        "available": True,
+        "status": "available",
+        "verdict": report.get("summary", {}).get("highest_severity", "unavailable"),
+        "exit_code": 0,
+        "blockers": blockers,
+        "warnings": [item for item in alerts if item.get("severity") != "error"],
+        "next_step": next_step,
+        "summary": report.get("summary", {}),
+    }
+
+
+def human_decisions_snapshot(ops_dir: Path, human_tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    decisions, warnings = recent_markdown_rows(ops_dir / "decisions.md")
+    return {
+        "open_count": len(human_tasks),
+        "blocked_task_refs": human_tasks,
+        "recent_decision_rows": decisions["recent_rows"],
+        "decision_log_path": decisions["path"],
+        "decision_log_exists": decisions["exists"],
+    }, warnings
+
+
+def accepted_outputs_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    rows, warnings = markdown_table_rows(ops_dir / "accepted_outputs_index.md")
+    return {
+        "path": str(ops_dir / "accepted_outputs_index.md"),
+        "exists": (ops_dir / "accepted_outputs_index.md").exists(),
+        "count": len(rows),
+        "recent_rows": rows[-RECENT_LIMIT:],
+        "revalidation_state": revalidation_state(rows) if rows else {},
+    }, warnings
+
+
+def rejected_results_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    return recent_markdown_rows(ops_dir / "rejected_results.md")
+
+
+def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    cost = health_check.scan_cost_ledger(ops_dir / "cost_ledger.csv", None, None, now)
+    monthly_ratio = cost.get("monthly_usage_ratio")
+    weekly_ratio = cost.get("weekly_usage_ratio")
+    warnings: list[dict[str, Any]] = []
+    if not cost.get("exists"):
+        warnings.append(issue("warning", "cost_ledger_missing", "cost ledger is missing", ops_dir / "cost_ledger.csv"))
+    for name, ratio in (("monthly", monthly_ratio), ("weekly", weekly_ratio)):
+        if isinstance(ratio, (int, float)) and ratio >= 0.8:
+            warnings.append(
+                issue(
+                    "warning",
+                    f"{name}_budget_pressure",
+                    f"{name} cost is at least 80% of configured budget",
+                    ops_dir / "cost_ledger.csv",
+                    {"usage_ratio": ratio},
+                )
+            )
+    return {
+        "path": cost.get("ledger_path"),
+        "exists": cost.get("exists", False),
+        "month_spend_usd": cost.get("monthly_cost_usd", 0.0),
+        "week_spend_usd": cost.get("weekly_cost_usd", 0.0),
+        "monthly_budget_usd": cost.get("monthly_budget_usd"),
+        "weekly_budget_usd": cost.get("weekly_budget_usd"),
+        "monthly_usage_ratio": monthly_ratio,
+        "weekly_usage_ratio": weekly_ratio,
+        "budget_pressure": bool(warnings),
+        "warnings": warnings,
+    }
+
+
+def runs_snapshot(ops_dir: Path) -> dict[str, Any]:
+    run_artifacts = ops_dir / "run_artifacts"
+    if not run_artifacts.exists():
+        return unavailable("run_artifacts_missing", "run artifacts are not available yet", run_artifacts)
+    runs = []
+    for run_dir in sorted([path for path in run_artifacts.iterdir() if path.is_dir()], key=lambda path: path.stat().st_mtime, reverse=True):
+        run_json = run_dir / "run.json"
+        payload: dict[str, Any] = {}
+        if run_json.exists():
+            try:
+                parsed = json.loads(run_json.read_text(encoding="utf-8"))
+                if isinstance(parsed, dict):
+                    payload = parsed
+            except (OSError, json.JSONDecodeError) as exc:
+                payload = {"warning": f"run.json could not be read: {exc}"}
+        runs.append(
+            {
+                "run_id": payload.get("run_id", run_dir.name),
+                "run_dir": str(run_dir),
+                "status": payload.get("status", "unavailable"),
+                "task_id": payload.get("task_id", "unavailable"),
+                "job_id": payload.get("job_id", "unavailable"),
+                "started_at": payload.get("started_at", "unavailable"),
+                "finished_at": payload.get("finished_at", "unavailable"),
+            }
+        )
+    return {
+        "available": True,
+        "status": "available",
+        "path": str(run_artifacts),
+        "count": len(runs),
+        "recent_runs": runs[:RECENT_LIMIT],
+        "warnings": [],
+    }
+
+
+def dashboard_summaries(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    return {
+        "ideas": guarded_dashboard(
+            ops_dir,
+            ops_dir / "ideas",
+            "ideas",
+            lambda: catalog_dashboard_report(ops_dir),
+        ),
+        "data": guarded_dashboard(
+            ops_dir,
+            ops_dir / "data",
+            "data",
+            lambda: data_foundations.data_dashboard_report(
+                ops_dir,
+                now=now,
+                use_case=data_foundations.DEFAULT_DASHBOARD_USE_CASE,
+            ),
+        ),
+        "library": guarded_dashboard(
+            ops_dir,
+            ops_dir / "library",
+            "library",
+            lambda: knowledge_library.library_dashboard_report(
+                ops_dir,
+                now=now,
+                stale_days=knowledge_library.SURFACE_STALE_DAYS,
+            ),
+        ),
+        "analysis": guarded_dashboard(
+            ops_dir,
+            None,
+            "analysis",
+            lambda: analysis_surface.analysis_dashboard_report(ops_dir, now=now, max_items=RECENT_LIMIT),
+        ),
+    }
+
+
+def collect_unavailable_warnings(groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    warnings: list[dict[str, Any]] = []
+    for group in groups:
+        if group.get("available") is False:
+            warnings.extend(group.get("warnings", []))
+    return warnings
+
+
+def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
+    current = now or utc_now()
+    warnings: list[dict[str, Any]] = []
+    workspace = workspace_snapshot(ops_dir)
+    workspace_ready = ops_dir.is_dir()
+    tasks = task_snapshot(ops_dir, current, warnings) if workspace_ready else {
+        "tasks_dir": str(ops_dir / "tasks"),
+        "exists": False,
+        "total": 0,
+        "status_counts": {},
+        "active": [],
+        "blocked": [],
+        "review": [],
+        "human": [],
+        "malformed_statuses": [],
+        "stale_locks": [],
+    }
+    readiness = readiness_snapshot(ops_dir, current)
+    health = health_snapshot(ops_dir, current)
+    human_decisions, human_decision_warnings = human_decisions_snapshot(ops_dir, tasks["human"])
+    accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir)
+    rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
+    cost = cost_snapshot(ops_dir, current)
+    dashboards = dashboard_summaries(ops_dir, current) if workspace_ready else {
+        "ideas": unavailable("ops_dir_missing", "ideas dashboard is unavailable until research_ops exists", ops_dir),
+        "data": unavailable("ops_dir_missing", "data dashboard is unavailable until research_ops exists", ops_dir),
+        "library": unavailable("ops_dir_missing", "library dashboard is unavailable until research_ops exists", ops_dir),
+        "analysis": unavailable("ops_dir_missing", "analysis dashboard is unavailable until research_ops exists", ops_dir),
+    }
+    runs = runs_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runs are unavailable until research_ops exists", ops_dir)
+
+    warnings.extend(human_decision_warnings)
+    warnings.extend(accepted_warnings)
+    warnings.extend(rejected_warnings)
+    warnings.extend(cost.get("warnings", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, runs, *dashboards.values()]))
+
+    return {
+        "ok": True,
+        "action": "console_snapshot_rendered",
+        "schema_version": SNAPSHOT_SCHEMA_VERSION,
+        "generated_at": iso_now(current),
+        "read_only": True,
+        "changed": False,
+        "ops_dir": str(ops_dir),
+        "workspace": workspace,
+        "readiness": readiness,
+        "health": health,
+        "tasks": tasks,
+        "human_decisions": human_decisions,
+        "accepted_outputs": accepted_outputs,
+        "rejected_results": rejected_results,
+        "cost": cost,
+        "ideas": dashboards["ideas"],
+        "data": dashboards["data"],
+        "library": dashboards["library"],
+        "analysis": dashboards["analysis"],
+        "runs": runs,
+        "warnings": warnings,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render a read-only console snapshot for a research_ops workspace.")
+    parser.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"), help="Path to the research_ops workspace.")
+    parser.add_argument("--json", action="store_true", help="Render JSON output. JSON is the only Slice 1 output mode.")
+    parser.add_argument("--now", help="Override current time for deterministic snapshot tests, ISO-8601.")
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    args = build_parser().parse_args(list(argv or []))
+    try:
+        current = parse_now(args.now)
+    except ValueError as exc:
+        print_json({"ok": False, "action": "console_snapshot_rendered", "reason": "invalid_now", "message": str(exc), "read_only": True, "changed": False})
+        return 3
+    print_json(snapshot(args.ops_dir, now=current))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

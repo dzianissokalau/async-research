@@ -315,6 +315,17 @@ def run_health_command(args: argparse.Namespace) -> int:
     return module_main("health_check", argv)
 
 
+def run_console_snapshot_command(args: argparse.Namespace) -> int:
+    from async_research_workflow.console import snapshot
+
+    argv = [str(args.ops_dir)]
+    if args.json:
+        argv.append("--json")
+    if args.now:
+        argv.extend(["--now", args.now])
+    return snapshot.main(argv)
+
+
 def run_version(args: argparse.Namespace) -> int:
     print_json({"ok": True, "version": __version__})
     return SUCCESS
@@ -1042,6 +1053,27 @@ def register_surface_commands(subparsers) -> None:
     )
     add_common_ops(surface_validate)
     surface_validate.set_defaults(func=lambda a: module_main("human_review_surface", ["validate", str(a.ops_dir)]))
+
+
+def register_console_commands(subparsers) -> None:
+    console = add_command(
+        subparsers,
+        "console",
+        help="Render or serve the local operator console.",
+        description="Local read-only console surfaces for file-backed research_ops workspaces.",
+    )
+    console_sub = console.add_subparsers(dest="console_command", required=True)
+    snapshot = add_command(
+        console_sub,
+        "snapshot",
+        help="Render the read-only dashboard snapshot.",
+        description="Render the Slice 1 read-only dashboard snapshot with workspace, readiness, health, task, decision, accepted-output, rejected-result, cost, foundation, run, and warnings groups.",
+        epilog="Exits 0 when the snapshot is rendered, including partial or unavailable optional groups; exits 3 for invalid request flags.",
+    )
+    add_common_ops(snapshot)
+    snapshot.add_argument("--json", action="store_true", help="Render JSON output. JSON is the only Slice 1 output mode.")
+    snapshot.add_argument("--now", help="Override current time for deterministic snapshot rendering.")
+    snapshot.set_defaults(func=run_console_snapshot_command)
 
 
 def register_schema_command(subparsers) -> None:
@@ -2122,6 +2154,7 @@ COMMAND_REGISTRARS = (
     register_package_commands,
     register_status_commands,
     register_surface_commands,
+    register_console_commands,
     register_schema_command,
     register_workflow_commands,
     register_queue_commands,
