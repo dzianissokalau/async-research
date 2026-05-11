@@ -2,7 +2,7 @@
 
 Status: Not Started
 Current phase: Backlog
-Last updated: 2026-05-10
+Last updated: 2026-05-11
 Next action: Select one item and split it into a dedicated roadmap when explicitly requested
 Blocked by: None
 
@@ -29,6 +29,66 @@ when a shipped feature has intentional V1 boundaries.
   rollback reporting, and tests proving manual notes are preserved.
 - High-stakes, public-facing, or `strong` claims should require human approval
   before publication use.
+
+## Operator UX, Roadmap, And Packaging Governance
+
+Current shipped baseline:
+
+- Operator UX roadmap is delivered as
+  `roadmaps/delivered_operator_ux_workflow_ergonomics_roadmap.md`.
+- Public operator guidance now uses review tiers 1 through 3; Tier 0 is
+  internal recovery/benchmark-only.
+- `DOCS_PACKAGING_REVIEW.md` records the alpha decision to keep Markdown
+  protocol and operator docs packaged.
+- Packaged docs are constrained by explicit `pyproject.toml` package-data,
+  Markdown-only tests, a 1 MiB docs footprint ceiling, and key
+  `importlib.resources` access tests.
+- Roadmap status filenames and the roadmap index are checked by documentation
+  reference tests, but delivered-roadmap closeout is still mostly a manual
+  checklist in operator practice.
+
+### Future Improvements
+
+| Improvement | Summary | Dependencies | Important notes |
+| --- | --- | --- | --- |
+| Global stale-roadmap-link guard | Add a documentation/reference test that rejects obsolete roadmap filenames after lifecycle renames, starting with `in_progress_operator_ux_workflow_ergonomics_roadmap.md` and expanding to any roadmap that has been promoted, superseded, or delivered. | Roadmap lifecycle naming convention; `iter_documentation_files()` coverage; roadmap index parser; current delivered/in-progress filename map. | Keep this as a stale-reference guard, not a blocker on valid historical mentions that are explicitly labeled as history. Error messages should name the stale file and the replacement target. |
+| Packaging footprint smoke | Add an optional maintainer command or CI job that builds the wheel/sdist, computes packaged docs count, uncompressed bytes, compressed bytes, and wheel share, then reports drift from the recorded docs-packaging review. | Build workflow; artifact inspection helper; CI runtime budget; package-data policy; docs packaging thresholds. | Do not run this in every fast unit-test path. Treat `DOCS_PACKAGING_REVIEW.md` as a historical decision record; use the smoke for release or packaging-maintainer checks. |
+| Packaging threshold diagnostics | Improve docs packaging test failures so footprint threshold breaches report current total bytes, largest docs, non-Markdown files, and the policy threshold. | Existing `tests.test_docs_packaging`; stable packaged docs root; 1 MiB total and 128 KiB single-doc thresholds. | This is a usability improvement around an existing guard. It should not silently update the historical measured numbers. |
+| Roadmap closeout checklist | Add a reusable closeout checklist for delivered roadmap renames: update status header, rename file, update `roadmaps/README.md`, update inbound links, run stale filename scan, update relevant tests, and record follow-up backlog items. | Roadmap index conventions; delivered-roadmap examples; doc-reference tests; contributor guidance location decision. | Keep it short and operational. The checklist should help humans and LLM implementers close roadmaps without overstating evidence or leaving stale links. |
+
+### Suggested Sequencing
+
+1. Global stale-roadmap-link guard because it is small and catches the exact
+   failure mode created by lifecycle renames.
+2. Roadmap closeout checklist so future delivered-roadmap work has a repeatable
+   end-of-slice procedure.
+3. Packaging threshold diagnostics to make existing packaging tests easier to
+   act on.
+4. Packaging footprint smoke as a release or maintainer check once CI/runtime
+   cost is acceptable.
+
+### Cross-Track Dependencies
+
+- Public Alpha Hardening: packaging decisions and installed-wheel checks should
+  stay aligned with the original package-resource policy.
+- Operator UX: future ergonomics work should preserve public command paths and
+  avoid reviving internal helper guidance in normal operator docs.
+- Dashboard Delivery: dashboard roadmap status changes should use the same
+  closeout and stale-link conventions.
+- Documentation Reference Tests: stale-link guards should reuse existing
+  documentation-file iteration instead of creating a separate scanner.
+
+### Open Decisions
+
+- Should stale-roadmap-link guards allow historical mentions when a replacement
+  link appears nearby, or should historical mentions be moved to changelog-style
+  prose?
+- Should the packaging footprint smoke live in CI, the acceptance suite, or a
+  separate maintainer-only command?
+- What drift threshold should trigger a packaging review refresh: any byte
+  change, a percentage change, or only crossing the 1 MiB policy ceiling?
+- Where should the roadmap closeout checklist live: this backlog, contributor
+  docs, roadmap index guidance, or a packaged internal-helper document?
 
 ## Data Foundations
 
