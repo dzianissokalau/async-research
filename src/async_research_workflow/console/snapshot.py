@@ -1,4 +1,11 @@
-"""Read-only console snapshot for local dashboard consumers."""
+"""Read-only console snapshot for local dashboard consumers.
+
+JSON shape conventions:
+- required-but-missing display values use the string ``"unavailable"``;
+- optional details such as warning paths are omitted when absent;
+- boolean safety markers are always present on the top-level envelope;
+- timestamps are ISO-8601 UTC strings with a ``Z`` suffix.
+"""
 
 from __future__ import annotations
 
@@ -107,7 +114,18 @@ def markdown_table_rows(path: Path) -> tuple[list[dict[str, str]], list[dict[str
     warnings: list[dict[str, Any]] = []
     if not path.exists():
         return [], warnings
-    lines = path.read_text(encoding="utf-8").splitlines()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        return [], [
+            issue(
+                "warning",
+                "markdown_table_unreadable",
+                "markdown table could not be read",
+                path,
+                str(exc),
+            )
+        ]
     header: list[str] | None = None
     rows: list[dict[str, str]] = []
     for line_number, raw in enumerate(lines, start=1):
@@ -188,7 +206,11 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
     stale_locks = autonomy_readiness_gate.scan_stale_locks_at(tasks_dir, 60.0, now)
     active = [task_row(item) for item in autonomy_readiness_gate.active_tasks(statuses)]
     review = [task_row(item) for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
-    human = autonomy_readiness_gate.needs_human_tasks(statuses)
+    human = [
+        task_row(item)
+        for item in statuses
+        if item["payload"].get("status") == "needs_human" or item["payload"].get("requires_human") is True
+    ]
     blocked_statuses = {"needs_human", "paused"}
     blocked = [
         task_row(item)
@@ -241,8 +263,17 @@ def workspace_snapshot(ops_dir: Path) -> dict[str, Any]:
 def readiness_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
     if not ops_dir.is_dir():
         return unavailable("ops_dir_missing", "readiness is unavailable until research_ops exists", ops_dir)
-    args = autonomy_readiness_gate.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
-    report, exit_code = autonomy_readiness_gate.build_gate_report(args)
+    try:
+        args = autonomy_readiness_gate.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
+        # build_gate_report is used here as a read-only report builder; writes live in the helper's main().
+        report, exit_code = autonomy_readiness_gate.build_gate_report(args)
+    except Exception as exc:
+        return unavailable(
+            "readiness_unavailable",
+            "readiness report could not be generated",
+            ops_dir,
+            str(exc),
+        )
     blockers = report.get("blockers", [])
     next_step = (
         "resolve blockers before running autonomous workers"
@@ -264,8 +295,17 @@ def readiness_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
 def health_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
     if not ops_dir.is_dir():
         return unavailable("ops_dir_missing", "health is unavailable until research_ops exists", ops_dir)
-    args = health_check.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
-    report = health_check.build_report(args)
+    try:
+        args = health_check.parse_args([str(ops_dir), "--dry-run", "--no-daily-status", "--now", iso_now(now)])
+        # build_report is used here as a read-only report builder; writes live in the helper's main().
+        report = health_check.build_report(args)
+    except Exception as exc:
+        return unavailable(
+            "health_unavailable",
+            "health report could not be generated",
+            ops_dir,
+            str(exc),
+        )
     alerts = report.get("alerts", [])
     blockers = [item for item in alerts if item.get("severity") == "error"]
     next_step = (
@@ -312,7 +352,31 @@ def rejected_results_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[
 
 
 def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
-    cost = health_check.scan_cost_ledger(ops_dir / "cost_ledger.csv", None, None, now)
+    ledger_path = ops_dir / "cost_ledger.csv"
+    try:
+        cost = health_check.scan_cost_ledger(ledger_path, None, None, now)
+    except Exception as exc:
+        warning = issue(
+            "warning",
+            "cost_ledger_unreadable",
+            "cost ledger could not be parsed",
+            ledger_path,
+            str(exc),
+        )
+        return {
+            "available": False,
+            "status": "unavailable",
+            "path": str(ledger_path),
+            "exists": ledger_path.exists(),
+            "month_spend_usd": 0.0,
+            "week_spend_usd": 0.0,
+            "monthly_budget_usd": None,
+            "weekly_budget_usd": None,
+            "monthly_usage_ratio": None,
+            "weekly_usage_ratio": None,
+            "budget_pressure": False,
+            "warnings": [warning],
+        }
     monthly_ratio = cost.get("monthly_usage_ratio")
     weekly_ratio = cost.get("weekly_usage_ratio")
     warnings: list[dict[str, Any]] = []
@@ -330,6 +394,8 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
                 )
             )
     return {
+        "available": True,
+        "status": "available",
         "path": cost.get("ledger_path"),
         "exists": cost.get("exists", False),
         "month_spend_usd": cost.get("monthly_cost_usd", 0.0),

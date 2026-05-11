@@ -5,11 +5,14 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow import cli
+from async_research_workflow.console import snapshot as snapshot_module
 
 
 NOW = "2026-05-11T00:00:00Z"
@@ -45,6 +48,39 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def write_task_status(ops_dir: Path, task_id: str, status: str = "ready_for_worker", requires_human: bool = False) -> Path:
+    task_dir = ops_dir / "tasks" / f"{task_id}-fixture"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "id": task_id,
+                "title": f"{task_id} fixture",
+                "type": "admin",
+                "status": status,
+                "previous_status": "ready_for_worker" if status == "needs_human" else None,
+                "last_transition_reason": "fixture",
+                "priority": 2,
+                "revision_count": 0,
+                "max_revisions": 1,
+                "revision_limit_hit": False,
+                "allowed_paths": [f"research_ops/tasks/{task_dir.name}/**"],
+                "max_minutes": 10,
+                "requires_human": requires_human,
+                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                "human_gate_reason": "fixture needs human" if requires_human or status == "needs_human" else None,
+                "updated_at": NOW,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return task_dir
 
 
 class ConsoleSnapshotTests(unittest.TestCase):
@@ -130,6 +166,171 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertFalse(payload["readiness"]["available"])
             self.assertFalse(payload["health"]["available"])
             self.assertFalse(payload["runs"]["available"])
+
+    def test_snapshot_handles_non_directory_ops_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_path = Path(tmp) / "research_ops"
+            ops_path.write_text("not a directory\n", encoding="utf-8")
+
+            code, payload = self.snapshot(ops_path)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["workspace"]["exists"])
+            self.assertFalse(payload["workspace"]["is_dir"])
+            self.assertFalse(payload["readiness"]["available"])
+            self.assertFalse(payload["health"]["available"])
+
+    def test_snapshot_rejects_invalid_now_with_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            code, payload = run_cli_json(["console", "snapshot", ops_dir, "--json", "--now", "not-a-time"])
+
+            self.assertEqual(3, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("invalid_now", payload["reason"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+
+    def test_snapshot_uses_consistent_task_shape_for_human_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task_status(ops_dir, "TASK-1001", "needs_human", requires_human=True)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(1, len(payload["tasks"]["human"]))
+            human = payload["tasks"]["human"][0]
+            for key in [
+                "task_id",
+                "title",
+                "status",
+                "type",
+                "review_tier",
+                "revision_count",
+                "requires_human",
+                "human_gate_reason",
+                "last_transition_reason",
+                "allowed_paths",
+                "task_dir",
+                "status_path",
+            ]:
+                self.assertIn(key, human)
+            self.assertEqual("TASK-1001", human["task_id"])
+            self.assertEqual(human, payload["human_decisions"]["blocked_task_refs"][0])
+
+    def test_snapshot_surfaces_stale_locks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-1002", "in_progress")
+            lock_dir = task_dir / "LOCK"
+            lock_dir.mkdir()
+            os.utime(lock_dir, (0, 0))
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(1, len(payload["tasks"]["stale_locks"]))
+            self.assertEqual(str(lock_dir), payload["tasks"]["stale_locks"][0]["lock_dir"])
+
+    def test_snapshot_surfaces_budget_pressure_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "cost_ledger.csv").write_text(
+                "\n".join(
+                    [
+                        "date,item_id,amount_usd,monthly_budget_usd,weekly_budget_usd",
+                        "2026-05-11,COST-1,90,100,100",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["cost"]["budget_pressure"])
+            reasons = {item["reason"] for item in payload["warnings"]}
+            self.assertIn("monthly_budget_pressure", reasons)
+            self.assertIn("weekly_budget_pressure", reasons)
+
+    def test_snapshot_degrades_unreadable_cost_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "cost_ledger.csv").write_bytes(b"\xff\xfe\x00")
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertFalse(payload["cost"]["available"])
+            self.assertEqual("unavailable", payload["cost"]["status"])
+            self.assertTrue(any(item["reason"] == "cost_ledger_unreadable" for item in payload["warnings"]))
+
+    def test_snapshot_degrades_readiness_and_health_exceptions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            with mock.patch.object(snapshot_module.autonomy_readiness_gate, "build_gate_report", side_effect=RuntimeError("readiness boom")):
+                code, payload = self.snapshot(ops_dir)
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertFalse(payload["readiness"]["available"])
+            self.assertEqual("readiness_unavailable", payload["readiness"]["reason"])
+
+            with mock.patch.object(snapshot_module.health_check, "build_report", side_effect=RuntimeError("health boom")):
+                code, payload = self.snapshot(ops_dir)
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertFalse(payload["health"]["available"])
+            self.assertEqual("health_unavailable", payload["health"]["reason"])
+
+    def test_snapshot_degrades_dashboard_summary_exceptions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            with mock.patch.object(snapshot_module, "catalog_dashboard_report", side_effect=RuntimeError("ideas boom")):
+                code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertFalse(payload["ideas"]["available"])
+            self.assertEqual("ideas_dashboard_unavailable", payload["ideas"]["reason"])
+            self.assertTrue(any(item["reason"] == "ideas_dashboard_unavailable" for item in payload["warnings"]))
+
+    def test_snapshot_warns_on_malformed_markdown_table_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "accepted_outputs_index.md").write_text(
+                "\n".join(
+                    [
+                        "| accepted_date | task_id | title |",
+                        "| --- | --- | --- |",
+                        "| 2026-05-11 | TASK-1003 |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(any(item["reason"] == "malformed_markdown_table_row" for item in payload["warnings"]))
+
+    def test_snapshot_surfaces_broken_run_json_without_dropping_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            run_dir = ops_dir / "run_artifacts" / "run-001"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text("{not json", encoding="utf-8")
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["runs"]["available"])
+            self.assertEqual(1, payload["runs"]["count"])
+            self.assertEqual("run-001", payload["runs"]["recent_runs"][0]["run_id"])
+            self.assertEqual("unavailable", payload["runs"]["recent_runs"][0]["status"])
 
 
 if __name__ == "__main__":
