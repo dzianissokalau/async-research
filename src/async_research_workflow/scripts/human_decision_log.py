@@ -184,6 +184,10 @@ def run_resolve_task(args: argparse.Namespace) -> int:
     updated = dict(status)
     updated.setdefault("schema_version", SCHEMA_VERSION)
     apply_default_versions(updated)
+    if not str(updated.get("human_gate_opened_at") or "").strip():
+        opened_at = status.get("updated_at")
+        if isinstance(opened_at, str) and opened_at.strip():
+            updated["human_gate_opened_at"] = opened_at
     updated["previous_status"] = "needs_human"
     updated["status"] = new_status
     updated["last_transition_reason"] = f"human_decision_{args.decision}"

@@ -312,6 +312,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research batch trust-status <manifest>` | Gate downstream use of batch outputs. | `batch_manifest.json`. | JSON to stdout only. |
 | `async-research metrics append research_ops --label manual` | Append an autonomy metrics snapshot. | Health, task, review, accepted-memory, and cost files. | `metrics_history.jsonl`; optionally `weekly_digest.md`. |
 | `async-research metrics summarize research_ops --output research_ops/monthly_metrics_trends.md` | Summarize baseline and metrics history trends. | `metrics_baseline.json`, `metrics_history.jsonl`. | JSON to stdout; optional Markdown output file. |
+| `async-research metrics operational research_ops` | Render the operational metrics read model for dashboards and digests. | Task status files, `decisions.md`, and `cost_ledger.csv`. | JSON to stdout only; missing timestamps render as `unavailable`. |
 | `async-research review aggregate <task-dir> --record-review-start` | Combine isolated reviews and route a task; optionally records the missing review-start transition first. | `status.json`, `reviews/*.md`, worker output, review policy. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. |
 | `async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers` | Validate or write final result acceptance for a reviewed task. | Task status, worker output, review aggregate, source audit, accepted memory. | `review_panel/result_acceptance.json`; with ledgers, `evidence_ledger.md` or `rejected_results.md`. |
 | `async-research analysis dashboard research_ops` | Render a read-only analysis dashboard. | Analysis preflight output, completed-run validators, result-acceptance records, accepted-memory index rows, and claim gates. | JSON to stdout only; read-only and never mutates task artifacts. |
@@ -374,7 +375,7 @@ The permanent internal helpers are `validate_json_artifact`,
 artifact-specific gates such as `schema-check`, `exploration validate`,
 `idea validate`, `experiment validate`, `result-acceptance`, `decision`,
 `revision`, `review draft`, `review submit`, `review aggregate`, and
-`metrics append/summarize`.
+`metrics append/summarize/operational`.
 
 See the [internal helper boundary](src/async_research_workflow/docs/internal_helper_boundary.md)
 for the maintained public/internal split.
@@ -434,6 +435,7 @@ specific diagnostic.
 | `batch trust-status` | `0` outputs are trusted. | `2` outputs are still untrusted unless `--allow-untrusted` is set; `4` malformed manifest. |
 | `metrics append` | `0` snapshot appended. | `2` invalid request; `4` malformed workspace state. |
 | `metrics summarize` | `0` metrics summary printed or written. | No command-specific nonzero return from the backing script. |
+| `metrics operational` | `0` operational read model printed. | `3` invalid `--now`; `4` workspace missing or not a directory. Malformed task statuses are warning rows so dashboard/digest consumers still get a partial read model. |
 | `accepted update`, `accepted revalidation`, and `accepted check-duplicate` | `0` index/report/check succeeded. `check-duplicate` is advisory and reports duplicate risk in JSON. | `2` invalid accepted-memory state; `4` malformed input. |
 | `accepted check-memory-use` | `0` artifact does not cite stale accepted memory, or `--allow-stale` was set. | `2` stale accepted-memory reuse; `4` malformed input. |
 | `anti-context build` | `0` anti-context generated. | `2` invalid request such as a missing title. |

@@ -559,6 +559,13 @@ def run_metrics_summarize_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_metrics_operational_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "operational_metrics",
+        [str(args.ops_dir)] + optional_text("--now", args.now),
+    )
+
+
 def run_accepted_check_duplicate_command(args: argparse.Namespace) -> int:
     return module_main(
         "update_accepted_outputs_index",
@@ -1538,7 +1545,7 @@ def register_metrics_commands(subparsers) -> None:
         subparsers,
         "metrics",
         help="Append or inspect autonomy metrics.",
-        description="Maintain metrics_baseline.json and metrics_history.jsonl snapshots.",
+        description="Maintain metrics_baseline.json and metrics_history.jsonl snapshots, and render operational read models.",
     )
     metrics_sub = metrics.add_subparsers(dest="metrics_command", required=True)
     metrics_append = add_command(
@@ -1561,6 +1568,15 @@ def register_metrics_commands(subparsers) -> None:
     metrics_summarize.add_argument("--month", help="Limit or label the summary month.")
     metrics_summarize.add_argument("--output", type=Path, help="Write a Markdown summary to this path.")
     metrics_summarize.set_defaults(func=run_metrics_summarize_command)
+    metrics_operational = add_command(
+        metrics_sub,
+        "operational",
+        help="Render operational metrics read model.",
+        description="Render read-only time-in-state, review latency, human-decision latency, and cost/review trends.",
+    )
+    add_common_ops(metrics_operational)
+    metrics_operational.add_argument("--now", help="Override report time for deterministic checks.")
+    metrics_operational.set_defaults(func=run_metrics_operational_command)
 
 
 def register_accepted_commands(subparsers) -> None:

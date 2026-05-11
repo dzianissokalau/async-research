@@ -269,6 +269,7 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("needs_human", status["status"])
             self.assertTrue(status["requires_human"])
+            self.assertIn("human_gate_opened_at", status)
             self.assert_step_status(payload, "surface_update", "ok")
 
     def test_advance_routes_rejected_and_reports_next_step(self) -> None:

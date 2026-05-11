@@ -256,7 +256,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["init", "validate", "dashboard"], list(library_choices))
         self.assertEqual(["summary", "ingest-usage", "budget-check"], list(cost_choices))
         self.assertEqual(["init", "validate-manifest", "submit", "complete", "ingest", "mark-reviewed", "trust-status"], list(batch_choices))
-        self.assertEqual(["append", "summarize"], list(metrics_choices))
+        self.assertEqual(["append", "summarize", "operational"], list(metrics_choices))
         self.assertNotIn("init", metrics_choices)
         self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
         self.assertEqual(["build"], list(anti_context_choices))

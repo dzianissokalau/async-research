@@ -23,8 +23,9 @@ research_ops/metrics_history.jsonl
 
 Metrics baseline initialization and weekly-period snapshots are advanced/internal
 helper operations. Public users should use `async-research init` for baseline
-creation and `async-research metrics append/summarize` for normal snapshots and
-summaries.
+creation, `async-research metrics append/summarize` for normal snapshots and
+summaries, and `async-research metrics operational` for read-only operational
+latency and cost trends.
 
 Use:
 
@@ -57,6 +58,22 @@ async-research metrics summarize \
   --month 2026-05 \
   --output research_ops/monthly_metrics_trends.md
 ```
+
+Render the operational read model:
+
+```bash
+async-research metrics operational research_ops
+```
+
+The operational read model is read-only and intended for both the weekly digest
+and future dashboard snapshot consumers. It exposes time in `awaiting_review`,
+time in `needs_human`, review latency by tier, human-decision latency, promotion
+to terminal outcome latency, cost per accepted or rejected output, and revision
+loop counts. When a task does not have enough timestamp data to compute a
+duration, the duration field is `unavailable` rather than `0`.
+Review aggregation preserves `review_started_at`, and human-decision resolution
+preserves `human_gate_opened_at`, so future reports can compute closed-loop
+latency after those public commands have run.
 
 ## Metrics
 

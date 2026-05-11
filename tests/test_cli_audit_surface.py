@@ -510,6 +510,7 @@ class CliAuditSurfaceTests(unittest.TestCase):
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("ready_for_worker", status["status"])
             self.assertFalse(status["requires_human"])
+            self.assertIn("human_gate_opened_at", status)
 
     def test_escalation_list_and_scan_needs_human_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -552,6 +552,7 @@ class WorkflowRegressionTests(unittest.TestCase):
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("single_review", status["previous_status"])
             self.assertEqual("accepted", status["status"])
+            self.assertIn("review_started_at", status)
             aggregate = json.loads((task_dir / "review_panel" / "aggregate.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["review_start_transition"], aggregate["review_start_transition"])
 
