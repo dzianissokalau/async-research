@@ -112,6 +112,9 @@ async-research init research_ops --template real-estate
 Use `--force` only when you deliberately want to replace an existing target.
 Non-forced `init` and `starter-smoke` refuse existing non-empty directories.
 
+For the shortest first operator pass after setup, use the packaged
+[First Success Quickstart](src/async_research_workflow/docs/first_success_quickstart.md).
+
 ## What Gets Created
 
 The starter workspace is intentionally file-backed:

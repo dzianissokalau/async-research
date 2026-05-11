@@ -1,9 +1,9 @@
 # Operator UX And Workflow Ergonomics Roadmap
 
 Status: In Progress
-Current phase: Phase 2
+Current phase: Phase 3
 Last updated: 2026-05-11
-Next action: Add the one-page first-success quickstart
+Next action: Coordinate dashboard MVP slices 1-2 as read-only operator surfaces
 Blocked by: None
 
 Created: 2026-05-09
@@ -136,8 +136,8 @@ Last updated: 2026-05-11
 | ---: | --- | --- | --- | --- |
 | 0 | Decisions and command shape | Complete | Resolve HTF sequencing, public command names, review authoring write rules, non-goals, and exit codes. | HTF is delivered; this roadmap now defines public `review draft` and `review submit` behavior plus the P1 non-goals. |
 | 1 | Review authoring UX | Complete | Add public commands around existing review-template and review-validation logic. | Adds `async-research review draft` and `async-research review submit`, JSON output, schema-validated task status preflight, atomic non-force write protection, docs, help coverage, and regression tests for preview, write, target-exists, missing role, invalid status, role mismatch, race protection, and aggregate use. |
-| 2 | One-page quickstart | Not Started | Add the first-success quickstart after P1 commands are available. | Next action. |
-| 3 | Dashboard MVP coordination | Not Started | Tie dashboard slices 1-2 to this adoption roadmap while keeping dashboard read-only first. | Defer until quickstart is complete. |
+| 2 | One-page quickstart | Complete | Add the first-success quickstart after P1 commands are available. | Adds packaged `first_success_quickstart.md`, links it from the README and docs index, keeps the page short, uses only public `async-research` commands, and adds doc-reference tests for the command path and deep-doc links. |
+| 3 | Dashboard MVP coordination | Not Started | Tie dashboard slices 1-2 to this adoption roadmap while keeping dashboard read-only first. | Next action. |
 | 4 | Workflow orchestrator | Not Started | Add a public orchestrator for the canonical post-worker loop without removing individual commands. | Defer until public manual path is clear. |
 | 5 | Discovery inbox robustness | Not Started | Improve capture diagnostics for non-canonical discovery inbox rows. | Defer. |
 | 6 | Operational metrics | Not Started | Add read models for review latency, human-decision latency, and cost/review trends. | Defer. |

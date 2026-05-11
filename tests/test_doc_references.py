@@ -225,6 +225,41 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_first_success_quickstart_stays_short_and_public(self) -> None:
+        quickstart = PACKAGE_ROOT / "docs" / "first_success_quickstart.md"
+        text = quickstart.read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+
+        self.assertLessEqual(len(text.splitlines()), 100)
+        self.assertNotIn("python -m", text)
+        self.assertNotIn("review_template", text)
+        self.assertNotIn("## Command Map", text)
+
+        for snippet in [
+            "# First Success Quickstart",
+            "async-research init research_ops",
+            "async-research readiness research_ops --dry-run",
+            'async-research review draft "$TASK" --role primary',
+            'async-research review submit "$TASK"',
+            'async-research review aggregate "$TASK" --dry-run',
+            'async-research review aggregate "$TASK" --record-review-start',
+            "async-research accepted update research_ops",
+            "async-research accepted revalidation research_ops --write-schedule",
+            "async-research surface update research_ops",
+            "async-research surface validate research_ops",
+            "[README](../../../README.md)",
+            "[Task Contracts](./task_contracts.md)",
+            "[Structural Reviewer Isolation Protocol](./reviewer_isolation_protocol.md)",
+            "[Algorithmic Review Aggregation Protocol](./algorithmic_review_aggregation_protocol.md)",
+            "[Operational Readiness Runbook](./operational_readiness_runbook.md)",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("First Success Quickstart", readme)
+        self.assertIn("[First Success Quickstart](./first_success_quickstart.md)", docs_index)
+
     def test_knowledge_library_roadmap_tracks_row_level_ref_hardening(self) -> None:
         roadmap = (ROOT / "roadmaps" / "delivered_knowledge_library_roadmap.md").read_text(encoding="utf-8")
         normalized = " ".join(roadmap.split())
