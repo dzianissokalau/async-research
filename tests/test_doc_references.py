@@ -229,11 +229,30 @@ class DocumentationReferenceTests(unittest.TestCase):
         quickstart = PACKAGE_ROOT / "docs" / "first_success_quickstart.md"
         text = quickstart.read_text(encoding="utf-8")
         normalized = " ".join(text.split())
+        commands: list[str] = []
+        for block in re.findall(r"```bash\n(.*?)```", text, re.DOTALL):
+            current = ""
+            for raw_line in block.splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                current = f"{current} {line}".strip() if current else line
+                if current.endswith("\\"):
+                    current = current[:-1].strip()
+                    continue
+                commands.append(" ".join(current.split()))
+                current = ""
+            if current:
+                commands.append(" ".join(current.split()))
 
         self.assertLessEqual(len(text.splitlines()), 100)
         self.assertNotIn("python -m", text)
         self.assertNotIn("review_template", text)
         self.assertNotIn("## Command Map", text)
+        for command in commands:
+            if command.startswith("TASK="):
+                continue
+            self.assertTrue(command.startswith("async-research "), command)
 
         for snippet in [
             "# First Success Quickstart",
@@ -259,6 +278,11 @@ class DocumentationReferenceTests(unittest.TestCase):
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         self.assertIn("First Success Quickstart", readme)
         self.assertIn("[First Success Quickstart](./first_success_quickstart.md)", docs_index)
+        dry_run_index = commands.index('async-research review aggregate "$TASK" --dry-run')
+        write_index = commands.index('async-research review aggregate "$TASK" --record-review-start')
+        accepted_update_index = commands.index("async-research accepted update research_ops")
+        self.assertLess(dry_run_index, write_index)
+        self.assertLess(write_index, accepted_update_index)
 
     def test_knowledge_library_roadmap_tracks_row_level_ref_hardening(self) -> None:
         roadmap = (ROOT / "roadmaps" / "delivered_knowledge_library_roadmap.md").read_text(encoding="utf-8")

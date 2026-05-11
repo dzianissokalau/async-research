@@ -43,7 +43,7 @@ Preview the conservative scaffold first:
 async-research review draft "$TASK" --role primary
 ```
 
-Submit the first review through the public command. For a first dry run of the
+Submit the first review through the public command. For a first pass through the
 workflow, `needs_human` is the safest route because it proves the loop without
 putting unapproved evidence into accepted memory:
 
@@ -66,8 +66,9 @@ Run the aggregate as a dry run first:
 async-research review aggregate "$TASK" --dry-run
 ```
 
-If the dry run says the review-start transition is missing, let the public
-aggregate command record it:
+If the dry run returns OK, write the aggregate route. On the first pass, include
+`--record-review-start`; it records the missing review-start transition when
+needed and still writes the aggregate route for `needs_human`:
 
 ```bash
 async-research review aggregate "$TASK" --record-review-start
