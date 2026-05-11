@@ -1,4 +1,4 @@
-"""Local read-only HTTP server for the async research console."""
+"""Local HTTP server for the async research console."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
+from async_research_workflow.console.actions import action_catalog
+from async_research_workflow.console.actions import run_action
 from async_research_workflow.console.snapshot import parse_now
 from async_research_workflow.console.snapshot import snapshot
 from async_research_workflow.resources import console_static_path
@@ -19,6 +21,7 @@ from async_research_workflow.resources import console_static_path
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 LOCAL_ONLY_HOSTS = {DEFAULT_HOST, "localhost", "::1"}
+MAX_JSON_BODY_BYTES = 64 * 1024
 STATIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -52,6 +55,8 @@ def content_type(name: str) -> str:
 
 def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
     parsed = urlparse(path)
+    if parsed.path == "/api/actions":
+        return HTTPStatus.OK, "application/json; charset=utf-8", json_bytes(action_catalog(ops_dir))
     if parsed.path == "/api/snapshot":
         query = parse_qs(parsed.query)
         now_values = query.get("now", [])
@@ -96,7 +101,7 @@ def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
                 {
                     "ok": False,
                     "reason": "api_route_not_found",
-                    "message": "GET /api/snapshot is the only Slice 2 API endpoint",
+                    "message": "Known console API endpoints are GET /api/snapshot, GET /api/actions, and POST /api/actions/run",
                     "read_only": True,
                     "changed": False,
                 }
@@ -135,6 +140,41 @@ def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
         )
 
 
+def response_for_post(path: str, ops_dir: Path, payload: dict[str, Any]) -> tuple[HTTPStatus, str, bytes]:
+    parsed = urlparse(path)
+    if parsed.path != "/api/actions/run":
+        return (
+            HTTPStatus.NOT_FOUND,
+            "application/json; charset=utf-8",
+            json_bytes(
+                {
+                    "ok": False,
+                    "reason": "api_route_not_found",
+                    "message": "Known console mutation endpoint is POST /api/actions/run",
+                    "read_only": True,
+                    "changed": False,
+                }
+            ),
+        )
+    action_id = payload.get("action")
+    if not isinstance(action_id, str) or not action_id:
+        return (
+            HTTPStatus.BAD_REQUEST,
+            "application/json; charset=utf-8",
+            json_bytes(
+                {
+                    "ok": False,
+                    "reason": "missing_action",
+                    "message": "POST /api/actions/run requires a string action field",
+                    "read_only": True,
+                    "changed": False,
+                }
+            ),
+        )
+    status_value, result = run_action(action_id, ops_dir, payload)
+    return HTTPStatus(status_value), "application/json; charset=utf-8", json_bytes(result)
+
+
 def response_for_mutation() -> tuple[HTTPStatus, str, bytes]:
     return (
         HTTPStatus.METHOD_NOT_ALLOWED,
@@ -143,7 +183,7 @@ def response_for_mutation() -> tuple[HTTPStatus, str, bytes]:
             {
                 "ok": False,
                 "reason": "mutation_endpoints_disabled",
-                "message": "Slice 2 is read-only; only GET /api/snapshot is available",
+                "message": "Only POST /api/actions/run supports guarded Slice 3 actions",
                 "read_only": True,
                 "changed": False,
             }
@@ -178,7 +218,15 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
             self.send_bytes(status, body, media_type)
 
         def do_POST(self) -> None:
-            self.reject_mutation()
+            if urlparse(self.path).path != "/api/actions/run":
+                status, media_type, body = response_for_post(self.path, self.server.ops_dir, {})
+                self.send_bytes(status, body, media_type)
+                return
+            payload = self.read_json_body()
+            if payload is None:
+                return
+            status, media_type, body = response_for_post(self.path, self.server.ops_dir, payload)
+            self.send_bytes(status, body, media_type)
 
         def do_PUT(self) -> None:
             self.reject_mutation()
@@ -192,6 +240,62 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
         def reject_mutation(self) -> None:
             status, media_type, body = response_for_mutation()
             self.send_bytes(status, body, media_type)
+
+        def read_json_body(self) -> dict[str, Any] | None:
+            try:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+            except ValueError:
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "reason": "invalid_content_length",
+                        "message": "Content-Length must be an integer",
+                        "read_only": True,
+                        "changed": False,
+                    },
+                )
+                return None
+            if length > MAX_JSON_BODY_BYTES:
+                self.send_json(
+                    HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                    {
+                        "ok": False,
+                        "reason": "request_too_large",
+                        "message": "Console action request body is too large",
+                        "read_only": True,
+                        "changed": False,
+                    },
+                )
+                return None
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                parsed = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "reason": "invalid_json",
+                        "message": str(exc),
+                        "read_only": True,
+                        "changed": False,
+                    },
+                )
+                return None
+            if not isinstance(parsed, dict):
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "reason": "invalid_json_body",
+                        "message": "Console action request body must be a JSON object",
+                        "read_only": True,
+                        "changed": False,
+                    },
+                )
+                return None
+            return parsed
 
     return Handler
 
@@ -216,9 +320,9 @@ def serve(ops_dir: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> 
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Serve the local read-only async research console.")
+    parser = argparse.ArgumentParser(description="Serve the local async research console.")
     parser.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"), help="Path to the research_ops workspace.")
-    parser.add_argument("--host", default=DEFAULT_HOST, help="Host interface to bind. Slice 2 defaults to 127.0.0.1.")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Host interface to bind. The dashboard defaults to 127.0.0.1.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind.")
     return parser
 

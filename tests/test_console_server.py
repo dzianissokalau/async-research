@@ -84,6 +84,15 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertTrue(payload["read_only"])
             self.assertFalse(payload["changed"])
 
+            status, media_type, body = server.response_for_get("/api/actions", ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIn("application/json", media_type)
+            actions_payload = json.loads(body.decode("utf-8"))
+            self.assertEqual("console_actions_catalog", actions_payload["action"])
+            action_ids = {item["id"] for item in actions_payload["actions"]}
+            self.assertIn("schema_check", action_ids)
+            self.assertIn("surface_update", action_ids)
+
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_server_rejects_unknown_api_and_mutation_methods(self) -> None:
@@ -111,11 +120,33 @@ class ConsoleServerTests(unittest.TestCase):
 
     def test_handler_mutation_methods_delegate_to_rejection(self) -> None:
         handler_class = server.make_handler()
-        for method_name in ("do_POST", "do_PUT", "do_PATCH", "do_DELETE"):
+        for method_name in ("do_PUT", "do_PATCH", "do_DELETE"):
             handler = object.__new__(handler_class)
             handler.reject_mutation = mock.Mock()
             getattr(handler, method_name)()
             handler.reject_mutation.assert_called_once_with()
+
+    def test_action_post_routes_are_structured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+
+            status, media_type, body = server.response_for_post("/api/actions/run", ops_dir, {})
+            self.assertEqual(HTTPStatus.BAD_REQUEST, status)
+            self.assertIn("application/json", media_type)
+            payload = json.loads(body.decode("utf-8"))
+            self.assertEqual("missing_action", payload["reason"])
+
+            status, media_type, body = server.response_for_post("/api/actions/run", ops_dir, {"action": "schema_check"})
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertIn("application/json", media_type)
+            payload = json.loads(body.decode("utf-8"))
+            self.assertEqual("ops_dir_missing", payload["reason"])
+
+            status, media_type, body = server.response_for_post("/api/unknown", ops_dir, {"action": "schema_check"})
+            self.assertEqual(HTTPStatus.NOT_FOUND, status)
+            self.assertIn("application/json", media_type)
+            payload = json.loads(body.decode("utf-8"))
+            self.assertEqual("api_route_not_found", payload["reason"])
 
     def test_server_reports_invalid_snapshot_now_as_bad_request(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

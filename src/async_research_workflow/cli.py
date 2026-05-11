@@ -1088,14 +1088,15 @@ def register_console_commands(subparsers) -> None:
         "console",
         help="Render or serve the local operator console.",
         description=(
-            "Serve the local read-only dashboard shell, or render the Slice 1 "
+            "Serve the local dashboard shell with guarded setup actions, or render the Slice 1 "
             "snapshot with `console snapshot research_ops --json`."
         ),
         epilog=(
             "Examples:\n"
             "  async-research console research_ops\n"
             "  async-research console snapshot research_ops --json\n\n"
-            "Slice 2 serves static assets plus GET /api/snapshot only. No mutation endpoints are available.\n\n"
+            "Slice 3 serves static assets, GET /api/snapshot, GET /api/actions, and guarded POST /api/actions/run.\n"
+            "Dashboard mutations are limited to explicit init and surface update actions.\n\n"
             "Exit codes:\n"
             "  console: 0 when the server stops cleanly; 3 for invalid console arguments.\n"
             "  console snapshot: 0 when the snapshot is rendered; 3 for invalid request flags."

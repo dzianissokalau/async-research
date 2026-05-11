@@ -18,6 +18,7 @@
         </div>
         <nav class="nav-list">
           <a href="#dashboard" class="nav-link active">Dashboard</a>
+          <a href="#setup" class="nav-link">Setup</a>
           <a href="#tasks" class="nav-link">Tasks</a>
           <a href="#decisions" class="nav-link">Decisions</a>
           <a href="#outcomes" class="nav-link">Outcomes</a>
@@ -40,6 +41,15 @@
         </header>
 
         <section id="dashboard" class="metric-grid" aria-label="Dashboard summary"></section>
+
+        <section id="setup" class="section-band">
+          <div class="section-heading">
+            <h2>Setup</h2>
+            <span id="setup-total" class="section-count">0</span>
+          </div>
+          <div id="setup-checklist" class="record-list"></div>
+          <div id="setup-actions" class="action-grid"></div>
+        </section>
 
         <section id="tasks" class="section-band">
           <div class="section-heading">
@@ -106,6 +116,39 @@
         </section>
       </main>
     </div>
+
+    <aside id="result-drawer" class="result-drawer" aria-live="polite" aria-hidden="true">
+      <div class="result-panel">
+        <div class="section-heading">
+          <h2 id="result-title">Command Result</h2>
+          <button id="result-close" class="button secondary" type="button">Close</button>
+        </div>
+        <div class="result-meta">
+          <div>
+            <h3>Command</h3>
+            <code id="result-command"></code>
+          </div>
+          <div>
+            <h3>Exit</h3>
+            <span id="result-exit" class="badge neutral">unavailable</span>
+          </div>
+          <div>
+            <h3>Next</h3>
+            <p id="result-next" class="muted"></p>
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <h3>Stdout</h3>
+            <pre id="result-stdout" class="result-output"></pre>
+          </div>
+          <div>
+            <h3>Stderr</h3>
+            <pre id="result-stderr" class="result-output"></pre>
+          </div>
+        </div>
+      </div>
+    </aside>
 
     <script src="/app.js"></script>
   </body>
