@@ -56,7 +56,23 @@ def content_type(name: str) -> str:
 def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
     parsed = urlparse(path)
     if parsed.path == "/api/actions":
-        return HTTPStatus.OK, "application/json; charset=utf-8", json_bytes(action_catalog(ops_dir))
+        try:
+            body = json_bytes(action_catalog(ops_dir))
+        except Exception as exc:
+            return (
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                "application/json; charset=utf-8",
+                json_bytes(
+                    {
+                        "ok": False,
+                        "reason": "actions_catalog_failed",
+                        "message": str(exc),
+                        "read_only": True,
+                        "changed": False,
+                    }
+                ),
+            )
+        return HTTPStatus.OK, "application/json; charset=utf-8", body
     if parsed.path == "/api/snapshot":
         query = parse_qs(parsed.query)
         now_values = query.get("now", [])
@@ -171,8 +187,24 @@ def response_for_post(path: str, ops_dir: Path, payload: dict[str, Any]) -> tupl
                 }
             ),
         )
-    status_value, result = run_action(action_id, ops_dir, payload)
-    return HTTPStatus(status_value), "application/json; charset=utf-8", json_bytes(result)
+    try:
+        status_value, result = run_action(action_id, ops_dir, payload)
+        status = HTTPStatus(status_value)
+    except Exception as exc:
+        return (
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            "application/json; charset=utf-8",
+            json_bytes(
+                {
+                    "ok": False,
+                    "reason": "action_run_failed",
+                    "message": str(exc),
+                    "read_only": True,
+                    "changed": False,
+                }
+            ),
+        )
+    return status, "application/json; charset=utf-8", json_bytes(result)
 
 
 def response_for_mutation() -> tuple[HTTPStatus, str, bytes]:

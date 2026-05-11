@@ -42,6 +42,16 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
+def call_read_json_body(raw: bytes, content_length: str | None = None):
+    handler_class = server.make_handler()
+    handler = object.__new__(handler_class)
+    handler.headers = {"Content-Length": content_length if content_length is not None else str(len(raw))}
+    handler.rfile = io.BytesIO(raw)
+    handler.send_json = mock.Mock()
+    parsed = handler.read_json_body()
+    return parsed, handler.send_json
+
+
 class FakeConsoleServer:
     def __init__(self, host: str, port: int) -> None:
         self.server_address = (host, port)
@@ -147,6 +157,63 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertIn("application/json", media_type)
             payload = json.loads(body.decode("utf-8"))
             self.assertEqual("api_route_not_found", payload["reason"])
+
+    def test_actions_catalog_exception_is_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+
+            with mock.patch.object(server, "action_catalog", side_effect=PermissionError("permission denied")):
+                status, media_type, body = server.response_for_get("/api/actions", ops_dir)
+
+            self.assertEqual(HTTPStatus.INTERNAL_SERVER_ERROR, status)
+            self.assertIn("application/json", media_type)
+            payload = json.loads(body.decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual("actions_catalog_failed", payload["reason"])
+            self.assertEqual("permission denied", payload["message"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+
+    def test_action_run_exception_is_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+
+            with mock.patch.object(server, "run_action", side_effect=RuntimeError("boom")):
+                status, media_type, body = server.response_for_post("/api/actions/run", ops_dir, {"action": "schema_check"})
+
+            self.assertEqual(HTTPStatus.INTERNAL_SERVER_ERROR, status)
+            self.assertIn("application/json", media_type)
+            payload = json.loads(body.decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual("action_run_failed", payload["reason"])
+            self.assertEqual("boom", payload["message"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+
+    def test_read_json_body_accepts_empty_body_as_object(self) -> None:
+        parsed, send_json = call_read_json_body(b"", content_length="0")
+        self.assertEqual({}, parsed)
+        send_json.assert_not_called()
+
+    def test_read_json_body_reports_edge_cases(self) -> None:
+        cases = [
+            ("invalid_content_length", b"", "not-a-number", HTTPStatus.BAD_REQUEST),
+            ("request_too_large", b"", str(server.MAX_JSON_BODY_BYTES + 1), HTTPStatus.REQUEST_ENTITY_TOO_LARGE),
+            ("invalid_json", b"{", None, HTTPStatus.BAD_REQUEST),
+            ("invalid_json", b"\xff", None, HTTPStatus.BAD_REQUEST),
+            ("invalid_json_body", b"[]", None, HTTPStatus.BAD_REQUEST),
+        ]
+        for reason, raw, content_length, expected_status in cases:
+            with self.subTest(reason=reason, raw=raw, content_length=content_length):
+                parsed, send_json = call_read_json_body(raw, content_length=content_length)
+
+                self.assertIsNone(parsed)
+                send_json.assert_called_once()
+                status, payload = send_json.call_args.args
+                self.assertEqual(expected_status, status)
+                self.assertEqual(reason, payload["reason"])
+                self.assertTrue(payload["read_only"])
+                self.assertFalse(payload["changed"])
 
     def test_server_reports_invalid_snapshot_now_as_bad_request(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
