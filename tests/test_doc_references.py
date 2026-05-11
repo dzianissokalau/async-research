@@ -348,6 +348,8 @@ class DocumentationReferenceTests(unittest.TestCase):
 
     def test_tier_zero_is_hidden_from_normal_operator_guidance(self) -> None:
         public_guidance = {
+            "algorithmic_review_aggregation_protocol.md": PACKAGE_ROOT / "docs" / "algorithmic_review_aggregation_protocol.md",
+            "revision_counter_protocol.md": PACKAGE_ROOT / "docs" / "revision_counter_protocol.md",
             "task_contracts.md": PACKAGE_ROOT / "docs" / "task_contracts.md",
             "review_ensemble_policy.md": PACKAGE_ROOT / "docs" / "review_ensemble_policy.md",
             "workflow_blueprint.md": PACKAGE_ROOT / "docs" / "workflow_blueprint.md",
@@ -362,6 +364,9 @@ class DocumentationReferenceTests(unittest.TestCase):
             "`idea_discovery` | 0",
             "`idea_dedupe` | 0",
             "`batch_job` | 0",
+            "| 0 | 1 |",
+            "| 0 | none |",
+            "planners should use defaults including Tier 0",
         ]
         failures: list[str] = []
         for label, path in public_guidance.items():

@@ -30,14 +30,16 @@ Meanings:
 
 ## Defaults
 
-Use these defaults when a planner creates a task:
+Use these defaults when a planner creates a normal queued task:
 
 | Review tier | Default `max_revisions` |
 | ---: | ---: |
-| 0 | 1 |
 | 1 | 1 |
 | 2 | 2 |
 | 3 | 1 |
+
+Tier 0 is reserved for internal recovery and benchmark fixtures. Planners should
+not create normal tasks with Tier 0.
 
 Tier 3 returns to human review after one revision because disagreement between multiple independent reviewers is usually a judgement problem, not a reason for endless worker retries.
 

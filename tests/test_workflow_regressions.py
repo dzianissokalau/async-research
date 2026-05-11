@@ -182,6 +182,84 @@ class WorkflowRegressionTests(unittest.TestCase):
 
             self.assertEqual(validate_json_artifact.SUCCESS, code, schema)
 
+    def test_schema_keeps_internal_tier_zero_but_rejects_tier_zero_escalation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root)
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2021-internal-tier-zero",
+                review_policy={
+                    "tier": 0,
+                    "required_reviewers": [],
+                    "panel_required": False,
+                    "human_required_for_acceptance": True,
+                },
+            )
+            status_path = task_dir / "status.json"
+
+            code, schema = run_json(
+                validate_json_artifact,
+                [status_path, "--schema", schema_path("task_status.schema.json")],
+            )
+            self.assertEqual(validate_json_artifact.SUCCESS, code, schema)
+
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["escalate_to_tier"] = 0
+            write_json(status_path, status)
+            code, schema = run_json(
+                validate_json_artifact,
+                [status_path, "--schema", schema_path("task_status.schema.json")],
+            )
+            self.assertEqual(validate_json_artifact.VALIDATION_FAILED, code, schema)
+            self.assertIn("$.escalate_to_tier", {error["path"] for error in schema["errors"]})
+
+            aggregate_path = root / "tier_zero_aggregate.json"
+            write_json(
+                aggregate_path,
+                {
+                    "schema_version": "1.0",
+                    "task_id": "TASK-2021",
+                    "tier": 0,
+                    "required_reviewers": [],
+                    "missing_required_reviews": [],
+                    "reviews": [],
+                    "aggregate_decision": "needs_human",
+                    "routing_reason": "internal_fixture",
+                    "human_gate_required": True,
+                    "escalation": {"requested": False, "target_tier": None, "reason": None},
+                },
+            )
+            code, schema = run_json(
+                validate_json_artifact,
+                [aggregate_path, "--schema", schema_path("review_panel.schema.json")],
+            )
+            self.assertEqual(validate_json_artifact.SUCCESS, code, schema)
+
+            aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
+            aggregate["reviews"] = [
+                {
+                    "reviewer_role": "primary",
+                    "decision": "needs_human",
+                    "claim_strength": "none",
+                    "prompt_version": "primary_reviewer_v1.0",
+                    "framework_versions": {"result_acceptance": "result_acceptance_v1.0"},
+                    "main_concerns": [],
+                    "required_followups": [],
+                    "evidence_gaps": [],
+                    "escalate_to_tier": 0,
+                    "escalation_reason": "invalid internal tier request",
+                    "confidence": 0.9,
+                }
+            ]
+            write_json(aggregate_path, aggregate)
+            code, schema = run_json(
+                validate_json_artifact,
+                [aggregate_path, "--schema", schema_path("review_panel.schema.json")],
+            )
+            self.assertEqual(validate_json_artifact.VALIDATION_FAILED, code, schema)
+            self.assertIn("$.reviews[0].escalate_to_tier", {error["path"] for error in schema["errors"]})
+
     def test_invalid_status_transition_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

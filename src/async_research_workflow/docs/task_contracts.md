@@ -824,10 +824,12 @@ Defaults:
 
 | Review tier | Default `max_revisions` |
 | ---: | ---: |
-| 0 | 1 |
 | 1 | 1 |
 | 2 | 2 |
 | 3 | 1 |
+
+Tier 0 is internal recovery/benchmark-only and is not a planner default for
+normal queued tasks.
 
 Reviewers must not set `status = needs_revision` manually. They should run:
 

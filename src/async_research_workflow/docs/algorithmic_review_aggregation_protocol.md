@@ -84,14 +84,16 @@ every review pass. Aggregation fails if reviewer version metadata is missing.
 ## Required Reviewers
 
 If `status.json.review_policy.required_reviewers` is present, it is authoritative.
-Otherwise use:
+Otherwise use the public operator-tier defaults:
 
 | Tier | Required reviewers |
 | ---: | --- |
-| 0 | none |
 | 1 | primary |
 | 2 | primary, methodology |
 | 3 | primary, methodology, skeptic |
+
+Tier 0 is internal recovery/benchmark-only. Normal task authoring and review
+aggregation guidance starts at Tier 1.
 
 Missing required reviews block aggregation. Optional extra reviewer files are allowed, but their decisions still affect the route.
 

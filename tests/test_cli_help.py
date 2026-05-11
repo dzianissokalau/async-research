@@ -27,6 +27,14 @@ def help_text(argv: list[str]) -> str:
     return stream.getvalue()
 
 
+def cli_exit_code(argv: list[str]) -> int:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        try:
+            return int(cli.main(argv))
+        except SystemExit as exc:
+            return int(exc.code)
+
+
 class CliHelpTests(unittest.TestCase):
     def assert_help_contains(self, argv: list[str], snippets: list[str]) -> None:
         text = help_text(argv)
@@ -191,6 +199,9 @@ class CliHelpTests(unittest.TestCase):
         normalized = " ".join(help_text(["revision", "defaults"]).split())
         self.assertIn("{1,2,3}", normalized)
         self.assertNotIn("{0,1,2,3}", normalized)
+
+    def test_revision_defaults_rejects_internal_tier_zero(self) -> None:
+        self.assertEqual(2, cli_exit_code(["revision", "defaults", "--tier", "0"]))
 
     def test_readme_documents_exit_code_contract(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
