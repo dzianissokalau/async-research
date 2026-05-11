@@ -31,5 +31,5 @@ explicitly requested follow-ups.
 | [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Hypothesis Testing Framework Roadmap](./delivered_hypothesis_testing_framework_roadmap.md) | Delivered | Complete | 2026-05-10 | Monitor dogfood feedback and split adoption or V2 work from the Future Improvements Backlog when explicitly requested. | None |
 | [Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md) | Not Started | Backlog | 2026-05-10 | Select one item and split it into a dedicated roadmap when explicitly requested. | None |
-| [Operator UX And Workflow Ergonomics Roadmap](./in_progress_operator_ux_workflow_ergonomics_roadmap.md) | In Progress | Phase 3 | 2026-05-11 | Coordinate dashboard MVP slices 1-2 as read-only operator surfaces. | None |
-| [Dashboard Delivery Roadmap](./not_started_dashboard_delivery_roadmap.md) | Not Started | Slice 1 | 2026-05-09 | Start after explicit user request or dashboard track selection. | None |
+| [Operator UX And Workflow Ergonomics Roadmap](./in_progress_operator_ux_workflow_ergonomics_roadmap.md) | In Progress | Phase 4 | 2026-05-11 | Start Workflow Orchestrator after dashboard Slice 1 is underway. | None |
+| [Dashboard Delivery Roadmap](./in_progress_dashboard_delivery_roadmap.md) | In Progress | Slice 1 | 2026-05-11 | Implement Slice 1 Snapshot Backend with the read-only MVP contract. | None |

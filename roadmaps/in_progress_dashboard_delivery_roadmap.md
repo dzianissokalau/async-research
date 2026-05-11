@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
-Status: Not Started
+Status: In Progress
 Current phase: Slice 1
-Last updated: 2026-05-09
-Next action: Start after explicit user request or dashboard track selection
+Last updated: 2026-05-11
+Next action: Implement Slice 1 Snapshot Backend with the read-only MVP contract
 Blocked by: None
 
 Created: 2026-05-05
@@ -58,6 +58,48 @@ Delivery sequence:
 
 If scope pressure appears, keep the first two sequence groups intact and defer
 prompt editing or trigger-now execution.
+
+## MVP Coordination Contract
+
+The Operator UX roadmap selected dashboard slices 1-2 as the near-term visual
+operator surface on 2026-05-11. This roadmap is now the implementation home for
+that work.
+
+Slices 1-2 are read-only:
+
+- Slice 1 exposes only `async-research console snapshot research_ops --json`.
+- Slice 2 serves static assets and `GET /api/snapshot`.
+- No POST, PUT, PATCH, DELETE, command-runner, setup, decision, prompt, schedule,
+  trigger-now, or task-mutation endpoints exist in slices 1-2.
+- Snapshot code may call existing read-only helpers or dry-run read models, but
+  it must not write `research_ops/` files.
+- Missing optional files and unimplemented downstream summaries render as
+  `unavailable`, not as hard page failures.
+
+Required snapshot groups for the MVP:
+
+- `workspace`: ops path, existence, starter-file availability
+- `readiness`: readiness verdict, exit code, blockers, next step
+- `health`: health verdict, exit code, blockers, next step
+- `tasks`: total counts, status counts, active/blocked/review/human slices,
+  malformed status warnings, stale locks
+- `human_decisions`: open count, blocked task refs, recent decision rows when
+  available
+- `accepted_outputs`: count, recent rows, stale/revalidation state when
+  available
+- `rejected_results`: count and recent rows
+- `cost`: month/week spend, budget pressure, ledger warnings
+- `ideas`: embedded `idea catalog dashboard` summary or `unavailable`
+- `data`: embedded `data dashboard` summary or `unavailable`
+- `library`: embedded `library dashboard` summary or `unavailable`
+- `analysis`: embedded `analysis dashboard` summary or `unavailable`
+- `runs`: recent run artifacts or `unavailable`
+- `warnings`: parse, schema, missing optional artifact, and malformed-state
+  warnings
+
+Slice 3 is the first place setup actions may be implemented. It must make every
+mutating action explicit, show the equivalent command, and display stdout,
+stderr, exit code, and recovery advice.
 
 ## Build Philosophy
 
@@ -130,6 +172,7 @@ Acceptance:
 
 - works on the generic starter template
 - works when `research_ops/tasks/` is empty
+- includes the MVP snapshot groups from the coordination contract
 - malformed task status appears as a warning
 - command does not mutate files
 - missing optional foundation files render as `unavailable`
@@ -175,6 +218,7 @@ Acceptance:
 - dashboard shows real snapshot data
 - missing optional files do not break rendering
 - no mutation endpoints exist yet
+- `/api/snapshot` is read-only and the only API endpoint in Slice 2
 - state-machine and human-gate blockers are visible without opening raw JSON
 
 ### Slice 3: Setup And Health Actions

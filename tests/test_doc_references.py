@@ -372,6 +372,56 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_dashboard_mvp_coordination_contract_is_locked(self) -> None:
+        dashboard_path = ROOT / "roadmaps" / "in_progress_dashboard_delivery_roadmap.md"
+        operator_path = ROOT / "roadmaps" / "in_progress_operator_ux_workflow_ergonomics_roadmap.md"
+        dashboard = dashboard_path.read_text(encoding="utf-8")
+        operator = operator_path.read_text(encoding="utf-8")
+        dashboard_normalized = " ".join(dashboard.split())
+        operator_normalized = " ".join(operator.split())
+
+        self.assertIn("Status: In Progress", dashboard.splitlines()[:8])
+        self.assertIn("## MVP Coordination Contract", dashboard)
+        self.assertIn("| 3 | Dashboard MVP coordination | Complete |", operator_normalized)
+        self.assertIn("Dashboard roadmap is now `In Progress`", operator_normalized)
+
+        for snippet in [
+            "Slices 1-2 are read-only:",
+            "Slice 1 exposes only `async-research console snapshot research_ops --json`.",
+            "Slice 2 serves static assets and `GET /api/snapshot`.",
+            "No POST, PUT, PATCH, DELETE, command-runner, setup, decision, prompt, schedule, trigger-now, or task-mutation endpoints exist in slices 1-2.",
+            "Snapshot code may call existing read-only helpers or dry-run read models, but it must not write `research_ops/` files.",
+            "Slice 3 is the first place setup actions may be implemented.",
+            "includes the MVP snapshot groups from the coordination contract",
+            "`/api/snapshot` is read-only and the only API endpoint in Slice 2",
+        ]:
+            self.assertIn(" ".join(snippet.split()), dashboard_normalized)
+
+        for group in [
+            "workspace",
+            "readiness",
+            "health",
+            "tasks",
+            "human_decisions",
+            "accepted_outputs",
+            "rejected_results",
+            "cost",
+            "ideas",
+            "data",
+            "library",
+            "analysis",
+            "runs",
+            "warnings",
+        ]:
+            self.assertRegex(dashboard, rf"- `{re.escape(group)}`:")
+
+        docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+        console_spec = (PACKAGE_ROOT / "docs" / "async_research_console_spec.md").read_text(encoding="utf-8")
+        roadmap_index = (ROOT / "roadmaps" / "README.md").read_text(encoding="utf-8")
+        for text in [docs_index, console_spec, roadmap_index]:
+            self.assertNotIn("not_started_dashboard_delivery_roadmap.md", text)
+            self.assertIn("in_progress_dashboard_delivery_roadmap.md", text)
+
 
 if __name__ == "__main__":
     unittest.main()
