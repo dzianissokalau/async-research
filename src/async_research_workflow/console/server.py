@@ -18,6 +18,7 @@ from async_research_workflow.resources import console_static_path
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+LOCAL_ONLY_HOSTS = {DEFAULT_HOST, "localhost", "::1"}
 STATIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -70,8 +71,24 @@ def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
                     }
                 ),
             )
-        return HTTPStatus.OK, "application/json; charset=utf-8", json_bytes(snapshot(ops_dir, now=now))
-    if parsed.path.startswith("/api/"):
+        try:
+            body = json_bytes(snapshot(ops_dir, now=now))
+        except Exception as exc:
+            return (
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                "application/json; charset=utf-8",
+                json_bytes(
+                    {
+                        "ok": False,
+                        "reason": "snapshot_failed",
+                        "message": str(exc),
+                        "read_only": True,
+                        "changed": False,
+                    }
+                ),
+            )
+        return HTTPStatus.OK, "application/json; charset=utf-8", body
+    if parsed.path == "/api" or parsed.path.startswith("/api/"):
         return (
             HTTPStatus.NOT_FOUND,
             "application/json; charset=utf-8",
@@ -184,6 +201,8 @@ def create_server(ops_dir: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_P
 
 
 def serve(ops_dir: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
+    if host not in LOCAL_ONLY_HOSTS:
+        print(f"Warning: binding to {host} may expose the dashboard beyond localhost.", flush=True)
     server = create_server(ops_dir, host, port)
     actual_host, actual_port = server.server_address[:2]
     print(f"Serving async research console at http://{actual_host}:{actual_port}", flush=True)

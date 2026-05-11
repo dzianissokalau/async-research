@@ -1095,7 +1095,10 @@ def register_console_commands(subparsers) -> None:
             "Examples:\n"
             "  async-research console research_ops\n"
             "  async-research console snapshot research_ops --json\n\n"
-            "Slice 2 serves static assets plus GET /api/snapshot only. No mutation endpoints are available."
+            "Slice 2 serves static assets plus GET /api/snapshot only. No mutation endpoints are available.\n\n"
+            "Exit codes:\n"
+            "  console: 0 when the server stops cleanly; 3 for invalid console arguments.\n"
+            "  console snapshot: 0 when the snapshot is rendered; 3 for invalid request flags."
         ),
     )
     console.add_argument(
