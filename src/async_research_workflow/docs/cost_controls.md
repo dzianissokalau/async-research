@@ -99,7 +99,7 @@ Monthly review budget rule:
 
 ```text
 Spend at least 70 percent of review budget on Tier 2/3 gates.
-Spend at most 30 percent on routine Tier 0/1 checks.
+Spend at most 30 percent on routine Tier 1 checks.
 ```
 
 This keeps model diversity where it changes decisions.

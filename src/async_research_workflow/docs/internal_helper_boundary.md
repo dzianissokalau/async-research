@@ -27,6 +27,13 @@ prompts, recovery procedures, and package maintainers.
 | `decision_log` | `async-research decision ...`. | Library-only parser module behind the public decision group. |
 | `version_metadata` | Public workflow commands that preserve prompt/framework metadata. | Library-only defaults module used by status-writing helpers. |
 
+## Internal Tier 0 Boundary
+
+Public task authoring, review prompts, and operator docs use review tiers 1
+through 3. Tier 0 is reserved for internal recovery and benchmark fixtures where
+the next safe route is still human-supervised or test-only. Do not create normal
+queued work with `review_policy.tier = 0`.
+
 ## Rules For Docs And Agents
 
 - Use `async-research` commands wherever a public wrapper exists.

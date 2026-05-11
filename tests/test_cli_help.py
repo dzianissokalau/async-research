@@ -187,6 +187,11 @@ class CliHelpTests(unittest.TestCase):
             with self.subTest(argv=argv):
                 self.assert_help_contains(argv, snippets)
 
+    def test_revision_defaults_help_hides_internal_tier_zero(self) -> None:
+        normalized = " ".join(help_text(["revision", "defaults"]).split())
+        self.assertIn("{1,2,3}", normalized)
+        self.assertNotIn("{0,1,2,3}", normalized)
+
     def test_readme_documents_exit_code_contract(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         normalized = " ".join(readme.split())

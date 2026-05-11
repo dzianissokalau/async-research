@@ -268,7 +268,7 @@
         "integer",
         "null"
       ],
-      "minimum": 0,
+      "minimum": 1,
       "maximum": 3
     },
     "escalation_reason": {

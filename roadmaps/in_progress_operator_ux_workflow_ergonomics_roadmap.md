@@ -3,7 +3,7 @@
 Status: In Progress
 Current phase: Phase 7
 Last updated: 2026-05-11
-Next action: Start Policy Cleanup
+Next action: Revisit docs packaging with measured install-size and support data
 Blocked by: None
 
 Created: 2026-05-09
@@ -141,7 +141,7 @@ Last updated: 2026-05-11
 | 4 | Workflow orchestrator | Complete | Add a public orchestrator for the canonical post-worker loop without removing individual commands. | Adds `async-research workflow check` and `async-research workflow advance`, dry-run-only read checks, mutating subcommand reporting, warning-only readiness handling, fail-closed stopping, README/prompt docs, and regression tests for accepted, needs_revision, needs_human, dry-run, and invalid-state paths. |
 | 5 | Discovery inbox robustness | Complete | Improve capture diagnostics for non-canonical discovery inbox rows. | Adds discovery-inbox-only warnings for non-canonical free-form lines with line numbers, richer `idea capture --from-inbox` not-found JSON with valid selectors and nearby candidate rows, docs, and regression tests proving free-form text is never captured automatically. |
 | 6 | Operational metrics | Complete | Add read models for review latency, human-decision latency, and cost/review trends. | Adds `async-research metrics operational`, a read-only JSON read model for time in review/human states, review latency by tier, human-decision latency, promotion-to-terminal latency, cost per accepted/rejected output, revision-loop counts, timestamp preservation for future closed-loop metrics, unavailable timestamp handling, README/protocol docs, and regression tests. |
-| 7 | Policy cleanup | Not Started | Revisit Tier 0 and docs packaging with usage evidence. | Defer. |
+| 7 | Policy cleanup | In Progress | Revisit Tier 0 and docs packaging with usage evidence. | Tier 0 is now hidden from normal operator guidance: public review docs and scheduler prompts use Tier 1-3, public revision defaults expose only Tier 1-3, and Tier 0 is documented as internal recovery/benchmark-only. Docs packaging review remains deferred until measured install-size or support data exists. |
 
 ## Framework Integration
 

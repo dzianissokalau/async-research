@@ -227,6 +227,39 @@ class WorkflowRegressionTests(unittest.TestCase):
             self.assertEqual("review_validation_failed", payload["reason"])
             self.assertTrue(any("prompt_version is required" in error for error in payload["errors"]))
 
+    def test_review_escalation_to_internal_tier_zero_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_status(
+                ops_dir,
+                "TASK-2020-tier-zero-escalation",
+                previous_status="awaiting_review",
+                status="single_review",
+                last_transition_reason="review_start_recorded_before_aggregate",
+            )
+            review = {
+                "reviewer_role": "primary",
+                "decision": "accept",
+                "claim_strength": "suggestive",
+                "prompt_version": "primary_reviewer_v1.0",
+                "framework_versions": {"result_acceptance": "result_acceptance_v1.0"},
+                "main_concerns": [],
+                "required_followups": [],
+                "evidence_gaps": [],
+                "escalate_to_tier": 0,
+                "escalation_reason": "invalid lower-tier request",
+                "confidence": 0.9,
+            }
+            review_path = task_dir / "reviews" / "primary.md"
+            review_path.parent.mkdir(parents=True)
+            review_path.write_text("```json\n" + json.dumps(review, indent=2) + "\n```\n", encoding="utf-8")
+
+            code, payload = run_json(aggregate_reviews, [task_dir, "--dry-run"])
+
+            self.assertEqual(aggregate_reviews.VALIDATION_FAILED, code, payload)
+            self.assertEqual("review_validation_failed", payload["reason"])
+            self.assertTrue(any("public review tier from 1 to 3" in error for error in payload["errors"]))
+
     def test_stale_data_source_blocks_readiness(self):
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

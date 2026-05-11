@@ -317,9 +317,12 @@ Fields:
 
 Default:
 
-- Tier 0/1: `max_revisions = 1`
+- Tier 1: `max_revisions = 1`
 - Tier 2: `max_revisions = 2`
 - Tier 3: `max_revisions = 1`, then human gate
+
+Tier 0 is reserved for internal recovery and benchmark fixtures, not normal
+operator-authored tasks.
 
 Implementation status:
 

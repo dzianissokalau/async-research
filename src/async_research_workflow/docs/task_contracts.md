@@ -897,7 +897,9 @@ claim strength.
 
 ## Review Policy
 
-Every task should declare its review tier:
+Every normal operator-authored task should declare a public review tier from 1
+to 3. Tier 0 remains an internal-only recovery/benchmark fixture value; do not
+use it in task proposals, scheduler prompts, or reviewer guidance.
 
 ```json
 {
@@ -914,7 +916,6 @@ Tier meanings:
 
 | Tier | Meaning |
 | --- | --- |
-| `0` | schema or formatting check only |
 | `1` | single primary reviewer |
 | `2` | primary plus specialist reviewer |
 | `3` | primary, methodology, skeptic, and aggregator |
@@ -923,10 +924,10 @@ Default mapping:
 
 | Task type | Default tier |
 | --- | ---: |
-| `idea_discovery` | 0 |
-| `idea_dedupe` | 0 |
+| `idea_discovery` | 1 |
+| `idea_dedupe` | 1 |
 | `idea_scoring` | 1 |
-| `batch_job` | 0 or 1 if paid submission needs review |
+| `batch_job` | 1 |
 | `batch_ingest` | 1, or 2 if outputs feed an experiment or claim |
 | `literature_extract` | 1 |
 | `hypothesis_card` | 1 |

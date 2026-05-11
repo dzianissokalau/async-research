@@ -298,10 +298,12 @@ tasks without a recorded human decision or explicit planner note.
 
 Use a tiered review policy:
 
+Normal operator tasks use public Tier 1 through Tier 3. Tier 0 is reserved for
+internal recovery and benchmark fixtures.
+
 | Tier | Used for | Reviewers |
 | --- | --- | --- |
-| Tier 0 | formatting, schema, trivial summaries | local/cheap checklist or primary reviewer |
-| Tier 1 | ordinary tasks | primary reviewer |
+| Tier 1 | formatting checks, simple extraction, ordinary tasks | primary reviewer |
 | Tier 2 | experiment plans, result summaries, expensive follow-ups | primary + methodology reviewer |
 | Tier 3 | final memos, moderate/strong claims, policy/investment-sensitive work | primary + methodology + skeptic + aggregator |
 

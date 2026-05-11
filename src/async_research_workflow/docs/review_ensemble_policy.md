@@ -43,10 +43,12 @@ Use review panels only at gates.
 
 ## Review Tiers
 
+Normal operator tasks use public Tier 1 through Tier 3. Tier 0 is reserved for
+internal recovery and benchmark fixtures, not task authoring or reviewer prompts.
+
 | Tier | Trigger | Reviewers | Default outcome rule |
 | --- | --- | --- | --- |
-| Tier 0 | formatting, schema, simple extraction | local/cheap checklist | pass/fail |
-| Tier 1 | ordinary worker outputs | primary reviewer | primary can accept |
+| Tier 1 | formatting checks, simple extraction, ordinary worker outputs | primary reviewer | primary can accept |
 | Tier 2 | experiment plans, result summaries, expensive follow-ups | primary + methodology | both accept or route |
 | Tier 3 | final memos, public/policy/investment-sensitive claims, moderate/strong claims | primary + methodology + skeptic + aggregator | no rejects; disagreements route |
 

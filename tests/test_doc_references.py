@@ -346,6 +346,41 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_tier_zero_is_hidden_from_normal_operator_guidance(self) -> None:
+        public_guidance = {
+            "task_contracts.md": PACKAGE_ROOT / "docs" / "task_contracts.md",
+            "review_ensemble_policy.md": PACKAGE_ROOT / "docs" / "review_ensemble_policy.md",
+            "workflow_blueprint.md": PACKAGE_ROOT / "docs" / "workflow_blueprint.md",
+            "scheduler_and_prompts.md": PACKAGE_ROOT / "docs" / "scheduler_and_prompts.md",
+            "cost_controls.md": PACKAGE_ROOT / "docs" / "cost_controls.md",
+        }
+        forbidden_snippets = [
+            "| `0` |",
+            "| Tier 0 |",
+            "tier is 0 or 1",
+            "Tier 0/1",
+            "`idea_discovery` | 0",
+            "`idea_dedupe` | 0",
+            "`batch_job` | 0",
+        ]
+        failures: list[str] = []
+        for label, path in public_guidance.items():
+            text = path.read_text(encoding="utf-8")
+            for snippet in forbidden_snippets:
+                if snippet in text:
+                    failures.append(f"{label} still contains normal Tier 0 guidance: {snippet}")
+
+        boundary = (PACKAGE_ROOT / "docs" / "internal_helper_boundary.md").read_text(encoding="utf-8")
+        boundary_normalized = " ".join(boundary.split())
+        for snippet in [
+            "Public task authoring, review prompts, and operator docs use review tiers 1 through 3.",
+            "Tier 0 is reserved for internal recovery and benchmark fixtures",
+            "Do not create normal queued work with `review_policy.tier = 0`.",
+        ]:
+            self.assertIn(" ".join(snippet.split()), boundary_normalized)
+
+        self.assertEqual([], failures)
+
     def test_roadmap_files_include_status_in_filename_header_and_index(self) -> None:
         failures: list[str] = []
         roadmaps_dir = ROOT / "roadmaps"

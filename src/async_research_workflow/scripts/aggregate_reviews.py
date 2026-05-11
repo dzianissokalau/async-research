@@ -185,8 +185,8 @@ def validate_review(path: Path, review: dict[str, Any]) -> list[str]:
     if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= confidence <= 1:
         errors.append(f"{path}: confidence must be a number between 0 and 1")
     if requested_tier is not None:
-        if not isinstance(requested_tier, int) or isinstance(requested_tier, bool) or not 0 <= requested_tier <= 3:
-            errors.append(f"{path}: escalate_to_tier must be null or an integer from 0 to 3")
+        if not isinstance(requested_tier, int) or isinstance(requested_tier, bool) or not 1 <= requested_tier <= 3:
+            errors.append(f"{path}: escalate_to_tier must be null or a public review tier from 1 to 3")
         if not isinstance(escalation_reason, str) or not escalation_reason.strip():
             errors.append(f"{path}: escalation_reason is required when escalate_to_tier is set")
     return errors

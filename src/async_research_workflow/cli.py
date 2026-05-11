@@ -1756,7 +1756,7 @@ def register_revision_commands(subparsers) -> None:
         help="Print default max revisions for a review tier.",
         description="Show the default max revisions for a review tier.",
     )
-    defaults.add_argument("--tier", type=int, choices=[0, 1, 2, 3], required=True, help="Review tier to inspect.")
+    defaults.add_argument("--tier", type=int, choices=[1, 2, 3], required=True, help="Public review tier to inspect.")
     defaults.set_defaults(func=run_revision_defaults_command)
     request = add_command(
         revision_sub,

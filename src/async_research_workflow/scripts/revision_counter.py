@@ -27,6 +27,7 @@ DEFAULT_MAX_REVISIONS = {
     2: 2,
     3: 1,
 }
+PUBLIC_REVIEW_TIERS = (1, 2, 3)
 
 REVISION_REQUEST_REASON = "reviewer_requested_revision"
 REVISION_LIMIT_REASON = "revision_limit_exceeded"
@@ -264,8 +265,8 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    defaults = subparsers.add_parser("defaults", help="Print default max revisions for a review tier.")
-    defaults.add_argument("--tier", type=int, choices=sorted(DEFAULT_MAX_REVISIONS), required=True)
+    defaults = subparsers.add_parser("defaults", help="Print default max revisions for a public review tier.")
+    defaults.add_argument("--tier", type=int, choices=PUBLIC_REVIEW_TIERS, required=True)
 
     request = subparsers.add_parser("request", help="Request a bounded task revision.")
     request.add_argument("task_dir", type=Path)
