@@ -200,7 +200,10 @@ async-research readiness research_ops --dry-run
 # Before aggregation, status.json must record the review-start transition:
 # awaiting_review -> single_review for primary review, or awaiting_review -> panel_review for panel review.
 # Reviewer writes reviews/primary.md, or a full panel writes one isolated review each.
+# Use draft for a safe scaffold, or submit for an explicit role-specific decision.
 
+async-research review draft "$TASK" --role primary
+async-research review submit "$TASK" --role primary --decision needs_human --claim-strength none --confidence 0.5
 async-research review aggregate "$TASK" --dry-run
 async-research review aggregate "$TASK"
 async-research accepted update research_ops
@@ -305,6 +308,8 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
 | `async-research accepted check-memory-use research_ops <artifact>` | Gate reuse of stale accepted task memory. | Artifact text and `accepted_outputs_index.md`. | JSON to stdout only. |
 | `async-research anti-context build research_ops --title "<candidate>" --task-dir <task-dir>` | Generate cross-task anti-context for a new task. | Accepted memory, rejected ideas, and rejected/paused task state. | JSON to stdout plus `anti_context.md` and a `task.md` section when `--task-dir` is set. |
+| `async-research review draft <task-dir> --role primary` | Preview or write a conservative `needs_human` role-specific review scaffold. | Task `status.json`. | JSON to stdout; with `--write`, `reviews/<role>.md`. |
+| `async-research review submit <task-dir> --role primary --decision needs_revision --claim-strength suggestive --confidence 0.75` | Validate explicit review flags and write one role-specific review with required version metadata. | Task `status.json` and command flags. | `reviews/<role>.md`; with `--dry-run`, JSON to stdout only. |
 | `async-research review prepare-context <task-dir> --role primary --bundle-dir /tmp/review` | Prepare an isolated review bundle with a safe `needs_human` review scaffold at the expected output path. | Task input files and escalation policy. | Review bundle directory. |
 | `async-research review install-context /tmp/review` | Install one completed isolated review output. | Review bundle manifest and expected output file. | The matching `reviews/<role>.md` or `review_panel/aggregate.md` in the source task. |
 | `async-research revision request <task-dir> --reviewer primary` | Request a bounded revision without hand-editing status. | Task `status.json`. | Task `status.json`; with `--dry-run`, stdout only. |
@@ -352,7 +357,8 @@ The permanent internal helpers are `validate_json_artifact`,
 `version_metadata`. Operators should prefer public workflow commands and
 artifact-specific gates such as `schema-check`, `exploration validate`,
 `idea validate`, `experiment validate`, `result-acceptance`, `decision`,
-`revision`, `review aggregate`, and `metrics append/summarize`.
+`revision`, `review draft`, `review submit`, `review aggregate`, and
+`metrics append/summarize`.
 
 See the [internal helper boundary](src/async_research_workflow/docs/internal_helper_boundary.md)
 for the maintained public/internal split.
@@ -413,6 +419,8 @@ specific diagnostic.
 | `accepted update`, `accepted revalidation`, and `accepted check-duplicate` | `0` index/report/check succeeded. `check-duplicate` is advisory and reports duplicate risk in JSON. | `2` invalid accepted-memory state; `4` malformed input. |
 | `accepted check-memory-use` | `0` artifact does not cite stale accepted memory, or `--allow-stale` was set. | `2` stale accepted-memory reuse; `4` malformed input. |
 | `anti-context build` | `0` anti-context generated. | `2` invalid request such as a missing title. |
+| `review draft` | `0` review scaffold previewed or written. | `2` generated review validation failed; `3` invalid review flags; `4` missing or malformed task/status input; `5` target review exists without `--force`. |
+| `review submit` | `0` review dry-run printed or written. | `2` generated review validation failed; `3` missing or invalid explicit review flags; `4` missing or malformed task/status input; `5` target review exists without `--force`. |
 | `review prepare-context` and `review install-context` | `0` review bundle prepared or output installed. | `4` invalid task/bundle/manifest/output; `5` target exists without `--force`. |
 | `review aggregate` | `0` aggregate succeeded. | `2` validation failed; `3` missing required review or unresolved escalation; `4` malformed task or review input. |
 | `revision defaults` | `0` default max revisions printed. | No command-specific nonzero return from the backing script. |

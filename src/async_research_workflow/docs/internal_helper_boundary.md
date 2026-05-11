@@ -19,7 +19,7 @@ prompts, recovery procedures, and package maintainers.
 | `validate_mission_policy` | `async-research idea score` for normal idea scoring. | Scheduled prompts may validate policy before scoring, but operators should not need a standalone policy command in the common loop. |
 | `task_lock` | Worker prompts and scheduler wrappers. | It is an atomic locking primitive for agents, not a human workflow command. |
 | `recover_status_json` | The operational readiness runbook recovery path. | Recovery is intentionally explicit and human-supervised because it rewrites broken task state. |
-| `review_template` | Review authoring guidance in task contracts and reviewer prompts. | It is a convenience template generator, not a durable workflow state transition. |
+| `review_template` | Public `async-research review draft` and `async-research review submit` wrappers. | It is a low-level template generator; operators should use the public review commands. |
 | `framework_version_calibration` | `async-research metrics summarize` and `async-research decision summarize` for public summaries. | Monthly framework calibration is an advanced maintenance report. |
 | `escalate_review_tier` | `async-research escalation evaluate` for human-gate escalation checks. | Dynamic review-tier escalation mutates review policy and should remain a reviewer/internal helper until a broader public design exists. |
 | `metrics_history init` | `async-research init`. | Workspace initialization already creates metrics baseline/history files transactionally. |

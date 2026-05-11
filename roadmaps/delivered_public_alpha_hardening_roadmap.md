@@ -86,7 +86,7 @@ The review's new concern is not P0/P1 package safety. It is first-user and
 operator ergonomics: review authoring, quickstart clarity, dashboard
 observability, workflow orchestration, discovery-inbox robustness, and
 operational metrics. Those follow-ups are tracked in the
-[Operator UX And Workflow Ergonomics Roadmap](./not_started_operator_ux_workflow_ergonomics_roadmap.md)
+[Operator UX And Workflow Ergonomics Roadmap](./in_progress_operator_ux_workflow_ergonomics_roadmap.md)
 so this delivered hardening roadmap can remain closed except for maintenance
 fixes.
 

@@ -1,9 +1,9 @@
 # Operator UX And Workflow Ergonomics Roadmap
 
-Status: Not Started
-Current phase: Phase 0
-Last updated: 2026-05-09
-Next action: Decide sequencing versus Hypothesis Testing Framework, then start Review Authoring UX
+Status: In Progress
+Current phase: Phase 2
+Last updated: 2026-05-11
+Next action: Add the one-page first-success quickstart
 Blocked by: None
 
 Created: 2026-05-09
@@ -21,9 +21,43 @@ opening long docs, or invoking advanced helper commands. This roadmap turns
 those findings into focused implementation slices.
 
 This is an adoption and ergonomics roadmap, not a replacement for the
-Hypothesis Testing Framework roadmap. HTF remains the next research-capability
-feature. Operator UX work may be delivered before HTF if first-user friction is
-the higher priority.
+Hypothesis Testing Framework roadmap. HTF was delivered on 2026-05-10, so the
+sequencing question is resolved and Operator UX is now the active adoption
+track.
+
+## Execution Decisions
+
+P1 stays narrow: make review authoring public without weakening review
+isolation, review-start transitions, or deterministic aggregation.
+
+Review authoring command contract:
+
+- `async-research review draft <task-dir> --role primary` previews a
+  conservative `needs_human` fenced JSON scaffold by default.
+- `review draft --write` writes `reviews/<role>.md`.
+- `async-research review submit <task-dir> --role primary --decision <decision>
+  --claim-strength <claim_strength> --confidence <0-1>` validates explicit
+  flags and writes `reviews/<role>.md`.
+- `review submit --dry-run` validates and previews the review without writing.
+- both commands protect existing role review files unless `--force` is
+  explicit.
+- direct `review_template` remains an advanced/internal helper behind the public
+  wrappers.
+
+Exit code contract:
+
+- `0`: scaffold previewed/written or review submitted
+- `2`: generated review payload failed review validation
+- `3`: missing or invalid review flags
+- `4`: missing or malformed task/status input
+- `5`: target review file exists without `--force`
+
+Non-goals for P1:
+
+- no automatic review-start status transition
+- no aggregator behavior change
+- no mutation of sibling review files
+- no dashboard or workflow orchestration behavior
 
 ## Manus Review Synthesis
 
@@ -69,13 +103,80 @@ the higher priority.
 | P3 | Tier 0 review policy | Tier 0 is conceptually present but weakly surfaced. | Decide whether to hide, remove, or replace Tier 0 with an explicit review-skip decision. |
 | P3 | Docs packaging review | Packaged protocol docs are useful but large. | Revisit only with install-size data or repeated user confusion. |
 
+## Delivery Strategy
+
+Deliver ergonomics as small public-command slices. Each slice should preserve
+the existing file-backed workflow and leave direct lower-level helpers available
+only as advanced/internal building blocks.
+
+Recommended sequence:
+
+1. Resolve command names and safety boundaries.
+2. Add public review authoring commands.
+3. Add a one-page first-success quickstart using only public commands.
+4. Coordinate read-only dashboard MVP slices.
+5. Add workflow orchestration only after the manual public path is clear.
+6. Harden discovery inbox errors.
+7. Add operational metrics read models.
+8. Clean up Tier 0 and docs packaging policy after the higher-friction items.
+
+Delivery boundary:
+
+- MVP: Phases 0 through 2. This is command shape, review authoring UX, and a
+  one-page quickstart.
+- V1 post-MVP: Phases 3 through 6. This adds dashboard coordination, workflow
+  orchestration, discovery robustness, and operational metrics.
+- V2: Phase 7 policy cleanup and any future mutation-capable dashboard work.
+
+## Progress
+
+Last updated: 2026-05-11
+
+| Phase | Step | Status | Description | Evidence / Notes |
+| ---: | --- | --- | --- | --- |
+| 0 | Decisions and command shape | Complete | Resolve HTF sequencing, public command names, review authoring write rules, non-goals, and exit codes. | HTF is delivered; this roadmap now defines public `review draft` and `review submit` behavior plus the P1 non-goals. |
+| 1 | Review authoring UX | Complete | Add public commands around existing review-template and review-validation logic. | Adds `async-research review draft` and `async-research review submit`, JSON output, existing-file protection, docs, help coverage, and regression tests for preview, write, target-exists, role mismatch, and aggregate use. |
+| 2 | One-page quickstart | Not Started | Add the first-success quickstart after P1 commands are available. | Next action. |
+| 3 | Dashboard MVP coordination | Not Started | Tie dashboard slices 1-2 to this adoption roadmap while keeping dashboard read-only first. | Defer until quickstart is complete. |
+| 4 | Workflow orchestrator | Not Started | Add a public orchestrator for the canonical post-worker loop without removing individual commands. | Defer until public manual path is clear. |
+| 5 | Discovery inbox robustness | Not Started | Improve capture diagnostics for non-canonical discovery inbox rows. | Defer. |
+| 6 | Operational metrics | Not Started | Add read models for review latency, human-decision latency, and cost/review trends. | Defer. |
+| 7 | Policy cleanup | Not Started | Revisit Tier 0 and docs packaging with usage evidence. | Defer. |
+
+## Framework Integration
+
+Existing workspace artifacts:
+
+```text
+research_ops/
+  tasks/<TASK-ID>/
+    status.json
+    reviews/
+      primary.md
+      methodology.md
+      skeptic.md
+    review_panel/
+```
+
+Integration points:
+
+- `reviews/<role>.md` remains the role-specific review file consumed by
+  `review aggregate`.
+- `review draft` and `review submit` only create or replace the target role
+  file.
+- `review aggregate` remains the only public command that computes the final
+  deterministic route.
+- `prepare-context` and `install-context` remain the isolated-review path for
+  reviewers who should not see sibling review files.
+- task `status.json` review-start transitions remain explicit and validated.
+
 ## Implementation Phases
 
 ### Phase 0: Decisions And Command Shape
 
 Decide exact command names and non-goals before editing code.
 
-Recommended command names:
+Resolved command names:
 
 ```bash
 async-research review draft <task-dir> --role primary
@@ -216,9 +317,38 @@ Acceptance:
 | Related Roadmap | Relationship |
 | --- | --- |
 | Dashboard Delivery | Implements Phase 3 and the local visual operator surface. |
-| Hypothesis Testing Framework | Remains the next research-capability feature; this roadmap may precede it if adoption friction is the priority. |
+| Hypothesis Testing Framework | Delivered on 2026-05-10; sequencing is resolved and this roadmap can proceed as the active adoption track. |
 | Public Alpha Hardening | This roadmap is a post-hardening follow-up from external review, not a reopening of P0/P1 safety work. |
 | Knowledge Library / Data Foundations / Idea Catalog | These are delivered foundations that should feed dashboard and workflow snapshot views. |
+
+## Test Strategy
+
+Minimum checks per implementation slice:
+
+```bash
+.venv/bin/python -m unittest tests.test_review_authoring
+.venv/bin/python -m unittest tests.test_cli_architecture tests.test_cli_help
+.venv/bin/python -m unittest tests.test_doc_references tests.test_packaged_resources
+```
+
+P1 regression scenarios:
+
+- `review draft` previews a conservative `needs_human` scaffold without writing
+- `review draft --write` writes `reviews/<role>.md`
+- draft and submit refuse an existing target without `--force`
+- unchanged draft scaffold aggregates to `needs_human`
+- `review submit` requires explicit decision, claim strength, and confidence
+- `review submit --dry-run` writes nothing
+- submitted review files can be consumed by `review aggregate`
+- generated payload role must match target review role
+
+Package-level checks before merging a completed slice:
+
+```bash
+.venv/bin/python -m unittest discover tests
+.venv/bin/async-research acceptance-suite
+.venv/bin/python -m compileall src tests
+```
 
 ## LLM Implementer Rules
 

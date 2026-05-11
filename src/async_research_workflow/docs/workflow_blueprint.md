@@ -164,8 +164,8 @@ Reviewer claim rule:
 
 1. Pick oldest `awaiting_review`.
 2. Decide whether the task needs single review or panel review using `review_policy`.
-3. For single review, write `reviews/primary.md`.
-4. For panel review, each reviewer writes only its own review file.
+3. For single review, use `async-research review draft` or `async-research review submit` to write `reviews/primary.md`.
+4. For panel review, each reviewer writes only its own review file through the same public review commands or an isolated review bundle.
 5. The aggregator writes `review_panel/aggregate.md`.
 6. Set `previous_status` and `last_transition_reason`.
 7. Run `validate_transition.py`.

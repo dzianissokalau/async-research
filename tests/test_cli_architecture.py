@@ -153,6 +153,53 @@ class CliArchitectureTests(unittest.TestCase):
             ["research_ops/tasks/TASK-0001", "--dry-run", "--record-review-start"],
         )
 
+    def test_review_draft_routes_to_public_authoring_helper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["review", "draft", "research_ops/tasks/TASK-0001", "--role", "primary", "--write"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "review_authoring",
+            ["draft", "research_ops/tasks/TASK-0001", "--role", "primary", "--write"],
+        )
+
+    def test_review_submit_routes_to_public_authoring_helper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(
+                [
+                    "review",
+                    "submit",
+                    "research_ops/tasks/TASK-0001",
+                    "--role",
+                    "primary",
+                    "--decision",
+                    "accept",
+                    "--claim-strength",
+                    "suggestive",
+                    "--confidence",
+                    "0.75",
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "review_authoring",
+            [
+                "submit",
+                "research_ops/tasks/TASK-0001",
+                "--role",
+                "primary",
+                "--decision",
+                "accept",
+                "--claim-strength",
+                "suggestive",
+                "--confidence",
+                "0.75",
+                "--dry-run",
+            ],
+        )
+
     def test_build_parser_registers_nested_aliases(self) -> None:
         choices = subparser_choices(cli.build_parser())
         source_choices = subparser_choices(choices["source"])
@@ -184,7 +231,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertNotIn("init", metrics_choices)
         self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
         self.assertEqual(["build"], list(anti_context_choices))
-        self.assertEqual(["prepare-context", "install-context", "aggregate"], list(review_choices))
+        self.assertEqual(["draft", "submit", "prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))
         self.assertEqual(["dashboard", "run-adapter", "preflight", "validate-run", "validate-results"], list(analysis_choices))
         self.assertEqual(["score", "validate", "capture", "promote", "park", "reject", "catalog"], list(idea_choices))

@@ -912,6 +912,33 @@ def run_review_install_context_command(args: argparse.Namespace) -> int:
     )
 
 
+def review_authoring_options(args: argparse.Namespace) -> list[str]:
+    return (
+        [str(args.task_dir), "--role", args.role]
+        + optional_text("--decision", args.decision)
+        + optional_text("--claim-strength", args.claim_strength)
+        + optional_text("--confidence", args.confidence)
+        + repeated_option("--concern", args.concern)
+        + repeated_option("--followup", args.followup)
+        + repeated_option("--evidence-gap", args.evidence_gap)
+        + (["--force"] if args.force else [])
+    )
+
+
+def run_review_draft_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "review_authoring",
+        ["draft"] + review_authoring_options(args) + (["--write"] if args.write else []),
+    )
+
+
+def run_review_submit_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "review_authoring",
+        ["submit"] + review_authoring_options(args) + (["--dry-run"] if args.dry_run else []),
+    )
+
+
 def register_package_commands(subparsers) -> None:
     version = add_command(
         subparsers,
@@ -1578,10 +1605,44 @@ def register_review_commands(subparsers) -> None:
     review = add_command(
         subparsers,
         "review",
-        help="Prepare, install, or aggregate isolated reviewer notes.",
-        description="Prepare isolated review bundles, install completed outputs, and aggregate review files.",
+        help="Draft, submit, prepare, install, or aggregate reviewer notes.",
+        description="Draft or submit role-specific reviews, prepare isolated review bundles, install completed outputs, and aggregate review files.",
     )
     review_sub = review.add_subparsers(dest="review_command", required=True)
+    draft = add_command(
+        review_sub,
+        "draft",
+        help="Preview or write a conservative role-specific review scaffold.",
+        description="Generate a safe needs_human review scaffold for reviews/<role>.md without requiring direct internal helper usage.",
+    )
+    draft.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
+    draft.add_argument("--role", required=True, help="Reviewer role: primary, methodology, or skeptic.")
+    draft.add_argument("--decision", help="Override the conservative draft decision; defaults to needs_human.")
+    draft.add_argument("--claim-strength", help="Override the conservative draft claim strength; defaults to none.")
+    draft.add_argument("--confidence", help="Override the conservative draft confidence; defaults to 0.")
+    draft.add_argument("--concern", action="append", help="Main concern. Repeat for multiple concerns.")
+    draft.add_argument("--followup", action="append", help="Required follow-up. Repeat for multiple follow-ups.")
+    draft.add_argument("--evidence-gap", action="append", help="Evidence gap. Repeat for multiple gaps.")
+    draft.add_argument("--write", action="store_true", help="Write reviews/<role>.md instead of previewing the scaffold.")
+    draft.add_argument("--force", action="store_true", help="Replace an existing role-specific review file.")
+    draft.set_defaults(func=run_review_draft_command)
+    submit = add_command(
+        review_sub,
+        "submit",
+        help="Write one explicit role-specific review file.",
+        description="Validate explicit review flags and write reviews/<role>.md with required version metadata.",
+    )
+    submit.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
+    submit.add_argument("--role", required=True, help="Reviewer role: primary, methodology, or skeptic.")
+    submit.add_argument("--decision", help="Review decision: accept, accept_with_caveats, needs_revision, needs_human, or reject.")
+    submit.add_argument("--claim-strength", help="Claim strength: none, weak, suggestive, moderate, or strong.")
+    submit.add_argument("--confidence", help="Reviewer confidence as a number from 0 to 1.")
+    submit.add_argument("--concern", action="append", help="Main concern. Repeat for multiple concerns.")
+    submit.add_argument("--followup", action="append", help="Required follow-up. Repeat for multiple follow-ups.")
+    submit.add_argument("--evidence-gap", action="append", help="Evidence gap. Repeat for multiple gaps.")
+    submit.add_argument("--dry-run", action="store_true", help="Validate and print the review without writing reviews/<role>.md.")
+    submit.add_argument("--force", action="store_true", help="Replace an existing role-specific review file.")
+    submit.set_defaults(func=run_review_submit_command)
     prepare = add_command(
         review_sub,
         "prepare-context",
