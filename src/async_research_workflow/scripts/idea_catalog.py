@@ -574,7 +574,7 @@ def combined_row_text(row: dict[str, Any]) -> str:
     return " ".join(values)
 
 
-def parse_markdown_table_rows(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_markdown_table_rows(path: Path, warn_non_table_after_header: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not path.exists():
         return [], [{"path": str(path), "reason": "markdown_table_missing"}]
     try:
@@ -587,9 +587,19 @@ def parse_markdown_table_rows(path: Path) -> tuple[list[dict[str, Any]], list[di
     header: list[str] | None = None
     rows: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
-    for raw in lines:
+    for line_number, raw in enumerate(lines, start=1):
         line = raw.strip()
         if not line.startswith("|"):
+            if warn_non_table_after_header and header is not None and line:
+                warnings.append(
+                    {
+                        "path": str(path),
+                        "reason": "non_canonical_markdown_line",
+                        "line_number": line_number,
+                        "line": line,
+                        "message": "free-form discovery inbox text is ignored by capture; use an explicit table row before --from-inbox can select it",
+                    }
+                )
             continue
         cells = markdown_cells(line)
         if cells and all(set(cell.replace(":", "").strip()) <= {"-"} for cell in cells):
@@ -602,6 +612,7 @@ def parse_markdown_table_rows(path: Path) -> tuple[list[dict[str, Any]], list[di
                 {
                     "path": str(path),
                     "reason": "malformed_markdown_table_row",
+                    "line_number": line_number,
                     "row": line,
                     "expected_cells": len(header),
                     "actual_cells": len(cells),
@@ -611,6 +622,7 @@ def parse_markdown_table_rows(path: Path) -> tuple[list[dict[str, Any]], list[di
         row = {key: value.strip() for key, value in zip(header, cells)}
         row["row_number"] = len(rows) + 1
         row["row_id"] = f"row-{row['row_number']}"
+        row["line_number"] = line_number
         rows.append(row)
     return rows, warnings
 
@@ -657,6 +669,63 @@ def row_title(row: dict[str, Any]) -> str:
     if title:
         return title
     return f"Captured discovery row {row.get('row_id', 'unknown')}"
+
+
+def inbox_candidate_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "row_id": row.get("row_id"),
+        "row_number": row.get("row_number"),
+        "line_number": row.get("line_number"),
+        "item": row.get("item"),
+        "title": row.get("title"),
+        "status": row.get("status"),
+        "next_task": row.get("next_task"),
+        "notes": row.get("notes"),
+    }
+
+
+def available_inbox_selectors(rows: list[dict[str, Any]], limit: int = 20) -> list[str]:
+    selectors: list[str] = []
+    for row in rows:
+        for selector in [str(row.get("row_id") or "").strip(), str(row.get("item") or "").strip()]:
+            if selector and selector not in selectors:
+                selectors.append(selector)
+            if len(selectors) >= limit:
+                return selectors
+    return selectors
+
+
+def nearby_inbox_candidate_rows(target: str, rows: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    row_id_match = re.fullmatch(r"row-([0-9]+)", target)
+    if row_id_match:
+        target_row = int(row_id_match.group(1))
+        ranked = sorted(
+            rows,
+            key=lambda row: (
+                abs(int(row.get("row_number") or 0) - target_row),
+                int(row.get("row_number") or 0),
+            ),
+        )
+        return [inbox_candidate_row(row) for row in ranked[:limit]]
+
+    target_norm = normalize_title(target)
+    target_ids = set(IDEA_ID_RE.findall(target))
+
+    def score(row: dict[str, Any]) -> tuple[int, int]:
+        text = combined_row_text(row)
+        normalized = normalize_title(text)
+        if target and target.lower() in text.lower():
+            return 0, int(row.get("row_number") or 0)
+        if target_ids and target_ids & set(IDEA_ID_RE.findall(text)):
+            return 1, int(row.get("row_number") or 0)
+        if target_norm and any(token in normalized for token in target_norm.split() if len(token) >= 3):
+            return 2, int(row.get("row_number") or 0)
+        return 3, int(row.get("row_number") or 0)
+
+    ranked = sorted(rows, key=score)
+    return [inbox_candidate_row(row) for row in ranked[:limit]]
 
 
 def row_next_task(row: dict[str, Any]) -> str:
@@ -812,7 +881,7 @@ def capture_source_from_args(args: argparse.Namespace) -> tuple[dict[str, Any] |
     if not args.from_inbox and not args.title:
         return None, [{"reason": "missing_capture_input", "message": "provide --from-inbox or --title"}], INVALID_REQUEST
     if args.from_inbox:
-        rows, warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md")
+        rows, warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md", warn_non_table_after_header=True)
         target = args.from_inbox.strip()
         match: dict[str, Any] | None = None
         row_id_match = re.fullmatch(r"row-([0-9]+)", target)
@@ -832,7 +901,11 @@ def capture_source_from_args(args: argparse.Namespace) -> tuple[dict[str, Any] |
             return None, [
                 {
                     "reason": "inbox_row_not_found",
+                    "message": "no discovery inbox table row matched --from-inbox; free-form text is never captured automatically",
                     "from_inbox": target,
+                    "candidate_row_count": len(rows),
+                    "valid_selectors": available_inbox_selectors(rows),
+                    "nearby_candidate_rows": nearby_inbox_candidate_rows(target, rows),
                     "warnings": warnings,
                 }
             ], INVALID_REQUEST
@@ -1359,7 +1432,7 @@ def run_capture(args: argparse.Namespace) -> int:
 
 
 def build_maintenance_plan(ops_dir: Path, model: dict[str, Any] | None = None) -> dict[str, Any]:
-    inbox_rows, inbox_warnings = parse_markdown_table_rows(ops_dir / "discovery_inbox.md")
+    inbox_rows, inbox_warnings = parse_markdown_table_rows(ops_dir / "discovery_inbox.md", warn_non_table_after_header=True)
     if model is None:
         model = read_catalog(ops_dir)
     proposals: list[dict[str, Any]] = []

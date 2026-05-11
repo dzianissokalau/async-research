@@ -1,9 +1,9 @@
 # Operator UX And Workflow Ergonomics Roadmap
 
 Status: In Progress
-Current phase: Phase 5
+Current phase: Phase 6
 Last updated: 2026-05-11
-Next action: Start Discovery Inbox Robustness
+Next action: Start Operational Metrics
 Blocked by: None
 
 Created: 2026-05-09
@@ -139,7 +139,7 @@ Last updated: 2026-05-11
 | 2 | One-page quickstart | Complete | Add the first-success quickstart after P1 commands are available. | Adds packaged `first_success_quickstart.md`, links it from the README and docs index, keeps the page short, uses only public `async-research` commands, and adds doc-reference tests for the command path and deep-doc links. |
 | 3 | Dashboard MVP coordination | Complete | Tie dashboard slices 1-2 to this adoption roadmap while keeping dashboard read-only first. | Dashboard roadmap is now `In Progress`, owns implementation for slices 1-2, defines the read-only MVP snapshot contract, forbids mutation endpoints before Slice 3 setup actions, and has doc-reference coverage for the coordination boundary. |
 | 4 | Workflow orchestrator | Complete | Add a public orchestrator for the canonical post-worker loop without removing individual commands. | Adds `async-research workflow check` and `async-research workflow advance`, dry-run-only read checks, mutating subcommand reporting, warning-only readiness handling, fail-closed stopping, README/prompt docs, and regression tests for accepted, needs_revision, needs_human, dry-run, and invalid-state paths. |
-| 5 | Discovery inbox robustness | Not Started | Improve capture diagnostics for non-canonical discovery inbox rows. | Defer. |
+| 5 | Discovery inbox robustness | Complete | Improve capture diagnostics for non-canonical discovery inbox rows. | Adds discovery-inbox-only warnings for non-canonical free-form lines with line numbers, richer `idea capture --from-inbox` not-found JSON with valid selectors and nearby candidate rows, docs, and regression tests proving free-form text is never captured automatically. |
 | 6 | Operational metrics | Not Started | Add read models for review latency, human-decision latency, and cost/review trends. | Defer. |
 | 7 | Policy cleanup | Not Started | Revisit Tier 0 and docs packaging with usage evidence. | Defer. |
 

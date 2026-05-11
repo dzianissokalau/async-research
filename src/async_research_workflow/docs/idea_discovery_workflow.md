@@ -164,6 +164,10 @@ async-research idea promote research_ops IDEA-0007 --dry-run
 async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>
 ```
 
+`--from-inbox` selects only explicit Markdown table rows. Free-form notes in
+`discovery_inbox.md` are surfaced as warnings with line numbers, and a missing
+selector reports nearby candidate rows instead of silently failing.
+
 Only a successful `idea_promotion_planned` response may be passed to write mode,
 and the write must use the returned `promotion_preflight_hash`. Blocked
 promotion proposals remain catalog/planning state and should be parked,

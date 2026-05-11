@@ -188,6 +188,72 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("conflicting_flags", conflict_payload["reason"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_inbox_capture_not_found_reports_nearby_rows_and_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_text(
+                ops_dir / "discovery_inbox.md",
+                "\n".join(
+                    [
+                        "# Discovery Inbox",
+                        "",
+                        "| item | title | source | status | score | next_task | notes |",
+                        "| --- | --- | --- | --- | ---: | --- | --- |",
+                        "| IDEA-7111 | First robust row | scan | candidate | 5 | data_readiness | catalog: candidate |",
+                        "| IDEA-7112 | Second robust row | scan | candidate | 6 | literature_extract | catalog: candidate |",
+                        "Free-form IDEA-7119 should not be selectable without a table row.",
+                        "| IDEA-7113 | Third robust row | scan | candidate | 7 | hypothesis_card | catalog: candidate |",
+                        "",
+                    ]
+                ),
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "row-9", "--id", "IDEA-7119"])
+
+            self.assertEqual(3, code, payload)
+            self.assertEqual("idea_capture_failed", payload["action"])
+            failure = payload["failures"][0]
+            self.assertEqual("inbox_row_not_found", failure["reason"])
+            self.assertEqual("row-9", failure["from_inbox"])
+            self.assertEqual(3, failure["candidate_row_count"])
+            self.assertIn("row-1", failure["valid_selectors"])
+            self.assertIn("IDEA-7111", failure["valid_selectors"])
+            self.assertEqual(["row-3", "row-2", "row-1"], [row["row_id"] for row in failure["nearby_candidate_rows"][:3]])
+            free_form_warning = next(item for item in failure["warnings"] if item["reason"] == "non_canonical_markdown_line")
+            self.assertEqual(7, free_form_warning["line_number"])
+            self.assertIn("IDEA-7119", free_form_warning["line"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_inbox_capture_refuses_free_form_idea_without_table_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_text(
+                ops_dir / "discovery_inbox.md",
+                "\n".join(
+                    [
+                        "# Discovery Inbox",
+                        "",
+                        "| item | title | source | status | score | next_task | notes |",
+                        "| --- | --- | --- | --- | ---: | --- | --- |",
+                        "IDEA-7114 Free-form idea that still needs a proper table row.",
+                        "| IDEA-7115 | Proper table row | scan | candidate | 5 | data_readiness | catalog: candidate |",
+                        "",
+                    ]
+                ),
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7114", "--id", "IDEA-7114"])
+
+            self.assertEqual(3, code, payload)
+            failure = payload["failures"][0]
+            self.assertEqual("inbox_row_not_found", failure["reason"])
+            self.assertEqual(["row-1"], [row["row_id"] for row in failure["nearby_candidate_rows"]])
+            self.assertEqual("IDEA-7115", failure["nearby_candidate_rows"][0]["item"])
+            self.assertTrue(any(item["reason"] == "non_canonical_markdown_line" for item in failure["warnings"]))
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_maintenance_dry_run_ignores_unmarked_rows_and_routes_duplicates_conservatively(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -261,6 +327,36 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             blocked_paths = {item["path"] for item in payload["would_not_write"]}
             self.assertIn(str(ops_dir / "queue.md"), blocked_paths)
             self.assertIn(str(ops_dir / "tasks"), blocked_paths)
+
+    def test_maintenance_dry_run_reports_non_canonical_inbox_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_text(
+                ops_dir / "discovery_inbox.md",
+                "\n".join(
+                    [
+                        "# Discovery Inbox",
+                        "",
+                        "| item | title | source | status | score | next_task | notes |",
+                        "| --- | --- | --- | --- | ---: | --- | --- |",
+                        "| IDEA-7116 | Proper table row | scan | candidate | 5 | data_readiness | catalog: candidate |",
+                        "Unstructured note about IDEA-7117 that should stay advisory only.",
+                        "",
+                    ]
+                ),
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(["idea", "catalog", "maintain", ops_dir, "--dry-run"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            warnings = payload["sources_read"]["discovery_inbox"]["warnings"]
+            self.assertTrue(any(item["reason"] == "non_canonical_markdown_line" for item in warnings))
+            warning = next(item for item in warnings if item["reason"] == "non_canonical_markdown_line")
+            self.assertEqual(6, warning["line_number"])
+            self.assertIn("IDEA-7117", warning["line"])
+            self.assertEqual(1, payload["sources_read"]["discovery_inbox"]["row_count"])
+            self.assertEqual(before, file_snapshot(ops_dir))
 
 
 if __name__ == "__main__":

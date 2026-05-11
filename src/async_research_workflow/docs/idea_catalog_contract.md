@@ -243,6 +243,11 @@ task refs, shared cluster IDs, and explicit duplicate markers route
 conservatively to an update or human decision proposal rather than creating a
 new canonical JSON file.
 
+`--from-inbox` only selects canonical Markdown table rows. Free-form discovery
+notes are warning-only and include line numbers, but they are never captured
+automatically. When a selector is not found, the command reports valid selectors
+and nearby candidate rows so the operator can choose an explicit row.
+
 `idea catalog maintain` reads `discovery_inbox.md`, canonical catalog JSON,
 `accepted_outputs_index.md`, and `discovery/rejected_ideas.md`. It only proposes
 capture for inbox rows with an explicit marker such as `catalog: candidate`;
