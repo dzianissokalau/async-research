@@ -914,7 +914,8 @@ def run_review_install_context_command(args: argparse.Namespace) -> int:
 
 def review_authoring_options(args: argparse.Namespace) -> list[str]:
     return (
-        [str(args.task_dir), "--role", args.role]
+        [str(args.task_dir)]
+        + optional_text("--role", args.role)
         + optional_text("--decision", args.decision)
         + optional_text("--claim-strength", args.claim_strength)
         + optional_text("--confidence", args.confidence)
@@ -1616,7 +1617,7 @@ def register_review_commands(subparsers) -> None:
         description="Generate a safe needs_human review scaffold for reviews/<role>.md without requiring direct internal helper usage.",
     )
     draft.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
-    draft.add_argument("--role", required=True, help="Reviewer role: primary, methodology, or skeptic.")
+    draft.add_argument("--role", help="Reviewer role: primary, methodology, or skeptic.")
     draft.add_argument("--decision", help="Override the conservative draft decision; defaults to needs_human.")
     draft.add_argument("--claim-strength", help="Override the conservative draft claim strength; defaults to none.")
     draft.add_argument("--confidence", help="Override the conservative draft confidence; defaults to 0.")
@@ -1633,7 +1634,7 @@ def register_review_commands(subparsers) -> None:
         description="Validate explicit review flags and write reviews/<role>.md with required version metadata.",
     )
     submit.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
-    submit.add_argument("--role", required=True, help="Reviewer role: primary, methodology, or skeptic.")
+    submit.add_argument("--role", help="Reviewer role: primary, methodology, or skeptic.")
     submit.add_argument("--decision", help="Review decision: accept, accept_with_caveats, needs_revision, needs_human, or reject.")
     submit.add_argument("--claim-strength", help="Claim strength: none, weak, suggestive, moderate, or strong.")
     submit.add_argument("--confidence", help="Reviewer confidence as a number from 0 to 1.")

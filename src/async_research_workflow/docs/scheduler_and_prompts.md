@@ -356,17 +356,15 @@ Task:
 7. For `evaluate_results` tasks, verify the result summary cites an upstream artifacts/analysis_run/run_manifest.json, resolve the upstream run_analysis task directory, and run async-research analysis validate-run <upstream-run-analysis-task-dir> --ops-dir research_ops plus async-research analysis validate-results <upstream-run-analysis-task-dir> --ops-dir research_ops before acceptance.
 8. Optionally run async-research review draft <task-dir> --role primary to preview or write a conservative needs_human scaffold with required version metadata.
 9. If tier is 0 or 1, run async-research review submit <task-dir> --role primary --decision <decision> --claim-strength <claim_strength> --confidence <0-1> with any repeated --concern, --followup, or --evidence-gap flags needed for the review.
-10. If tier is 2 or 3, submit reviews/primary.md with the same structured metadata and set status to panel_review unless all required reviews are already present.
+10. If tier is 2 or 3, submit only reviews/primary.md with the same structured metadata; do not edit sibling review files.
 11. If the output needs a higher review tier before it can be accepted, run the advanced/internal helper python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
 12. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
-13. Update status.json to accepted, needs_human, paused, rejected, or panel_review, setting previous_status, last_transition_reason, prompt_versions.primary_reviewer="primary_reviewer_v1.0", and framework_versions.result_acceptance="result_acceptance_v1.0".
-14. If the review decision is needs_revision, do not edit status.json by hand. Run async-research revision request <task-dir> --reviewer primary.
-15. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
-16. Run async-research schema-check research_ops.
-17. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
-18. If setting accepted or rejected directly, run async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers.
-19. If schema, transition, or result-acceptance validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir> for malformed status only, otherwise revise the review route and stop.
-20. Update daily_status.md with a short note.
+13. Run async-research review aggregate <task-dir> --dry-run. If the aggregate reports a missing review-start transition and all required reviews are present, rerun async-research review aggregate <task-dir> --record-review-start.
+14. Use the aggregate JSON route and next_step. Do not hand-edit status.json to accepted, needs_revision, needs_human, paused, rejected, single_review, or panel_review.
+15. Run async-research schema-check research_ops.
+16. Run async-research surface update research_ops, then async-research surface validate research_ops.
+17. If validation fails because status.json is malformed, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>; otherwise revise the review route or escalate and stop.
+18. Update daily_status.md with a short note only through the public surface update path.
 
 Review criteria:
 - Did the worker answer the task?

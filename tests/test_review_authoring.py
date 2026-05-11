@@ -5,9 +5,11 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow import cli
 from async_research_workflow.scripts import review_authoring
@@ -140,6 +142,39 @@ class ReviewAuthoringTests(unittest.TestCase):
             self.assertEqual("missing_required_flags", payload["reason"])
             self.assertEqual(["--decision", "--claim-strength", "--confidence"], payload["missing_flags"])
 
+    def test_review_submit_missing_role_returns_json_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)))
+
+            code, payload = run_cli_json(
+                [
+                    "review",
+                    "submit",
+                    task_dir,
+                    "--decision",
+                    "needs_human",
+                    "--claim-strength",
+                    "none",
+                    "--confidence",
+                    "0.5",
+                ]
+            )
+
+            self.assertEqual(review_authoring.MISSING_REQUIRED, code, payload)
+            self.assertEqual("missing_required_flags", payload["reason"])
+            self.assertEqual(["--role"], payload["missing_flags"])
+
+    def test_schema_invalid_status_refuses_to_write_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)))
+            write_json(task_dir / "status.json", {})
+
+            code, payload = run_cli_json(["review", "draft", task_dir, "--role", "primary", "--write"])
+
+            self.assertEqual(review_authoring.MALFORMED, code, payload)
+            self.assertEqual("status_schema_validation_failed", payload["reason"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
+
     def test_review_submit_dry_run_and_write_use_same_payload_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             task_dir = self.write_task(self.init_ops(Path(tmp)))
@@ -214,6 +249,35 @@ class ReviewAuthoringTests(unittest.TestCase):
         errors = review_authoring.validate_payload_for_role(Path("reviews/primary.md"), payload, "primary")
 
         self.assertTrue(any("does not match target role" in error for error in errors))
+
+    def test_non_force_write_does_not_overwrite_concurrent_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "reviews" / "primary.md"
+
+            def racing_link(source: object, target: object) -> None:
+                Path(target).write_text("Concurrent review.\n", encoding="utf-8")
+                raise FileExistsError
+
+            with mock.patch.object(review_authoring.os, "link", side_effect=racing_link):
+                ok, error = review_authoring.write_review(review_path, "New review.\n", force=False)
+
+            self.assertFalse(ok)
+            self.assertEqual("target_exists", error["reason"] if error else None)
+            self.assertEqual("Concurrent review.\n", review_path.read_text(encoding="utf-8"))
+            self.assertEqual([], list(review_path.parent.glob(".primary.md.*.tmp")))
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is unavailable")
+    def test_non_force_write_treats_dangling_symlink_as_existing_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "reviews" / "primary.md"
+            review_path.parent.mkdir()
+            review_path.symlink_to(Path(tmp) / "missing-target")
+
+            ok, error = review_authoring.write_review(review_path, "New review.\n", force=False)
+
+            self.assertFalse(ok)
+            self.assertEqual("target_exists", error["reason"] if error else None)
+            self.assertTrue(review_path.is_symlink())
 
 
 if __name__ == "__main__":

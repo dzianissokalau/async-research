@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 from typing import Any, Iterable
 
+from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts import review_template
 from async_research_workflow.scripts.aggregate_reviews import (
     CLAIM_STRENGTHS,
@@ -17,6 +20,7 @@ from async_research_workflow.scripts.aggregate_reviews import (
     REVIEWER_ROLES,
     validate_review,
 )
+from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
 
 SUCCESS = 0
@@ -58,6 +62,16 @@ def load_task_status(task_dir: Path) -> tuple[dict[str, Any] | None, dict[str, A
         return None, {"reason": "status_malformed", "status_path": str(status_path), "error": str(exc)}
     if not isinstance(payload, dict):
         return None, {"reason": "status_not_object", "status_path": str(status_path)}
+    schema = load_json(schema_path("task_status.schema.json"))
+    if not isinstance(schema, dict):
+        return None, {"reason": "status_schema_malformed", "status_path": str(status_path)}
+    errors = validate(payload, schema)
+    if errors:
+        return None, {
+            "reason": "status_schema_validation_failed",
+            "status_path": str(status_path),
+            "errors": [error.to_dict() for error in errors],
+        }
     return payload, None
 
 
@@ -132,17 +146,38 @@ def validate_payload_for_role(path: Path, payload: dict[str, Any], role: str) ->
 
 
 def write_review(path: Path, markdown: str, force: bool) -> tuple[bool, dict[str, Any] | None]:
-    if path.exists() and not force:
-        return False, {
-            "reason": "target_exists",
-            "review_path": str(path),
-            "next_step": "rerun with --force after confirming the existing review should be replaced",
-        }
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(markdown, encoding="utf-8")
-    os.replace(tmp, path)
-    return True, None
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=f".{os.getpid()}.tmp", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(markdown)
+        if force:
+            os.replace(tmp, path)
+            return True, None
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            return False, {
+                "reason": "target_exists",
+                "review_path": str(path),
+                "next_step": "rerun with --force after confirming the existing review should be replaced",
+            }
+        except OSError as exc:
+            if exc.errno not in {errno.EPERM, errno.EOPNOTSUPP, errno.ENOTSUP}:
+                raise
+            try:
+                with path.open("x", encoding="utf-8") as target:
+                    target.write(markdown)
+            except FileExistsError:
+                return False, {
+                    "reason": "target_exists",
+                    "review_path": str(path),
+                    "next_step": "rerun with --force after confirming the existing review should be replaced",
+                }
+        return True, None
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def success_payload(
@@ -250,7 +285,16 @@ def submit_review(args: argparse.Namespace) -> int:
         print_json({"ok": False, **error})
         return MALFORMED
 
-    missing = [flag for flag, value in (("--decision", args.decision), ("--claim-strength", args.claim_strength), ("--confidence", args.confidence)) if value is None]
+    missing = [
+        flag
+        for flag, value in (
+            ("--role", args.role),
+            ("--decision", args.decision),
+            ("--claim-strength", args.claim_strength),
+            ("--confidence", args.confidence),
+        )
+        if value is None
+    ]
     if missing:
         print_json(
             {
@@ -318,7 +362,7 @@ def submit_review(args: argparse.Namespace) -> int:
 
 def add_authoring_options(parser: argparse.ArgumentParser, *, submit: bool) -> None:
     parser.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
-    parser.add_argument("--role", required=True, help=f"Reviewer role: {', '.join(sorted(REVIEWER_ROLES))}.")
+    parser.add_argument("--role", help=f"Reviewer role: {', '.join(sorted(REVIEWER_ROLES))}.")
     parser.add_argument("--decision", help=f"Review decision: {', '.join(sorted(DECISIONS))}.")
     parser.add_argument("--claim-strength", help=f"Claim strength: {', '.join(sorted(CLAIM_STRENGTHS))}.")
     parser.add_argument("--confidence", help="Reviewer confidence as a number from 0 to 1.")

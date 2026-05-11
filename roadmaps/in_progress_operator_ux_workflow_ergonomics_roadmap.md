@@ -135,7 +135,7 @@ Last updated: 2026-05-11
 | Phase | Step | Status | Description | Evidence / Notes |
 | ---: | --- | --- | --- | --- |
 | 0 | Decisions and command shape | Complete | Resolve HTF sequencing, public command names, review authoring write rules, non-goals, and exit codes. | HTF is delivered; this roadmap now defines public `review draft` and `review submit` behavior plus the P1 non-goals. |
-| 1 | Review authoring UX | Complete | Add public commands around existing review-template and review-validation logic. | Adds `async-research review draft` and `async-research review submit`, JSON output, existing-file protection, docs, help coverage, and regression tests for preview, write, target-exists, role mismatch, and aggregate use. |
+| 1 | Review authoring UX | Complete | Add public commands around existing review-template and review-validation logic. | Adds `async-research review draft` and `async-research review submit`, JSON output, schema-validated task status preflight, atomic non-force write protection, docs, help coverage, and regression tests for preview, write, target-exists, missing role, invalid status, role mismatch, race protection, and aggregate use. |
 | 2 | One-page quickstart | Not Started | Add the first-success quickstart after P1 commands are available. | Next action. |
 | 3 | Dashboard MVP coordination | Not Started | Tie dashboard slices 1-2 to this adoption roadmap while keeping dashboard read-only first. | Defer until quickstart is complete. |
 | 4 | Workflow orchestrator | Not Started | Add a public orchestrator for the canonical post-worker loop without removing individual commands. | Defer until public manual path is clear. |
@@ -341,6 +341,9 @@ P1 regression scenarios:
 - `review submit --dry-run` writes nothing
 - submitted review files can be consumed by `review aggregate`
 - generated payload role must match target review role
+- parseable but schema-invalid `status.json` refuses writes
+- missing `--role` returns structured JSON rather than argparse usage text
+- non-force writes do not replace concurrent target creation or dangling symlinks
 
 Package-level checks before merging a completed slice:
 
