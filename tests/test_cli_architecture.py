@@ -39,6 +39,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_status_commands",
                 "register_surface_commands",
                 "register_schema_command",
+                "register_workflow_commands",
                 "register_queue_commands",
                 "register_decision_commands",
                 "register_escalation_commands",
@@ -74,6 +75,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "surface",
                 "review-surface",
                 "schema-check",
+                "workflow",
                 "queue",
                 "decision",
                 "escalation",
@@ -153,6 +155,31 @@ class CliArchitectureTests(unittest.TestCase):
             ["research_ops/tasks/TASK-0001", "--dry-run", "--record-review-start"],
         )
 
+    def test_workflow_commands_route_to_public_orchestrator(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["workflow", "check", "research_ops"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with("workflow_orchestrator", ["check", "research_ops"])
+
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(
+                [
+                    "workflow",
+                    "advance",
+                    "research_ops/tasks/TASK-0001",
+                    "--ops-dir",
+                    "research_ops",
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "workflow_orchestrator",
+            ["advance", "research_ops/tasks/TASK-0001", "--ops-dir", "research_ops", "--dry-run"],
+        )
+
     def test_review_draft_routes_to_public_authoring_helper(self) -> None:
         with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
             code = cli.main(["review", "draft", "research_ops/tasks/TASK-0001", "--role", "primary", "--write"])
@@ -206,6 +233,7 @@ class CliArchitectureTests(unittest.TestCase):
         data_choices = subparser_choices(choices["data"])
         library_choices = subparser_choices(choices["library"])
         queue_choices = subparser_choices(choices["queue"])
+        workflow_choices = subparser_choices(choices["workflow"])
         decision_choices = subparser_choices(choices["decision"])
         escalation_choices = subparser_choices(choices["escalation"])
         cost_choices = subparser_choices(choices["cost"])
@@ -220,6 +248,7 @@ class CliArchitectureTests(unittest.TestCase):
         idea_catalog_choices = subparser_choices(idea_choices["catalog"])
 
         self.assertEqual(["discovery-gate"], list(queue_choices))
+        self.assertEqual(["check", "advance"], list(workflow_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"], list(source_choices))

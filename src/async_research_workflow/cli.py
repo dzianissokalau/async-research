@@ -1048,6 +1048,41 @@ def register_schema_command(subparsers) -> None:
     schema.set_defaults(func=lambda a: module_main("check_schema_versions", [str(a.ops_dir)]))
 
 
+def register_workflow_commands(subparsers) -> None:
+    workflow = add_command(
+        subparsers,
+        "workflow",
+        help="Run or dry-run canonical operator workflow sequences.",
+        description="Coordinate schema, readiness, review aggregation, accepted-memory, surface, and health commands without replacing them.",
+    )
+    workflow_sub = workflow.add_subparsers(dest="workflow_command", required=True)
+    check = add_command(
+        workflow_sub,
+        "check",
+        help="Run read-only workspace workflow checks.",
+        description="Run read-only workspace workflow checks: schema-check, readiness --dry-run, surface validate, and health --dry-run as one JSON report.",
+    )
+    add_common_ops(check)
+    check.set_defaults(func=lambda a: module_main("workflow_orchestrator", ["check", str(a.ops_dir)]))
+    advance = add_command(
+        workflow_sub,
+        "advance",
+        help="Run the canonical post-worker task workflow.",
+        description="Run or dry-run the post-worker task workflow for one reviewed task while reporting every subcommand result.",
+    )
+    advance.add_argument("task_dir", type=Path, help="Task directory containing status.json and reviews/.")
+    advance.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    advance.add_argument("--dry-run", action="store_true", help="Print the plan and run only read-only checks.")
+    advance.set_defaults(
+        func=lambda a: module_main(
+            "workflow_orchestrator",
+            ["advance", str(a.task_dir)]
+            + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else [])
+            + (["--dry-run"] if a.dry_run else []),
+        )
+    )
+
+
 def register_queue_commands(subparsers) -> None:
     queue = add_command(
         subparsers,
@@ -2072,6 +2107,7 @@ COMMAND_REGISTRARS = (
     register_status_commands,
     register_surface_commands,
     register_schema_command,
+    register_workflow_commands,
     register_queue_commands,
     register_decision_commands,
     register_escalation_commands,

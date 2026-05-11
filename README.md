@@ -196,6 +196,16 @@ Once a task exists, a typical loop is:
 ```bash
 TASK=research_ops/tasks/TASK-0001-example
 
+async-research workflow advance "$TASK" --dry-run
+async-research workflow advance "$TASK"
+```
+
+The orchestrator preserves the individual command contracts and reports each
+subcommand, exit code, stdout JSON, and next step. The equivalent manual loop is:
+
+```bash
+TASK=research_ops/tasks/TASK-0001-example
+
 async-research schema-check research_ops
 async-research readiness research_ops --dry-run
 
@@ -254,6 +264,9 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research schema-check research_ops` | Validate schema versions for workflow JSON artifacts. | Task status files and other versioned JSON artifacts. | JSON to stdout only. |
 | `async-research readiness research_ops --dry-run` | Decide whether another autonomous loop is safe. | Queue, task status, locks, source audit, data foundations, knowledge-library validator output, accepted memory, cost, metrics, health state. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research health research_ops --dry-run` | Produce operational health status. | Queue, task status, locks, review state, cost, metrics, accepted memory, source audit, data foundations, knowledge-library validator output. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
+| `async-research workflow check research_ops` | Run read-only schema, readiness, surface, and health checks as one JSON report. | Workspace state and rendered surfaces. | JSON to stdout only. |
+| `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
+| `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
 | `async-research decision append research_ops --item-id <id> --decision approve --reason "<why>" --approver <name>` | Record a structured human decision. | Command flags. | `decisions.md`; with `--dry-run`, stdout only. |
 | `async-research decision resolve-task research_ops <task-dir> --decision resume --reason "<why>" --approver <name>` | Resolve a `needs_human` task through the decision log. | Task `status.json` and `decisions.md`. | `decisions.md` and task `status.json`; with `--dry-run`, stdout only. |
