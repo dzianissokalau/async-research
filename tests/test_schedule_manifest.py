@@ -110,6 +110,40 @@ class ScheduleManifestTests(unittest.TestCase):
             decisions = (ops_dir / "decisions.md").read_text(encoding="utf-8")
             self.assertIn("schedule:worker-loop", decisions)
 
+    def test_upsert_auto_initializes_missing_manifest_before_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            prompt_library.init_library(ops_dir, now=NOW)
+
+            code, updated = schedule_manifest.upsert_schedule(
+                ops_dir,
+                "worker-loop",
+                description="Process one ready worker task.",
+                cadence="hourly",
+                prompt_id="worker",
+                max_runtime_minutes=35,
+                concurrency_key="worker",
+                concurrency_limit=1,
+                status="enabled",
+                reason="create schedule manifest while updating worker intent",
+                author="tester",
+                now="2026-05-12T01:00:00Z",
+            )
+
+            self.assertEqual(schedule_manifest.SUCCESS, code, updated)
+            self.assertTrue(updated["ok"], updated)
+            self.assertTrue((ops_dir / "schedules.json").exists())
+            self.assertEqual(6, len(updated["manifest"]["jobs"]))
+            worker = next(job for job in updated["manifest"]["jobs"] if job["job_id"] == "worker-loop")
+            self.assertEqual("enabled", worker["status"])
+            self.assertEqual("worker_v1.0", worker["prompt_binding"]["prompt_version"])
+            history_actions = [row["action"] for row in schedule_manifest.read_history(ops_dir)]
+            self.assertIn("initialized", history_actions)
+            self.assertIn("updated", history_actions)
+            decisions = (ops_dir / "decisions.md").read_text(encoding="utf-8")
+            self.assertIn("schedule:*", decisions)
+            self.assertIn("schedule:worker-loop", decisions)
+
     def test_invalid_schedule_is_rejected_without_mutating_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))

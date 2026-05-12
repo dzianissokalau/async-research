@@ -72,6 +72,18 @@ def write_task_status(
     return task_dir
 
 
+class RecordingLock:
+    def __init__(self) -> None:
+        self.enter_count = 0
+        self.exit_count = 0
+
+    def __enter__(self) -> None:
+        self.enter_count += 1
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self.exit_count += 1
+
+
 class ConsoleActionTests(unittest.TestCase):
     def test_catalog_marks_missing_workspace_and_known_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -482,6 +494,53 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertEqual(2, result["exit_code"])
             self.assertEqual("prompt_validation_failed", result["parsed_stdout"]["reason"])
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_prompt_mutations_are_serialized_by_command_lock(self) -> None:
+        cases = [
+            (
+                "prompts_init",
+                {},
+                "init_library",
+                {"ok": True, "changed": True, "read_only": False},
+            ),
+            (
+                "prompt_save_draft",
+                {"prompt_id": "worker", "content": "draft", "reason": "save draft", "author": "tester"},
+                "save_draft",
+                {"ok": True, "changed": True, "read_only": False},
+            ),
+            (
+                "prompt_activate",
+                {
+                    "prompt_id": "worker",
+                    "reason": "activate draft",
+                    "author": "tester",
+                    "confirm": actions.prompt_confirmation_token("prompt_activate", "worker"),
+                },
+                "activate_prompt",
+                {"ok": True, "changed": True, "read_only": False},
+            ),
+        ]
+        for action_id, payload, method_name, result_payload in cases:
+            with self.subTest(action_id=action_id):
+                with tempfile.TemporaryDirectory() as tmp:
+                    ops_dir = Path(tmp) / "research_ops"
+                    ops_dir.mkdir()
+                    lock = RecordingLock()
+
+                    with (
+                        mock.patch.object(actions, "COMMAND_LOCK", lock),
+                        mock.patch.object(
+                            actions.prompt_library,
+                            method_name,
+                            return_value=(actions.prompt_library.SUCCESS, result_payload),
+                        ),
+                    ):
+                        status, result = actions.run_action(action_id, ops_dir, payload)
+
+                    self.assertEqual(200, status, result)
+                    self.assertEqual(1, lock.enter_count)
+                    self.assertEqual(1, lock.exit_count)
 
     def test_schedule_actions_init_save_and_toggle_intent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
