@@ -26,6 +26,7 @@ SNAPSHOT_GROUPS = {
     "delivered_projects",
     "rejected_results",
     "cost",
+    "prompts",
     "ideas",
     "data",
     "library",
@@ -114,6 +115,8 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(0, payload["human_decisions"]["open_count"])
             self.assertEqual(0, payload["accepted_outputs"]["count"])
             self.assertEqual(0, payload["rejected_results"]["count"])
+            self.assertFalse(payload["prompts"]["available"])
+            self.assertEqual("unavailable", payload["prompts"]["status"])
             self.assertIn("month_spend_usd", payload["cost"])
             self.assertEqual(before, file_snapshot(ops_dir))
 

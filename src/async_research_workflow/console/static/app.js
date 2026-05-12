@@ -8,6 +8,7 @@ const state = {
   selectedTaskId: null,
   outcomeFilter: "all",
   selectedProjectId: null,
+  selectedPromptId: null,
   pendingDecision: null,
 };
 
@@ -569,6 +570,160 @@ function renderRejectedLedger(rejected) {
   );
 }
 
+function promptRows(snapshot) {
+  return ((snapshot.prompts || {}).prompts || []);
+}
+
+function selectedPrompt(rows) {
+  return rows.find((prompt) => prompt.prompt_id === state.selectedPromptId) || rows[0] || null;
+}
+
+function promptStatusClass(prompt) {
+  if (!prompt.active_exists || !prompt.draft_exists) {
+    return "badge neutral";
+  }
+  if ((prompt.draft_validation || {}).ok === false) {
+    return "badge bad";
+  }
+  if (prompt.has_draft_changes) {
+    return "badge warn";
+  }
+  return "badge good";
+}
+
+function promptRow(prompt) {
+  const row = document.createElement("button");
+  row.className = prompt.prompt_id === state.selectedPromptId ? "task-row selected" : "task-row";
+  row.type = "button";
+  row.addEventListener("click", () => {
+    state.selectedPromptId = prompt.prompt_id;
+    renderPrompts(state.snapshot || {});
+  });
+  const title = document.createElement("div");
+  title.className = "task-row-title";
+  title.textContent = valueOrUnavailable(prompt.prompt_id);
+  const meta = document.createElement("div");
+  meta.className = "task-row-meta";
+  meta.textContent = `${valueOrUnavailable(prompt.role)} / ${valueOrUnavailable(prompt.active_version)}`;
+  const badge = document.createElement("span");
+  badge.className = promptStatusClass(prompt);
+  badge.textContent = (prompt.draft_validation || {}).ok === false
+    ? "invalid draft"
+    : (prompt.has_draft_changes ? "draft" : "current");
+  row.append(title, badge, meta);
+  return row;
+}
+
+function validationSummary(validation) {
+  if (!validation) {
+    return "unavailable";
+  }
+  const errors = validation.errors || [];
+  const warnings = validation.warnings || [];
+  return validation.ok ? `valid / ${warnings.length} warnings` : `${errors.length} errors / ${warnings.length} warnings`;
+}
+
+function promptBindingsText(prompt) {
+  const bindings = prompt.schedule_bindings || [];
+  if (!bindings.length) {
+    return "none";
+  }
+  return bindings.map((binding) =>
+    `${valueOrUnavailable(binding.job_id)} (${valueOrUnavailable(binding.status)} / ${valueOrUnavailable(binding.prompt_version)})`
+  ).join(", ");
+}
+
+function renderPromptDetail(rows) {
+  const panel = el("prompt-detail");
+  const prompt = selectedPrompt(rows);
+  if (!prompt) {
+    panel.replaceChildren(empty("Prompt library is not initialized."));
+    return;
+  }
+  state.selectedPromptId = prompt.prompt_id;
+  const title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = `${valueOrUnavailable(prompt.prompt_id)} - ${valueOrUnavailable(prompt.role)}`;
+
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Active Version", prompt.active_version),
+    detailField("Draft Version", prompt.draft_version),
+    detailField("Draft Validation", validationSummary(prompt.draft_validation)),
+    detailField("Schedule Bindings", promptBindingsText(prompt))
+  );
+
+  const author = document.createElement("input");
+  author.id = "prompt-author";
+  author.className = "text-input";
+  author.type = "text";
+  author.value = window.localStorage.getItem("asyncResearchPromptAuthor") || "human";
+
+  const reason = document.createElement("input");
+  reason.id = "prompt-reason";
+  reason.className = "text-input";
+  reason.type = "text";
+  reason.value = "";
+
+  const editor = document.createElement("textarea");
+  editor.id = "prompt-editor";
+  editor.className = "text-area prompt-editor";
+  editor.rows = 18;
+  editor.value = prompt.draft_text || prompt.active_text || "";
+
+  const allowInvalid = document.createElement("label");
+  allowInvalid.className = "checkbox-label";
+  const checkbox = document.createElement("input");
+  checkbox.id = "prompt-allow-invalid";
+  checkbox.type = "checkbox";
+  allowInvalid.append(checkbox, document.createTextNode("Allow invalid activation"));
+
+  const controls = document.createElement("div");
+  controls.className = "detail-actions";
+  const save = document.createElement("button");
+  save.className = "button secondary";
+  save.type = "button";
+  save.textContent = state.runningAction === "prompt_save_draft" ? "Saving" : "Save Draft";
+  save.disabled = Boolean(state.runningAction);
+  save.addEventListener("click", () => runPromptDraft(prompt));
+  const activate = document.createElement("button");
+  activate.className = "button";
+  activate.type = "button";
+  activate.textContent = state.runningAction === "prompt_activate" ? "Activating" : "Activate";
+  activate.disabled = Boolean(state.runningAction);
+  activate.addEventListener("click", () => runPromptActivate(prompt));
+  controls.append(save, activate);
+
+  const diff = document.createElement("pre");
+  diff.className = "result-output prompt-diff";
+  diff.textContent = prompt.diff || "No active-vs-draft changes.";
+
+  const form = document.createElement("div");
+  form.className = "prompt-form";
+  form.append(
+    detailField("Author", ""),
+    author,
+    detailField("Reason", ""),
+    reason,
+    editor,
+    allowInvalid,
+    controls
+  );
+
+  panel.replaceChildren(title, fields, form, diff);
+}
+
+function renderPrompts(snapshot) {
+  const prompts = snapshot.prompts || {};
+  const rows = promptRows(snapshot);
+  el("prompt-total").textContent = prompts.available ? rows.length : 0;
+  el("prompt-init").disabled = Boolean(state.runningAction);
+  const listChildren = prompts.available && rows.length ? rows.map(promptRow) : [empty("Prompt library is not initialized.")];
+  el("prompt-list").replaceChildren(...listChildren);
+  renderPromptDetail(prompts.available ? rows : []);
+}
+
 function decisionCommandPreview(action, task) {
   return String(action.command_template || "")
     .replace("<task_id>", valueOrUnavailable(task.task_id))
@@ -764,6 +919,7 @@ function render(snapshot, actionsCatalog) {
   renderTasks(snapshot);
   renderDecisions(snapshot);
   renderOutcomes(snapshot);
+  renderPrompts(snapshot);
   renderFoundations(snapshot);
   renderRuns(snapshot);
   renderWarnings(snapshot);
@@ -923,6 +1079,165 @@ async function runDecisionAction(action, task, reason, approver) {
   }
 }
 
+function promptAction(id) {
+  return (((state.actions || {}).prompt_actions || []).find((action) => action.id === id)) || { id, label: id };
+}
+
+function promptFormValues() {
+  return {
+    author: (el("prompt-author") || {}).value ? el("prompt-author").value.trim() : "human",
+    reason: (el("prompt-reason") || {}).value ? el("prompt-reason").value.trim() : "",
+    content: (el("prompt-editor") || {}).value || "",
+    allowInvalid: Boolean((el("prompt-allow-invalid") || {}).checked),
+  };
+}
+
+async function runPromptInit() {
+  if (state.runningAction) {
+    return;
+  }
+  const action = promptAction("prompts_init");
+  state.runningAction = action.id;
+  renderPrompts(state.snapshot || {});
+  try {
+    const { result } = await postAction({ action: action.id });
+    state.results[action.id] = result;
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderPrompts(state.snapshot || {});
+  }
+}
+
+async function runPromptDraft(prompt) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = promptFormValues();
+  if (!values.reason || !values.content.trim()) {
+    showResult({
+      label: "Save Draft",
+      command: "async-research prompts draft",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Prompt draft content and reason are required.",
+    });
+    return;
+  }
+  const action = promptAction("prompt_save_draft");
+  state.runningAction = action.id;
+  renderPrompts(state.snapshot || {});
+  try {
+    const { result } = await postAction({
+      action: action.id,
+      prompt_id: prompt.prompt_id,
+      content: values.content,
+      reason: values.reason,
+      author: values.author,
+    });
+    state.results[`${action.id}:${prompt.prompt_id}`] = result;
+    if (result.ok && values.author) {
+      window.localStorage.setItem("asyncResearchPromptAuthor", values.author);
+    }
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderPrompts(state.snapshot || {});
+  }
+}
+
+async function runPromptActivate(prompt) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = promptFormValues();
+  if (!values.reason) {
+    showResult({
+      label: "Activate Draft",
+      command: "async-research prompts activate",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Activation reason is required.",
+    });
+    return;
+  }
+  const action = promptAction("prompt_activate");
+  state.runningAction = action.id;
+  renderPrompts(state.snapshot || {});
+  try {
+    const payload = {
+      action: action.id,
+      prompt_id: prompt.prompt_id,
+      reason: values.reason,
+      author: values.author,
+      allow_invalid: values.allowInvalid,
+    };
+    let { response, result } = await postAction(payload);
+    if (response.status === 409 && result.reason === "confirmation_required") {
+      const confirmed = window.confirm(`${result.command}\n\n${result.message}`);
+      if (!confirmed) {
+        showResult({
+          label: action.label,
+          command: result.command,
+          exit_code: "cancelled",
+          status: "failed",
+          stdout: "",
+          stderr: "",
+          next_step: "Prompt activation cancelled before files changed.",
+        });
+        return;
+      }
+      payload.confirm = result.confirmation_token;
+      ({ result } = await postAction(payload));
+    }
+    state.results[`${action.id}:${prompt.prompt_id}`] = result;
+    if (result.ok && values.author) {
+      window.localStorage.setItem("asyncResearchPromptAuthor", values.author);
+    }
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderPrompts(state.snapshot || {});
+  }
+}
+
 function submitDecisionForm(event) {
   event.preventDefault();
   const pending = state.pendingDecision;
@@ -967,6 +1282,7 @@ async function refresh() {
 
 document.addEventListener("DOMContentLoaded", () => {
   el("refresh-button").addEventListener("click", refresh);
+  el("prompt-init").addEventListener("click", runPromptInit);
   el("result-close").addEventListener("click", closeResult);
   el("decision-cancel").addEventListener("click", closeDecisionModal);
   el("decision-form").addEventListener("submit", submitDecisionForm);

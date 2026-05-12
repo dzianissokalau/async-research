@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 7
+Current phase: Slice 8
 Last updated: 2026-05-12
-Next action: Implement Slice 7 Prompt Library
+Next action: Implement Slice 8 Schedule Manifest
 Blocked by: None
 
 Created: 2026-05-05
@@ -153,7 +153,7 @@ Last updated: 2026-05-12
 | Slice 4 | Add the read-mostly task board with status filters, task detail inspection, status validation, transition validation, and lock inspection. | Complete |
 | Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Complete |
 | Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Complete |
-| Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Pending |
+| Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Complete |
 | Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Pending |
 | Slice 9 | Add trigger-now dry run with command preview, readiness check, concurrency check, disabled-job blocking, and run-id preview. | Pending |
 | Slice 10 | Add bounded trigger-now execution, process/run artifacts, logs, event capture, usage ingestion where available, and run history. | Pending |

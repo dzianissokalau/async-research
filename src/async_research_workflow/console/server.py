@@ -21,7 +21,7 @@ from async_research_workflow.resources import console_static_path
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 LOCAL_ONLY_HOSTS = {DEFAULT_HOST, "localhost", "::1"}
-MAX_JSON_BODY_BYTES = 64 * 1024
+MAX_JSON_BODY_BYTES = 512 * 1024
 STATIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",

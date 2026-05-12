@@ -651,6 +651,66 @@ def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_prompts_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prompt_library",
+        ["init", str(args.ops_dir)]
+        + (["--force"] if args.force else [])
+        + optional_text("--now", args.now),
+    )
+
+
+def run_prompts_validate_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prompt_library",
+        ["validate", str(args.ops_dir)]
+        + ([args.prompt_id] if args.prompt_id else []),
+    )
+
+
+def run_prompts_list_command(args: argparse.Namespace) -> int:
+    return module_main("prompt_library", ["list", str(args.ops_dir)])
+
+
+def run_prompts_draft_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prompt_library",
+        [
+            "draft",
+            str(args.ops_dir),
+            args.prompt_id,
+            "--content-file",
+            str(args.content_file),
+            "--message",
+            args.message,
+            "--author",
+            args.author,
+        ]
+        + optional_text("--now", args.now),
+    )
+
+
+def run_prompts_activate_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "prompt_library",
+        [
+            "activate",
+            str(args.ops_dir),
+            args.prompt_id,
+            "--message",
+            args.message,
+            "--author",
+            args.author,
+        ]
+        + (["--allow-invalid"] if args.allow_invalid else [])
+        + optional_text("--now", args.now),
+    )
+
+
+def run_prompts_diff_command(args: argparse.Namespace) -> int:
+    return module_main("prompt_library", ["diff", str(args.ops_dir), args.prompt_id])
+
+
 def decision_option_values(args: argparse.Namespace) -> list[str]:
     return (
         [
@@ -1192,6 +1252,78 @@ def register_queue_commands(subparsers) -> None:
         help="Status counted as active. Repeat to override the default active-status set.",
     )
     discovery.set_defaults(func=run_queue_discovery_gate_command)
+
+
+def register_prompt_commands(subparsers) -> None:
+    prompts = add_command(
+        subparsers,
+        "prompts",
+        help="Initialize, validate, draft, and activate scheduled prompt library files.",
+        description="Manage repo-backed prompt library files under research_ops/prompts with validation, history, and activation.",
+    )
+    prompt_sub = prompts.add_subparsers(dest="prompts_command", required=True)
+    init = add_command(
+        prompt_sub,
+        "init",
+        help="Create missing research_ops/prompts files.",
+        description="Create default active prompt files, matching drafts, versions.json, and history.jsonl without overwriting existing prompts unless --force is passed.",
+    )
+    add_common_ops(init)
+    init.add_argument("--force", action="store_true", help="Replace existing default prompt files.")
+    init.add_argument("--now", help="Override the initialization timestamp.")
+    init.set_defaults(func=run_prompts_init_command)
+    list_cmd = add_command(
+        prompt_sub,
+        "list",
+        help="List prompt library state.",
+        description="Read active prompts, drafts, validation results, active-vs-draft diffs, history, and schedule bindings.",
+    )
+    add_common_ops(list_cmd)
+    list_cmd.set_defaults(func=run_prompts_list_command)
+    validate = add_command(
+        prompt_sub,
+        "validate",
+        help="Validate prompt drafts or active prompt files.",
+        description="Validate required front matter, scheduler prompt sections, stop rules, cost/escalation limits, and escalation-policy references.",
+    )
+    add_common_ops(validate)
+    validate.add_argument("prompt_id", nargs="?", help="Optional prompt id such as worker.")
+    validate.set_defaults(func=run_prompts_validate_command)
+    draft = add_command(
+        prompt_sub,
+        "draft",
+        help="Save a prompt draft from a content file.",
+        description="Save a prompt draft under research_ops/prompts/drafts and record prompt history without activating it.",
+    )
+    add_required_ops(draft)
+    draft.add_argument("prompt_id", help="Prompt id such as worker.")
+    draft.add_argument("--content-file", type=Path, required=True, help="Markdown file containing the draft prompt.")
+    draft.add_argument("--message", required=True, help="Reason for the draft change.")
+    draft.add_argument("--author", default="human", help="Operator or agent saving the draft.")
+    draft.add_argument("--now", help="Override history timestamp.")
+    draft.set_defaults(func=run_prompts_draft_command)
+    activate = add_command(
+        prompt_sub,
+        "activate",
+        help="Activate a prompt draft as the next version.",
+        description="Validate a prompt draft, write the next active version, update versions.json, append history, and record a decision row.",
+    )
+    add_required_ops(activate)
+    activate.add_argument("prompt_id", help="Prompt id such as worker.")
+    activate.add_argument("--message", required=True, help="Reason for activation.")
+    activate.add_argument("--author", default="human", help="Operator or agent activating the prompt.")
+    activate.add_argument("--allow-invalid", action="store_true", help="Explicitly activate despite validation errors.")
+    activate.add_argument("--now", help="Override activation timestamp.")
+    activate.set_defaults(func=run_prompts_activate_command)
+    diff = add_command(
+        prompt_sub,
+        "diff",
+        help="Render active-vs-draft prompt diff.",
+        description="Render a unified diff between the active prompt and its saved draft without mutating files.",
+    )
+    add_common_ops(diff)
+    diff.add_argument("prompt_id", help="Prompt id such as worker.")
+    diff.set_defaults(func=run_prompts_diff_command)
 
 
 def add_decision_options(parser: argparse.ArgumentParser) -> None:
@@ -2243,6 +2375,7 @@ COMMAND_REGISTRARS = (
     register_schema_command,
     register_workflow_commands,
     register_queue_commands,
+    register_prompt_commands,
     register_decision_commands,
     register_escalation_commands,
     register_source_commands,

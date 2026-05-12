@@ -22,6 +22,7 @@ from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import validate_transition
 from async_research_workflow.scripts.decision_log import read_decisions
 
@@ -528,6 +529,18 @@ def delivered_projects_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
     }
 
 
+def prompts_snapshot(ops_dir: Path) -> dict[str, Any]:
+    try:
+        return prompt_library.library_snapshot(ops_dir)
+    except Exception as exc:
+        return unavailable(
+            "prompts_unavailable",
+            "prompt library could not be read",
+            ops_dir / "prompts",
+            str(exc),
+        )
+
+
 def rejected_results_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return recent_markdown_rows(ops_dir / "rejected_results.md")
 
@@ -698,6 +711,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current)
+    prompts = prompts_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "prompts are unavailable until research_ops exists", ops_dir)
     dashboards = dashboard_summaries(ops_dir, current) if workspace_ready else {
         "ideas": unavailable("ops_dir_missing", "ideas dashboard is unavailable until research_ops exists", ops_dir),
         "data": unavailable("ops_dir_missing", "data dashboard is unavailable until research_ops exists", ops_dir),
@@ -710,7 +724,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     warnings.extend(accepted_warnings)
     warnings.extend(rejected_warnings)
     warnings.extend(cost.get("warnings", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, runs, *dashboards.values()]))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, runs, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -729,6 +743,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "delivered_projects": delivered_projects,
         "rejected_results": rejected_results,
         "cost": cost,
+        "prompts": prompts,
         "ideas": dashboards["ideas"],
         "data": dashboards["data"],
         "library": dashboards["library"],

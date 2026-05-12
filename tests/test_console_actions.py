@@ -97,6 +97,12 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("decision_approve_budget", decision_actions)
         self.assertIn("async-research decision resolve-task", decision_actions["decision_resume"]["command_template"])
         self.assertTrue(decision_actions["decision_resume"]["requires_confirmation"])
+        prompt_actions = {item["id"]: item for item in catalog["prompt_actions"]}
+        self.assertIn("prompts_init", prompt_actions)
+        self.assertIn("prompt_save_draft", prompt_actions)
+        self.assertIn("prompt_activate", prompt_actions)
+        self.assertIn("async-research prompts init", prompt_actions["prompts_init"]["command_template"])
+        self.assertTrue(prompt_actions["prompt_activate"]["requires_confirmation"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -356,6 +362,119 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertIn("async-research outcomes refresh", result["command"])
             self.assertTrue((ops_dir / "outcomes" / "delivered_projects.jsonl").exists())
             self.assertTrue((ops_dir / "outcomes" / "delivered_projects_summary.json").exists())
+
+    def test_prompt_actions_save_draft_and_require_activation_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+
+            status, prompt_init = actions.run_action("prompts_init", ops_dir, {})
+            self.assertEqual(200, status, prompt_init)
+            self.assertTrue(prompt_init["ok"], prompt_init)
+            self.assertTrue((ops_dir / "prompts" / "worker.md").exists())
+            draft = (ops_dir / "prompts" / "drafts" / "worker.md").read_text(encoding="utf-8")
+            edited = draft.replace(
+                "Process at most one task or one scheduled unit of work per run.",
+                "Process at most one task or one scheduled unit of work per run, then stop cleanly.",
+            )
+
+            status, saved = actions.run_action(
+                "prompt_save_draft",
+                ops_dir,
+                {
+                    "prompt_id": "worker",
+                    "content": edited,
+                    "reason": "tighten stop rule",
+                    "author": "tester",
+                },
+            )
+
+            self.assertEqual(200, status, saved)
+            self.assertTrue(saved["ok"], saved)
+            self.assertTrue(saved["changed"])
+            self.assertIn("async-research prompts draft", saved["command"])
+            self.assertTrue(saved["parsed_stdout"]["validation"]["ok"])
+
+            status, blocked = actions.run_action(
+                "prompt_activate",
+                ops_dir,
+                {
+                    "prompt_id": "worker",
+                    "reason": "tighten stop rule",
+                    "author": "tester",
+                },
+            )
+            self.assertEqual(409, status)
+            self.assertEqual("confirmation_required", blocked["reason"])
+
+            status, activated = actions.run_action(
+                "prompt_activate",
+                ops_dir,
+                {
+                    "prompt_id": "worker",
+                    "reason": "tighten stop rule",
+                    "author": "tester",
+                    "confirm": actions.prompt_confirmation_token("prompt_activate", "worker"),
+                },
+            )
+
+            self.assertEqual(200, status, activated)
+            self.assertTrue(activated["ok"], activated)
+            self.assertEqual("worker_v1.1", activated["parsed_stdout"]["version"])
+            self.assertIn("prompt:worker", (ops_dir / "decisions.md").read_text(encoding="utf-8"))
+
+    def test_prompt_activation_blocks_invalid_draft_without_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            actions.run_action("prompts_init", ops_dir, {})
+            draft = (ops_dir / "prompts" / "drafts" / "worker.md").read_text(encoding="utf-8")
+            invalid = draft.replace("## Stop Conditions", "## Removed Stop Rules")
+            actions.run_action(
+                "prompt_save_draft",
+                ops_dir,
+                {
+                    "prompt_id": "worker",
+                    "content": invalid,
+                    "reason": "invalid draft",
+                    "author": "tester",
+                },
+            )
+            before = file_snapshot(ops_dir)
+
+            status, result = actions.run_action(
+                "prompt_activate",
+                ops_dir,
+                {
+                    "prompt_id": "worker",
+                    "reason": "invalid draft",
+                    "author": "tester",
+                    "confirm": actions.prompt_confirmation_token("prompt_activate", "worker"),
+                },
+            )
+
+            self.assertEqual(409, status)
+            self.assertFalse(result["ok"])
+            self.assertFalse(result["changed"])
+            self.assertEqual(2, result["exit_code"])
+            self.assertEqual("prompt_validation_failed", result["parsed_stdout"]["reason"])
+            self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_decision_resume_requires_confirmation_then_resolves_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

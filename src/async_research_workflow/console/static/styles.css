@@ -371,6 +371,18 @@ h3 {
   gap: 16px;
 }
 
+.prompt-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.prompt-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
 .outcome-layout {
   display: grid;
   grid-template-columns: minmax(420px, 1.2fr) minmax(0, 0.8fr);
@@ -439,6 +451,42 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+}
+
+.prompt-detail {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.prompt-form {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-editor {
+  min-height: 420px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prompt-diff {
+  min-height: 180px;
+  max-height: 360px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .outcome-table-wrap {
@@ -740,6 +788,7 @@ h3 {
   .topbar,
   .split-grid,
   .task-layout,
+  .prompt-layout,
   .outcome-layout,
   .detail-grid {
     display: grid;

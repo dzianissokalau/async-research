@@ -42,6 +42,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_schema_command",
                 "register_workflow_commands",
                 "register_queue_commands",
+                "register_prompt_commands",
                 "register_decision_commands",
                 "register_escalation_commands",
                 "register_source_commands",
@@ -80,6 +81,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "schema-check",
                 "workflow",
                 "queue",
+                "prompts",
                 "decision",
                 "escalation",
                 "source",
@@ -237,6 +239,7 @@ class CliArchitectureTests(unittest.TestCase):
         data_choices = subparser_choices(choices["data"])
         library_choices = subparser_choices(choices["library"])
         queue_choices = subparser_choices(choices["queue"])
+        prompt_choices = subparser_choices(choices["prompts"])
         workflow_choices = subparser_choices(choices["workflow"])
         decision_choices = subparser_choices(choices["decision"])
         escalation_choices = subparser_choices(choices["escalation"])
@@ -253,6 +256,7 @@ class CliArchitectureTests(unittest.TestCase):
         idea_catalog_choices = subparser_choices(idea_choices["catalog"])
 
         self.assertEqual(["discovery-gate"], list(queue_choices))
+        self.assertEqual(["init", "list", "validate", "draft", "activate", "diff"], list(prompt_choices))
         self.assertEqual(["check", "advance"], list(workflow_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))

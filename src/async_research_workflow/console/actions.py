@@ -18,6 +18,7 @@ from typing import Any
 from async_research_workflow import cli
 from async_research_workflow.console.snapshot import workspace_snapshot
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts.decision_log import has_decision
 from async_research_workflow.scripts.decision_log import read_decisions
 
@@ -50,6 +51,17 @@ class DecisionActionSpec:
     append_only: bool = False
     recovery_advice: str = "Review the decision command result, then repair the task state or decision log before retrying."
     success_next_step: str = "Decision recorded. Refresh the task board and operator surfaces."
+
+
+@dataclass(frozen=True)
+class PromptActionSpec:
+    action_id: str
+    label: str
+    description: str
+    mutates: bool = True
+    requires_confirmation: bool = False
+    recovery_advice: str = "Review prompt validation errors, then update the draft before retrying."
+    success_next_step: str = "Refresh the prompt library."
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
@@ -107,6 +119,29 @@ ACTION_SPECS: dict[str, ActionSpec] = {
         mutates=True,
         recovery_advice="Repair malformed accepted outputs, task status, review, idea, or cost files, then rerun outcomes refresh.",
         success_next_step="Refresh the delivered projects table.",
+    ),
+}
+
+
+PROMPT_ACTION_SPECS: dict[str, PromptActionSpec] = {
+    "prompts_init": PromptActionSpec(
+        action_id="prompts_init",
+        label="Initialize Prompts",
+        description="Create missing research_ops/prompts files, default drafts, versions.json, and history.jsonl.",
+        success_next_step="Edit a prompt draft or validate the prompt library.",
+    ),
+    "prompt_save_draft": PromptActionSpec(
+        action_id="prompt_save_draft",
+        label="Save Draft",
+        description="Save the edited prompt draft and record prompt history.",
+        success_next_step="Review the active-vs-draft diff, then activate when validation passes.",
+    ),
+    "prompt_activate": PromptActionSpec(
+        action_id="prompt_activate",
+        label="Activate Draft",
+        description="Validate and activate a prompt draft as the next version.",
+        requires_confirmation=True,
+        success_next_step="Refresh schedules and run history before the next scheduled execution.",
     ),
 }
 
@@ -210,6 +245,10 @@ def init_confirmation_token(ops_dir: Path, template: str) -> str:
 
 def decision_confirmation_token(action_id: str) -> str:
     return f"decision:{action_id}"
+
+
+def prompt_confirmation_token(action_id: str, prompt_id: str) -> str:
+    return f"prompt:{action_id}:{prompt_id}"
 
 
 def action_command(spec: ActionSpec, ops_dir: Path) -> list[str]:
@@ -389,6 +428,42 @@ def decision_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
     ]
 
 
+def prompt_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "prompts_init",
+            "label": PROMPT_ACTION_SPECS["prompts_init"].label,
+            "description": PROMPT_ACTION_SPECS["prompts_init"].description,
+            "command_template": command_string(["prompts", "init", str(ops_dir)]),
+            "mutates": True,
+            "requires_confirmation": False,
+            "status": "available" if ops_dir.exists() else "blocked_missing_workspace",
+        },
+        {
+            "id": "prompt_save_draft",
+            "label": PROMPT_ACTION_SPECS["prompt_save_draft"].label,
+            "description": PROMPT_ACTION_SPECS["prompt_save_draft"].description,
+            "command_template": command_string(
+                ["prompts", "draft", str(ops_dir), "<prompt_id>", "--content-file", "<dashboard-payload>", "--message", "<reason>"]
+            ),
+            "mutates": True,
+            "requires_confirmation": False,
+            "requires_prompt": True,
+            "status": "available",
+        },
+        {
+            "id": "prompt_activate",
+            "label": PROMPT_ACTION_SPECS["prompt_activate"].label,
+            "description": PROMPT_ACTION_SPECS["prompt_activate"].description,
+            "command_template": command_string(["prompts", "activate", str(ops_dir), "<prompt_id>", "--message", "<reason>"]),
+            "mutates": True,
+            "requires_confirmation": True,
+            "requires_prompt": True,
+            "status": "available",
+        },
+    ]
+
+
 def init_spec(template: str) -> ActionSpec:
     command = ("init", "{ops_dir}") if template == "generic" else ("init", "{ops_dir}", "--template", template)
     return ActionSpec(
@@ -446,6 +521,7 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
         "actions": actions,
         "task_actions": task_action_catalog(),
         "decision_actions": decision_action_catalog(ops_dir),
+        "prompt_actions": prompt_action_catalog(ops_dir),
     }
 
 
@@ -659,6 +735,135 @@ def decision_audit(spec: DecisionActionSpec, ops_dir: Path, task_dir: Path) -> d
     }
 
 
+def prompt_result(
+    spec: PromptActionSpec,
+    command: list[str],
+    code: int,
+    payload: dict[str, Any],
+    started_at: str,
+    elapsed_ms: int,
+) -> dict[str, Any]:
+    ok = bool(payload.get("ok"))
+    stdout = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    return {
+        "ok": ok,
+        "status": exit_status(code, (0,)),
+        "action": spec.action_id,
+        "label": spec.label,
+        "mutates": spec.mutates,
+        "command": command_string(command),
+        "argv": ["async-research", *command],
+        "exit_code": code,
+        "stdout": stdout,
+        "stderr": "",
+        "parsed_stdout": payload,
+        "started_at": started_at,
+        "finished_at": utc_timestamp(),
+        "elapsed_ms": elapsed_ms,
+        "next_step": spec.success_next_step if ok else payload.get("message") or spec.recovery_advice,
+        "read_only": bool(payload.get("read_only", False)),
+        "changed": bool(payload.get("changed", False)),
+    }
+
+
+def clean_prompt_fields(request: dict[str, Any]) -> tuple[str, str, str]:
+    prompt_id = clean_required_text(request, "prompt_id")
+    reason = clean_required_text(request, "reason") or clean_required_text(request, "message")
+    author = clean_required_text(request, "author") or clean_required_text(request, "approver") or "human"
+    return prompt_id, reason, author
+
+
+def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if not ops_dir.is_dir():
+        return 409, {
+            "ok": False,
+            "reason": "ops_dir_missing",
+            "message": "Initialize research_ops before running prompt library actions.",
+            "read_only": True,
+            "changed": False,
+        }
+
+    started_at = utc_timestamp()
+    start = time.monotonic()
+    if spec.action_id == "prompts_init":
+        command = ["prompts", "init", str(ops_dir)]
+        code, payload = prompt_library.init_library(ops_dir)
+    elif spec.action_id == "prompt_save_draft":
+        prompt_id, reason, author = clean_prompt_fields(request)
+        content = request.get("content")
+        if not prompt_id or not reason or not isinstance(content, str):
+            return 400, {
+                "ok": False,
+                "reason": "prompt_draft_fields_required",
+                "message": "Saving a prompt draft requires prompt_id, content, and reason.",
+                "read_only": True,
+                "changed": False,
+            }
+        command = [
+            "prompts",
+            "draft",
+            str(ops_dir),
+            prompt_id,
+            "--content-file",
+            "<dashboard-payload>",
+            "--message",
+            reason,
+            "--author",
+            author,
+        ]
+        code, payload = prompt_library.save_draft(ops_dir, prompt_id, content, reason=reason, author=author)
+    elif spec.action_id == "prompt_activate":
+        prompt_id, reason, author = clean_prompt_fields(request)
+        allow_invalid = bool(request.get("allow_invalid"))
+        if not prompt_id or not reason:
+            return 400, {
+                "ok": False,
+                "reason": "prompt_activation_fields_required",
+                "message": "Activating a prompt draft requires prompt_id and reason.",
+                "read_only": True,
+                "changed": False,
+            }
+        command = [
+            "prompts",
+            "activate",
+            str(ops_dir),
+            prompt_id,
+            "--message",
+            reason,
+            "--author",
+            author,
+        ] + (["--allow-invalid"] if allow_invalid else [])
+        token = prompt_confirmation_token(spec.action_id, prompt_id)
+        if request.get("confirm") != token:
+            return 409, {
+                "ok": False,
+                "reason": "confirmation_required",
+                "message": "Confirm the prompt activation before writing the active prompt version.",
+                "confirmation_token": token,
+                "command": command_string(command),
+                "read_only": True,
+                "changed": False,
+            }
+        code, payload = prompt_library.activate_prompt(
+            ops_dir,
+            prompt_id,
+            reason=reason,
+            author=author,
+            allow_invalid=allow_invalid,
+        )
+    else:
+        return 404, {
+            "ok": False,
+            "reason": "unknown_prompt_action",
+            "message": f"Unknown prompt action: {spec.action_id}",
+            "read_only": True,
+            "changed": False,
+        }
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    status = 200 if code == 0 else (409 if code in {2, 3, 4} else 200)
+    return status, prompt_result(spec, command, code, payload, started_at, elapsed_ms)
+
+
 def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     task_dir, error = resolve_task_dir(ops_dir, request)
     if error is not None or task_dir is None:
@@ -738,6 +943,9 @@ def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = N
     task_spec = TASK_ACTION_SPECS.get(action_id)
     if task_spec is not None:
         return run_task_action(task_spec, ops_dir, request)
+    prompt_spec = PROMPT_ACTION_SPECS.get(action_id)
+    if prompt_spec is not None:
+        return run_prompt_action(prompt_spec, ops_dir, request)
     decision_spec = DECISION_ACTION_SPECS.get(action_id)
     if decision_spec is not None:
         return run_decision_action(decision_spec, ops_dir, request)

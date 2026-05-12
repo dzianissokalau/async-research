@@ -116,8 +116,13 @@ class PackagedResourceTests(unittest.TestCase):
 
         self.assertIn('id="rejected-ledger"', html)
         self.assertIn('id="rejected-ledger-total"', html)
+        self.assertIn('id="prompts"', html)
+        self.assertIn('"prompt-editor"', app)
         self.assertIn("function renderRejectedLedger", app)
+        self.assertIn("function renderPrompts", app)
+        self.assertIn("function runPromptActivate", app)
         self.assertIn("snapshot.rejected_results", app)
+        self.assertIn("snapshot.prompts", app)
         self.assertIn('renderList("rejected-ledger"', app)
         self.assertIn('value.join(", ")', app)
 
