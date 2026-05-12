@@ -166,6 +166,29 @@ Then decide:
 Do not run destructive git cleanup commands until the patch or branch is saved
 and the owner has decided what should be discarded.
 
+Schedule `trigger-now` runs also use runtime locks under
+`research_ops/run_artifacts/.locks/<concurrency-key>`. These are separate from
+task-local `LOCK/` directories. A new trigger automatically renames an orphaned
+runtime lock aside once the recorded lock age is greater than the job timeout
+plus a five-minute grace period, then retries lock acquisition.
+
+If a fresh runtime lock keeps blocking and you believe the launcher died, inspect
+the lock and run artifacts before moving anything:
+
+```bash
+cat research_ops/run_artifacts/.locks/worker/lock.json
+ls -la research_ops/run_artifacts
+async-research schedules trigger-dry-run research_ops worker-loop
+```
+
+Only after confirming no matching process or active run is alive, preserve the
+lock metadata by moving the directory aside rather than deleting it:
+
+```bash
+mv research_ops/run_artifacts/.locks/worker \
+  research_ops/run_artifacts/.locks/worker.stale.<timestamp>.manual
+```
+
 ## Resolve `needs_human`
 
 Never move a task out of `needs_human` by editing `status.json` directly. Use:

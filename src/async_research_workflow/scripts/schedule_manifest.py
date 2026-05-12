@@ -28,6 +28,7 @@ RUN_SCHEMA_VERSION = "1.0"
 STATUS_CHOICES = ("enabled", "disabled")
 DEFAULT_DISABLED_REASON = "schedule intent only; trigger/install arrives in later slices"
 TRIGGER_RUNNER_ENV = "ASYNC_RESEARCH_TRIGGER_COMMAND"
+RUN_LOCK_STALE_GRACE_SECONDS = 300
 ACTIVE_RUN_STATUSES = {"queued", "starting", "running", "in_progress"}
 TERMINAL_RUN_STATUSES = {
     "accepted",
@@ -946,24 +947,84 @@ def run_lock_path(ops_dir: Path, concurrency_key: str) -> Path:
     return ops_dir / "run_artifacts" / ".locks" / safe_slug(concurrency_key)
 
 
-def acquire_run_lock(lock_path: Path, run_id: str, now: str) -> tuple[bool, dict[str, Any]]:
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+def read_run_lock_payload(lock_path: Path) -> dict[str, Any]:
+    payload: dict[str, Any] = {"path": str(lock_path), "run_id": "unknown"}
+    lock_json = lock_path / "lock.json"
+    if lock_json.exists():
+        try:
+            parsed = json.loads(lock_json.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                payload.update(parsed)
+        except (OSError, json.JSONDecodeError):
+            payload["warning"] = "lock metadata could not be read"
+    return payload
+
+
+def run_lock_age_seconds(lock_path: Path, payload: dict[str, Any] | None = None) -> float | None:
+    payload = payload or {}
+    created_at = normalize_text(payload.get("created_at"))
+    if created_at:
+        try:
+            return max(0.0, (datetime.now(timezone.utc) - parse_time(created_at)).total_seconds())
+        except ValueError:
+            pass
     try:
-        lock_path.mkdir()
-    except FileExistsError:
-        payload: dict[str, Any] = {"path": str(lock_path), "run_id": "unknown"}
-        lock_json = lock_path / "lock.json"
-        if lock_json.exists():
-            try:
-                parsed = json.loads(lock_json.read_text(encoding="utf-8"))
-                if isinstance(parsed, dict):
-                    payload.update(parsed)
-            except (OSError, json.JSONDecodeError):
-                payload["warning"] = "lock metadata could not be read"
-        return False, payload
-    metadata = {"path": str(lock_path), "run_id": run_id, "created_at": now}
-    atomic_write_json(lock_path / "lock.json", metadata)
-    return True, metadata
+        return max(0.0, datetime.now(timezone.utc).timestamp() - lock_path.stat().st_mtime)
+    except FileNotFoundError:
+        return None
+
+
+def stale_run_lock_path(lock_path: Path) -> Path:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    return lock_path.with_name(f"{lock_path.name}.stale.{stamp}.{os.getpid()}")
+
+
+def rename_stale_run_lock(lock_path: Path) -> tuple[str, Path | None]:
+    stale_path = stale_run_lock_path(lock_path)
+    try:
+        os.rename(lock_path, stale_path)
+    except FileNotFoundError:
+        return "missing", None
+    except OSError:
+        return "failed", None
+    return "renamed", stale_path
+
+
+def acquire_run_lock(lock_path: Path, run_id: str, now: str, stale_after_seconds: int) -> tuple[bool, dict[str, Any]]:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    recovered_locks: list[dict[str, Any]] = []
+    while True:
+        try:
+            lock_path.mkdir()
+        except FileExistsError:
+            payload = read_run_lock_payload(lock_path)
+            age_seconds = run_lock_age_seconds(lock_path, payload)
+            payload["age_seconds"] = age_seconds
+            payload["stale_after_seconds"] = stale_after_seconds
+            if age_seconds is None or age_seconds <= stale_after_seconds:
+                payload["stale"] = False
+                return False, payload
+            rename_status, stale_path = rename_stale_run_lock(lock_path)
+            if rename_status == "missing":
+                continue
+            if stale_path is None:
+                payload["stale"] = True
+                payload["stale_recovery_failed"] = True
+                return False, payload
+            payload["stale"] = True
+            payload["stale_path"] = str(stale_path)
+            recovered_locks.append(payload)
+            continue
+        metadata: dict[str, Any] = {
+            "path": str(lock_path),
+            "run_id": run_id,
+            "created_at": now,
+            "stale_after_seconds": stale_after_seconds,
+        }
+        if recovered_locks:
+            metadata["recovered_stale_locks"] = recovered_locks
+        atomic_write_json(lock_path / "lock.json", metadata)
+        return True, metadata
 
 
 def release_run_lock(lock_path: Path) -> None:
@@ -1195,9 +1256,15 @@ def trigger_now(
     job = dry_payload["job"]
     execution = dry_payload["planned_execution"]
     started_at = isoformat_z(parse_time(now))
+    max_runtime_seconds = int(timeout_seconds if timeout_seconds is not None else max(1, normalize_int(job.get("max_runtime_minutes"), 1)) * 60)
     concurrency_key = normalize_text(job.get("concurrency_key"))
     lock_path = run_lock_path(ops_dir, concurrency_key)
-    lock_acquired, lock_payload = acquire_run_lock(lock_path, run_id, started_at)
+    lock_acquired, lock_payload = acquire_run_lock(
+        lock_path,
+        run_id,
+        utc_now(),
+        max_runtime_seconds + RUN_LOCK_STALE_GRACE_SECONDS,
+    )
     if not lock_acquired:
         return VALIDATION_FAILED, {
             "ok": False,
@@ -1208,6 +1275,7 @@ def trigger_now(
             "run_id": run_id,
             "blocked": True,
             "blockers": [blocker("concurrency_lock_active", "Another trigger-now run holds the concurrency lock.", lock_payload)],
+            "lock": lock_payload,
             "changed": False,
             "read_only": True,
         }
@@ -1226,7 +1294,6 @@ def trigger_now(
             }
         run_dir.mkdir(parents=True)
         command = runner_command(dry_payload["planned_command_argv"], runner_argv)
-        max_runtime_seconds = int(timeout_seconds if timeout_seconds is not None else max(1, normalize_int(job.get("max_runtime_minutes"), 1)) * 60)
         run_payload: dict[str, Any] = {
             "schema_version": RUN_SCHEMA_VERSION,
             "run_id": run_id,
@@ -1247,6 +1314,7 @@ def trigger_now(
             "concurrency_limit": normalize_int(job.get("concurrency_limit"), 1),
             "exit_code": None,
             "readiness": dry_payload["readiness"],
+            "lock": lock_payload,
             "artifacts": {
                 "run_json": str(run_dir / "run.json"),
                 "events_jsonl": str(run_dir / "events.jsonl"),
@@ -1306,6 +1374,7 @@ def trigger_now(
             "command": command_string(command),
             "argv": command,
             "run": run_payload,
+            "lock": lock_payload,
             "artifacts": run_payload["artifacts"],
             "usage_ingestion": usage,
             "stdout_tail": tail_text(run_dir / "stdout.log"),

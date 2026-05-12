@@ -474,6 +474,92 @@ class ScheduleManifestTests(unittest.TestCase):
             self.assertFalse((ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop").exists())
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_trigger_now_blocks_fresh_runtime_lock_without_new_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = init_ops(root)
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="execute worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            lock_dir = schedule_manifest.run_lock_path(ops_dir, "worker")
+            lock_dir.mkdir(parents=True)
+            schedule_manifest.atomic_write_json(
+                lock_dir / "lock.json",
+                {
+                    "path": str(lock_dir),
+                    "run_id": "local-active",
+                    "created_at": schedule_manifest.utc_now(),
+                },
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = schedule_manifest.trigger_now(
+                ops_dir,
+                "worker-loop",
+                now=NOW,
+                runner_argv=[sys.executable, "-c", "print('should not run')"],
+                timeout_seconds=5,
+            )
+
+            self.assertEqual(schedule_manifest.VALIDATION_FAILED, code, payload)
+            self.assertEqual("concurrency_lock_active", payload["reason"])
+            self.assertFalse(payload["lock"]["stale"])
+            self.assertIn("concurrency_lock_active", [item["check"] for item in payload["blockers"]])
+            self.assertFalse((ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop").exists())
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_trigger_now_recovers_stale_runtime_lock_and_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = init_ops(root)
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="execute worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            lock_dir = schedule_manifest.run_lock_path(ops_dir, "worker")
+            lock_dir.mkdir(parents=True)
+            schedule_manifest.atomic_write_json(
+                lock_dir / "lock.json",
+                {
+                    "path": str(lock_dir),
+                    "run_id": "local-orphaned",
+                    "created_at": "2000-01-01T00:00:00Z",
+                },
+            )
+            runner = write_runner_script(root, "print('worker recovered', flush=True)")
+
+            code, payload = schedule_manifest.trigger_now(
+                ops_dir,
+                "worker-loop",
+                now=NOW,
+                runner_argv=[sys.executable, str(runner)],
+                timeout_seconds=5,
+            )
+
+            self.assertEqual(schedule_manifest.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"], payload)
+            self.assertEqual("completed", payload["status"])
+            self.assertIn("recovered_stale_locks", payload["lock"])
+            self.assertTrue(payload["lock"]["recovered_stale_locks"][0]["stale"])
+            self.assertEqual("local-orphaned", payload["lock"]["recovered_stale_locks"][0]["run_id"])
+            self.assertFalse(lock_dir.exists())
+            self.assertTrue(any(path.name.startswith("worker.stale.") for path in lock_dir.parent.iterdir()))
+            run_dir = ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop"
+            self.assertIn("worker recovered", (run_dir / "final_message.md").read_text(encoding="utf-8"))
+
     def test_public_schedule_cli_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
