@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Delivered Projects Summary",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "outcomes_dir",
+    "project_count",
+    "accepted_count",
+    "synthesized_count",
+    "rejected_count",
+    "paused_count",
+    "acceptance_rate",
+    "average_iterations",
+    "total_actual_cost_usd",
+    "revalidation_counts",
+    "claim_strength_counts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "delivered_projects_summary_v1.0"
+      ]
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "outcomes_dir": {
+      "type": "string"
+    },
+    "project_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "accepted_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "synthesized_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejected_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "paused_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "acceptance_rate": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "average_iterations": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "total_actual_cost_usd": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "revalidation_counts": {
+      "type": "object"
+    },
+    "claim_strength_counts": {
+      "type": "object"
+    }
+  }
+}

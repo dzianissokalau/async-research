@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from async_research_workflow.console import outcomes
 from async_research_workflow.idea_catalog import catalog_dashboard_report
 from async_research_workflow.scripts import analysis_surface
 from async_research_workflow.scripts import autonomy_readiness_gate
@@ -492,6 +493,25 @@ def accepted_outputs_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[
     }, warnings
 
 
+def delivered_projects_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    index = outcomes.build_index(ops_dir, now=now)
+    rows = index["projects"]
+    generated_paths = index["paths"]
+    return {
+        "available": True,
+        "status": "available",
+        "path": generated_paths["projects_jsonl"],
+        "summary_path": generated_paths["summary_json"],
+        "exists": Path(generated_paths["projects_jsonl"]).exists(),
+        "summary_exists": Path(generated_paths["summary_json"]).exists(),
+        "count": len(rows),
+        "status_filter_options": ["all", *sorted({str(row.get("delivered_status") or "unavailable") for row in rows})],
+        "rows": rows,
+        "summary": index["summary"],
+        "warnings": [],
+    }
+
+
 def rejected_results_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return recent_markdown_rows(ops_dir / "rejected_results.md")
 
@@ -659,6 +679,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     health = health_snapshot(ops_dir, current)
     human_decisions, human_decision_warnings = human_decisions_snapshot(ops_dir, tasks["human"])
     accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir)
+    delivered_projects = delivered_projects_snapshot(ops_dir, current)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current)
     dashboards = dashboard_summaries(ops_dir, current) if workspace_ready else {
@@ -689,6 +710,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "tasks": tasks,
         "human_decisions": human_decisions,
         "accepted_outputs": accepted_outputs,
+        "delivered_projects": delivered_projects,
         "rejected_results": rejected_results,
         "cost": cost,
         "ideas": dashboards["ideas"],

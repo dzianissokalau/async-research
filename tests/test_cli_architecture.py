@@ -51,6 +51,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_batch_commands",
                 "register_metrics_commands",
                 "register_accepted_commands",
+                "register_outcomes_commands",
                 "register_anti_context_commands",
                 "register_review_commands",
                 "register_revision_commands",
@@ -88,6 +89,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "batch",
                 "metrics",
                 "accepted",
+                "outcomes",
                 "anti-context",
                 "review",
                 "revision",
@@ -242,6 +244,7 @@ class CliArchitectureTests(unittest.TestCase):
         batch_choices = subparser_choices(choices["batch"])
         metrics_choices = subparser_choices(choices["metrics"])
         accepted_choices = subparser_choices(choices["accepted"])
+        outcomes_choices = subparser_choices(choices["outcomes"])
         anti_context_choices = subparser_choices(choices["anti-context"])
         review_choices = subparser_choices(choices["review"])
         revision_choices = subparser_choices(choices["revision"])
@@ -261,6 +264,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["append", "summarize", "operational"], list(metrics_choices))
         self.assertNotIn("init", metrics_choices)
         self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
+        self.assertEqual(["refresh", "list", "summary"], list(outcomes_choices))
         self.assertEqual(["build"], list(anti_context_choices))
         self.assertEqual(["draft", "submit", "prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))

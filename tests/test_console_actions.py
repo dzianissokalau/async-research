@@ -70,6 +70,9 @@ class ConsoleActionTests(unittest.TestCase):
         task_actions = {item["id"]: item for item in catalog["task_actions"]}
         self.assertIn("task_status_validate", task_actions)
         self.assertIn("python -m async_research_workflow.scripts.validate_transition", task_actions["task_transition_validate"]["command_template"])
+        self.assertIn("outcomes_refresh", by_id)
+        self.assertTrue(by_id["outcomes_refresh"]["mutates"])
+        self.assertIn("async-research outcomes refresh", by_id["outcomes_refresh"]["command"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -305,6 +308,30 @@ class ConsoleActionTests(unittest.TestCase):
 
             self.assertEqual(400, status)
             self.assertEqual("task_missing", result["reason"])
+
+    def test_outcomes_refresh_action_writes_generated_index_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+
+            status, result = actions.run_action("outcomes_refresh", ops_dir, {})
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["changed"])
+            self.assertTrue(result["mutates"])
+            self.assertEqual(0, result["exit_code"])
+            self.assertIn("async-research outcomes refresh", result["command"])
+            self.assertTrue((ops_dir / "outcomes" / "delivered_projects.jsonl").exists())
+            self.assertTrue((ops_dir / "outcomes" / "delivered_projects_summary.json").exists())
 
 
 if __name__ == "__main__":

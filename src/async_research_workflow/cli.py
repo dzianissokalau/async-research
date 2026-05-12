@@ -629,6 +629,15 @@ def run_accepted_check_memory_use_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_outcomes_command(args: argparse.Namespace) -> int:
+    from async_research_workflow.console import outcomes
+
+    command_args = [args.outcomes_command, str(args.ops_dir)] + optional_text("--now", args.now)
+    if args.outcomes_command == "list":
+        command_args.extend(["--status", args.status])
+    return outcomes.main(command_args)
+
+
 def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
     return module_main(
         "queue_capacity",
@@ -1095,8 +1104,8 @@ def register_console_commands(subparsers) -> None:
             "Examples:\n"
             "  async-research console research_ops\n"
             "  async-research console snapshot research_ops --json\n\n"
-            "Slice 4 serves static assets, GET /api/snapshot, GET /api/actions, and guarded POST /api/actions/run.\n"
-            "Dashboard mutations are limited to explicit init and surface update actions; task validation and lock actions are read-only.\n\n"
+            "Slice 5 serves static assets, GET /api/snapshot, GET /api/actions, and guarded POST /api/actions/run.\n"
+            "Dashboard mutations are limited to explicit init, surface update, and outcomes refresh actions; task validation and lock actions are read-only.\n\n"
             "Exit codes:\n"
             "  console: 0 when the server stops cleanly; 3 for invalid console arguments.\n"
             "  console snapshot: 0 when the snapshot is rendered; 3 for invalid request flags."
@@ -1700,6 +1709,44 @@ def register_accepted_commands(subparsers) -> None:
     accepted_reval.set_defaults(func=lambda a: module_main("update_accepted_outputs_index", ["revalidation-report", str(a.ops_dir)] + (["--write-schedule"] if a.write_schedule else [])))
 
 
+def register_outcomes_commands(subparsers) -> None:
+    outcomes = add_command(
+        subparsers,
+        "outcomes",
+        help="Build delivered-project outcome indexes.",
+        description="Refresh and inspect rebuildable delivered-project indexes from accepted outputs and task provenance.",
+    )
+    outcomes_sub = outcomes.add_subparsers(dest="outcomes_command", required=True)
+    refresh = add_command(
+        outcomes_sub,
+        "refresh",
+        help="Refresh generated delivered-project outcome files.",
+        description="Write research_ops/outcomes/delivered_projects.jsonl and delivered_projects_summary.json from source artifacts.",
+    )
+    add_required_ops(refresh)
+    refresh.add_argument("--now", help="Override current time for deterministic freshness checks.")
+    refresh.set_defaults(func=run_outcomes_command)
+    list_cmd = add_command(
+        outcomes_sub,
+        "list",
+        help="List delivered projects.",
+        description="List delivered projects from accepted_outputs_index.md plus related task, review, idea, cost, and provenance files.",
+    )
+    add_required_ops(list_cmd)
+    list_cmd.add_argument("--status", choices=["all", "accepted", "synthesized", "rejected", "paused"], default="accepted", help="Delivered status filter.")
+    list_cmd.add_argument("--now", help="Override current time for deterministic freshness checks.")
+    list_cmd.set_defaults(func=run_outcomes_command)
+    summary = add_command(
+        outcomes_sub,
+        "summary",
+        help="Summarize delivered-project outcomes.",
+        description="Print acceptance rate, average iterations, cost, claim-strength counts, and revalidation counts.",
+    )
+    add_required_ops(summary)
+    summary.add_argument("--now", help="Override current time for deterministic freshness checks.")
+    summary.set_defaults(func=run_outcomes_command)
+
+
 def register_anti_context_commands(subparsers) -> None:
     anti_context = add_command(
         subparsers,
@@ -2205,6 +2252,7 @@ COMMAND_REGISTRARS = (
     register_batch_commands,
     register_metrics_commands,
     register_accepted_commands,
+    register_outcomes_commands,
     register_anti_context_commands,
     register_review_commands,
     register_revision_commands,

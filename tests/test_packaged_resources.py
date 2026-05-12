@@ -66,6 +66,8 @@ class PackagedResourceTests(unittest.TestCase):
             ("schemas", "analysis_diagnostics.schema.json"),
             ("schemas", "analysis_robustness_checks.schema.json"),
             ("schemas", "analysis_claim_gates.schema.json"),
+            ("schemas", "delivered_project.schema.json"),
+            ("schemas", "delivered_projects_summary.schema.json"),
             ("benchmarks", "autonomy_benchmark_cases.json"),
             ("console", "static", "index.html"),
             ("console", "static", "styles.css"),

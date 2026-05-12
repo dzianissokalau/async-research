@@ -74,16 +74,13 @@
         <section id="outcomes" class="section-band">
           <div class="section-heading">
             <h2>Outcomes</h2>
+            <span id="outcome-total" class="section-count">0</span>
           </div>
-          <div class="split-grid">
-            <div>
-              <h3>Accepted</h3>
-              <div id="accepted-outputs" class="record-list"></div>
-            </div>
-            <div>
-              <h3>Rejected</h3>
-              <div id="rejected-results" class="record-list"></div>
-            </div>
+          <div id="outcome-summary" class="outcome-summary"></div>
+          <div id="outcome-filters" class="filter-row" aria-label="Delivered project status filters"></div>
+          <div class="outcome-layout">
+            <div id="delivered-projects" class="outcome-table-wrap"></div>
+            <div id="outcome-detail" class="task-detail"></div>
           </div>
         </section>
 

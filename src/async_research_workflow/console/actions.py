@@ -84,6 +84,15 @@ ACTION_SPECS: dict[str, ActionSpec] = {
         recovery_advice="Run surface update when surfaces drift; repair malformed workspace state if validation cannot read files.",
         success_next_step="Refresh the dashboard snapshot.",
     ),
+    "outcomes_refresh": ActionSpec(
+        action_id="outcomes_refresh",
+        label="Refresh Outcomes",
+        description="Rebuild delivered-project outcome JSONL and summary files from accepted outputs and task provenance.",
+        command=("outcomes", "refresh", "{ops_dir}"),
+        mutates=True,
+        recovery_advice="Repair malformed accepted outputs, task status, review, idea, or cost files, then rerun outcomes refresh.",
+        success_next_step="Refresh the delivered projects table.",
+    ),
 }
 
 

@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 5
-Last updated: 2026-05-11
-Next action: Implement Slice 5 Delivered Projects Index
+Current phase: Slice 6
+Last updated: 2026-05-12
+Next action: Implement Slice 6 Human Decision Actions
 Blocked by: None
 
 Created: 2026-05-05
@@ -143,7 +143,7 @@ they are rebuildable from source artifacts.
 
 ## Progress
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
 | Phase | Description | Status |
 | ---: | --- | --- |
@@ -151,7 +151,7 @@ Last updated: 2026-05-11
 | Slice 2 | Serve the local dashboard shell with static assets, left navigation, manual refresh, and read-only `GET /api/snapshot` as the only API endpoint. | Complete |
 | Slice 3 | Add guarded setup and health actions for init, schema check, readiness dry run, health dry run, surface update, surface validate, and command-result inspection. | Complete |
 | Slice 4 | Add the read-mostly task board with status filters, task detail inspection, status validation, transition validation, and lock inspection. | Complete |
-| Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Pending |
+| Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Complete |
 | Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Pending |
 | Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Pending |
 | Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Pending |

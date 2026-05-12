@@ -23,6 +23,7 @@ SNAPSHOT_GROUPS = {
     "tasks",
     "human_decisions",
     "accepted_outputs",
+    "delivered_projects",
     "rejected_results",
     "cost",
     "ideas",
@@ -363,6 +364,32 @@ class ConsoleSnapshotTests(unittest.TestCase):
 
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertTrue(any(item["reason"] == "malformed_markdown_table_row" for item in payload["warnings"]))
+
+    def test_snapshot_includes_delivered_projects_from_accepted_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(ops_dir, "TASK-4001", status="accepted")
+            (ops_dir / "accepted_outputs_index.md").write_text(
+                "\n".join(
+                    [
+                        "| accepted_date | task_id | title | key_finding | claim_type | freshness_window_days | next_recheck_date | revalidation_status | source_ids | claim_strength | caveats | followups | supersedes | superseded_by | evidence_link |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        f"| 2026-05-10 | TASK-4001 | Delivered fixture | Finding | general | 90 | 2026-08-08 | current | none | weak | none | none | none | none | tasks/{task_dir.name}/worker_output.md |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            delivered = payload["delivered_projects"]
+            self.assertEqual(1, delivered["count"])
+            self.assertFalse(delivered["exists"])
+            self.assertEqual(["all", "accepted"], delivered["status_filter_options"])
+            self.assertEqual("TASK-4001", delivered["rows"][0]["task_id"])
+            self.assertEqual(1, delivered["summary"]["revalidation_counts"]["current"])
 
     def test_snapshot_surfaces_broken_run_json_without_dropping_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

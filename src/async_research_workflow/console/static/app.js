@@ -6,6 +6,8 @@ const state = {
   runningAction: null,
   taskFilter: "all",
   selectedTaskId: null,
+  outcomeFilter: "all",
+  selectedProjectId: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -83,6 +85,7 @@ function renderMetrics(snapshot) {
   const tasks = snapshot.tasks || {};
   const decisions = snapshot.human_decisions || {};
   const accepted = snapshot.accepted_outputs || {};
+  const delivered = snapshot.delivered_projects || {};
   const rejected = snapshot.rejected_results || {};
   const cost = snapshot.cost || {};
   const readiness = snapshot.readiness || {};
@@ -94,7 +97,7 @@ function renderMetrics(snapshot) {
     metric("Health", statusLabel(health.verdict || health.status), health.next_step),
     metric("Active tasks", (tasks.active || []).length, `${asNumber(tasks.total)} total tasks`),
     metric("Blocked tasks", (tasks.blocked || []).length, `${asNumber(decisions.open_count)} human decisions`),
-    metric("Accepted outputs", asNumber(accepted.count), "delivered memory rows"),
+    metric("Delivered projects", asNumber((delivered.summary || {}).project_count || accepted.count), `${asNumber((delivered.summary || {}).accepted_count)} accepted outputs`),
     metric("Rejected results", asNumber(rejected.count), "recent rejected ledger rows"),
     metric("Cost this month", money(cost.month_spend_usd), `this week ${money(cost.week_spend_usd)}`),
     metric("Warnings", warnings.length, `${(tasks.stale_locks || []).length} stale locks`)
@@ -234,6 +237,19 @@ function detailPathLink(file) {
   return link;
 }
 
+function projectStatusClass(project) {
+  if (project.delivered_status === "accepted" || project.delivered_status === "synthesized") {
+    return "badge good";
+  }
+  if (project.delivered_status === "paused") {
+    return "badge warn";
+  }
+  if (project.delivered_status === "rejected") {
+    return "badge bad";
+  }
+  return "badge neutral";
+}
+
 function taskActionButton(action, task) {
   const button = document.createElement("button");
   button.className = "button";
@@ -315,22 +331,160 @@ function renderDecisions(snapshot) {
 }
 
 function renderOutcomes(snapshot) {
-  const accepted = (snapshot.accepted_outputs || {}).recent_rows || [];
-  const rejected = (snapshot.rejected_results || {}).recent_rows || [];
-  renderList("accepted-outputs", accepted, "No accepted outputs.", (row) =>
-    record(
-      `${valueOrUnavailable(row.task_id)} - ${valueOrUnavailable(row.title)}`,
-      valueOrUnavailable(row.key_finding || row.claim_type),
-      valueOrUnavailable(row.evidence_link)
-    )
+  const delivered = snapshot.delivered_projects || {};
+  const rows = delivered.rows || [];
+  const summary = delivered.summary || {};
+  el("outcome-total").textContent = asNumber(delivered.count || rows.length);
+  el("outcome-summary").replaceChildren(
+    metric("Accepted", asNumber(summary.accepted_count), `rate ${valueOrUnavailable(summary.acceptance_rate)}`),
+    metric("Synthesized", asNumber(summary.synthesized_count), `${asNumber(summary.rejected_count)} rejected`),
+    metric("Avg Iterations", valueOrUnavailable(summary.average_iterations), `${valueOrUnavailable(summary.total_actual_cost_usd)} actual cost`),
+    metric("Revalidation", revalidationSummary(summary.revalidation_counts), "current / due / stale")
   );
-  renderList("rejected-results", rejected, "No rejected results.", (row) =>
-    record(
-      `${valueOrUnavailable(row.task_id)} - ${valueOrUnavailable(row.route)}`,
-      valueOrUnavailable(row.reason),
-      valueOrUnavailable(row.evidence_link)
-    )
+  renderOutcomeFilters(delivered, rows);
+  if (rows.length > 0 && !rows.some((project) => project.project_id === state.selectedProjectId)) {
+    state.selectedProjectId = rows[0].project_id;
+  }
+  const visible = filteredProjects(rows);
+  if (visible.length > 0 && !visible.some((project) => project.project_id === state.selectedProjectId)) {
+    state.selectedProjectId = visible[0].project_id;
+  }
+  renderProjectTable(visible);
+  renderProjectDetail(visible);
+}
+
+function revalidationSummary(counts) {
+  const data = counts || {};
+  return `${asNumber(data.current)} / ${asNumber(data.due)} / ${asNumber(data.stale)}`;
+}
+
+function renderOutcomeFilters(delivered, rows) {
+  const filters = delivered.status_filter_options || ["all"];
+  const counts = rows.reduce((acc, project) => {
+    const status = project.delivered_status || "unknown";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, { all: rows.length });
+  if (!filters.includes(state.outcomeFilter)) {
+    state.outcomeFilter = "all";
+  }
+  const buttons = filters.map((filter) => {
+    const button = document.createElement("button");
+    button.className = filter === state.outcomeFilter ? "filter-chip active" : "filter-chip";
+    button.type = "button";
+    button.textContent = `${statusLabel(filter)} ${counts[filter] || 0}`;
+    button.addEventListener("click", () => {
+      state.outcomeFilter = filter;
+      renderOutcomes(state.snapshot || {});
+    });
+    return button;
+  });
+  el("outcome-filters").replaceChildren(...buttons);
+}
+
+function filteredProjects(rows) {
+  if (state.outcomeFilter === "all") {
+    return rows;
+  }
+  return rows.filter((project) => project.delivered_status === state.outcomeFilter);
+}
+
+function renderProjectTable(rows) {
+  const target = el("delivered-projects");
+  if (!rows.length) {
+    target.replaceChildren(empty("No delivered projects match this filter."));
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "outcome-table";
+  const thead = document.createElement("thead");
+  const header = document.createElement("tr");
+  for (const label of ["Project", "Status", "Accepted", "Claim", "Review", "Cost"]) {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    header.append(cell);
+  }
+  thead.append(header);
+  const tbody = document.createElement("tbody");
+  for (const project of rows) {
+    tbody.append(projectTableRow(project));
+  }
+  table.append(thead, tbody);
+  target.replaceChildren(table);
+}
+
+function projectTableRow(project) {
+  const row = document.createElement("tr");
+  row.className = project.project_id === state.selectedProjectId ? "selected" : "";
+  row.tabIndex = 0;
+  row.addEventListener("click", () => {
+    state.selectedProjectId = project.project_id;
+    renderOutcomes(state.snapshot || {});
+  });
+  row.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      state.selectedProjectId = project.project_id;
+      renderOutcomes(state.snapshot || {});
+    }
+  });
+  const projectCell = document.createElement("td");
+  projectCell.textContent = `${valueOrUnavailable(project.task_id)} - ${valueOrUnavailable(project.title)}`;
+  const statusCell = document.createElement("td");
+  const badge = document.createElement("span");
+  badge.className = projectStatusClass(project);
+  badge.textContent = statusLabel(project.delivered_status);
+  statusCell.append(badge);
+  const acceptedCell = document.createElement("td");
+  acceptedCell.textContent = valueOrUnavailable(project.accepted_date);
+  const claimCell = document.createElement("td");
+  claimCell.textContent = `${valueOrUnavailable(project.claim_strength)} / ${valueOrUnavailable(project.revalidation_status)}`;
+  const reviewCell = document.createElement("td");
+  reviewCell.textContent = `${valueOrUnavailable(project.aggregate_review_decision)} / ${valueOrUnavailable(project.reviewer_count)} reviewers`;
+  const costCell = document.createElement("td");
+  costCell.textContent = valueOrUnavailable(project.actual_cost_usd);
+  row.append(projectCell, statusCell, acceptedCell, claimCell, reviewCell, costCell);
+  return row;
+}
+
+function selectedProject(rows) {
+  return rows.find((project) => project.project_id === state.selectedProjectId) || rows[0] || null;
+}
+
+function renderProjectDetail(rows) {
+  const panel = el("outcome-detail");
+  const project = selectedProject(rows);
+  if (!project) {
+    panel.replaceChildren(empty("No delivered project selected."));
+    return;
+  }
+  const title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = `${valueOrUnavailable(project.task_id)} - ${valueOrUnavailable(project.title)}`;
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Status", statusLabel(project.delivered_status)),
+    detailField("Type", project.project_type),
+    detailField("Accepted", project.accepted_date),
+    detailField("Idea Score", `${valueOrUnavailable(project.origin_idea_id)} / ${valueOrUnavailable(project.idea_score)}`),
+    detailField("Review", `${valueOrUnavailable(project.aggregate_review_decision)} / tier ${valueOrUnavailable(project.review_tier)}`),
+    detailField("Reviewers", `${valueOrUnavailable(project.reviewer_count)} / disagreement ${project.reviewer_disagreement ? "yes" : "no"}`),
+    detailField("Iterations", `${valueOrUnavailable(project.iteration_count)} / revisions ${valueOrUnavailable(project.revision_count)}`),
+    detailField("Cost", `actual ${valueOrUnavailable(project.actual_cost_usd)} / estimate ${valueOrUnavailable(project.estimated_cost_usd)}`),
+    detailField("Claim", `${valueOrUnavailable(project.claim_strength)} / ${valueOrUnavailable(project.claim_type)}`),
+    detailField("Revalidation", `${valueOrUnavailable(project.revalidation_status)} / ${valueOrUnavailable(project.next_recheck_date)}`),
+    detailField("Source IDs", project.source_ids || []),
+    detailField("Caveats", project.caveats),
+    detailField("Blocker", project.main_blocker),
+    detailField("Key Finding", project.key_finding)
   );
+  const files = document.createElement("div");
+  files.className = "file-list";
+  for (const file of project.links || []) {
+    files.append(detailPathLink(file));
+  }
+  panel.replaceChildren(title, fields, files);
 }
 
 function foundationCard(name, group, countKeys) {

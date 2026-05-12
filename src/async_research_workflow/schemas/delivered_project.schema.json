@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Delivered Project",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project_id",
+    "task_id",
+    "title",
+    "delivered_status",
+    "accepted_date",
+    "project_type",
+    "claim_strength",
+    "revalidation_status",
+    "links"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "delivered_project_v1.0"
+      ]
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "delivered_status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "synthesized",
+        "rejected",
+        "paused"
+      ]
+    },
+    "accepted_date": {
+      "type": "string"
+    },
+    "synthesized_date": {
+      "type": "string"
+    },
+    "project_type": {
+      "type": "string"
+    },
+    "origin_idea_id": {
+      "type": "string"
+    },
+    "idea_score": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "idea_score_breakdown": {
+      "type": "object"
+    },
+    "review_scorecard": {
+      "type": "object"
+    },
+    "aggregate_review_decision": {
+      "type": "string"
+    },
+    "review_tier": {
+      "type": [
+        "integer",
+        "string"
+      ]
+    },
+    "reviewer_count": {
+      "type": [
+        "integer",
+        "string"
+      ]
+    },
+    "reviewer_disagreement": {
+      "type": "boolean"
+    },
+    "iteration_count": {
+      "type": [
+        "integer",
+        "number",
+        "string"
+      ]
+    },
+    "revision_count": {
+      "type": [
+        "integer",
+        "number",
+        "string"
+      ]
+    },
+    "worker_run_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "main_blocker": {
+      "type": "string"
+    },
+    "requires_human": {
+      "type": "boolean"
+    },
+    "elapsed_days_to_acceptance": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "estimated_cost_usd": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "actual_cost_usd": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "claim_type": {
+      "type": "string"
+    },
+    "claim_strength": {
+      "type": "string"
+    },
+    "key_finding": {
+      "type": "string"
+    },
+    "caveats": {
+      "type": "string"
+    },
+    "source_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "revalidation_status": {
+      "type": "string"
+    },
+    "next_recheck_date": {
+      "type": "string"
+    },
+    "followups": {
+      "type": "string"
+    },
+    "evidence_link": {
+      "type": "string"
+    },
+    "task_dir": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "path",
+          "relative_path",
+          "exists"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "exists": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
