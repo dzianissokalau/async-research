@@ -223,6 +223,56 @@ class ScheduleManifestTests(unittest.TestCase):
             self.assertFalse(payload["readiness"]["checked"])
             self.assertTrue(payload["no_process_started"])
 
+    def test_trigger_dry_run_rejects_unknown_job_without_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            before = file_snapshot(ops_dir)
+
+            code, payload = schedule_manifest.trigger_dry_run(ops_dir, "missing-job", now=NOW)
+
+            self.assertEqual(schedule_manifest.INVALID_REQUEST, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("unknown_job", payload["reason"])
+            self.assertEqual("missing-job", payload["job_id"])
+            self.assertFalse(payload["would_run"])
+            self.assertTrue(payload["blocked"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+            self.assertTrue(payload["no_process_started"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_trigger_dry_run_blocks_missing_prompt_without_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="preview worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            (ops_dir / "prompts" / "worker.md").unlink()
+            before = file_snapshot(ops_dir)
+
+            code, payload = schedule_manifest.trigger_dry_run(ops_dir, "worker-loop", now=NOW)
+
+            self.assertEqual(schedule_manifest.VALIDATION_FAILED, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertFalse(payload["would_run"])
+            self.assertTrue(payload["blocked"])
+            self.assertIn("prompt_file_missing", [item["check"] for item in payload["blockers"]])
+            self.assertFalse(payload["readiness"]["checked"])
+            self.assertFalse(payload["prompt"]["prompt_exists"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+            self.assertTrue(payload["no_process_started"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_trigger_dry_run_blocks_active_concurrency_group(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
