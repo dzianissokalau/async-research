@@ -333,14 +333,19 @@ def resolve_task_dir(ops_dir: Path, request: dict[str, Any]) -> tuple[Path | Non
 
     for status_path in sorted((ops_dir / "tasks").glob("*/status.json")):
         task_dir = status_path.parent
+        try:
+            resolved_task_dir = task_dir.resolve()
+            resolved_task_dir.relative_to(tasks_root)
+        except (OSError, ValueError):
+            continue
         if ref in {task_dir.name, str(task_dir), str(status_path)}:
-            return task_dir, None
+            return resolved_task_dir, None
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             payload = None
         if isinstance(payload, dict) and ref == str(payload.get("id") or ""):
-            return task_dir, None
+            return resolved_task_dir, None
 
     candidate = Path(ref)
     if not candidate.is_absolute():

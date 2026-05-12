@@ -130,6 +130,18 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(1, len(payload["tasks"]["malformed_statuses"]))
             self.assertTrue(any(item["reason"] == "malformed_task_status" for item in payload["warnings"]))
 
+    def test_malformed_task_row_handles_missing_task_dir(self) -> None:
+        row = snapshot_module.malformed_task_row(
+            {"task_id": "TASK-EMPTY", "reason": "malformed_json", "errors": [{"message": "bad"}]},
+            snapshot_module.parse_now(NOW),
+        )
+
+        self.assertEqual("TASK-EMPTY", row["task_id"])
+        self.assertEqual("invalid", row["status"])
+        self.assertFalse(row["lock_state"]["locked"])
+        self.assertEqual([], row["files"])
+        self.assertEqual("", row["task_dir"])
+
     def test_snapshot_marks_missing_optional_foundations_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

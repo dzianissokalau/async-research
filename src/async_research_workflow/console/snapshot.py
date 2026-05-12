@@ -282,9 +282,16 @@ def task_row(item: dict[str, Any], now: datetime, malformed_by_path: dict[str, d
 
 
 def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
-    task_dir = Path(str(item.get("task_dir") or ""))
-    status_path = Path(str(item.get("status_path") or task_dir / "status.json"))
-    task_id_value = str(item.get("task_id") or task_dir.name or "unavailable")
+    raw_task_dir = item.get("task_dir")
+    task_dir = Path(str(raw_task_dir)) if raw_task_dir else None
+    raw_status_path = item.get("status_path")
+    if raw_status_path:
+        status_path = Path(str(raw_status_path))
+    elif task_dir is not None:
+        status_path = task_dir / "status.json"
+    else:
+        status_path = None
+    task_id_value = str(item.get("task_id") or (task_dir.name if task_dir is not None else "") or "unavailable")
     return {
         "task_id": task_id_value,
         "title": "Invalid status.json",
@@ -315,11 +322,11 @@ def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
             "allowed_next_statuses": [],
         },
         "lock_state": task_lock_state(task_dir, now)
-        if str(task_dir)
-        else {"locked": False, "stale": False, "lock_dir": str(task_dir / "LOCK"), "age_minutes": None, "owner": None},
-        "files": task_file_links(task_dir, status_path) if str(task_dir) else [],
-        "task_dir": str(task_dir),
-        "status_path": str(status_path),
+        if task_dir is not None
+        else {"locked": False, "stale": False, "lock_dir": "", "age_minutes": None, "owner": None},
+        "files": task_file_links(task_dir, status_path) if task_dir is not None and status_path is not None else [],
+        "task_dir": str(task_dir) if task_dir is not None else "",
+        "status_path": str(status_path) if status_path is not None else "",
     }
 
 
@@ -331,6 +338,7 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
     stale_locks = autonomy_readiness_gate.scan_stale_locks_at(tasks_dir, 60.0, now)
     malformed_by_path = {str(item.get("status_path")): item for item in malformed}
     rows = [task_row(item, now, malformed_by_path) for item in statuses]
+    row_by_path = {str(item["status_path"]): row for item, row in zip(statuses, rows, strict=True)}
     status_paths = {str(status["status_path"]) for status in statuses}
     malformed_rows = [
         malformed_task_row(item, now)
@@ -338,16 +346,16 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
         if str(item.get("status_path")) not in status_paths
     ]
     all_rows = sorted([*rows, *malformed_rows], key=lambda item: (str(item.get("task_id")), str(item.get("task_dir"))))
-    active = [task_row(item, now, malformed_by_path) for item in autonomy_readiness_gate.active_tasks(statuses)]
-    review = [task_row(item, now, malformed_by_path) for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
+    active = [row_by_path[str(item["status_path"])] for item in autonomy_readiness_gate.active_tasks(statuses)]
+    review = [row_by_path[str(item["status_path"])] for item in autonomy_readiness_gate.review_queue_tasks(statuses)]
     human = [
-        task_row(item, now, malformed_by_path)
+        row_by_path[str(item["status_path"])]
         for item in statuses
         if item["payload"].get("status") == "needs_human" or item["payload"].get("requires_human") is True
     ]
     blocked_statuses = {"needs_human", "paused"}
     blocked = [
-        task_row(item, now, malformed_by_path)
+        row_by_path[str(item["status_path"])]
         for item in statuses
         if item["payload"].get("status") in blocked_statuses or item["payload"].get("requires_human") is True
     ]

@@ -202,8 +202,8 @@ class ConsoleActionTests(unittest.TestCase):
                     self.assertFalse(result["changed"])
                     self.assertFalse(result["mutates"])
                     self.assertIn("python -m async_research_workflow.scripts.", result["command"])
-                    self.assertEqual(str(task_dir), result["task_dir"])
-                    self.assertEqual(str(task_dir / "status.json"), result["status_path"])
+                    self.assertEqual(str(task_dir.resolve()), result["task_dir"])
+                    self.assertEqual(str(task_dir.resolve() / "status.json"), result["status_path"])
                     self.assertEqual(0, result["exit_code"])
                     self.assertIsInstance(result["stdout"], str)
                     self.assertEqual("", result["stderr"])
@@ -237,6 +237,74 @@ class ConsoleActionTests(unittest.TestCase):
             status, result = actions.run_action("task_status_validate", ops_dir, {"task_dir": str(Path(tmp) / "outside")})
             self.assertEqual(400, status)
             self.assertEqual("task_outside_workspace", result["reason"])
+
+            status, result = actions.run_action("task_status_validate", ops_dir, {"task_dir": "TASK-9999-missing"})
+            self.assertEqual(400, status)
+            self.assertEqual("task_missing", result["reason"])
+
+    def test_task_inspection_actions_resolve_task_id_and_report_validation_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir, task_id="TASK-2002")
+
+            status, result = actions.run_action("task_lock_status", ops_dir, {"task_id": "TASK-2002"})
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(str(task_dir.resolve()), result["task_dir"])
+            self.assertTrue(result["read_only"])
+            self.assertFalse(result["changed"])
+
+            (task_dir / "status.json").write_text("{}\n", encoding="utf-8")
+            status, result = actions.run_action("task_status_validate", ops_dir, {"task_dir": str(task_dir)})
+
+            self.assertEqual(200, status, result)
+            self.assertFalse(result["ok"])
+            self.assertEqual("failed", result["status"])
+            self.assertEqual(2, result["exit_code"])
+            self.assertTrue(result["read_only"])
+            self.assertFalse(result["changed"])
+            self.assertEqual("schema_validation_failed", result["parsed_stdout"]["reason"])
+            self.assertIn("Reported reason: schema_validation_failed", result["next_step"])
+
+    def test_task_inspection_actions_reject_symlink_escape_from_tasks_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = root / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            outside_dir = root / "outside-task"
+            outside_dir.mkdir()
+            write_task_status(outside_dir.parent, task_id="TASK-ESCAPE")
+            escaped_source = outside_dir.parent / "tasks" / "TASK-ESCAPE-fixture"
+            escaped_target = outside_dir / "status-source"
+            escaped_source.rename(escaped_target)
+            symlink_dir = ops_dir / "tasks" / "TASK-ESCAPE-link"
+            try:
+                symlink_dir.symlink_to(escaped_target, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory symlinks unavailable: {exc}")
+
+            status, result = actions.run_action("task_status_validate", ops_dir, {"task_id": "TASK-ESCAPE"})
+
+            self.assertEqual(400, status)
+            self.assertEqual("task_missing", result["reason"])
 
 
 if __name__ == "__main__":
