@@ -125,6 +125,8 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn("function runPromptActivate", app)
         self.assertIn("function renderSchedules", app)
         self.assertIn("function runScheduleSave", app)
+        self.assertIn("function runScheduleTriggerDryRun", app)
+        self.assertIn("Preview Trigger", app)
         self.assertIn("function validationIssueText", app)
         self.assertIn("Validation Details", app)
         self.assertIn("snapshot.rejected_results", app)

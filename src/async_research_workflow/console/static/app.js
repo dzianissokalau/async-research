@@ -920,13 +920,19 @@ function renderScheduleDetail(rows, snapshot) {
   enable.textContent = state.runningAction === "schedule_enable" ? "Enabling" : "Enable Intent";
   enable.disabled = Boolean(state.runningAction);
   enable.addEventListener("click", () => runScheduleStatus("schedule_enable", job));
+  const trigger = document.createElement("button");
+  trigger.className = "button secondary";
+  trigger.type = "button";
+  trigger.textContent = state.runningAction === "schedule_trigger_dry_run" ? "Previewing" : "Preview Trigger";
+  trigger.disabled = Boolean(state.runningAction);
+  trigger.addEventListener("click", () => runScheduleTriggerDryRun(job));
   const disable = document.createElement("button");
   disable.className = "button secondary";
   disable.type = "button";
   disable.textContent = state.runningAction === "schedule_disable" ? "Disabling" : "Disable Intent";
   disable.disabled = Boolean(state.runningAction);
   disable.addEventListener("click", () => runScheduleStatus("schedule_disable", job));
-  controls.append(save, enable, disable);
+  controls.append(save, trigger, enable, disable);
 
   form.append(
     detailField("Job ID", ""),
@@ -1581,6 +1587,49 @@ async function runScheduleSave(job) {
     }
     showResult(result);
     await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderSchedules(state.snapshot || {});
+  }
+}
+
+async function runScheduleTriggerDryRun(job) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = scheduleFormValues();
+  if (!values.jobId) {
+    showResult({
+      label: "Preview Trigger",
+      command: "async-research schedules trigger-dry-run",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Job id is required.",
+    });
+    return;
+  }
+  const action = scheduleAction("schedule_trigger_dry_run");
+  state.runningAction = action.id;
+  renderSchedules(state.snapshot || {});
+  try {
+    const { result } = await postAction({
+      action: action.id,
+      job_id: values.jobId,
+    });
+    state.results[`${action.id}:${job.job_id}`] = result;
+    showResult(result);
   } catch (error) {
     showResult({
       label: action.label,

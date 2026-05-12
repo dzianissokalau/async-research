@@ -184,6 +184,14 @@ SCHEDULE_ACTION_SPECS: dict[str, ScheduleActionSpec] = {
         label="Enable Intent",
         description="Mark one schedule job as intended to run when trigger/install support exists.",
     ),
+    "schedule_trigger_dry_run": ScheduleActionSpec(
+        action_id="schedule_trigger_dry_run",
+        label="Preview Trigger",
+        description="Preview the trigger-now command, run id, readiness, and concurrency checks without launching Codex.",
+        mutates=False,
+        recovery_advice="Resolve disabled status, prompt, readiness, or concurrency blockers, then preview again.",
+        success_next_step="Review the preview before enabling trigger-now execution in Slice 10.",
+    ),
     "schedule_disable": ScheduleActionSpec(
         action_id="schedule_disable",
         label="Disable Intent",
@@ -537,6 +545,16 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedule_enable"].description,
             "command_template": command_string(["schedules", "set-status", str(ops_dir), "<job_id>", "--status", "enabled"]),
             "mutates": True,
+            "requires_confirmation": False,
+            "requires_schedule": True,
+            "status": "available",
+        },
+        {
+            "id": "schedule_trigger_dry_run",
+            "label": SCHEDULE_ACTION_SPECS["schedule_trigger_dry_run"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedule_trigger_dry_run"].description,
+            "command_template": command_string(["schedules", "trigger-dry-run", str(ops_dir), "<job_id>"]),
+            "mutates": False,
             "requires_confirmation": False,
             "requires_schedule": True,
             "status": "available",
@@ -1033,6 +1051,19 @@ def run_schedule_action(spec: ScheduleActionSpec, ops_dir: Path, request: dict[s
         command = ["schedules", "init", str(ops_dir)]
         with COMMAND_LOCK:
             code, payload = schedule_manifest.init_manifest(ops_dir)
+    elif spec.action_id == "schedule_trigger_dry_run":
+        job_id = clean_required_text(request, "job_id")
+        if not job_id:
+            return 400, {
+                "ok": False,
+                "reason": "schedule_job_id_required",
+                "message": "Previewing a schedule trigger requires job_id.",
+                "read_only": True,
+                "changed": False,
+            }
+        command = ["schedules", "trigger-dry-run", str(ops_dir), job_id]
+        with COMMAND_LOCK:
+            code, payload = schedule_manifest.trigger_dry_run(ops_dir, job_id)
     elif spec.action_id == "schedule_save":
         job_id, reason, author = clean_schedule_common(request)
         description = clean_required_text(request, "description")

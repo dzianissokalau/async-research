@@ -5,11 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shlex
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts.decision_log import append_decision
 
 
@@ -20,6 +23,21 @@ MALFORMED = 4
 SCHEMA_VERSION = "1.0"
 STATUS_CHOICES = ("enabled", "disabled")
 DEFAULT_DISABLED_REASON = "schedule intent only; trigger/install arrives in later slices"
+ACTIVE_RUN_STATUSES = {"queued", "starting", "running", "in_progress"}
+TERMINAL_RUN_STATUSES = {
+    "accepted",
+    "blocked",
+    "cancelled",
+    "canceled",
+    "completed",
+    "done",
+    "error",
+    "failed",
+    "rejected",
+    "skipped",
+    "success",
+    "succeeded",
+}
 
 
 @dataclass(frozen=True)
@@ -87,6 +105,22 @@ DEFAULT_SCHEDULES = (
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_time(value: str | None = None) -> datetime:
+    if not value:
+        return datetime.now(timezone.utc).replace(microsecond=0)
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).replace(microsecond=0)
+
+
+def compact_time(value: str | None = None) -> str:
+    return parse_time(value).strftime("%Y%m%d-%H%M%S")
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -563,6 +597,314 @@ def list_schedules(ops_dir: Path) -> tuple[int, dict[str, Any]]:
     return SUCCESS if snapshot.get("available") else INVALID_REQUEST, payload
 
 
+def safe_slug(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", value).strip("-").lower()
+    return slug or "job"
+
+
+def preview_run_id(job_id: str, now: str | None = None) -> str:
+    return f"local-{compact_time(now)}-{safe_slug(job_id)}"
+
+
+def command_string(argv: list[str]) -> str:
+    return shlex.join(argv)
+
+
+def jobs_by_id(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw_jobs = manifest.get("jobs") if isinstance(manifest.get("jobs"), list) else []
+    rows: dict[str, dict[str, Any]] = {}
+    for raw in raw_jobs:
+        if isinstance(raw, dict):
+            job = normalize_job(raw)
+            if job["job_id"]:
+                rows[job["job_id"]] = job
+    return rows
+
+
+def prompt_preview(ops_dir: Path, job: dict[str, Any]) -> dict[str, Any]:
+    binding = job.get("prompt_binding") if isinstance(job.get("prompt_binding"), dict) else {}
+    prompt_id = normalize_text(binding.get("prompt_id"))
+    prompt_version = normalize_text(binding.get("prompt_version"))
+    path = ops_dir / "prompts" / f"{prompt_id}.md" if prompt_id else ops_dir / "prompts"
+    return {
+        "prompt_id": prompt_id,
+        "prompt_version": prompt_version,
+        "prompt_path": str(path),
+        "prompt_exists": bool(prompt_id and path.exists()),
+    }
+
+
+def planned_execution(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any], run_id: str) -> dict[str, Any]:
+    run_artifact_dir = ops_dir / "run_artifacts" / run_id
+    return {
+        "runner": "codex_exec",
+        "cwd": str(Path.cwd()),
+        "ops_dir": str(ops_dir),
+        "job_id": job["job_id"],
+        "run_id": run_id,
+        "run_artifact_dir": str(run_artifact_dir),
+        "prompt_path": prompt["prompt_path"],
+        "prompt_version": prompt.get("prompt_version") or "",
+        "max_runtime_minutes": normalize_int(job.get("max_runtime_minutes"), 0),
+        "concurrency_key": normalize_text(job.get("concurrency_key")),
+        "concurrency_limit": normalize_int(job.get("concurrency_limit"), 1),
+    }
+
+
+def planned_command(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any], run_id: str) -> list[str]:
+    execution = planned_execution(ops_dir, job, prompt, run_id)
+    prompt_text = (
+        f"Run schedule job {job['job_id']} for {ops_dir}. "
+        f"Use prompt file {prompt['prompt_path']} at version {prompt.get('prompt_version') or 'unavailable'}. "
+        f"Respect max_runtime_minutes={execution['max_runtime_minutes']} and concurrency_key={execution['concurrency_key']}. "
+        f"Write run artifacts under {execution['run_artifact_dir']}."
+    )
+    return ["codex", "exec", "--json", prompt_text]
+
+
+def is_active_run(payload: dict[str, Any]) -> bool:
+    status = normalize_text(payload.get("status")).lower()
+    if normalize_text(payload.get("finished_at")):
+        return False
+    if status in TERMINAL_RUN_STATUSES:
+        return False
+    if status in ACTIVE_RUN_STATUSES:
+        return True
+    return bool(status or normalize_text(payload.get("started_at")))
+
+
+def concurrency_snapshot(ops_dir: Path, job: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    run_artifacts = ops_dir / "run_artifacts"
+    concurrency_key = normalize_text(job.get("concurrency_key"))
+    concurrency_limit = normalize_int(job.get("concurrency_limit"), 1)
+    active_runs: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    schedule_jobs = jobs_by_id(manifest)
+    if run_artifacts.exists():
+        for run_dir in sorted(path for path in run_artifacts.iterdir() if path.is_dir()):
+            run_json = run_dir / "run.json"
+            if not run_json.exists():
+                continue
+            try:
+                parsed = json.loads(run_json.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                warnings.append({"path": str(run_json), "reason": "run_json_unreadable", "message": str(exc)})
+                continue
+            if not isinstance(parsed, dict) or not is_active_run(parsed):
+                continue
+            run_job_id = normalize_text(parsed.get("job_id"))
+            run_concurrency_key = normalize_text(parsed.get("concurrency_key"))
+            if not run_concurrency_key and run_job_id in schedule_jobs:
+                run_concurrency_key = normalize_text(schedule_jobs[run_job_id].get("concurrency_key"))
+            if run_concurrency_key != concurrency_key:
+                continue
+            active_runs.append(
+                {
+                    "run_id": normalize_text(parsed.get("run_id")) or run_dir.name,
+                    "run_dir": str(run_dir),
+                    "job_id": run_job_id or "unavailable",
+                    "status": normalize_text(parsed.get("status")) or "unknown",
+                    "started_at": normalize_text(parsed.get("started_at")) or "unavailable",
+                }
+            )
+    active_count = len(active_runs)
+    return {
+        "ok": active_count < concurrency_limit,
+        "path": str(run_artifacts),
+        "concurrency_key": concurrency_key,
+        "concurrency_limit": concurrency_limit,
+        "active_count": active_count,
+        "active_runs": active_runs,
+        "warnings": warnings,
+    }
+
+
+def readiness_snapshot(ops_dir: Path, now: str | None = None) -> dict[str, Any]:
+    argv = [str(ops_dir), "--dry-run", "--no-daily-status"]
+    if now:
+        argv.extend(["--now", now])
+    try:
+        args = autonomy_readiness_gate.parse_args(argv)
+        report, exit_code = autonomy_readiness_gate.build_gate_report(args)
+    except Exception as exc:
+        return {
+            "checked": True,
+            "ok": False,
+            "exit_code": INVALID_REQUEST,
+            "reason": "readiness_check_failed",
+            "error": str(exc),
+            "warnings": [],
+            "blockers": [
+                {
+                    "severity": "error",
+                    "check": "readiness_check_failed",
+                    "message": str(exc),
+                    "blocking": True,
+                }
+            ],
+        }
+    return {
+        "checked": True,
+        "ok": exit_code in {autonomy_readiness_gate.SUCCESS, autonomy_readiness_gate.WARNINGS},
+        "exit_code": exit_code,
+        "decision": report.get("decision"),
+        "scheduler_action": report.get("scheduler_action"),
+        "warning_count": len(report.get("warnings", [])),
+        "blocker_count": len(report.get("blockers", [])),
+        "warnings": report.get("warnings", []),
+        "blockers": report.get("blockers", []),
+    }
+
+
+def skipped_readiness(reason: str) -> dict[str, Any]:
+    return {
+        "checked": False,
+        "ok": False,
+        "reason": reason,
+        "warnings": [],
+        "blockers": [],
+    }
+
+
+def blocker(check: str, message: str, details: Any = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "severity": "error",
+        "check": check,
+        "message": message,
+        "blocking": True,
+    }
+    if details is not None:
+        payload["details"] = details
+    return payload
+
+
+def trigger_dry_run(ops_dir: Path, job_id: str, *, now: str | None = None) -> tuple[int, dict[str, Any]]:
+    if not ops_dir.is_dir():
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "trigger_now_dry_run",
+            "reason": "ops_dir_missing",
+            "message": "Initialize research_ops before previewing a trigger.",
+            "would_run": False,
+            "blocked": True,
+            "no_process_started": True,
+            "changed": False,
+            "read_only": True,
+        }
+    code, manifest = read_manifest(ops_dir)
+    if code != SUCCESS:
+        payload = dict(manifest)
+        payload.update(
+            {
+                "action": "trigger_now_dry_run",
+                "would_run": False,
+                "blocked": True,
+                "no_process_started": True,
+                "read_only": True,
+                "changed": False,
+            }
+        )
+        return code, payload
+    validation = validate_manifest_payload(manifest, ops_dir)
+    if not validation["ok"]:
+        return VALIDATION_FAILED, {
+            "ok": False,
+            "action": "trigger_now_dry_run",
+            "reason": "schedule_validation_failed",
+            "message": "Fix schedule validation errors before previewing a trigger.",
+            "validation": validation,
+            "would_run": False,
+            "blocked": True,
+            "no_process_started": True,
+            "changed": False,
+            "read_only": True,
+        }
+    jobs = jobs_by_id(manifest)
+    job = jobs.get(job_id)
+    if job is None:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "trigger_now_dry_run",
+            "reason": "unknown_job",
+            "message": f"Unknown schedule job: {job_id}",
+            "job_id": job_id,
+            "would_run": False,
+            "blocked": True,
+            "no_process_started": True,
+            "changed": False,
+            "read_only": True,
+        }
+
+    try:
+        run_id = preview_run_id(job_id, now)
+    except ValueError as exc:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "trigger_now_dry_run",
+            "reason": "invalid_now",
+            "message": "Use an ISO-8601 timestamp for --now.",
+            "error": str(exc),
+            "job_id": job_id,
+            "would_run": False,
+            "blocked": True,
+            "no_process_started": True,
+            "changed": False,
+            "read_only": True,
+        }
+    prompt = prompt_preview(ops_dir, job)
+    execution = planned_execution(ops_dir, job, prompt, run_id)
+    command_argv = planned_command(ops_dir, job, prompt, run_id)
+    blocks: list[dict[str, Any]] = []
+    warnings = list(validation.get("warnings", []))
+    if job.get("status") != "enabled":
+        blocks.append(blocker("schedule_disabled", f"{job_id} is disabled and cannot be triggered.", {"status": job.get("status")}))
+    if not prompt["prompt_exists"]:
+        blocks.append(blocker("prompt_file_missing", "The bound prompt file is missing.", prompt))
+
+    concurrency = concurrency_snapshot(ops_dir, job, manifest)
+    warnings.extend(concurrency.get("warnings", []))
+    if not concurrency["ok"]:
+        blocks.append(
+            blocker(
+                "concurrency_limit_reached",
+                f"Concurrency group {concurrency['concurrency_key']} already has {concurrency['active_count']} active run(s).",
+                concurrency,
+            )
+        )
+
+    readiness = skipped_readiness("preliminary_trigger_checks_failed")
+    if not blocks:
+        readiness = readiness_snapshot(ops_dir, now=now)
+        if not readiness["ok"]:
+            blocks.append(blocker("readiness_blocked", "Readiness check says expensive workers should not start.", readiness))
+
+    would_run = not blocks
+    payload = {
+        "ok": would_run,
+        "action": "trigger_now_dry_run",
+        "reason": None if would_run else "trigger_blocked",
+        "changed": False,
+        "read_only": True,
+        "job_id": job_id,
+        "job": job,
+        "would_run": would_run,
+        "blocked": bool(blocks),
+        "blockers": blocks,
+        "warnings": warnings,
+        "run_id": run_id,
+        "run_artifact_dir": str(ops_dir / "run_artifacts" / run_id),
+        "prompt": prompt,
+        "readiness": readiness,
+        "concurrency": concurrency,
+        "planned_execution": execution,
+        "planned_command_argv": command_argv,
+        "planned_command": command_string(command_argv),
+        "no_process_started": True,
+        "next_step": "Slice 10 can execute this preview when trigger-now execution lands." if would_run else "Resolve the trigger blockers, then rerun the dry run.",
+    }
+    return SUCCESS if would_run else VALIDATION_FAILED, payload
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage research_ops schedule intent manifests.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -597,6 +939,10 @@ def main(argv: list[str] | None = None) -> int:
     set_status_parser.add_argument("--author", default="human")
     set_status_parser.add_argument("--disabled-reason", default="")
     set_status_parser.add_argument("--now")
+    trigger = subparsers.add_parser("trigger-dry-run", help="Preview one trigger-now run without launching a process.")
+    trigger.add_argument("ops_dir", type=Path)
+    trigger.add_argument("job_id")
+    trigger.add_argument("--now", help="Override trigger preview timestamp.")
     args = parser.parse_args(argv)
     if args.command == "init":
         code, payload = init_manifest(args.ops_dir, force=args.force, now=args.now)
@@ -631,6 +977,8 @@ def main(argv: list[str] | None = None) -> int:
             disabled_reason=args.disabled_reason,
             now=args.now,
         )
+    elif args.command == "trigger-dry-run":
+        code, payload = trigger_dry_run(args.ops_dir, args.job_id, now=args.now)
     else:
         code, payload = INVALID_REQUEST, {"ok": False, "reason": "unknown_command"}
     print_json(payload)

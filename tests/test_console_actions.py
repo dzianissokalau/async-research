@@ -120,8 +120,11 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("schedules_init", schedule_actions)
         self.assertIn("schedule_save", schedule_actions)
         self.assertIn("schedule_enable", schedule_actions)
+        self.assertIn("schedule_trigger_dry_run", schedule_actions)
         self.assertIn("schedule_disable", schedule_actions)
         self.assertIn("async-research schedules init", schedule_actions["schedules_init"]["command_template"])
+        self.assertIn("async-research schedules trigger-dry-run", schedule_actions["schedule_trigger_dry_run"]["command_template"])
+        self.assertFalse(schedule_actions["schedule_trigger_dry_run"]["mutates"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -555,6 +558,10 @@ class ConsoleActionTests(unittest.TestCase):
             )
             self.assertTrue(init_result["ok"], init_result)
 
+            status, prompts_init = actions.run_action("prompts_init", ops_dir, {})
+            self.assertEqual(200, status, prompts_init)
+            self.assertTrue(prompts_init["ok"], prompts_init)
+
             status, schedule_init = actions.run_action("schedules_init", ops_dir, {})
             self.assertEqual(200, status, schedule_init)
             self.assertTrue(schedule_init["ok"], schedule_init)
@@ -595,6 +602,21 @@ class ConsoleActionTests(unittest.TestCase):
             )
             self.assertEqual(200, status, enabled)
             self.assertTrue(enabled["ok"], enabled)
+
+            status, preview = actions.run_action(
+                "schedule_trigger_dry_run",
+                ops_dir,
+                {"job_id": "worker-loop"},
+            )
+            self.assertEqual(200, status, preview)
+            self.assertTrue(preview["ok"], preview)
+            self.assertFalse(preview["mutates"])
+            self.assertTrue(preview["read_only"])
+            self.assertFalse(preview["changed"])
+            self.assertIn("async-research schedules trigger-dry-run", preview["command"])
+            self.assertTrue(preview["parsed_stdout"]["would_run"], preview)
+            self.assertTrue(preview["parsed_stdout"]["no_process_started"], preview)
+            self.assertFalse((ops_dir / "run_artifacts").exists())
 
             status, disabled = actions.run_action(
                 "schedule_disable",

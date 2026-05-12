@@ -779,6 +779,13 @@ def run_schedules_set_status_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_schedules_trigger_dry_run_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "schedule_manifest",
+        ["trigger-dry-run", str(args.ops_dir), args.job_id] + optional_text("--now", args.now),
+    )
+
+
 def decision_option_values(args: argparse.Namespace) -> list[str]:
     return (
         [
@@ -1463,6 +1470,19 @@ def register_schedule_commands(subparsers) -> None:
     set_status.add_argument("--disabled-reason", help="Reason when disabling schedule intent.")
     set_status.add_argument("--now", help="Override schedule history timestamp.")
     set_status.set_defaults(func=run_schedules_set_status_command)
+    trigger = add_command(
+        schedule_sub,
+        "trigger-dry-run",
+        help="Preview one trigger-now run without launching Codex.",
+        description=(
+            "Preview a trigger-now run for one schedule job, including command preview, readiness check, "
+            "concurrency check, disabled-job blocking, and run id preview. This does not launch Codex."
+        ),
+    )
+    add_required_ops(trigger)
+    trigger.add_argument("job_id", help="Stable job id such as worker-loop.")
+    trigger.add_argument("--now", help="Override the trigger run id timestamp.")
+    trigger.set_defaults(func=run_schedules_trigger_dry_run_command)
 
 
 def add_decision_options(parser: argparse.ArgumentParser) -> None:
