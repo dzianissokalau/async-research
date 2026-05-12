@@ -272,6 +272,21 @@ function decisionActions() {
   return ((state.actions || {}).decision_actions || []);
 }
 
+function taskAllowedDecisions(task) {
+  const gate = (task && task.human_gate) || {};
+  const decisions = Array.isArray(gate.available_decisions)
+    ? gate.available_decisions
+    : ["resume", "pause", "reject"];
+  return new Set(decisions.map((decision) => String(decision).trim()).filter(Boolean));
+}
+
+function isDecisionActionAvailable(action, task) {
+  if (action.append_only) {
+    return true;
+  }
+  return taskAllowedDecisions(task).has(action.decision);
+}
+
 function decisionActionButton(action, task) {
   const button = document.createElement("button");
   button.className = action.id === "decision_reject" ? "button danger" : "button secondary";
@@ -299,7 +314,11 @@ function decisionTaskCard(task) {
     : `status: ${statusLabel(task.status)}`;
   const controls = document.createElement("div");
   controls.className = "decision-actions";
-  controls.replaceChildren(...decisionActions().map((action) => decisionActionButton(action, task)));
+  controls.replaceChildren(
+    ...decisionActions()
+      .filter((action) => isDecisionActionAvailable(action, task))
+      .map((action) => decisionActionButton(action, task))
+  );
   card.append(title, reason, options, controls);
   return card;
 }

@@ -271,6 +271,36 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual("acknowledge", decisions["recent_decision_rows"][0]["decision"])
             self.assertEqual("Console snapshot fixture", decisions["recent_decision_rows"][0]["reason"])
 
+    def test_snapshot_reads_existing_legacy_decision_rows_without_new_append(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "decisions.md").write_text(
+                "\n".join(
+                    [
+                        "# Human Decision Log",
+                        "",
+                        "| decision_id | item_id | decision | decided_at | decided_by | rationale | follow_up |",
+                        "| --- | --- | --- | --- | --- | --- | --- |",
+                        "| DEC-1001 | TASK-1003 | resume | 2026-05-11T12:00:00Z | test-owner | Legacy starter rationale | status.json |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            decisions = payload["human_decisions"]
+            self.assertEqual(1, decisions["decision_log_count"])
+            row = decisions["recent_decision_rows"][0]
+            self.assertEqual("2026-05-11T12:00:00Z", row["date"])
+            self.assertEqual("TASK-1003", row["item_id"])
+            self.assertEqual("resume", row["decision"])
+            self.assertEqual("Legacy starter rationale", row["reason"])
+            self.assertEqual("test-owner", row["approver"])
+            self.assertEqual("status.json", row["related_artifacts"])
+
     def test_snapshot_includes_full_task_board_rows_and_invalid_statuses(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

@@ -23,6 +23,7 @@ from async_research_workflow.scripts.decision_log import read_decisions
 
 
 COMMAND_LOCK = threading.Lock()
+DEFAULT_HUMAN_GATE_DECISIONS = {"resume", "pause", "reject"}
 
 
 @dataclass(frozen=True)
@@ -543,6 +544,36 @@ def load_task_status(task_dir: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def task_available_decisions(task_dir: Path) -> set[str]:
+    status = load_task_status(task_dir)
+    gate = status.get("human_gate")
+    if not isinstance(gate, dict) or "available_decisions" not in gate:
+        return set(DEFAULT_HUMAN_GATE_DECISIONS)
+    decisions = gate.get("available_decisions")
+    if not isinstance(decisions, list):
+        return set()
+    return {str(decision).strip() for decision in decisions if str(decision).strip()}
+
+
+def decision_availability_error(spec: DecisionActionSpec, task_dir: Path) -> dict[str, Any] | None:
+    if spec.append_only:
+        return None
+    available = task_available_decisions(task_dir)
+    if spec.decision in available:
+        return None
+    return {
+        "ok": False,
+        "reason": "decision_not_available",
+        "message": "This task's human gate does not allow the selected decision.",
+        "decision": spec.decision,
+        "allowed_decisions": sorted(available),
+        "task_dir": str(task_dir),
+        "status_path": str(task_dir / "status.json"),
+        "read_only": True,
+        "changed": False,
+    }
+
+
 def resolved_task_id(task_dir: Path) -> str:
     status = load_task_status(task_dir)
     task_id = status.get("id")
@@ -642,6 +673,9 @@ def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[s
             "read_only": True,
             "changed": False,
         }
+    availability_error = decision_availability_error(spec, task_dir)
+    if availability_error is not None:
+        return 409, availability_error
     argv = decision_action_command(spec, ops_dir, task_dir, reason, approver, request)
     token = decision_confirmation_token(spec.action_id)
     if request.get("confirm") != token:

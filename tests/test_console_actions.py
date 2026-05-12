@@ -20,34 +20,51 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
-def write_task_status(ops_dir: Path, task_id: str = "TASK-2001", status: str = "ready_for_worker") -> Path:
+def write_task_status(
+    ops_dir: Path,
+    task_id: str = "TASK-2001",
+    status: str = "ready_for_worker",
+    available_decisions: list[str] | None = None,
+) -> Path:
     task_dir = ops_dir / "tasks" / f"{task_id}-fixture"
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "task.md").write_text(f"# {task_id}\n", encoding="utf-8")
+    payload = {
+        "schema_version": "1.0",
+        "id": task_id,
+        "title": f"{task_id} fixture",
+        "type": "admin",
+        "status": status,
+        "previous_status": "ready_for_worker" if status == "needs_human" else None,
+        "last_transition_reason": "fixture",
+        "priority": 2,
+        "revision_count": 0,
+        "max_revisions": 1,
+        "revision_limit_hit": False,
+        "allowed_paths": [f"research_ops/tasks/{task_dir.name}/**"],
+        "max_minutes": 10,
+        "requires_human": status == "needs_human",
+        "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+        "human_gate_reason": "fixture needs human" if status == "needs_human" else None,
+        "updated_at": "2026-05-12T00:00:00Z",
+    }
+    if status == "needs_human":
+        payload["human_gate"] = {
+            "policy_version": "test",
+            "trigger": "fixture",
+            "triggered_at": "2026-05-12T00:00:00Z",
+            "severity": "medium",
+            "reason": "fixture needs human",
+            "required_human_decision": "choose a test resolution",
+            "available_decisions": available_decisions
+            if available_decisions is not None
+            else ["resume", "pause", "reject"],
+            "default_safe_action": "pause",
+            "retry_behavior": "rerun after human decision",
+            "ledger_update_behavior": "record the decision in decisions.md",
+        }
     (task_dir / "status.json").write_text(
-        json.dumps(
-            {
-                "schema_version": "1.0",
-                "id": task_id,
-                "title": f"{task_id} fixture",
-                "type": "admin",
-                "status": status,
-                "previous_status": "ready_for_worker" if status == "needs_human" else None,
-                "last_transition_reason": "fixture",
-                "priority": 2,
-                "revision_count": 0,
-                "max_revisions": 1,
-                "revision_limit_hit": False,
-                "allowed_paths": [f"research_ops/tasks/{task_dir.name}/**"],
-                "max_minutes": 10,
-                "requires_human": status == "needs_human",
-                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
-                "human_gate_reason": "fixture needs human" if status == "needs_human" else None,
-                "updated_at": "2026-05-12T00:00:00Z",
-            },
-            indent=2,
-            sort_keys=True,
-        )
+        json.dumps(payload, indent=2, sort_keys=True)
         + "\n",
         encoding="utf-8",
     )
@@ -422,6 +439,86 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertTrue(result["decision_audit"]["validated"])
             status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("needs_human", status_payload["status"])
+
+    def test_decision_action_rejects_decision_outside_task_gate_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(
+                ops_dir,
+                task_id="TASK-2604",
+                status="needs_human",
+                available_decisions=["resume", "pause", "reject"],
+            )
+            before = file_snapshot(ops_dir)
+
+            status, result = actions.run_action(
+                "decision_approve_budget",
+                ops_dir,
+                {
+                    "task_dir": str(task_dir),
+                    "reason": "Budget approval is not available for this gate",
+                    "approver": "test-owner",
+                    "confirm": actions.decision_confirmation_token("decision_approve_budget"),
+                },
+            )
+
+            self.assertEqual(409, status)
+            self.assertFalse(result["ok"])
+            self.assertEqual("decision_not_available", result["reason"])
+            self.assertEqual("approve_budget", result["decision"])
+            self.assertEqual(["pause", "reject", "resume"], result["allowed_decisions"])
+            self.assertTrue(result["read_only"])
+            self.assertFalse(result["changed"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_decision_action_accepts_decision_allowed_by_task_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(
+                ops_dir,
+                task_id="TASK-2605",
+                status="needs_human",
+                available_decisions=["approve_budget", "pause", "reject"],
+            )
+
+            status, result = actions.run_action(
+                "decision_approve_budget",
+                ops_dir,
+                {
+                    "task_dir": str(task_dir),
+                    "reason": "Budget looks acceptable",
+                    "approver": "test-owner",
+                    "date": "2026-05-12T00:00:00Z",
+                    "confirm": actions.decision_confirmation_token("decision_approve_budget"),
+                },
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(0, result["exit_code"])
+            self.assertTrue(result["decision_audit"]["validated"])
+            self.assertEqual("approve_budget", result["decision_audit"]["decision"])
+            status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status_payload["status"])
+            self.assertEqual("human_decision_approve_budget", status_payload["last_transition_reason"])
 
     def test_decision_action_blocks_invalid_transition_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
