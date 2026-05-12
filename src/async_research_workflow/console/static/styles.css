@@ -352,6 +352,18 @@ h3 {
   gap: 16px;
 }
 
+.outcome-ledger {
+  margin-top: 16px;
+}
+
+.subsection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .task-board {
   display: grid;
   gap: 8px;

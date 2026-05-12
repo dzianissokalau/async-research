@@ -109,6 +109,18 @@ class PackagedResourceTests(unittest.TestCase):
         ]
         self.assertEqual([], missing)
 
+    def test_console_static_outcomes_preserves_rejected_ledger_visibility(self) -> None:
+        static_dir = PACKAGE_ROOT / "console" / "static"
+        html = (static_dir / "index.html").read_text(encoding="utf-8")
+        app = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="rejected-ledger"', html)
+        self.assertIn('id="rejected-ledger-total"', html)
+        self.assertIn("function renderRejectedLedger", app)
+        self.assertIn("snapshot.rejected_results", app)
+        self.assertIn('renderList("rejected-ledger"', app)
+        self.assertIn('value.join(", ")', app)
+
     def test_generic_starter_is_domain_neutral_and_empty(self) -> None:
         starter = PACKAGE_ROOT / "templates" / "generic_research_ops_starter" / "research_ops"
         forbidden = [

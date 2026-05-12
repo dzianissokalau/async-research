@@ -51,6 +51,7 @@
       "minimum": 0
     },
     "acceptance_rate": {
+      "description": "Accepted plus synthesized projects divided by accepted, synthesized, and rejected projects. Paused projects are excluded because they are not final outcomes.",
       "type": [
         "number",
         "string"

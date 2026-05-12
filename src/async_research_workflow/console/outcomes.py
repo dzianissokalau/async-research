@@ -291,6 +291,8 @@ def project_from_row(
     review = review_snapshot(status, task_dir)
     revision_count = status.get("revision_count", UNAVAILABLE)
     worker_runs = count_worker_runs(task_dir, review)
+    # If revision_count is missing, zero worker runs still means the full
+    # iteration history is unknown rather than confidently zero.
     iteration_count = revision_count + worker_runs if isinstance(revision_count, int) else worker_runs or UNAVAILABLE
     source_ids = normalize_list(row.get("source_ids"))
     actual_cost = task_costs.get(task_id)
@@ -394,6 +396,8 @@ def summary_for_projects(ops_dir: Path, projects: list[dict[str, Any]], now: dat
     accepted_count = sum(1 for item in projects if item.get("delivered_status") == "accepted")
     synthesized_count = sum(1 for item in projects if item.get("delivered_status") == "synthesized")
     paused_count = sum(1 for item in projects if item.get("delivered_status") == "paused")
+    # Paused projects are intentionally excluded because they are not final
+    # acceptance/rejection decisions yet.
     denominator = accepted_count + synthesized_count + rejected_count
     numeric_iterations = [float(item["iteration_count"]) for item in projects if isinstance(item.get("iteration_count"), (int, float))]
     numeric_costs = [float(item["actual_cost_usd"]) for item in projects if isinstance(item.get("actual_cost_usd"), (int, float))]

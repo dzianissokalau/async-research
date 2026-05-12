@@ -215,6 +215,13 @@ function selectedTask(rows) {
   return rows.find((task) => task.task_id === state.selectedTaskId) || rows[0] || null;
 }
 
+function detailValue(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : valueOrUnavailable("");
+  }
+  return valueOrUnavailable(value);
+}
+
 function detailField(label, value) {
   const node = document.createElement("div");
   node.className = "detail-field";
@@ -222,7 +229,7 @@ function detailField(label, value) {
   heading.textContent = label;
   const body = document.createElement("div");
   body.className = "detail-value";
-  body.textContent = Array.isArray(value) ? value.join("\n") : valueOrUnavailable(value);
+  body.textContent = detailValue(value);
   node.append(heading, body);
   return node;
 }
@@ -332,6 +339,7 @@ function renderDecisions(snapshot) {
 
 function renderOutcomes(snapshot) {
   const delivered = snapshot.delivered_projects || {};
+  const rejected = snapshot.rejected_results || {};
   const rows = delivered.rows || [];
   const summary = delivered.summary || {};
   el("outcome-total").textContent = asNumber(delivered.count || rows.length);
@@ -351,6 +359,7 @@ function renderOutcomes(snapshot) {
   }
   renderProjectTable(visible);
   renderProjectDetail(visible);
+  renderRejectedLedger(rejected);
 }
 
 function revalidationSummary(counts) {
@@ -485,6 +494,18 @@ function renderProjectDetail(rows) {
     files.append(detailPathLink(file));
   }
   panel.replaceChildren(title, fields, files);
+}
+
+function renderRejectedLedger(rejected) {
+  const rows = rejected.recent_rows || [];
+  el("rejected-ledger-total").textContent = asNumber(rejected.count);
+  renderList("rejected-ledger", rows, "No rejected ledger rows.", (row) =>
+    record(
+      `${valueOrUnavailable(row.task_id)} - ${valueOrUnavailable(row.route)}`,
+      `${valueOrUnavailable(row.reason)} / ${valueOrUnavailable(row.claim_strength)}`,
+      valueOrUnavailable(row.evidence_link || row.claim)
+    )
+  );
 }
 
 function foundationCard(name, group, countKeys) {
