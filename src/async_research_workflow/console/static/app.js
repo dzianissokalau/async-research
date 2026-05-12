@@ -623,6 +623,46 @@ function validationSummary(validation) {
   return validation.ok ? `valid / ${warnings.length} warnings` : `${errors.length} errors / ${warnings.length} warnings`;
 }
 
+function validationIssueText(issue) {
+  if (!issue) {
+    return "unknown validation issue";
+  }
+  if (typeof issue === "string") {
+    return issue;
+  }
+  const field = issue.field || issue.section || issue.path || issue.key || "validation";
+  const reason = issue.reason || issue.message || issue.error || issue.code || "";
+  return reason ? `${field}: ${reason}` : String(field);
+}
+
+function validationIssueList(validation) {
+  if (!validation) {
+    return null;
+  }
+  const issues = [
+    ...((validation.errors || []).map((issue) => ({ kind: "error", text: validationIssueText(issue) }))),
+    ...((validation.warnings || []).map((issue) => ({ kind: "warning", text: validationIssueText(issue) }))),
+  ];
+  if (!issues.length) {
+    return null;
+  }
+  const container = document.createElement("div");
+  container.className = "validation-details";
+  const title = document.createElement("div");
+  title.className = "validation-details-title";
+  title.textContent = "Validation Details";
+  const list = document.createElement("ul");
+  list.className = "validation-list";
+  issues.forEach((issue) => {
+    const item = document.createElement("li");
+    item.className = `validation-${issue.kind}`;
+    item.textContent = issue.text;
+    list.append(item);
+  });
+  container.append(title, list);
+  return container;
+}
+
 function promptBindingsText(prompt) {
   const bindings = prompt.schedule_bindings || [];
   if (!bindings.length) {
@@ -698,6 +738,7 @@ function renderPromptDetail(rows) {
   const diff = document.createElement("pre");
   diff.className = "result-output prompt-diff";
   diff.textContent = prompt.diff || "No active-vs-draft changes.";
+  const validationIssues = validationIssueList(prompt.draft_validation);
 
   const form = document.createElement("div");
   form.className = "prompt-form";
@@ -711,7 +752,12 @@ function renderPromptDetail(rows) {
     controls
   );
 
-  panel.replaceChildren(title, fields, form, diff);
+  const children = [title, fields];
+  if (validationIssues) {
+    children.push(validationIssues);
+  }
+  children.push(form, diff);
+  panel.replaceChildren(...children);
 }
 
 function renderPrompts(snapshot) {

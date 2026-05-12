@@ -481,6 +481,40 @@ h3 {
   max-height: 360px;
 }
 
+.validation-details {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #f0c9c5;
+  border-radius: 6px;
+  background: #fff8f7;
+}
+
+.validation-details-title {
+  color: var(--bad);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.validation-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.validation-error {
+  color: var(--bad);
+}
+
+.validation-warning {
+  color: var(--warn);
+}
+
 .checkbox-label {
   display: inline-flex;
   align-items: center;

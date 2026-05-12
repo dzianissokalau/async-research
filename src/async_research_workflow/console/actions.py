@@ -25,6 +25,11 @@ from async_research_workflow.scripts.decision_log import read_decisions
 
 COMMAND_LOCK = threading.Lock()
 DEFAULT_HUMAN_GATE_DECISIONS = {"resume", "pause", "reject"}
+PROMPT_CONFLICT_EXIT_CODES = {
+    prompt_library.VALIDATION_FAILED,
+    prompt_library.INVALID_REQUEST,
+    prompt_library.MALFORMED,
+}
 
 
 @dataclass(frozen=True)
@@ -773,6 +778,14 @@ def clean_prompt_fields(request: dict[str, Any]) -> tuple[str, str, str]:
     return prompt_id, reason, author
 
 
+def prompt_http_status(code: int) -> int:
+    if code == prompt_library.SUCCESS:
+        return 200
+    if code in PROMPT_CONFLICT_EXIT_CODES:
+        return 409
+    return 500
+
+
 def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     if not ops_dir.is_dir():
         return 409, {
@@ -787,7 +800,8 @@ def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, 
     start = time.monotonic()
     if spec.action_id == "prompts_init":
         command = ["prompts", "init", str(ops_dir)]
-        code, payload = prompt_library.init_library(ops_dir)
+        with COMMAND_LOCK:
+            code, payload = prompt_library.init_library(ops_dir)
     elif spec.action_id == "prompt_save_draft":
         prompt_id, reason, author = clean_prompt_fields(request)
         content = request.get("content")
@@ -811,7 +825,8 @@ def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, 
             "--author",
             author,
         ]
-        code, payload = prompt_library.save_draft(ops_dir, prompt_id, content, reason=reason, author=author)
+        with COMMAND_LOCK:
+            code, payload = prompt_library.save_draft(ops_dir, prompt_id, content, reason=reason, author=author)
     elif spec.action_id == "prompt_activate":
         prompt_id, reason, author = clean_prompt_fields(request)
         allow_invalid = bool(request.get("allow_invalid"))
@@ -844,13 +859,14 @@ def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, 
                 "read_only": True,
                 "changed": False,
             }
-        code, payload = prompt_library.activate_prompt(
-            ops_dir,
-            prompt_id,
-            reason=reason,
-            author=author,
-            allow_invalid=allow_invalid,
-        )
+        with COMMAND_LOCK:
+            code, payload = prompt_library.activate_prompt(
+                ops_dir,
+                prompt_id,
+                reason=reason,
+                author=author,
+                allow_invalid=allow_invalid,
+            )
     else:
         return 404, {
             "ok": False,
@@ -860,8 +876,7 @@ def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, 
             "changed": False,
         }
     elapsed_ms = int((time.monotonic() - start) * 1000)
-    status = 200 if code == 0 else (409 if code in {2, 3, 4} else 200)
-    return status, prompt_result(spec, command, code, payload, started_at, elapsed_ms)
+    return prompt_http_status(code), prompt_result(spec, command, code, payload, started_at, elapsed_ms)
 
 
 def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:

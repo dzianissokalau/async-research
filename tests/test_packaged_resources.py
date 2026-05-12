@@ -121,6 +121,8 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn("function renderRejectedLedger", app)
         self.assertIn("function renderPrompts", app)
         self.assertIn("function runPromptActivate", app)
+        self.assertIn("function validationIssueText", app)
+        self.assertIn("Validation Details", app)
         self.assertIn("snapshot.rejected_results", app)
         self.assertIn("snapshot.prompts", app)
         self.assertIn('renderList("rejected-ledger"', app)

@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow.console import actions
 
@@ -475,6 +476,23 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertEqual(2, result["exit_code"])
             self.assertEqual("prompt_validation_failed", result["parsed_stdout"]["reason"])
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_prompt_action_unexpected_exit_code_returns_server_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+
+            with mock.patch.object(
+                actions.prompt_library,
+                "init_library",
+                return_value=(1, {"ok": False, "message": "unexpected failure", "changed": False}),
+            ):
+                status, result = actions.run_action("prompts_init", ops_dir, {})
+
+            self.assertEqual(500, status)
+            self.assertFalse(result["ok"])
+            self.assertEqual(1, result["exit_code"])
+            self.assertEqual("unexpected failure", result["next_step"])
 
     def test_decision_resume_requires_confirmation_then_resolves_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
