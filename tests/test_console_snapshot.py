@@ -239,6 +239,38 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual("TASK-1001", human["task_id"])
             self.assertEqual(human, payload["human_decisions"]["blocked_task_refs"][0])
 
+    def test_snapshot_reads_public_decision_rows_from_legacy_template_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            code, decision = run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-1002",
+                    "--decision",
+                    "acknowledge",
+                    "--reason",
+                    "Console snapshot fixture",
+                    "--approver",
+                    "test-owner",
+                    "--date",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, decision)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            decisions = payload["human_decisions"]
+            self.assertEqual(1, decisions["decision_log_count"])
+            self.assertEqual("TASK-1002", decisions["recent_decision_rows"][0]["item_id"])
+            self.assertEqual("acknowledge", decisions["recent_decision_rows"][0]["decision"])
+            self.assertEqual("Console snapshot fixture", decisions["recent_decision_rows"][0]["reason"])
+
     def test_snapshot_includes_full_task_board_rows_and_invalid_statuses(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

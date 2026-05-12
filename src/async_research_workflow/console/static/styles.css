@@ -173,6 +173,11 @@ h3 {
   color: var(--text);
 }
 
+.button.danger {
+  border-color: var(--bad);
+  background: var(--bad);
+}
+
 .button.secondary:hover {
   background: var(--panel-soft);
 }
@@ -314,6 +319,26 @@ h3 {
   color: var(--muted);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+.decision-inbox {
+  display: grid;
+  gap: 10px;
+}
+
+.decision-card {
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .filter-row {
@@ -605,6 +630,65 @@ h3 {
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(23, 32, 42, 0.32);
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal-panel {
+  width: min(620px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.text-input,
+.text-area {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.text-area {
+  resize: vertical;
+}
+
+.form-error {
+  min-height: 20px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .empty {

@@ -68,7 +68,13 @@
             <h2>Human Decisions</h2>
             <span id="decision-total" class="section-count">0</span>
           </div>
-          <div id="human-decisions" class="record-list"></div>
+          <div id="human-decisions" class="decision-inbox"></div>
+          <div class="outcome-ledger">
+            <div class="subsection-heading">
+              <h3>Decision Log</h3>
+            </div>
+            <div id="decision-log" class="record-list"></div>
+          </div>
         </section>
 
         <section id="outcomes" class="section-band">
@@ -147,6 +153,28 @@
           </div>
         </div>
       </div>
+    </aside>
+
+    <aside id="decision-modal" class="modal-backdrop" aria-hidden="true">
+      <form id="decision-form" class="modal-panel">
+        <div class="section-heading">
+          <h2 id="decision-modal-title">Human Decision</h2>
+          <button id="decision-cancel" class="button secondary" type="button">Cancel</button>
+        </div>
+        <div id="decision-modal-task" class="record-meta"></div>
+        <label class="field-label" for="decision-approver">Approver</label>
+        <input id="decision-approver" class="text-input" type="text" autocomplete="name" required>
+        <label class="field-label" for="decision-reason">Reason</label>
+        <textarea id="decision-reason" class="text-area" rows="4" required></textarea>
+        <div>
+          <h3>Command</h3>
+          <code id="decision-command-preview" class="action-command"></code>
+        </div>
+        <div id="decision-form-error" class="form-error"></div>
+        <div class="modal-actions">
+          <button id="decision-submit" class="button" type="submit">Confirm Decision</button>
+        </div>
+      </form>
     </aside>
 
     <script src="/app.js"></script>

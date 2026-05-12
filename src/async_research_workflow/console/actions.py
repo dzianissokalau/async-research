@@ -18,6 +18,8 @@ from typing import Any
 from async_research_workflow import cli
 from async_research_workflow.console.snapshot import workspace_snapshot
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.decision_log import has_decision
+from async_research_workflow.scripts.decision_log import read_decisions
 
 
 COMMAND_LOCK = threading.Lock()
@@ -35,6 +37,18 @@ class ActionSpec:
     requires_confirmation: bool = False
     recovery_advice: str = "Review stdout and stderr, repair the reported issue, then rerun the command."
     success_next_step: str = "Refresh the dashboard snapshot."
+
+
+@dataclass(frozen=True)
+class DecisionActionSpec:
+    action_id: str
+    label: str
+    description: str
+    decision: str
+    target_status: str | None
+    append_only: bool = False
+    recovery_advice: str = "Review the decision command result, then repair the task state or decision log before retrying."
+    success_next_step: str = "Decision recorded. Refresh the task board and operator surfaces."
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
@@ -96,6 +110,61 @@ ACTION_SPECS: dict[str, ActionSpec] = {
 }
 
 
+DECISION_ACTION_SPECS: dict[str, DecisionActionSpec] = {
+    "decision_resume": DecisionActionSpec(
+        action_id="decision_resume",
+        label="Resume",
+        description="Record a resume decision and move the needs_human task back to ready_for_worker.",
+        decision="resume",
+        target_status="ready_for_worker",
+    ),
+    "decision_pause": DecisionActionSpec(
+        action_id="decision_pause",
+        label="Pause",
+        description="Record a pause decision and move the needs_human task to paused.",
+        decision="pause",
+        target_status="paused",
+    ),
+    "decision_reject": DecisionActionSpec(
+        action_id="decision_reject",
+        label="Reject",
+        description="Record a rejection decision and move the needs_human task to rejected.",
+        decision="reject",
+        target_status="rejected",
+    ),
+    "decision_approve_budget": DecisionActionSpec(
+        action_id="decision_approve_budget",
+        label="Approve Budget",
+        description="Record budget approval and resume the task.",
+        decision="approve_budget",
+        target_status="ready_for_worker",
+    ),
+    "decision_approve_data_use": DecisionActionSpec(
+        action_id="decision_approve_data_use",
+        label="Approve Data Use",
+        description="Record data-use approval and resume the task.",
+        decision="approve_data_use",
+        target_status="ready_for_worker",
+    ),
+    "decision_approve_high_stakes": DecisionActionSpec(
+        action_id="decision_approve_high_stakes",
+        label="Approve High-Stakes",
+        description="Record high-stakes approval and resume the task.",
+        decision="approve_high_stakes",
+        target_status="ready_for_worker",
+    ),
+    "decision_add_note": DecisionActionSpec(
+        action_id="decision_add_note",
+        label="Add Note",
+        description="Append an acknowledgement note to decisions.md without changing task status.",
+        decision="acknowledge",
+        target_status=None,
+        append_only=True,
+        success_next_step="Decision note recorded. Refresh the dashboard snapshot.",
+    ),
+}
+
+
 TASK_ACTION_SPECS: dict[str, ActionSpec] = {
     "task_status_validate": ActionSpec(
         action_id="task_status_validate",
@@ -136,6 +205,10 @@ def utc_timestamp() -> str:
 
 def init_confirmation_token(ops_dir: Path, template: str) -> str:
     return f"init:{ops_dir}:{template}"
+
+
+def decision_confirmation_token(action_id: str) -> str:
+    return f"decision:{action_id}"
 
 
 def action_command(spec: ActionSpec, ops_dir: Path) -> list[str]:
@@ -260,6 +333,61 @@ def task_action_catalog() -> list[dict[str, Any]]:
     ]
 
 
+def decision_action_command_template(spec: DecisionActionSpec, ops_dir: Path) -> str:
+    if spec.append_only:
+        argv = [
+            "decision",
+            "append",
+            str(ops_dir),
+            "--item-id",
+            "<task_id>",
+            "--decision",
+            spec.decision,
+            "--reason",
+            "<reason>",
+            "--approver",
+            "<approver>",
+            "--related-artifact",
+            "<status_path>",
+        ]
+    else:
+        argv = [
+            "decision",
+            "resolve-task",
+            str(ops_dir),
+            "<task_dir>",
+            "--decision",
+            spec.decision,
+            "--reason",
+            "<reason>",
+            "--approver",
+            "<approver>",
+        ]
+        if spec.target_status:
+            argv.extend(["--status", spec.target_status])
+    return command_string(argv)
+
+
+def decision_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": spec.action_id,
+            "label": spec.label,
+            "description": spec.description,
+            "decision": spec.decision,
+            "target_status": spec.target_status,
+            "append_only": spec.append_only,
+            "command_template": decision_action_command_template(spec, ops_dir),
+            "mutates": True,
+            "requires_confirmation": True,
+            "confirmation_token": decision_confirmation_token(spec.action_id),
+            "requires_task": True,
+            "status": "available",
+        }
+        for spec in DECISION_ACTION_SPECS.values()
+    ]
+
+
 def init_spec(template: str) -> ActionSpec:
     command = ("init", "{ops_dir}") if template == "generic" else ("init", "{ops_dir}", "--template", template)
     return ActionSpec(
@@ -316,6 +444,7 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
         "workspace": workspace,
         "actions": actions,
         "task_actions": task_action_catalog(),
+        "decision_actions": decision_action_catalog(ops_dir),
     }
 
 
@@ -401,11 +530,183 @@ def run_task_action(spec: ActionSpec, ops_dir: Path, request: dict[str, Any]) ->
     return 200, result
 
 
+def clean_required_text(request: dict[str, Any], key: str) -> str:
+    value = request.get(key)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def load_task_status(task_dir: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def resolved_task_id(task_dir: Path) -> str:
+    status = load_task_status(task_dir)
+    task_id = status.get("id")
+    return str(task_id).strip() if isinstance(task_id, str) and task_id.strip() else task_dir.name
+
+
+def optional_date_args(request: dict[str, Any]) -> list[str]:
+    date = clean_required_text(request, "date")
+    return ["--date", date] if date else []
+
+
+def decision_action_command(
+    spec: DecisionActionSpec,
+    ops_dir: Path,
+    task_dir: Path,
+    reason: str,
+    approver: str,
+    request: dict[str, Any],
+) -> list[str]:
+    task_id = resolved_task_id(task_dir)
+    related_artifact = str(task_dir / "status.json")
+    if spec.append_only:
+        return [
+            "decision",
+            "append",
+            str(ops_dir),
+            "--item-id",
+            task_id,
+            "--decision",
+            spec.decision,
+            "--reason",
+            reason,
+            "--approver",
+            approver,
+            "--related-artifact",
+            related_artifact,
+            *optional_date_args(request),
+        ]
+    argv = [
+        "decision",
+        "resolve-task",
+        str(ops_dir),
+        str(task_dir),
+        "--decision",
+        spec.decision,
+        "--reason",
+        reason,
+        "--approver",
+        approver,
+        "--related-artifact",
+        related_artifact,
+        *optional_date_args(request),
+    ]
+    if spec.target_status:
+        argv.extend(["--status", spec.target_status])
+    return argv
+
+
+def latest_decision_row(decisions_path: Path, task_id: str, decision: str) -> dict[str, str] | None:
+    for row in reversed(read_decisions(decisions_path)):
+        if row.get("item_id") == task_id and row.get("decision") == decision:
+            return row
+    return None
+
+
+def decision_audit(spec: DecisionActionSpec, ops_dir: Path, task_dir: Path) -> dict[str, Any]:
+    decisions_path = ops_dir / "decisions.md"
+    task_id = resolved_task_id(task_dir)
+    status = load_task_status(task_dir)
+    logged = has_decision(decisions_path, task_id, [spec.decision])
+    current_status = status.get("status", "unavailable")
+    status_matches = True if spec.append_only else current_status == spec.target_status
+    return {
+        "decisions": str(decisions_path),
+        "task_id": task_id,
+        "decision": spec.decision,
+        "decision_logged": logged,
+        "latest_row": latest_decision_row(decisions_path, task_id, spec.decision),
+        "task_status": current_status,
+        "expected_status": spec.target_status,
+        "status_matches": status_matches,
+        "validated": bool(logged and status_matches),
+    }
+
+
+def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    task_dir, error = resolve_task_dir(ops_dir, request)
+    if error is not None or task_dir is None:
+        return 409 if error and error.get("reason") == "ops_dir_missing" else 400, error or {}
+    reason = clean_required_text(request, "reason")
+    approver = clean_required_text(request, "approver")
+    if not reason or not approver:
+        return 400, {
+            "ok": False,
+            "reason": "reason_and_approver_required",
+            "message": "Decision actions require non-empty reason and approver fields.",
+            "read_only": True,
+            "changed": False,
+        }
+    argv = decision_action_command(spec, ops_dir, task_dir, reason, approver, request)
+    token = decision_confirmation_token(spec.action_id)
+    if request.get("confirm") != token:
+        return 409, {
+            "ok": False,
+            "reason": "confirmation_required",
+            "message": "Confirm the human decision before writing decisions.md or task status.",
+            "confirmation_token": token,
+            "command": command_string(argv),
+            "read_only": True,
+            "changed": False,
+        }
+
+    started_at = utc_timestamp()
+    start = time.monotonic()
+    exit_code, stdout, stderr = run_cli_command(argv)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    parsed_stdout = parse_stdout_json(stdout)
+    status = exit_status(exit_code, (0,))
+    result = {
+        "ok": status != "failed",
+        "status": status,
+        "action": spec.action_id,
+        "label": spec.label,
+        "mutates": True,
+        "command": command_string(argv),
+        "argv": ["async-research", *argv],
+        "exit_code": exit_code,
+        "stdout": stdout,
+        "stderr": stderr,
+        "parsed_stdout": parsed_stdout,
+        "started_at": started_at,
+        "finished_at": utc_timestamp(),
+        "elapsed_ms": elapsed_ms,
+        "next_step": spec.success_next_step if exit_code == 0 else recovery_advice(
+            ActionSpec(
+                action_id=spec.action_id,
+                label=spec.label,
+                description=spec.description,
+                command=tuple(argv),
+                mutates=True,
+                recovery_advice=spec.recovery_advice,
+                success_next_step=spec.success_next_step,
+            ),
+            exit_code,
+            parsed_stdout,
+        ),
+        "task_dir": str(task_dir),
+        "status_path": str(task_dir / "status.json"),
+        "read_only": False,
+        "changed": exit_code == 0,
+    }
+    if exit_code == 0:
+        result["decision_audit"] = decision_audit(spec, ops_dir, task_dir)
+    return 200, result
+
+
 def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
     request = payload or {}
     task_spec = TASK_ACTION_SPECS.get(action_id)
     if task_spec is not None:
         return run_task_action(task_spec, ops_dir, request)
+    decision_spec = DECISION_ACTION_SPECS.get(action_id)
+    if decision_spec is not None:
+        return run_decision_action(decision_spec, ops_dir, request)
     if action_id == "init":
         template = str(request.get("template") or "generic")
         if template not in cli.TEMPLATES:

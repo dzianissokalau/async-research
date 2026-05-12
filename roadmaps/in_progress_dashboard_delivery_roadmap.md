@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 6
+Current phase: Slice 7
 Last updated: 2026-05-12
-Next action: Implement Slice 6 Human Decision Actions
+Next action: Implement Slice 7 Prompt Library
 Blocked by: None
 
 Created: 2026-05-05
@@ -152,7 +152,7 @@ Last updated: 2026-05-12
 | Slice 3 | Add guarded setup and health actions for init, schema check, readiness dry run, health dry run, surface update, surface validate, and command-result inspection. | Complete |
 | Slice 4 | Add the read-mostly task board with status filters, task detail inspection, status validation, transition validation, and lock inspection. | Complete |
 | Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Complete |
-| Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Pending |
+| Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Complete |
 | Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Pending |
 | Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Pending |
 | Slice 9 | Add trigger-now dry run with command preview, readiness check, concurrency check, disabled-job blocking, and run-id preview. | Pending |

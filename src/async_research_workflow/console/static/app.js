@@ -8,6 +8,7 @@ const state = {
   selectedTaskId: null,
   outcomeFilter: "all",
   selectedProjectId: null,
+  pendingDecision: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -267,6 +268,42 @@ function taskActionButton(action, task) {
   return button;
 }
 
+function decisionActions() {
+  return ((state.actions || {}).decision_actions || []);
+}
+
+function decisionActionButton(action, task) {
+  const button = document.createElement("button");
+  button.className = action.id === "decision_reject" ? "button danger" : "button secondary";
+  button.type = "button";
+  button.textContent = state.runningAction === action.id ? "Running" : action.label;
+  button.disabled = Boolean(state.runningAction);
+  button.addEventListener("click", () => openDecisionModal(action, task));
+  return button;
+}
+
+function decisionTaskCard(task) {
+  const card = document.createElement("article");
+  card.className = "decision-card";
+  const title = document.createElement("div");
+  title.className = "record-title";
+  title.textContent = `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`;
+  const reason = document.createElement("div");
+  reason.className = "record-meta";
+  reason.textContent = valueOrUnavailable(task.human_gate_reason || task.last_transition_reason);
+  const gate = task.human_gate || {};
+  const options = document.createElement("div");
+  options.className = "record-meta";
+  options.textContent = Array.isArray(gate.available_decisions) && gate.available_decisions.length
+    ? `options: ${gate.available_decisions.join(", ")}`
+    : `status: ${statusLabel(task.status)}`;
+  const controls = document.createElement("div");
+  controls.className = "decision-actions";
+  controls.replaceChildren(...decisionActions().map((action) => decisionActionButton(action, task)));
+  card.append(title, reason, options, controls);
+  return card;
+}
+
 function renderTaskDetail(rows) {
   const panel = el("task-detail");
   const task = selectedTask(rows);
@@ -327,12 +364,17 @@ function renderTasks(snapshot) {
 
 function renderDecisions(snapshot) {
   const decisions = snapshot.human_decisions || {};
+  const rows = decisions.blocked_task_refs || [];
   el("decision-total").textContent = asNumber(decisions.open_count);
-  renderList("human-decisions", decisions.blocked_task_refs, "No open human decisions.", (task) =>
+  const inbox = el("human-decisions");
+  inbox.replaceChildren(
+    ...(rows.length ? rows.map(decisionTaskCard) : [empty("No open human decisions.")])
+  );
+  renderList("decision-log", decisions.recent_decision_rows, "No recent decision rows.", (row) =>
     record(
-      `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`,
-      valueOrUnavailable(task.human_gate_reason),
-      valueOrUnavailable(task.status_path)
+      `${valueOrUnavailable(row.item_id)} - ${valueOrUnavailable(row.decision)}`,
+      `${valueOrUnavailable(row.reason)} / ${valueOrUnavailable(row.approver)}`,
+      valueOrUnavailable(row.related_artifacts)
     )
   );
 }
@@ -506,6 +548,34 @@ function renderRejectedLedger(rejected) {
       valueOrUnavailable(row.evidence_link || row.claim)
     )
   );
+}
+
+function decisionCommandPreview(action, task) {
+  return String(action.command_template || "")
+    .replace("<task_id>", valueOrUnavailable(task.task_id))
+    .replace("<task_dir>", valueOrUnavailable(task.task_dir))
+    .replace("<status_path>", valueOrUnavailable(task.status_path));
+}
+
+function openDecisionModal(action, task) {
+  state.pendingDecision = { action, task };
+  el("decision-modal-title").textContent = action.label;
+  el("decision-modal-task").textContent = `${valueOrUnavailable(task.task_id)} - ${valueOrUnavailable(task.title)}`;
+  el("decision-command-preview").textContent = decisionCommandPreview(action, task);
+  el("decision-form-error").textContent = "";
+  el("decision-reason").value = "";
+  el("decision-approver").value = window.localStorage.getItem("asyncResearchDecisionApprover") || "";
+  const modal = el("decision-modal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  el("decision-reason").focus();
+}
+
+function closeDecisionModal() {
+  state.pendingDecision = null;
+  const modal = el("decision-modal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
 }
 
 function foundationCard(name, group, countKeys) {
@@ -796,6 +866,59 @@ async function runTaskAction(action, task) {
   }
 }
 
+async function runDecisionAction(action, task, reason, approver) {
+  if (state.runningAction) {
+    return;
+  }
+  state.runningAction = action.id;
+  renderDecisions(state.snapshot || {});
+  try {
+    const payload = {
+      action: action.id,
+      task_dir: task.task_dir,
+      reason,
+      approver,
+      confirm: action.confirmation_token,
+    };
+    const { result } = await postAction(payload);
+    state.results[`${action.id}:${task.task_id}`] = result;
+    if (result.ok && approver) {
+      window.localStorage.setItem("asyncResearchDecisionApprover", approver);
+    }
+    closeDecisionModal();
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderDecisions(state.snapshot || {});
+  }
+}
+
+function submitDecisionForm(event) {
+  event.preventDefault();
+  const pending = state.pendingDecision;
+  if (!pending) {
+    return;
+  }
+  const reason = el("decision-reason").value.trim();
+  const approver = el("decision-approver").value.trim();
+  if (!reason || !approver) {
+    el("decision-form-error").textContent = "Reason and approver are required.";
+    return;
+  }
+  runDecisionAction(pending.action, pending.task, reason, approver);
+}
+
 async function refresh() {
   if (state.loading) {
     return;
@@ -826,5 +949,7 @@ async function refresh() {
 document.addEventListener("DOMContentLoaded", () => {
   el("refresh-button").addEventListener("click", refresh);
   el("result-close").addEventListener("click", closeResult);
+  el("decision-cancel").addEventListener("click", closeDecisionModal);
+  el("decision-form").addEventListener("submit", submitDecisionForm);
   refresh();
 });

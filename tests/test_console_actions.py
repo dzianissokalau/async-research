@@ -32,7 +32,7 @@ def write_task_status(ops_dir: Path, task_id: str = "TASK-2001", status: str = "
                 "title": f"{task_id} fixture",
                 "type": "admin",
                 "status": status,
-                "previous_status": None,
+                "previous_status": "ready_for_worker" if status == "needs_human" else None,
                 "last_transition_reason": "fixture",
                 "priority": 2,
                 "revision_count": 0,
@@ -40,8 +40,10 @@ def write_task_status(ops_dir: Path, task_id: str = "TASK-2001", status: str = "
                 "revision_limit_hit": False,
                 "allowed_paths": [f"research_ops/tasks/{task_dir.name}/**"],
                 "max_minutes": 10,
-                "requires_human": False,
+                "requires_human": status == "needs_human",
                 "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                "human_gate_reason": "fixture needs human" if status == "needs_human" else None,
+                "updated_at": "2026-05-12T00:00:00Z",
             },
             indent=2,
             sort_keys=True,
@@ -73,6 +75,11 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("outcomes_refresh", by_id)
         self.assertTrue(by_id["outcomes_refresh"]["mutates"])
         self.assertIn("async-research outcomes refresh", by_id["outcomes_refresh"]["command"])
+        decision_actions = {item["id"]: item for item in catalog["decision_actions"]}
+        self.assertIn("decision_resume", decision_actions)
+        self.assertIn("decision_approve_budget", decision_actions)
+        self.assertIn("async-research decision resolve-task", decision_actions["decision_resume"]["command_template"])
+        self.assertTrue(decision_actions["decision_resume"]["requires_confirmation"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -332,6 +339,122 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertIn("async-research outcomes refresh", result["command"])
             self.assertTrue((ops_dir / "outcomes" / "delivered_projects.jsonl").exists())
             self.assertTrue((ops_dir / "outcomes" / "delivered_projects_summary.json").exists())
+
+    def test_decision_resume_requires_confirmation_then_resolves_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir, task_id="TASK-2601", status="needs_human")
+            before = file_snapshot(ops_dir)
+
+            payload = {
+                "task_dir": str(task_dir),
+                "reason": "Reviewed in console",
+                "approver": "test-owner",
+                "date": "2026-05-12T00:00:00Z",
+            }
+            status, blocked = actions.run_action("decision_resume", ops_dir, payload)
+
+            self.assertEqual(409, status)
+            self.assertEqual("confirmation_required", blocked["reason"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+            status, result = actions.run_action(
+                "decision_resume",
+                ops_dir,
+                {**payload, "confirm": actions.decision_confirmation_token("decision_resume")},
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["changed"])
+            self.assertTrue(result["mutates"])
+            self.assertEqual(0, result["exit_code"])
+            self.assertIn("async-research decision resolve-task", result["command"])
+            self.assertEqual("resolved", result["parsed_stdout"]["action"])
+            self.assertTrue(result["decision_audit"]["decision_logged"])
+            self.assertTrue(result["decision_audit"]["status_matches"])
+            self.assertTrue(result["decision_audit"]["validated"])
+            self.assertIn("TASK-2601", (ops_dir / "decisions.md").read_text(encoding="utf-8"))
+            status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status_payload["status"])
+            self.assertFalse(status_payload["requires_human"])
+
+    def test_decision_add_note_appends_without_changing_task_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir, task_id="TASK-2602", status="needs_human")
+
+            status, result = actions.run_action(
+                "decision_add_note",
+                ops_dir,
+                {
+                    "task_id": "TASK-2602",
+                    "reason": "Owner is checking the source contract",
+                    "approver": "test-owner",
+                    "date": "2026-05-12T00:00:00Z",
+                    "confirm": actions.decision_confirmation_token("decision_add_note"),
+                },
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["changed"])
+            self.assertEqual("decision_appended", result["parsed_stdout"]["action"])
+            self.assertEqual("acknowledge", result["decision_audit"]["decision"])
+            self.assertTrue(result["decision_audit"]["validated"])
+            status_payload = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("needs_human", status_payload["status"])
+
+    def test_decision_action_blocks_invalid_transition_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir, task_id="TASK-2603", status="ready_for_worker")
+            before = file_snapshot(ops_dir)
+
+            status, result = actions.run_action(
+                "decision_resume",
+                ops_dir,
+                {
+                    "task_dir": str(task_dir),
+                    "reason": "Invalid console attempt",
+                    "approver": "test-owner",
+                    "confirm": actions.decision_confirmation_token("decision_resume"),
+                },
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertFalse(result["ok"])
+            self.assertFalse(result["changed"])
+            self.assertEqual(2, result["exit_code"])
+            self.assertEqual("task_not_needs_human", result["parsed_stdout"]["reason"])
+            self.assertEqual(before, file_snapshot(ops_dir))
 
 
 if __name__ == "__main__":

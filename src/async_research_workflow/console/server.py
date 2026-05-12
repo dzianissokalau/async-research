@@ -215,7 +215,7 @@ def response_for_mutation() -> tuple[HTTPStatus, str, bytes]:
             {
                 "ok": False,
                 "reason": "mutation_endpoints_disabled",
-                "message": "Only POST /api/actions/run supports guarded Slice 3 actions",
+                "message": "Only POST /api/actions/run supports guarded console actions",
                 "read_only": True,
                 "changed": False,
             }

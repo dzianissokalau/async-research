@@ -23,6 +23,7 @@ from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import validate_transition
+from async_research_workflow.scripts.decision_log import read_decisions
 
 
 SNAPSHOT_SCHEMA_VERSION = "console_snapshot_v1.0"
@@ -472,13 +473,28 @@ def health_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
 
 
 def human_decisions_snapshot(ops_dir: Path, human_tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    decisions, warnings = recent_markdown_rows(ops_dir / "decisions.md")
+    decisions_path = ops_dir / "decisions.md"
+    warnings: list[dict[str, Any]] = []
+    try:
+        decision_rows = read_decisions(decisions_path)
+    except (OSError, UnicodeDecodeError) as exc:
+        decision_rows = []
+        warnings.append(
+            issue(
+                "warning",
+                "decision_log_unreadable",
+                "decision log could not be read",
+                decisions_path,
+                str(exc),
+            )
+        )
     return {
         "open_count": len(human_tasks),
         "blocked_task_refs": human_tasks,
-        "recent_decision_rows": decisions["recent_rows"],
-        "decision_log_path": decisions["path"],
-        "decision_log_exists": decisions["exists"],
+        "recent_decision_rows": decision_rows[-RECENT_LIMIT:],
+        "decision_log_path": str(decisions_path),
+        "decision_log_exists": decisions_path.exists(),
+        "decision_log_count": len(decision_rows),
     }, warnings
 
 
