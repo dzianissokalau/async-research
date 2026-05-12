@@ -19,6 +19,7 @@ from async_research_workflow import cli
 from async_research_workflow.console.snapshot import workspace_snapshot
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts import prompt_library
+from async_research_workflow.scripts import schedule_manifest
 from async_research_workflow.scripts.decision_log import has_decision
 from async_research_workflow.scripts.decision_log import read_decisions
 
@@ -29,6 +30,11 @@ PROMPT_CONFLICT_EXIT_CODES = {
     prompt_library.VALIDATION_FAILED,
     prompt_library.INVALID_REQUEST,
     prompt_library.MALFORMED,
+}
+SCHEDULE_CONFLICT_EXIT_CODES = {
+    schedule_manifest.VALIDATION_FAILED,
+    schedule_manifest.INVALID_REQUEST,
+    schedule_manifest.MALFORMED,
 }
 
 
@@ -67,6 +73,16 @@ class PromptActionSpec:
     requires_confirmation: bool = False
     recovery_advice: str = "Review prompt validation errors, then update the draft before retrying."
     success_next_step: str = "Refresh the prompt library."
+
+
+@dataclass(frozen=True)
+class ScheduleActionSpec:
+    action_id: str
+    label: str
+    description: str
+    mutates: bool = True
+    recovery_advice: str = "Review schedule validation errors, then update the manifest before retrying."
+    success_next_step: str = "Refresh the schedule list."
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
@@ -147,6 +163,31 @@ PROMPT_ACTION_SPECS: dict[str, PromptActionSpec] = {
         description="Validate and activate a prompt draft as the next version.",
         requires_confirmation=True,
         success_next_step="Refresh schedules and run history before the next scheduled execution.",
+    ),
+}
+
+
+SCHEDULE_ACTION_SPECS: dict[str, ScheduleActionSpec] = {
+    "schedules_init": ScheduleActionSpec(
+        action_id="schedules_init",
+        label="Initialize Schedules",
+        description="Create research_ops/schedules.json with default recurring-job intent.",
+    ),
+    "schedule_save": ScheduleActionSpec(
+        action_id="schedule_save",
+        label="Save Schedule",
+        description="Create or update one schedule job intent row.",
+        success_next_step="Review schedule validation, then enable or disable intent as needed.",
+    ),
+    "schedule_enable": ScheduleActionSpec(
+        action_id="schedule_enable",
+        label="Enable Intent",
+        description="Mark one schedule job as intended to run when trigger/install support exists.",
+    ),
+    "schedule_disable": ScheduleActionSpec(
+        action_id="schedule_disable",
+        label="Disable Intent",
+        description="Mark one schedule job as disabled and record the reason.",
     ),
 }
 
@@ -469,6 +510,50 @@ def prompt_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
     ]
 
 
+def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "schedules_init",
+            "label": SCHEDULE_ACTION_SPECS["schedules_init"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedules_init"].description,
+            "command_template": command_string(["schedules", "init", str(ops_dir)]),
+            "mutates": True,
+            "requires_confirmation": False,
+            "status": "available" if ops_dir.exists() else "blocked_missing_workspace",
+        },
+        {
+            "id": "schedule_save",
+            "label": SCHEDULE_ACTION_SPECS["schedule_save"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedule_save"].description,
+            "command_template": command_string(["schedules", "upsert", str(ops_dir), "<job_id>", "--prompt-id", "<prompt_id>"]),
+            "mutates": True,
+            "requires_confirmation": False,
+            "requires_schedule": True,
+            "status": "available",
+        },
+        {
+            "id": "schedule_enable",
+            "label": SCHEDULE_ACTION_SPECS["schedule_enable"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedule_enable"].description,
+            "command_template": command_string(["schedules", "set-status", str(ops_dir), "<job_id>", "--status", "enabled"]),
+            "mutates": True,
+            "requires_confirmation": False,
+            "requires_schedule": True,
+            "status": "available",
+        },
+        {
+            "id": "schedule_disable",
+            "label": SCHEDULE_ACTION_SPECS["schedule_disable"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedule_disable"].description,
+            "command_template": command_string(["schedules", "set-status", str(ops_dir), "<job_id>", "--status", "disabled"]),
+            "mutates": True,
+            "requires_confirmation": False,
+            "requires_schedule": True,
+            "status": "available",
+        },
+    ]
+
+
 def init_spec(template: str) -> ActionSpec:
     command = ("init", "{ops_dir}") if template == "generic" else ("init", "{ops_dir}", "--template", template)
     return ActionSpec(
@@ -527,6 +612,7 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
         "task_actions": task_action_catalog(),
         "decision_actions": decision_action_catalog(ops_dir),
         "prompt_actions": prompt_action_catalog(ops_dir),
+        "schedule_actions": schedule_action_catalog(ops_dir),
     }
 
 
@@ -786,6 +872,14 @@ def prompt_http_status(code: int) -> int:
     return 500
 
 
+def schedule_http_status(code: int) -> int:
+    if code == schedule_manifest.SUCCESS:
+        return 200
+    if code in SCHEDULE_CONFLICT_EXIT_CODES:
+        return 409
+    return 500
+
+
 def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     if not ops_dir.is_dir():
         return 409, {
@@ -879,6 +973,170 @@ def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, 
     return prompt_http_status(code), prompt_result(spec, command, code, payload, started_at, elapsed_ms)
 
 
+def schedule_result(
+    spec: ScheduleActionSpec,
+    command: list[str],
+    code: int,
+    payload: dict[str, Any],
+    started_at: str,
+    elapsed_ms: int,
+) -> dict[str, Any]:
+    ok = bool(payload.get("ok"))
+    stdout = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    return {
+        "ok": ok,
+        "status": exit_status(code, (0,)),
+        "action": spec.action_id,
+        "label": spec.label,
+        "mutates": spec.mutates,
+        "command": command_string(command),
+        "argv": ["async-research", *command],
+        "exit_code": code,
+        "stdout": stdout,
+        "stderr": "",
+        "parsed_stdout": payload,
+        "started_at": started_at,
+        "finished_at": utc_timestamp(),
+        "elapsed_ms": elapsed_ms,
+        "next_step": spec.success_next_step if ok else payload.get("message") or spec.recovery_advice,
+        "read_only": bool(payload.get("read_only", False)),
+        "changed": bool(payload.get("changed", False)),
+    }
+
+
+def clean_int(request: dict[str, Any], key: str, default: int = 0) -> int:
+    try:
+        return int(request.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def clean_schedule_common(request: dict[str, Any]) -> tuple[str, str, str]:
+    job_id = clean_required_text(request, "job_id")
+    reason = clean_required_text(request, "reason") or clean_required_text(request, "message")
+    author = clean_required_text(request, "author") or clean_required_text(request, "approver") or "human"
+    return job_id, reason, author
+
+
+def run_schedule_action(spec: ScheduleActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if not ops_dir.is_dir():
+        return 409, {
+            "ok": False,
+            "reason": "ops_dir_missing",
+            "message": "Initialize research_ops before running schedule actions.",
+            "read_only": True,
+            "changed": False,
+        }
+    started_at = utc_timestamp()
+    start = time.monotonic()
+    if spec.action_id == "schedules_init":
+        command = ["schedules", "init", str(ops_dir)]
+        with COMMAND_LOCK:
+            code, payload = schedule_manifest.init_manifest(ops_dir)
+    elif spec.action_id == "schedule_save":
+        job_id, reason, author = clean_schedule_common(request)
+        description = clean_required_text(request, "description")
+        cadence = clean_required_text(request, "cadence")
+        prompt_id = clean_required_text(request, "prompt_id")
+        prompt_version = clean_required_text(request, "prompt_version")
+        concurrency_key = clean_required_text(request, "concurrency_key")
+        max_runtime = clean_int(request, "max_runtime_minutes")
+        concurrency_limit = clean_int(request, "concurrency_limit", 1)
+        status_value = clean_required_text(request, "status") or "disabled"
+        disabled_reason = clean_required_text(request, "disabled_reason")
+        if not all([job_id, reason, description, cadence, prompt_id, concurrency_key]):
+            return 400, {
+                "ok": False,
+                "reason": "schedule_fields_required",
+                "message": "Saving a schedule requires job_id, description, cadence, prompt_id, concurrency_key, and reason.",
+                "read_only": True,
+                "changed": False,
+            }
+        command = [
+            "schedules",
+            "upsert",
+            str(ops_dir),
+            job_id,
+            "--description",
+            description,
+            "--cadence",
+            cadence,
+            "--prompt-id",
+            prompt_id,
+            "--max-runtime-minutes",
+            str(max_runtime),
+            "--concurrency-key",
+            concurrency_key,
+            "--concurrency-limit",
+            str(concurrency_limit),
+            "--status",
+            status_value,
+            "--message",
+            reason,
+            "--author",
+            author,
+        ] + (["--prompt-version", prompt_version] if prompt_version else []) + (["--disabled-reason", disabled_reason] if disabled_reason else [])
+        with COMMAND_LOCK:
+            code, payload = schedule_manifest.upsert_schedule(
+                ops_dir,
+                job_id,
+                description=description,
+                cadence=cadence,
+                prompt_id=prompt_id,
+                prompt_version=prompt_version,
+                max_runtime_minutes=max_runtime,
+                concurrency_key=concurrency_key,
+                concurrency_limit=concurrency_limit,
+                status=status_value,
+                disabled_reason=disabled_reason,
+                reason=reason,
+                author=author,
+            )
+    elif spec.action_id in {"schedule_enable", "schedule_disable"}:
+        job_id, reason, author = clean_schedule_common(request)
+        if not job_id or not reason:
+            return 400, {
+                "ok": False,
+                "reason": "schedule_status_fields_required",
+                "message": "Changing schedule intent requires job_id and reason.",
+                "read_only": True,
+                "changed": False,
+            }
+        status_value = "enabled" if spec.action_id == "schedule_enable" else "disabled"
+        disabled_reason = clean_required_text(request, "disabled_reason") or (reason if status_value == "disabled" else "")
+        command = [
+            "schedules",
+            "set-status",
+            str(ops_dir),
+            job_id,
+            "--status",
+            status_value,
+            "--message",
+            reason,
+            "--author",
+            author,
+        ] + (["--disabled-reason", disabled_reason] if disabled_reason else [])
+        with COMMAND_LOCK:
+            code, payload = schedule_manifest.set_status(
+                ops_dir,
+                job_id,
+                status_value,
+                reason=reason,
+                author=author,
+                disabled_reason=disabled_reason,
+            )
+    else:
+        return 404, {
+            "ok": False,
+            "reason": "unknown_schedule_action",
+            "message": f"Unknown schedule action: {spec.action_id}",
+            "read_only": True,
+            "changed": False,
+        }
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    return schedule_http_status(code), schedule_result(spec, command, code, payload, started_at, elapsed_ms)
+
+
 def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     task_dir, error = resolve_task_dir(ops_dir, request)
     if error is not None or task_dir is None:
@@ -961,6 +1219,9 @@ def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = N
     prompt_spec = PROMPT_ACTION_SPECS.get(action_id)
     if prompt_spec is not None:
         return run_prompt_action(prompt_spec, ops_dir, request)
+    schedule_spec = SCHEDULE_ACTION_SPECS.get(action_id)
+    if schedule_spec is not None:
+        return run_schedule_action(schedule_spec, ops_dir, request)
     decision_spec = DECISION_ACTION_SPECS.get(action_id)
     if decision_spec is not None:
         return run_decision_action(decision_spec, ops_dir, request)

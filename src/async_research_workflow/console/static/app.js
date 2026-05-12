@@ -9,6 +9,7 @@ const state = {
   outcomeFilter: "all",
   selectedProjectId: null,
   selectedPromptId: null,
+  selectedScheduleId: null,
   pendingDecision: null,
 };
 
@@ -770,6 +771,210 @@ function renderPrompts(snapshot) {
   renderPromptDetail(prompts.available ? rows : []);
 }
 
+function scheduleRows(snapshot) {
+  return ((snapshot.schedules || {}).jobs || []);
+}
+
+function selectedSchedule(rows) {
+  return rows.find((job) => job.job_id === state.selectedScheduleId) || rows[0] || null;
+}
+
+function scheduleStatusClass(job, schedules) {
+  if (!schedules || schedules.available === false) {
+    return "badge neutral";
+  }
+  if ((schedules.validation || {}).ok === false) {
+    return "badge bad";
+  }
+  if (job.status === "enabled") {
+    return "badge good";
+  }
+  return "badge neutral";
+}
+
+function schedulePromptText(job) {
+  const binding = job.prompt_binding || {};
+  return `${valueOrUnavailable(binding.prompt_id)} / ${valueOrUnavailable(binding.prompt_version)}`;
+}
+
+function scheduleRow(job, schedules) {
+  const row = document.createElement("button");
+  row.className = job.job_id === state.selectedScheduleId ? "task-row selected" : "task-row";
+  row.type = "button";
+  row.addEventListener("click", () => {
+    state.selectedScheduleId = job.job_id;
+    renderSchedules(state.snapshot || {});
+  });
+  const title = document.createElement("div");
+  title.className = "task-row-title";
+  title.textContent = valueOrUnavailable(job.job_id);
+  const badge = document.createElement("span");
+  badge.className = scheduleStatusClass(job, schedules);
+  badge.textContent = statusLabel(job.status);
+  const meta = document.createElement("div");
+  meta.className = "task-row-meta";
+  meta.textContent = `${valueOrUnavailable(job.cadence)} / ${schedulePromptText(job)}`;
+  row.append(title, badge, meta);
+  return row;
+}
+
+function promptSelectOptions(snapshot, currentPromptId) {
+  const rows = promptRows(snapshot);
+  const ids = rows.map((prompt) => prompt.prompt_id).filter(Boolean);
+  if (currentPromptId && !ids.includes(currentPromptId)) {
+    ids.push(currentPromptId);
+  }
+  return ids.map((promptId) => {
+    const prompt = rows.find((row) => row.prompt_id === promptId) || {};
+    const option = document.createElement("option");
+    option.value = promptId;
+    option.textContent = prompt.active_version ? `${promptId} / ${prompt.active_version}` : promptId;
+    return option;
+  });
+}
+
+function textInput(id, value, type = "text") {
+  const input = document.createElement("input");
+  input.id = id;
+  input.className = "text-input";
+  input.type = type;
+  input.value = value || "";
+  return input;
+}
+
+function renderScheduleDetail(rows, snapshot) {
+  const panel = el("schedule-detail");
+  const schedules = snapshot.schedules || {};
+  const job = selectedSchedule(rows);
+  if (!job) {
+    panel.replaceChildren(empty("Schedule manifest is not initialized."));
+    return;
+  }
+  state.selectedScheduleId = job.job_id;
+  const binding = job.prompt_binding || {};
+  const title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = `${valueOrUnavailable(job.job_id)} - ${statusLabel(job.status)}`;
+
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Cadence", job.cadence),
+    detailField("Prompt Binding", schedulePromptText(job)),
+    detailField("Max Runtime", `${valueOrUnavailable(job.max_runtime_minutes)} minutes`),
+    detailField("Concurrency", `${valueOrUnavailable(job.concurrency_key)} / ${valueOrUnavailable(job.concurrency_limit)}`)
+  );
+
+  const status = document.createElement("select");
+  status.id = "schedule-status";
+  status.className = "select";
+  ["enabled", "disabled"].forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = statusLabel(value);
+    status.append(option);
+  });
+  status.value = job.status === "enabled" ? "enabled" : "disabled";
+
+  const prompt = document.createElement("select");
+  prompt.id = "schedule-prompt-id";
+  prompt.className = "select";
+  const options = promptSelectOptions(snapshot, binding.prompt_id);
+  if (options.length) {
+    prompt.append(...options);
+  } else {
+    const option = document.createElement("option");
+    option.value = binding.prompt_id || "";
+    option.textContent = binding.prompt_id || "unavailable";
+    prompt.append(option);
+  }
+  prompt.value = binding.prompt_id || "";
+
+  const maxRuntime = textInput("schedule-max-runtime", job.max_runtime_minutes || 30, "number");
+  maxRuntime.min = "1";
+  maxRuntime.max = "1440";
+  const concurrencyLimit = textInput("schedule-concurrency-limit", job.concurrency_limit || 1, "number");
+  concurrencyLimit.min = "1";
+  concurrencyLimit.max = "20";
+  const promptVersion = textInput("schedule-prompt-version", binding.prompt_version);
+  prompt.addEventListener("change", () => {
+    const selected = promptRows(snapshot).find((row) => row.prompt_id === prompt.value);
+    if (selected && selected.active_version) {
+      promptVersion.value = selected.active_version;
+    }
+  });
+
+  const form = document.createElement("div");
+  form.className = "prompt-form";
+  const controls = document.createElement("div");
+  controls.className = "detail-actions";
+  const save = document.createElement("button");
+  save.className = "button secondary";
+  save.type = "button";
+  save.textContent = state.runningAction === "schedule_save" ? "Saving" : "Save";
+  save.disabled = Boolean(state.runningAction);
+  save.addEventListener("click", () => runScheduleSave(job));
+  const enable = document.createElement("button");
+  enable.className = "button";
+  enable.type = "button";
+  enable.textContent = state.runningAction === "schedule_enable" ? "Enabling" : "Enable Intent";
+  enable.disabled = Boolean(state.runningAction);
+  enable.addEventListener("click", () => runScheduleStatus("schedule_enable", job));
+  const disable = document.createElement("button");
+  disable.className = "button secondary";
+  disable.type = "button";
+  disable.textContent = state.runningAction === "schedule_disable" ? "Disabling" : "Disable Intent";
+  disable.disabled = Boolean(state.runningAction);
+  disable.addEventListener("click", () => runScheduleStatus("schedule_disable", job));
+  controls.append(save, enable, disable);
+
+  form.append(
+    detailField("Job ID", ""),
+    textInput("schedule-job-id", job.job_id),
+    detailField("Description", ""),
+    textInput("schedule-description", job.description),
+    detailField("Status", ""),
+    status,
+    detailField("Cadence", ""),
+    textInput("schedule-cadence", job.cadence),
+    detailField("Prompt", ""),
+    prompt,
+    detailField("Prompt Version", ""),
+    promptVersion,
+    detailField("Max Runtime Minutes", ""),
+    maxRuntime,
+    detailField("Concurrency Key", ""),
+    textInput("schedule-concurrency-key", job.concurrency_key),
+    detailField("Concurrency Limit", ""),
+    concurrencyLimit,
+    detailField("Disabled Reason", ""),
+    textInput("schedule-disabled-reason", job.disabled_reason),
+    detailField("Author", ""),
+    textInput("schedule-author", window.localStorage.getItem("asyncResearchScheduleAuthor") || "human"),
+    detailField("Reason", ""),
+    textInput("schedule-reason", ""),
+    controls
+  );
+
+  const validationIssues = validationIssueList(schedules.validation);
+  const children = [title, fields];
+  if (validationIssues) {
+    children.push(validationIssues);
+  }
+  children.push(form);
+  panel.replaceChildren(...children);
+}
+
+function renderSchedules(snapshot) {
+  const schedules = snapshot.schedules || {};
+  const rows = scheduleRows(snapshot);
+  el("schedule-total").textContent = schedules.available ? rows.length : 0;
+  el("schedule-init").disabled = Boolean(state.runningAction);
+  const listChildren = schedules.available && rows.length ? rows.map((job) => scheduleRow(job, schedules)) : [empty("Schedule manifest is not initialized.")];
+  el("schedule-list").replaceChildren(...listChildren);
+  renderScheduleDetail(schedules.available ? rows : [], snapshot);
+}
+
 function decisionCommandPreview(action, task) {
   return String(action.command_template || "")
     .replace("<task_id>", valueOrUnavailable(task.task_id))
@@ -966,6 +1171,7 @@ function render(snapshot, actionsCatalog) {
   renderDecisions(snapshot);
   renderOutcomes(snapshot);
   renderPrompts(snapshot);
+  renderSchedules(snapshot);
   renderFoundations(snapshot);
   renderRuns(snapshot);
   renderWarnings(snapshot);
@@ -1284,6 +1490,163 @@ async function runPromptActivate(prompt) {
   }
 }
 
+function scheduleAction(id) {
+  return (((state.actions || {}).schedule_actions || []).find((action) => action.id === id)) || { id, label: id };
+}
+
+function scheduleFormValues() {
+  return {
+    jobId: (el("schedule-job-id") || {}).value ? el("schedule-job-id").value.trim() : "",
+    description: (el("schedule-description") || {}).value ? el("schedule-description").value.trim() : "",
+    status: (el("schedule-status") || {}).value || "disabled",
+    cadence: (el("schedule-cadence") || {}).value ? el("schedule-cadence").value.trim() : "",
+    promptId: (el("schedule-prompt-id") || {}).value ? el("schedule-prompt-id").value.trim() : "",
+    promptVersion: (el("schedule-prompt-version") || {}).value ? el("schedule-prompt-version").value.trim() : "",
+    maxRuntimeMinutes: Number((el("schedule-max-runtime") || {}).value || 0),
+    concurrencyKey: (el("schedule-concurrency-key") || {}).value ? el("schedule-concurrency-key").value.trim() : "",
+    concurrencyLimit: Number((el("schedule-concurrency-limit") || {}).value || 1),
+    disabledReason: (el("schedule-disabled-reason") || {}).value ? el("schedule-disabled-reason").value.trim() : "",
+    author: (el("schedule-author") || {}).value ? el("schedule-author").value.trim() : "human",
+    reason: (el("schedule-reason") || {}).value ? el("schedule-reason").value.trim() : "",
+  };
+}
+
+async function runScheduleInit() {
+  if (state.runningAction) {
+    return;
+  }
+  const action = scheduleAction("schedules_init");
+  state.runningAction = action.id;
+  renderSchedules(state.snapshot || {});
+  try {
+    const { result } = await postAction({ action: action.id });
+    state.results[action.id] = result;
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderSchedules(state.snapshot || {});
+  }
+}
+
+async function runScheduleSave(job) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = scheduleFormValues();
+  if (!values.jobId || !values.reason || !values.description || !values.cadence || !values.promptId || !values.concurrencyKey) {
+    showResult({
+      label: "Save Schedule",
+      command: "async-research schedules upsert",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Job id, description, cadence, prompt, concurrency key, and reason are required.",
+    });
+    return;
+  }
+  const action = scheduleAction("schedule_save");
+  state.runningAction = action.id;
+  renderSchedules(state.snapshot || {});
+  try {
+    const { result } = await postAction({
+      action: action.id,
+      job_id: values.jobId,
+      description: values.description,
+      status: values.status,
+      cadence: values.cadence,
+      prompt_id: values.promptId,
+      prompt_version: values.promptVersion,
+      max_runtime_minutes: values.maxRuntimeMinutes,
+      concurrency_key: values.concurrencyKey,
+      concurrency_limit: values.concurrencyLimit,
+      disabled_reason: values.disabledReason,
+      reason: values.reason,
+      author: values.author,
+    });
+    state.results[`${action.id}:${job.job_id}`] = result;
+    if (result.ok && values.author) {
+      window.localStorage.setItem("asyncResearchScheduleAuthor", values.author);
+    }
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderSchedules(state.snapshot || {});
+  }
+}
+
+async function runScheduleStatus(actionId, job) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = scheduleFormValues();
+  if (!values.jobId || !values.reason) {
+    showResult({
+      label: actionId === "schedule_enable" ? "Enable Intent" : "Disable Intent",
+      command: "async-research schedules set-status",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Job id and reason are required.",
+    });
+    return;
+  }
+  const action = scheduleAction(actionId);
+  state.runningAction = action.id;
+  renderSchedules(state.snapshot || {});
+  try {
+    const { result } = await postAction({
+      action: action.id,
+      job_id: values.jobId,
+      reason: values.reason,
+      author: values.author,
+      disabled_reason: values.disabledReason,
+    });
+    state.results[`${action.id}:${job.job_id}`] = result;
+    if (result.ok && values.author) {
+      window.localStorage.setItem("asyncResearchScheduleAuthor", values.author);
+    }
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderSchedules(state.snapshot || {});
+  }
+}
+
 function submitDecisionForm(event) {
   event.preventDefault();
   const pending = state.pendingDecision;
@@ -1329,6 +1692,7 @@ async function refresh() {
 document.addEventListener("DOMContentLoaded", () => {
   el("refresh-button").addEventListener("click", refresh);
   el("prompt-init").addEventListener("click", runPromptInit);
+  el("schedule-init").addEventListener("click", runScheduleInit);
   el("result-close").addEventListener("click", closeResult);
   el("decision-cancel").addEventListener("click", closeDecisionModal);
   el("decision-form").addEventListener("submit", submitDecisionForm);

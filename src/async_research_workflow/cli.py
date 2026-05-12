@@ -711,6 +711,74 @@ def run_prompts_diff_command(args: argparse.Namespace) -> int:
     return module_main("prompt_library", ["diff", str(args.ops_dir), args.prompt_id])
 
 
+def run_schedules_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "schedule_manifest",
+        ["init", str(args.ops_dir)]
+        + (["--force"] if args.force else [])
+        + optional_text("--now", args.now),
+    )
+
+
+def run_schedules_list_command(args: argparse.Namespace) -> int:
+    return module_main("schedule_manifest", ["list", str(args.ops_dir)])
+
+
+def run_schedules_validate_command(args: argparse.Namespace) -> int:
+    return module_main("schedule_manifest", ["validate", str(args.ops_dir)])
+
+
+def run_schedules_upsert_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "schedule_manifest",
+        [
+            "upsert",
+            str(args.ops_dir),
+            args.job_id,
+            "--description",
+            args.description,
+            "--cadence",
+            args.cadence,
+            "--prompt-id",
+            args.prompt_id,
+            "--max-runtime-minutes",
+            str(args.max_runtime_minutes),
+            "--concurrency-key",
+            args.concurrency_key,
+            "--concurrency-limit",
+            str(args.concurrency_limit),
+            "--status",
+            args.status,
+            "--message",
+            args.message,
+            "--author",
+            args.author,
+        ]
+        + optional_text("--prompt-version", args.prompt_version)
+        + optional_text("--disabled-reason", args.disabled_reason)
+        + optional_text("--now", args.now),
+    )
+
+
+def run_schedules_set_status_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "schedule_manifest",
+        [
+            "set-status",
+            str(args.ops_dir),
+            args.job_id,
+            "--status",
+            args.status,
+            "--message",
+            args.message,
+            "--author",
+            args.author,
+        ]
+        + optional_text("--disabled-reason", args.disabled_reason)
+        + optional_text("--now", args.now),
+    )
+
+
 def decision_option_values(args: argparse.Namespace) -> list[str]:
     return (
         [
@@ -1324,6 +1392,77 @@ def register_prompt_commands(subparsers) -> None:
     add_common_ops(diff)
     diff.add_argument("prompt_id", help="Prompt id such as worker.")
     diff.set_defaults(func=run_prompts_diff_command)
+
+
+def register_schedule_commands(subparsers) -> None:
+    schedules = add_command(
+        subparsers,
+        "schedules",
+        help="Manage recurring-job schedule intent manifests.",
+        description="Create, validate, list, update, enable, and disable schedule intent in research_ops/schedules.json without installing external automation.",
+    )
+    schedule_sub = schedules.add_subparsers(dest="schedules_command", required=True)
+    init = add_command(
+        schedule_sub,
+        "init",
+        help="Create research_ops/schedules.json.",
+        description="Create research_ops/schedules.json with default recurring-job intent rows, prompt bindings, max runtime, and concurrency limits.",
+    )
+    add_common_ops(init)
+    init.add_argument("--force", action="store_true", help="Replace an existing schedule manifest.")
+    init.add_argument("--now", help="Override the initialization timestamp.")
+    init.set_defaults(func=run_schedules_init_command)
+    list_cmd = add_command(
+        schedule_sub,
+        "list",
+        help="List schedule jobs.",
+        description="Read schedule jobs, validation state, prompt bindings, max runtime, concurrency, and schedule-change history.",
+    )
+    add_common_ops(list_cmd)
+    list_cmd.set_defaults(func=run_schedules_list_command)
+    validate = add_command(
+        schedule_sub,
+        "validate",
+        help="Validate schedule manifest.",
+        description="Validate job ids, enabled/disabled status, prompt bindings, max runtime, and concurrency fields.",
+    )
+    add_common_ops(validate)
+    validate.set_defaults(func=run_schedules_validate_command)
+    upsert = add_command(
+        schedule_sub,
+        "upsert",
+        help="Create or update one schedule job.",
+        description="Write one schedule-intent job row and append schedule history without installing cron, launchd, GitHub Actions, or Codex automations.",
+    )
+    add_required_ops(upsert)
+    upsert.add_argument("job_id", help="Stable job id such as worker-loop.")
+    upsert.add_argument("--description", required=True, help="Human-readable job description.")
+    upsert.add_argument("--cadence", required=True, help="Schedule intent cadence such as hourly, daily, weekly, or manual.")
+    upsert.add_argument("--prompt-id", required=True, help="Prompt id to bind, such as worker.")
+    upsert.add_argument("--prompt-version", help="Prompt version to bind; defaults to the active version when omitted.")
+    upsert.add_argument("--max-runtime-minutes", type=int, required=True, help="Maximum intended runtime in minutes.")
+    upsert.add_argument("--concurrency-key", required=True, help="Concurrency group key used by trigger-now checks.")
+    upsert.add_argument("--concurrency-limit", type=int, default=1, help="Maximum concurrent runs for this key.")
+    upsert.add_argument("--status", choices=("enabled", "disabled"), default="disabled", help="Stored schedule intent status.")
+    upsert.add_argument("--disabled-reason", help="Reason when status is disabled.")
+    upsert.add_argument("--message", required=True, help="Reason for the schedule change.")
+    upsert.add_argument("--author", default="human", help="Operator or agent changing the schedule.")
+    upsert.add_argument("--now", help="Override schedule history timestamp.")
+    upsert.set_defaults(func=run_schedules_upsert_command)
+    set_status = add_command(
+        schedule_sub,
+        "set-status",
+        help="Enable or disable one schedule job intent.",
+        description="Toggle one schedule job's stored enabled/disabled intent and append schedule history.",
+    )
+    add_required_ops(set_status)
+    set_status.add_argument("job_id", help="Stable job id such as worker-loop.")
+    set_status.add_argument("--status", choices=("enabled", "disabled"), required=True, help="New schedule intent status.")
+    set_status.add_argument("--message", required=True, help="Reason for changing schedule intent.")
+    set_status.add_argument("--author", default="human", help="Operator or agent changing the schedule.")
+    set_status.add_argument("--disabled-reason", help="Reason when disabling schedule intent.")
+    set_status.add_argument("--now", help="Override schedule history timestamp.")
+    set_status.set_defaults(func=run_schedules_set_status_command)
 
 
 def add_decision_options(parser: argparse.ArgumentParser) -> None:
@@ -2376,6 +2515,7 @@ COMMAND_REGISTRARS = (
     register_workflow_commands,
     register_queue_commands,
     register_prompt_commands,
+    register_schedule_commands,
     register_decision_commands,
     register_escalation_commands,
     register_source_commands,

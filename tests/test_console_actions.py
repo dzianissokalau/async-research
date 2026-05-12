@@ -104,6 +104,12 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("prompt_activate", prompt_actions)
         self.assertIn("async-research prompts init", prompt_actions["prompts_init"]["command_template"])
         self.assertTrue(prompt_actions["prompt_activate"]["requires_confirmation"])
+        schedule_actions = {item["id"]: item for item in catalog["schedule_actions"]}
+        self.assertIn("schedules_init", schedule_actions)
+        self.assertIn("schedule_save", schedule_actions)
+        self.assertIn("schedule_enable", schedule_actions)
+        self.assertIn("schedule_disable", schedule_actions)
+        self.assertIn("async-research schedules init", schedule_actions["schedules_init"]["command_template"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -476,6 +482,80 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertEqual(2, result["exit_code"])
             self.assertEqual("prompt_validation_failed", result["parsed_stdout"]["reason"])
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_schedule_actions_init_save_and_toggle_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+
+            status, schedule_init = actions.run_action("schedules_init", ops_dir, {})
+            self.assertEqual(200, status, schedule_init)
+            self.assertTrue(schedule_init["ok"], schedule_init)
+            self.assertTrue((ops_dir / "schedules.json").exists())
+            self.assertIn("async-research schedules init", schedule_init["command"])
+
+            status, saved = actions.run_action(
+                "schedule_save",
+                ops_dir,
+                {
+                    "job_id": "worker-loop",
+                    "description": "Process one ready worker task.",
+                    "cadence": "hourly",
+                    "prompt_id": "worker",
+                    "prompt_version": "worker_v1.0",
+                    "max_runtime_minutes": 40,
+                    "concurrency_key": "worker",
+                    "concurrency_limit": 1,
+                    "status": "disabled",
+                    "disabled_reason": "waiting for trigger-now slice",
+                    "reason": "tighten worker runtime",
+                    "author": "tester",
+                },
+            )
+            self.assertEqual(200, status, saved)
+            self.assertTrue(saved["ok"], saved)
+            self.assertTrue(saved["changed"])
+            self.assertIn("async-research schedules upsert", saved["command"])
+
+            status, enabled = actions.run_action(
+                "schedule_enable",
+                ops_dir,
+                {
+                    "job_id": "worker-loop",
+                    "reason": "operator wants worker intent visible",
+                    "author": "tester",
+                },
+            )
+            self.assertEqual(200, status, enabled)
+            self.assertTrue(enabled["ok"], enabled)
+
+            status, disabled = actions.run_action(
+                "schedule_disable",
+                ops_dir,
+                {
+                    "job_id": "worker-loop",
+                    "reason": "hold until dry-run trigger exists",
+                    "author": "tester",
+                    "disabled_reason": "hold until dry-run trigger exists",
+                },
+            )
+            self.assertEqual(200, status, disabled)
+            self.assertTrue(disabled["ok"], disabled)
+            manifest = json.loads((ops_dir / "schedules.json").read_text(encoding="utf-8"))
+            worker = next(job for job in manifest["jobs"] if job["job_id"] == "worker-loop")
+            self.assertEqual("disabled", worker["status"])
+            self.assertEqual("hold until dry-run trigger exists", worker["disabled_reason"])
+            self.assertTrue((ops_dir / "schedules_history.jsonl").exists())
+            decisions = (ops_dir / "decisions.md").read_text(encoding="utf-8")
+            self.assertIn("schedule:worker-loop", decisions)
 
     def test_prompt_action_unexpected_exit_code_returns_server_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

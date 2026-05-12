@@ -1,9 +1,9 @@
 # Dashboard Delivery Roadmap
 
 Status: In Progress
-Current phase: Slice 8
+Current phase: Slice 9
 Last updated: 2026-05-12
-Next action: Implement Slice 8 Schedule Manifest
+Next action: Implement Slice 9 Trigger-Now Dry Run
 Blocked by: None
 
 Created: 2026-05-05
@@ -154,7 +154,7 @@ Last updated: 2026-05-12
 | Slice 5 | Build delivered-project outcome indexes, summary commands, delivered-project table, and detail panel from accepted outputs and related provenance. | Complete |
 | Slice 6 | Add human decision inbox actions around existing human-decision helpers, with confirmation, audit feedback, validation, and task-board refresh. | Complete |
 | Slice 7 | Add prompt library initialization, draft editing, validation, diffing, activation, version history, and schedule binding visibility. | Complete |
-| Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Pending |
+| Slice 8 | Add schedule manifest storage, validation, schedule list, enable/disable intent, prompt binding, max runtime, and concurrency fields. | Complete |
 | Slice 9 | Add trigger-now dry run with command preview, readiness check, concurrency check, disabled-job blocking, and run-id preview. | Pending |
 | Slice 10 | Add bounded trigger-now execution, process/run artifacts, logs, event capture, usage ingestion where available, and run history. | Pending |
 | Slice 11 | Add cost, source, and health detail views with budget pressure, source governance, stale accepted evidence, and recovery commands. | Pending |
