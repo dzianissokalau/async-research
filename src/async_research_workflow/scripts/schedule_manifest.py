@@ -7,12 +7,15 @@ import json
 import os
 import re
 import shlex
+import subprocess
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from async_research_workflow.scripts import autonomy_readiness_gate
+from async_research_workflow.scripts import cost_tracking
 from async_research_workflow.scripts.decision_log import append_decision
 
 
@@ -21,8 +24,10 @@ VALIDATION_FAILED = 2
 INVALID_REQUEST = 3
 MALFORMED = 4
 SCHEMA_VERSION = "1.0"
+RUN_SCHEMA_VERSION = "1.0"
 STATUS_CHOICES = ("enabled", "disabled")
 DEFAULT_DISABLED_REASON = "schedule intent only; trigger/install arrives in later slices"
+TRIGGER_RUNNER_ENV = "ASYNC_RESEARCH_TRIGGER_COMMAND"
 ACTIVE_RUN_STATUSES = {"queued", "starting", "running", "in_progress"}
 TERMINAL_RUN_STATUSES = {
     "accepted",
@@ -37,6 +42,8 @@ TERMINAL_RUN_STATUSES = {
     "skipped",
     "success",
     "succeeded",
+    "timeout",
+    "timed_out",
 }
 
 
@@ -105,6 +112,10 @@ DEFAULT_SCHEDULES = (
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def isoformat_z(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def parse_time(value: str | None = None) -> datetime:
@@ -648,18 +659,35 @@ def planned_execution(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any]
         "max_runtime_minutes": normalize_int(job.get("max_runtime_minutes"), 0),
         "concurrency_key": normalize_text(job.get("concurrency_key")),
         "concurrency_limit": normalize_int(job.get("concurrency_limit"), 1),
+        "stdout_log": str(run_artifact_dir / "stdout.log"),
+        "stderr_log": str(run_artifact_dir / "stderr.log"),
+        "events_path": str(run_artifact_dir / "events.jsonl"),
+        "final_message_path": str(run_artifact_dir / "final_message.md"),
     }
 
 
-def planned_command(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any], run_id: str) -> list[str]:
+def planned_prompt_text(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any], run_id: str) -> str:
     execution = planned_execution(ops_dir, job, prompt, run_id)
-    prompt_text = (
+    return (
         f"Run schedule job {job['job_id']} for {ops_dir}. "
         f"Use prompt file {prompt['prompt_path']} at version {prompt.get('prompt_version') or 'unavailable'}. "
         f"Respect max_runtime_minutes={execution['max_runtime_minutes']} and concurrency_key={execution['concurrency_key']}. "
         f"Write run artifacts under {execution['run_artifact_dir']}."
     )
-    return ["codex", "exec", "--json", prompt_text]
+
+
+def planned_command(ops_dir: Path, job: dict[str, Any], prompt: dict[str, Any], run_id: str) -> list[str]:
+    execution = planned_execution(ops_dir, job, prompt, run_id)
+    return [
+        "codex",
+        "exec",
+        "--json",
+        "--cd",
+        execution["cwd"],
+        "--output-last-message",
+        execution["final_message_path"],
+        planned_prompt_text(ops_dir, job, prompt, run_id),
+    ]
 
 
 def is_active_run(payload: dict[str, Any]) -> bool:
@@ -905,6 +933,390 @@ def trigger_dry_run(ops_dir: Path, job_id: str, *, now: str | None = None) -> tu
     return SUCCESS if would_run else VALIDATION_FAILED, payload
 
 
+def runner_command(default_argv: list[str], runner_argv: list[str] | None = None) -> list[str]:
+    if runner_argv is not None:
+        return list(runner_argv)
+    configured = normalize_text(os.environ.get(TRIGGER_RUNNER_ENV))
+    if configured:
+        return shlex.split(configured)
+    return list(default_argv)
+
+
+def run_lock_path(ops_dir: Path, concurrency_key: str) -> Path:
+    return ops_dir / "run_artifacts" / ".locks" / safe_slug(concurrency_key)
+
+
+def acquire_run_lock(lock_path: Path, run_id: str, now: str) -> tuple[bool, dict[str, Any]]:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        lock_path.mkdir()
+    except FileExistsError:
+        payload: dict[str, Any] = {"path": str(lock_path), "run_id": "unknown"}
+        lock_json = lock_path / "lock.json"
+        if lock_json.exists():
+            try:
+                parsed = json.loads(lock_json.read_text(encoding="utf-8"))
+                if isinstance(parsed, dict):
+                    payload.update(parsed)
+            except (OSError, json.JSONDecodeError):
+                payload["warning"] = "lock metadata could not be read"
+        return False, payload
+    metadata = {"path": str(lock_path), "run_id": run_id, "created_at": now}
+    atomic_write_json(lock_path / "lock.json", metadata)
+    return True, metadata
+
+
+def release_run_lock(lock_path: Path) -> None:
+    try:
+        for path in lock_path.iterdir():
+            if path.is_file():
+                path.unlink()
+        lock_path.rmdir()
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
+
+
+def parse_event_line(line: str) -> dict[str, Any] | None:
+    try:
+        parsed = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def event_text_value(event: dict[str, Any]) -> str:
+    event_type = normalize_text(event.get("type")).lower()
+    for key in ("final_message", "last_message", "message", "text"):
+        value = event.get(key)
+        if isinstance(value, str) and value.strip():
+            if key in {"final_message", "last_message"} or event_type in {"agent_message", "assistant_message", "assistant_final", "final_message", "message", "result"}:
+                return value.strip()
+    message = event.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+            if parts:
+                return "\n".join(part.strip() for part in parts if part.strip())
+    return ""
+
+
+def final_message_from_events(events: list[dict[str, Any]]) -> str:
+    messages = [message for message in (event_text_value(event) for event in events) if message]
+    return messages[-1] if messages else ""
+
+
+def tail_text(path: Path, limit: int = 4000) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-limit:]
+
+
+def write_run_manifest(run_dir: Path, payload: dict[str, Any]) -> None:
+    atomic_write_json(run_dir / "run.json", payload)
+
+
+def usage_ingestion_result(
+    ops_dir: Path,
+    events_path: Path,
+    events: list[dict[str, Any]],
+    *,
+    run_id: str,
+    job_id: str,
+    status: str,
+    finished_at: str,
+) -> dict[str, Any]:
+    totals = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    usage_record_count = 0
+    for event in events:
+        try:
+            input_tokens, output_tokens, total_tokens = cost_tracking.usage_from_record(event)
+        except ValueError:
+            continue
+        totals["input_tokens"] += input_tokens
+        totals["output_tokens"] += output_tokens
+        totals["total_tokens"] += total_tokens
+        usage_record_count += 1
+    if usage_record_count == 0:
+        return {
+            "attempted": True,
+            "ingested": False,
+            "reason": "no_usage_metadata",
+            "usage_source": str(events_path),
+        }
+    row = {
+        "date": finished_at,
+        "item_id": run_id,
+        "role": job_id,
+        "model_or_tool": "codex-cli",
+        "usage_source": str(events_path),
+        "input_tokens": totals["input_tokens"],
+        "output_tokens": totals["output_tokens"],
+        "total_tokens": totals["total_tokens"],
+        "input_usd": 0.0,
+        "output_usd": 0.0,
+        "api_usd": 0.0,
+        "compute_usd": 0.0,
+        "amount_usd": 0.0,
+        "human_minutes": 0.0,
+        "status": status,
+        "actual": "true",
+        "monthly_budget_usd": "",
+        "weekly_budget_usd": "",
+        "notes": "trigger_now_usage_ingest",
+    }
+    ledger = cost_tracking.ledger_path(ops_dir)
+    try:
+        cost_tracking.append_ledger_row(ledger, row)
+    except Exception as exc:
+        return {
+            "attempted": True,
+            "ingested": False,
+            "reason": "usage_ingest_failed",
+            "error": str(exc),
+            "usage_source": str(events_path),
+            "usage_record_count": usage_record_count,
+            "usage": totals,
+        }
+    return {
+        "attempted": True,
+        "ingested": True,
+        "ledger": str(ledger),
+        "row": row,
+        "usage_record_count": usage_record_count,
+        "usage": totals,
+    }
+
+
+def run_local_process(
+    command: list[str],
+    *,
+    cwd: Path,
+    run_dir: Path,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    stdout_path = run_dir / "stdout.log"
+    stderr_path = run_dir / "stderr.log"
+    events_path = run_dir / "events.jsonl"
+    stdout_path.write_text("", encoding="utf-8")
+    stderr_path.write_text("", encoding="utf-8")
+    events_path.write_text("", encoding="utf-8")
+    events: list[dict[str, Any]] = []
+
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+    except OSError as exc:
+        stderr_path.write_text(f"{exc}\n", encoding="utf-8")
+        return {
+            "exit_code": 127,
+            "timed_out": False,
+            "events": [],
+            "error": str(exc),
+        }
+
+    def pump_stdout() -> None:
+        assert process.stdout is not None
+        with stdout_path.open("a", encoding="utf-8") as stdout_handle, events_path.open("a", encoding="utf-8") as events_handle:
+            for line in process.stdout:
+                stdout_handle.write(line)
+                stdout_handle.flush()
+                event = parse_event_line(line)
+                if event is not None:
+                    events.append(event)
+                    events_handle.write(json.dumps(event, sort_keys=True) + "\n")
+                    events_handle.flush()
+
+    def pump_stderr() -> None:
+        assert process.stderr is not None
+        with stderr_path.open("a", encoding="utf-8") as stderr_handle:
+            for line in process.stderr:
+                stderr_handle.write(line)
+                stderr_handle.flush()
+
+    stdout_thread = threading.Thread(target=pump_stdout, daemon=True)
+    stderr_thread = threading.Thread(target=pump_stderr, daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+    timed_out = False
+    try:
+        exit_code = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        process.kill()
+        exit_code = process.wait()
+    stdout_thread.join(timeout=5)
+    stderr_thread.join(timeout=5)
+    if process.stdout is not None:
+        process.stdout.close()
+    if process.stderr is not None:
+        process.stderr.close()
+    return {
+        "exit_code": exit_code,
+        "timed_out": timed_out,
+        "events": events,
+    }
+
+
+def trigger_now(
+    ops_dir: Path,
+    job_id: str,
+    *,
+    now: str | None = None,
+    runner_argv: list[str] | None = None,
+    timeout_seconds: int | None = None,
+) -> tuple[int, dict[str, Any]]:
+    dry_code, dry_payload = trigger_dry_run(ops_dir, job_id, now=now)
+    if dry_code != SUCCESS:
+        payload = dict(dry_payload)
+        payload["action"] = "trigger_now_blocked"
+        payload["message"] = payload.get("message") or "Resolve trigger blockers before running the job."
+        return dry_code, payload
+
+    run_id = normalize_text(dry_payload["run_id"])
+    run_dir = Path(dry_payload["run_artifact_dir"])
+    job = dry_payload["job"]
+    execution = dry_payload["planned_execution"]
+    started_at = isoformat_z(parse_time(now))
+    concurrency_key = normalize_text(job.get("concurrency_key"))
+    lock_path = run_lock_path(ops_dir, concurrency_key)
+    lock_acquired, lock_payload = acquire_run_lock(lock_path, run_id, started_at)
+    if not lock_acquired:
+        return VALIDATION_FAILED, {
+            "ok": False,
+            "action": "trigger_now_blocked",
+            "reason": "concurrency_lock_active",
+            "message": f"Concurrency group {concurrency_key} is already locked for another run.",
+            "job_id": job_id,
+            "run_id": run_id,
+            "blocked": True,
+            "blockers": [blocker("concurrency_lock_active", "Another trigger-now run holds the concurrency lock.", lock_payload)],
+            "changed": False,
+            "read_only": True,
+        }
+
+    try:
+        if run_dir.exists():
+            return INVALID_REQUEST, {
+                "ok": False,
+                "action": "trigger_now_blocked",
+                "reason": "run_artifact_exists",
+                "message": f"Run artifact already exists: {run_dir}",
+                "job_id": job_id,
+                "run_id": run_id,
+                "changed": False,
+                "read_only": True,
+            }
+        run_dir.mkdir(parents=True)
+        command = runner_command(dry_payload["planned_command_argv"], runner_argv)
+        max_runtime_seconds = int(timeout_seconds if timeout_seconds is not None else max(1, normalize_int(job.get("max_runtime_minutes"), 1)) * 60)
+        run_payload: dict[str, Any] = {
+            "schema_version": RUN_SCHEMA_VERSION,
+            "run_id": run_id,
+            "job_id": job_id,
+            "status": "running",
+            "started_at": started_at,
+            "finished_at": None,
+            "command": command,
+            "command_preview": dry_payload["planned_command"],
+            "cwd": execution["cwd"],
+            "ops_dir": str(ops_dir),
+            "prompt_id": dry_payload["prompt"].get("prompt_id"),
+            "prompt_version": dry_payload["prompt"].get("prompt_version"),
+            "prompt_path": dry_payload["prompt"].get("prompt_path"),
+            "max_runtime_minutes": normalize_int(job.get("max_runtime_minutes"), 1),
+            "timeout_seconds": max_runtime_seconds,
+            "concurrency_key": concurrency_key,
+            "concurrency_limit": normalize_int(job.get("concurrency_limit"), 1),
+            "exit_code": None,
+            "readiness": dry_payload["readiness"],
+            "artifacts": {
+                "run_json": str(run_dir / "run.json"),
+                "events_jsonl": str(run_dir / "events.jsonl"),
+                "final_message": str(run_dir / "final_message.md"),
+                "stdout_log": str(run_dir / "stdout.log"),
+                "stderr_log": str(run_dir / "stderr.log"),
+            },
+            "usage_ingestion": {"attempted": False, "ingested": False},
+        }
+        write_run_manifest(run_dir, run_payload)
+        result = run_local_process(command, cwd=Path(execution["cwd"]), run_dir=run_dir, timeout_seconds=max_runtime_seconds)
+        finished_at = utc_now()
+        status = "timeout" if result.get("timed_out") else ("completed" if result["exit_code"] == 0 else "failed")
+        final_message_path = run_dir / "final_message.md"
+        final_message = tail_text(final_message_path).strip()
+        if not final_message:
+            final_message = final_message_from_events(result["events"]).strip()
+        if not final_message:
+            final_message = tail_text(run_dir / "stdout.log").strip()
+        if not final_message:
+            final_message = f"Run {status} with exit code {result['exit_code']}."
+        final_message_path.write_text(final_message + "\n", encoding="utf-8")
+        usage = usage_ingestion_result(
+            ops_dir,
+            run_dir / "events.jsonl",
+            result["events"],
+            run_id=run_id,
+            job_id=job_id,
+            status=status,
+            finished_at=finished_at,
+        )
+        run_payload.update(
+            {
+                "status": status,
+                "finished_at": finished_at,
+                "exit_code": result["exit_code"],
+                "timed_out": bool(result.get("timed_out")),
+                "error": result.get("error"),
+                "final_message_preview": final_message[:1000],
+                "usage_ingestion": usage,
+            }
+        )
+        write_run_manifest(run_dir, run_payload)
+        ok = result["exit_code"] == 0 and not result.get("timed_out")
+        payload = {
+            "ok": ok,
+            "action": "trigger_now_executed",
+            "reason": None if ok else status,
+            "message": "Trigger-now run completed." if ok else "Trigger-now run failed; inspect run logs.",
+            "changed": True,
+            "read_only": False,
+            "job_id": job_id,
+            "run_id": run_id,
+            "run_dir": str(run_dir),
+            "status": status,
+            "exit_code": result["exit_code"],
+            "command": command_string(command),
+            "argv": command,
+            "run": run_payload,
+            "artifacts": run_payload["artifacts"],
+            "usage_ingestion": usage,
+            "stdout_tail": tail_text(run_dir / "stdout.log"),
+            "stderr_tail": tail_text(run_dir / "stderr.log"),
+            "next_step": "Refresh run history and inspect any produced task artifacts." if ok else "Open stdout.log, stderr.log, and events.jsonl to diagnose the failed run.",
+        }
+        return SUCCESS if ok else VALIDATION_FAILED, payload
+    finally:
+        release_run_lock(lock_path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage research_ops schedule intent manifests.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -943,6 +1355,10 @@ def main(argv: list[str] | None = None) -> int:
     trigger.add_argument("ops_dir", type=Path)
     trigger.add_argument("job_id")
     trigger.add_argument("--now", help="Override trigger preview timestamp.")
+    trigger_now_parser = subparsers.add_parser("trigger-now", help="Run one enabled schedule job now with bounded local execution.")
+    trigger_now_parser.add_argument("ops_dir", type=Path)
+    trigger_now_parser.add_argument("job_id")
+    trigger_now_parser.add_argument("--now", help="Override trigger run id timestamp.")
     args = parser.parse_args(argv)
     if args.command == "init":
         code, payload = init_manifest(args.ops_dir, force=args.force, now=args.now)
@@ -979,6 +1395,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "trigger-dry-run":
         code, payload = trigger_dry_run(args.ops_dir, args.job_id, now=args.now)
+    elif args.command == "trigger-now":
+        code, payload = trigger_now(args.ops_dir, args.job_id, now=args.now)
     else:
         code, payload = INVALID_REQUEST, {"ok": False, "reason": "unknown_command"}
     print_json(payload)

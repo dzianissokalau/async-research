@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,6 +40,12 @@ def file_snapshot(root: Path) -> dict[str, str]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def write_runner_script(root: Path, body: str) -> Path:
+    path = root / "runner.py"
+    path.write_text(body, encoding="utf-8")
+    return path
 
 
 class ScheduleManifestTests(unittest.TestCase):
@@ -311,6 +318,160 @@ class ScheduleManifestTests(unittest.TestCase):
             self.assertIn("concurrency_limit_reached", [item["check"] for item in payload["blockers"]])
             self.assertEqual(1, payload["concurrency"]["active_count"])
             self.assertFalse(payload["readiness"]["checked"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_trigger_now_writes_run_artifacts_and_ingests_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = init_ops(root)
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="execute worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            runner = write_runner_script(
+                root,
+                "\n".join(
+                    [
+                        "import json",
+                        "import sys",
+                        "print(json.dumps({'type': 'agent_message', 'message': 'worker complete'}), flush=True)",
+                        "print(json.dumps({'usage': {'input_tokens': 100, 'output_tokens': 40}}), flush=True)",
+                        "print('plain stdout line', flush=True)",
+                        "print('diagnostic stderr line', file=sys.stderr, flush=True)",
+                    ]
+                ),
+            )
+
+            code, payload = schedule_manifest.trigger_now(
+                ops_dir,
+                "worker-loop",
+                now=NOW,
+                runner_argv=[sys.executable, str(runner)],
+                timeout_seconds=5,
+            )
+
+            self.assertEqual(schedule_manifest.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"], payload)
+            self.assertTrue(payload["changed"])
+            self.assertFalse(payload["read_only"])
+            self.assertEqual("completed", payload["status"])
+            self.assertEqual(0, payload["exit_code"])
+            run_dir = ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop"
+            self.assertTrue((run_dir / "run.json").exists())
+            self.assertTrue((run_dir / "events.jsonl").exists())
+            self.assertTrue((run_dir / "stdout.log").exists())
+            self.assertTrue((run_dir / "stderr.log").exists())
+            self.assertTrue((run_dir / "final_message.md").exists())
+            run_json = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual("completed", run_json["status"])
+            self.assertEqual(0, run_json["exit_code"])
+            self.assertEqual("worker-loop", run_json["job_id"])
+            self.assertIn("worker complete", (run_dir / "final_message.md").read_text(encoding="utf-8"))
+            self.assertIn("plain stdout line", (run_dir / "stdout.log").read_text(encoding="utf-8"))
+            self.assertIn("diagnostic stderr line", (run_dir / "stderr.log").read_text(encoding="utf-8"))
+            events = [json.loads(line) for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(2, len(events))
+            self.assertTrue(payload["usage_ingestion"]["ingested"], payload["usage_ingestion"])
+            ledger = (ops_dir / "cost_ledger.csv").read_text(encoding="utf-8")
+            self.assertIn("local-20260512-000000-worker-loop", ledger)
+            self.assertIn("trigger_now_usage_ingest", ledger)
+
+    def test_trigger_now_failed_process_is_visible_and_diagnosable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = init_ops(root)
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="execute worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            runner = write_runner_script(
+                root,
+                "\n".join(
+                    [
+                        "import sys",
+                        "print('about to fail', flush=True)",
+                        "print('failure detail', file=sys.stderr, flush=True)",
+                        "raise SystemExit(7)",
+                    ]
+                ),
+            )
+
+            code, payload = schedule_manifest.trigger_now(
+                ops_dir,
+                "worker-loop",
+                now=NOW,
+                runner_argv=[sys.executable, str(runner)],
+                timeout_seconds=5,
+            )
+
+            self.assertEqual(schedule_manifest.VALIDATION_FAILED, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("failed", payload["status"])
+            self.assertEqual(7, payload["exit_code"])
+            run_dir = ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop"
+            run_json = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual("failed", run_json["status"])
+            self.assertEqual(7, run_json["exit_code"])
+            self.assertIn("about to fail", payload["stdout_tail"])
+            self.assertIn("failure detail", payload["stderr_tail"])
+            self.assertIn("about to fail", (run_dir / "final_message.md").read_text(encoding="utf-8"))
+
+    def test_trigger_now_blocks_active_concurrency_without_new_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = init_ops(root)
+            prompt_library.init_library(ops_dir, now=NOW)
+            schedule_manifest.init_manifest(ops_dir, now=NOW)
+            schedule_manifest.set_status(
+                ops_dir,
+                "worker-loop",
+                "enabled",
+                reason="execute worker trigger",
+                author="tester",
+                now=NOW,
+            )
+            active_dir = ops_dir / "run_artifacts" / "local-existing"
+            active_dir.mkdir(parents=True)
+            (active_dir / "run.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": "local-existing",
+                        "job_id": "worker-loop",
+                        "concurrency_key": "worker",
+                        "status": "running",
+                        "started_at": NOW,
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            before = file_snapshot(ops_dir)
+
+            code, payload = schedule_manifest.trigger_now(
+                ops_dir,
+                "worker-loop",
+                now=NOW,
+                runner_argv=[sys.executable, "-c", "print('should not run')"],
+                timeout_seconds=5,
+            )
+
+            self.assertEqual(schedule_manifest.VALIDATION_FAILED, code, payload)
+            self.assertEqual("trigger_now_blocked", payload["action"])
+            self.assertFalse(payload["would_run"])
+            self.assertIn("concurrency_limit_reached", [item["check"] for item in payload["blockers"]])
+            self.assertFalse((ops_dir / "run_artifacts" / "local-20260512-000000-worker-loop").exists())
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_public_schedule_cli_roundtrip(self) -> None:

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +21,12 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def write_runner_script(root: Path, body: str) -> Path:
+    path = root / "runner.py"
+    path.write_text(body, encoding="utf-8")
+    return path
 
 
 def write_task_status(
@@ -121,10 +129,14 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("schedule_save", schedule_actions)
         self.assertIn("schedule_enable", schedule_actions)
         self.assertIn("schedule_trigger_dry_run", schedule_actions)
+        self.assertIn("schedule_trigger_now", schedule_actions)
         self.assertIn("schedule_disable", schedule_actions)
         self.assertIn("async-research schedules init", schedule_actions["schedules_init"]["command_template"])
         self.assertIn("async-research schedules trigger-dry-run", schedule_actions["schedule_trigger_dry_run"]["command_template"])
         self.assertFalse(schedule_actions["schedule_trigger_dry_run"]["mutates"])
+        self.assertIn("async-research schedules trigger-now", schedule_actions["schedule_trigger_now"]["command_template"])
+        self.assertTrue(schedule_actions["schedule_trigger_now"]["mutates"])
+        self.assertTrue(schedule_actions["schedule_trigger_now"]["requires_confirmation"])
 
     def test_init_requires_confirmation_then_creates_missing_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -617,6 +629,40 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertTrue(preview["parsed_stdout"]["would_run"], preview)
             self.assertTrue(preview["parsed_stdout"]["no_process_started"], preview)
             self.assertFalse((ops_dir / "run_artifacts").exists())
+
+            runner = write_runner_script(
+                Path(tmp),
+                "\n".join(
+                    [
+                        "import json",
+                        "print(json.dumps({'type': 'agent_message', 'message': 'console worker complete'}), flush=True)",
+                    ]
+                ),
+            )
+            status, unconfirmed = actions.run_action(
+                "schedule_trigger_now",
+                ops_dir,
+                {"job_id": "worker-loop"},
+            )
+            self.assertEqual(409, status, unconfirmed)
+            self.assertEqual("confirmation_required", unconfirmed["reason"])
+
+            with mock.patch.dict(os.environ, {"ASYNC_RESEARCH_TRIGGER_COMMAND": f"{sys.executable} {runner}"}):
+                status, executed = actions.run_action(
+                    "schedule_trigger_now",
+                    ops_dir,
+                    {
+                        "job_id": "worker-loop",
+                        "confirm": actions.schedule_trigger_confirmation_token("worker-loop"),
+                    },
+                )
+            self.assertEqual(200, status, executed)
+            self.assertTrue(executed["ok"], executed)
+            self.assertTrue(executed["changed"])
+            self.assertFalse(executed["read_only"])
+            self.assertIn("async-research schedules trigger-now", executed["command"])
+            self.assertEqual("completed", executed["parsed_stdout"]["status"])
+            self.assertTrue((ops_dir / "run_artifacts" / executed["parsed_stdout"]["run_id"] / "run.json").exists())
 
             status, disabled = actions.run_action(
                 "schedule_disable",

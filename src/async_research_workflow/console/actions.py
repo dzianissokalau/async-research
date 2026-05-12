@@ -81,6 +81,7 @@ class ScheduleActionSpec:
     label: str
     description: str
     mutates: bool = True
+    requires_confirmation: bool = False
     recovery_advice: str = "Review schedule validation errors, then update the manifest before retrying."
     success_next_step: str = "Refresh the schedule list."
 
@@ -191,6 +192,15 @@ SCHEDULE_ACTION_SPECS: dict[str, ScheduleActionSpec] = {
         mutates=False,
         recovery_advice="Resolve disabled status, prompt, readiness, or concurrency blockers, then preview again.",
         success_next_step="Review the preview before enabling trigger-now execution in Slice 10.",
+    ),
+    "schedule_trigger_now": ScheduleActionSpec(
+        action_id="schedule_trigger_now",
+        label="Run Now",
+        description="Run one enabled schedule job now and write durable run artifacts.",
+        mutates=True,
+        requires_confirmation=True,
+        recovery_advice="Inspect run.json, stdout.log, stderr.log, events.jsonl, and final_message.md for diagnostics.",
+        success_next_step="Refresh run history and inspect any produced task artifacts.",
     ),
     "schedule_disable": ScheduleActionSpec(
         action_id="schedule_disable",
@@ -526,7 +536,7 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedules_init"].description,
             "command_template": command_string(["schedules", "init", str(ops_dir)]),
             "mutates": True,
-            "requires_confirmation": False,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedules_init"].requires_confirmation,
             "status": "available" if ops_dir.exists() else "blocked_missing_workspace",
         },
         {
@@ -535,7 +545,7 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedule_save"].description,
             "command_template": command_string(["schedules", "upsert", str(ops_dir), "<job_id>", "--prompt-id", "<prompt_id>"]),
             "mutates": True,
-            "requires_confirmation": False,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedule_save"].requires_confirmation,
             "requires_schedule": True,
             "status": "available",
         },
@@ -545,7 +555,7 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedule_enable"].description,
             "command_template": command_string(["schedules", "set-status", str(ops_dir), "<job_id>", "--status", "enabled"]),
             "mutates": True,
-            "requires_confirmation": False,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedule_enable"].requires_confirmation,
             "requires_schedule": True,
             "status": "available",
         },
@@ -555,7 +565,17 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedule_trigger_dry_run"].description,
             "command_template": command_string(["schedules", "trigger-dry-run", str(ops_dir), "<job_id>"]),
             "mutates": False,
-            "requires_confirmation": False,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedule_trigger_dry_run"].requires_confirmation,
+            "requires_schedule": True,
+            "status": "available",
+        },
+        {
+            "id": "schedule_trigger_now",
+            "label": SCHEDULE_ACTION_SPECS["schedule_trigger_now"].label,
+            "description": SCHEDULE_ACTION_SPECS["schedule_trigger_now"].description,
+            "command_template": command_string(["schedules", "trigger-now", str(ops_dir), "<job_id>"]),
+            "mutates": True,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedule_trigger_now"].requires_confirmation,
             "requires_schedule": True,
             "status": "available",
         },
@@ -565,7 +585,7 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
             "description": SCHEDULE_ACTION_SPECS["schedule_disable"].description,
             "command_template": command_string(["schedules", "set-status", str(ops_dir), "<job_id>", "--status", "disabled"]),
             "mutates": True,
-            "requires_confirmation": False,
+            "requires_confirmation": SCHEDULE_ACTION_SPECS["schedule_disable"].requires_confirmation,
             "requires_schedule": True,
             "status": "available",
         },
@@ -1036,6 +1056,10 @@ def clean_schedule_common(request: dict[str, Any]) -> tuple[str, str, str]:
     return job_id, reason, author
 
 
+def schedule_trigger_confirmation_token(job_id: str) -> str:
+    return f"confirm_schedule_trigger_now:{job_id}"
+
+
 def run_schedule_action(spec: ScheduleActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     if not ops_dir.is_dir():
         return 409, {
@@ -1064,6 +1088,29 @@ def run_schedule_action(spec: ScheduleActionSpec, ops_dir: Path, request: dict[s
         command = ["schedules", "trigger-dry-run", str(ops_dir), job_id]
         with COMMAND_LOCK:
             code, payload = schedule_manifest.trigger_dry_run(ops_dir, job_id)
+    elif spec.action_id == "schedule_trigger_now":
+        job_id = clean_required_text(request, "job_id")
+        if not job_id:
+            return 400, {
+                "ok": False,
+                "reason": "schedule_job_id_required",
+                "message": "Running a schedule trigger requires job_id.",
+                "read_only": True,
+                "changed": False,
+            }
+        command = ["schedules", "trigger-now", str(ops_dir), job_id]
+        token = schedule_trigger_confirmation_token(job_id)
+        if request.get("confirm") != token:
+            return 409, {
+                "ok": False,
+                "reason": "confirmation_required",
+                "message": "Confirm the trigger-now run before launching a local process.",
+                "confirmation_token": token,
+                "command": command_string(command),
+                "read_only": True,
+                "changed": False,
+            }
+        code, payload = schedule_manifest.trigger_now(ops_dir, job_id)
     elif spec.action_id == "schedule_save":
         job_id, reason, author = clean_schedule_common(request)
         description = clean_required_text(request, "description")

@@ -926,13 +926,19 @@ function renderScheduleDetail(rows, snapshot) {
   trigger.textContent = state.runningAction === "schedule_trigger_dry_run" ? "Previewing" : "Preview Trigger";
   trigger.disabled = Boolean(state.runningAction);
   trigger.addEventListener("click", () => runScheduleTriggerDryRun(job));
+  const runNow = document.createElement("button");
+  runNow.className = "button";
+  runNow.type = "button";
+  runNow.textContent = state.runningAction === "schedule_trigger_now" ? "Running" : "Run Now";
+  runNow.disabled = Boolean(state.runningAction);
+  runNow.addEventListener("click", () => runScheduleTriggerNow(job));
   const disable = document.createElement("button");
   disable.className = "button secondary";
   disable.type = "button";
   disable.textContent = state.runningAction === "schedule_disable" ? "Disabling" : "Disable Intent";
   disable.disabled = Boolean(state.runningAction);
   disable.addEventListener("click", () => runScheduleStatus("schedule_disable", job));
-  controls.append(save, trigger, enable, disable);
+  controls.append(save, trigger, runNow, enable, disable);
 
   form.append(
     detailField("Job ID", ""),
@@ -1043,8 +1049,8 @@ function renderRuns(snapshot) {
   renderList("recent-runs", runs.recent_runs, "No run artifacts.", (run) =>
     record(
       `${valueOrUnavailable(run.run_id)} - ${valueOrUnavailable(run.status)}`,
-      `${valueOrUnavailable(run.task_id)} / ${valueOrUnavailable(run.job_id)}`,
-      `${valueOrUnavailable(run.started_at)} -> ${valueOrUnavailable(run.finished_at)}`
+      `${valueOrUnavailable(run.job_id)} / exit ${run.exit_code === null || run.exit_code === undefined ? "unavailable" : run.exit_code}`,
+      valueOrUnavailable(run.final_message_preview || `${valueOrUnavailable(run.started_at)} -> ${valueOrUnavailable(run.finished_at)}`)
     )
   );
 }
@@ -1630,6 +1636,68 @@ async function runScheduleTriggerDryRun(job) {
     });
     state.results[`${action.id}:${job.job_id}`] = result;
     showResult(result);
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderSchedules(state.snapshot || {});
+  }
+}
+
+async function runScheduleTriggerNow(job) {
+  if (state.runningAction) {
+    return;
+  }
+  const values = scheduleFormValues();
+  if (!values.jobId) {
+    showResult({
+      label: "Run Now",
+      command: "async-research schedules trigger-now",
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: "",
+      next_step: "Job id is required.",
+    });
+    return;
+  }
+  const action = scheduleAction("schedule_trigger_now");
+  state.runningAction = action.id;
+  renderSchedules(state.snapshot || {});
+  try {
+    const payload = {
+      action: action.id,
+      job_id: values.jobId,
+    };
+    let { response, result } = await postAction(payload);
+    if (response.status === 409 && result.reason === "confirmation_required") {
+      const confirmed = window.confirm(`${result.command}\n\n${result.message}`);
+      if (!confirmed) {
+        showResult({
+          label: action.label,
+          command: result.command,
+          exit_code: "cancelled",
+          status: "failed",
+          stdout: "",
+          stderr: "",
+          next_step: "Run cancelled before any process launched.",
+        });
+        return;
+      }
+      payload.confirm = result.confirmation_token;
+      ({ result } = await postAction(payload));
+    }
+    state.results[`${action.id}:${job.job_id}`] = result;
+    showResult(result);
+    await refresh();
   } catch (error) {
     showResult({
       label: action.label,

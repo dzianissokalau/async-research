@@ -786,6 +786,13 @@ def run_schedules_trigger_dry_run_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_schedules_trigger_now_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "schedule_manifest",
+        ["trigger-now", str(args.ops_dir), args.job_id] + optional_text("--now", args.now),
+    )
+
+
 def decision_option_values(args: argparse.Namespace) -> list[str]:
     return (
         [
@@ -1483,6 +1490,19 @@ def register_schedule_commands(subparsers) -> None:
     trigger.add_argument("job_id", help="Stable job id such as worker-loop.")
     trigger.add_argument("--now", help="Override the trigger run id timestamp.")
     trigger.set_defaults(func=run_schedules_trigger_dry_run_command)
+    trigger_now = add_command(
+        schedule_sub,
+        "trigger-now",
+        help="Run one enabled schedule job now.",
+        description=(
+            "Execute one enabled schedule job with a bounded local process runner, write run artifacts, "
+            "capture stdout, stderr, JSON events, final message, and ingest usage metadata when available."
+        ),
+    )
+    add_required_ops(trigger_now)
+    trigger_now.add_argument("job_id", help="Stable job id such as worker-loop.")
+    trigger_now.add_argument("--now", help="Override the trigger run id timestamp.")
+    trigger_now.set_defaults(func=run_schedules_trigger_now_command)
 
 
 def add_decision_options(parser: argparse.ArgumentParser) -> None:

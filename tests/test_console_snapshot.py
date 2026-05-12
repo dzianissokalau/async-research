@@ -474,6 +474,26 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual("run-001", payload["runs"]["recent_runs"][0]["run_id"])
             self.assertEqual("unavailable", payload["runs"]["recent_runs"][0]["status"])
 
+    def test_snapshot_ignores_internal_run_locks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            lock_dir = ops_dir / "run_artifacts" / ".locks" / "worker-loop"
+            lock_dir.mkdir(parents=True)
+            (lock_dir / "lock.json").write_text(json.dumps({"run_id": "local-active"}) + "\n", encoding="utf-8")
+            run_dir = ops_dir / "run_artifacts" / "run-001"
+            run_dir.mkdir()
+            (run_dir / "run.json").write_text(
+                json.dumps({"run_id": "run-001", "status": "completed", "job_id": "worker-loop"}) + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["runs"]["available"])
+            self.assertEqual(1, payload["runs"]["count"])
+            self.assertEqual(["run-001"], [run["run_id"] for run in payload["runs"]["recent_runs"]])
+
 
 if __name__ == "__main__":
     unittest.main()
