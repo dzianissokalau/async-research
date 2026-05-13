@@ -5,6 +5,17 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## 0.2.0a5 - 2026-05-13
+
+- Delivered the local async research dashboard as an operator surface for
+  setup, task inspection, outcomes, human decisions, prompt/schedule controls,
+  trigger-now runs, run history, and operational cost/source/health views.
+- Added dashboard packaging and acceptance-suite hardening for packaged static
+  assets, read-only API responses, malformed-state fail-closed behavior, and
+  real HTTP smoke coverage.
+- Added dashboard recovery guidance to the packaged operational runbook and
+  marked the dashboard delivery roadmap complete.
+
 ## 0.2.0a4 - 2026-05-10
 
 - Added the hypothesis-testing framework contracts: analysis run manifests,

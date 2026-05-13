@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "async-research-workflow"
-version = "0.2.0a4"
+version = "0.2.0a5"
 description = "Installable alpha CLI and starter template for low-cost async research workflows."
 readme = "README.md"
 requires-python = ">=3.11"

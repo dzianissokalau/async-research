@@ -17,11 +17,12 @@ required.
 
 ## Status
 
-Version `0.2.0a3` is a visible alpha with the durable Idea Catalog, promotion
-write mode, data-foundation readiness surfaces, and Knowledge Library /
-Research Foundations surfaces included. The core safety and package-resource
-checks are green, but the public user experience is still being hardened. Treat
-the CLI as suitable for careful dogfooding, not broad promotion.
+Version `0.2.0a5` is a visible alpha with the durable Idea Catalog, promotion
+write mode, data-foundation readiness surfaces, Knowledge Library / Research
+Foundations surfaces, hypothesis-testing contracts, and local operator
+dashboard included. The core safety, package-resource, and dashboard hardening
+checks are green. Treat the CLI as suitable for careful dogfooding, not broad
+promotion.
 
 The package is currently intended for GitHub install and real-project testing
 before PyPI publication.
