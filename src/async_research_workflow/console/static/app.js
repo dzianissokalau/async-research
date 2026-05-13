@@ -1088,7 +1088,9 @@ function renderOperations(snapshot) {
   const dueRows = accepted.due_rows || [];
   const healthAlerts = health.alerts || [];
   const sourceAttention = sources.attention_sources || [];
-  const costRows = cost.top_spend_rows || cost.recent_rows || [];
+  const costRows = Array.isArray(cost.top_spend_rows) && cost.top_spend_rows.length > 0
+    ? cost.top_spend_rows
+    : cost.recent_rows || [];
 
   el("operation-total").textContent = asNumber(healthSummary.alert_count) + asNumber(sourceSummary.blocked_source_count) + asNumber((accepted.memory_decay || {}).stale_count);
   el("operation-summary").replaceChildren(

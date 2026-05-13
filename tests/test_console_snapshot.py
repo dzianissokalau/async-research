@@ -438,6 +438,13 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertIn("monthly_budget_threshold", alert_checks)
             self.assertTrue(any("accepted revalidation" in item["command"] for item in payload["health"]["recovery_commands"]))
 
+    def test_budget_state_treats_non_finite_values_as_unconfigured(self) -> None:
+        self.assertEqual("unconfigured", snapshot_module.budget_state(float("inf")))
+        self.assertEqual("unconfigured", snapshot_module.budget_state(float("-inf")))
+        self.assertEqual("unconfigured", snapshot_module.budget_state(float("nan")))
+        self.assertEqual("unconfigured", snapshot_module.budget_state(True))
+        self.assertEqual("pressure", snapshot_module.budget_state(0.8))
+
     def test_snapshot_degrades_unreadable_cost_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

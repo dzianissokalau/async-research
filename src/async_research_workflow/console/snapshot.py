@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import shlex
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -651,7 +652,11 @@ def health_recovery_commands(ops_dir: Path, report: dict[str, Any]) -> list[dict
 
 
 def budget_state(ratio: Any) -> str:
-    if not isinstance(ratio, (int, float)):
+    if (
+        not isinstance(ratio, (int, float))
+        or isinstance(ratio, bool)
+        or not math.isfinite(ratio)
+    ):
         return "unconfigured"
     if ratio >= 1:
         return "over_budget"
