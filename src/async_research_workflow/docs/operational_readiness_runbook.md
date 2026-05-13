@@ -38,6 +38,48 @@ research_ops/tasks/<TASK-ID>/review_panel/
 
 Do not hand-edit `status.json` unless a protocol explicitly says to do so.
 
+## Recover Local Dashboard
+
+Use the local console as a read-mostly operator surface:
+
+```bash
+async-research console research_ops
+```
+
+The server binds to `127.0.0.1` by default. If the browser does not load, verify
+the installed package assets and snapshot API before changing workspace files:
+
+```bash
+async-research console snapshot research_ops --json
+python - <<'PY'
+from async_research_workflow.resources import console_static_path
+for name in ("index.html", "styles.css", "app.js"):
+    path = console_static_path(name)
+    print(name, path.is_file(), len(path.read_bytes()) if path.is_file() else 0)
+PY
+```
+
+If `/api/snapshot` returns a structured `snapshot_failed` error, run the CLI
+snapshot command above and repair the reported malformed file. The dashboard
+must fail closed: malformed task status, Markdown rows, cost ledgers, or
+foundation files should appear as warnings or `unavailable` state rather than
+silently mutating `research_ops/`.
+
+If the port is already in use, restart on another loopback port:
+
+```bash
+async-research console research_ops --port 8766
+```
+
+Do not bind to `0.0.0.0` unless you intentionally want to expose the local
+dashboard beyond the machine. When static assets are missing from an installed
+environment, reinstall the package and rerun the acceptance suite:
+
+```bash
+python -m pip install -e .
+async-research acceptance-suite
+```
+
 ## Human Review Surface
 
 Refresh the light-supervision files before manual review:

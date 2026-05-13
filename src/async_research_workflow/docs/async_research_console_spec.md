@@ -13,7 +13,7 @@ write, and what safety rules it must preserve. It is intentionally not the
 delivery roadmap.
 
 Use the
-[Dashboard Delivery Roadmap](../../../roadmaps/in_progress_dashboard_delivery_roadmap.md) for
+[Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md) for
 implementation sequence, work slices, MVP scope, risk register, and first AI
 tasks.
 
@@ -897,7 +897,7 @@ contents. A future implementation task should reference both documents:
 
 ```text
 Product contract: src/async_research_workflow/docs/async_research_console_spec.md
-Delivery plan: roadmaps/in_progress_dashboard_delivery_roadmap.md
+Delivery plan: roadmaps/delivered_dashboard_delivery_roadmap.md
 ```
 
 ## Product Completion Bar

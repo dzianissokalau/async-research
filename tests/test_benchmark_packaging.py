@@ -63,6 +63,28 @@ class BenchmarkPackagingTests(unittest.TestCase):
                 [step["name"] for step in payload["steps"]],
             )
 
+    def test_acceptance_suite_runs_console_hardening_smoke(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code, payload = run_acceptance_suite.run_console_hardening_acceptance(
+                Path(tmp) / "console-hardening" / "research_ops"
+            )
+
+            self.assertEqual(0, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("console_dashboard_hardening_passed", payload["action"])
+            self.assertEqual(
+                [
+                    "console_init",
+                    "packaged_static_assets",
+                    "static_shell",
+                    "snapshot_api",
+                    "actions_api",
+                    "console_gets_are_read_only",
+                    "malformed_status_fails_closed",
+                ],
+                [step["name"] for step in payload["steps"]],
+            )
+
     def test_benchmark_refuses_work_dir_inside_research_ops(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             bad_work_dir = Path(tmp) / "research_ops" / "benchmark-work"

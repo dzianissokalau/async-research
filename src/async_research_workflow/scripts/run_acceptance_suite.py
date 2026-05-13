@@ -63,6 +63,16 @@ def write_json(path: Path, payload: dict) -> None:
     write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def file_snapshot(root: Path) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 def promotion_write_score() -> dict:
     return {
         "mission_policy_version": "test_policy_v1.0",
@@ -255,6 +265,96 @@ def run_promotion_write_acceptance(ops_dir: Path) -> tuple[int, dict]:
     }
 
 
+def run_console_hardening_acceptance(ops_dir: Path) -> tuple[int, dict]:
+    from async_research_workflow.console import server
+    from async_research_workflow.resources import console_static_path
+
+    now = "2026-05-11T00:00:00Z"
+    steps: list[dict] = []
+    failures: list[dict] = []
+
+    def record_step(name: str, ok: bool, payload: dict | None = None) -> None:
+        steps.append({"name": name, "ok": ok})
+        if not ok:
+            failures.append({"name": name, "payload": payload or {}})
+
+    code, payload = run_cli(["init", str(ops_dir), "--force"])
+    record_step("console_init", code == SUCCESS and payload.get("ok", True) is not False, payload)
+
+    if not failures:
+        missing_assets = []
+        for name in ("index.html", "styles.css", "app.js"):
+            asset = console_static_path(name)
+            if not asset.is_file() or not asset.read_bytes():
+                missing_assets.append(name)
+        record_step("packaged_static_assets", not missing_assets, {"missing_assets": missing_assets})
+
+    if not failures:
+        before = file_snapshot(ops_dir)
+        checks = [
+            ("static_shell", "/", "text/html", b"Async Research Console"),
+            ("snapshot_api", f"/api/snapshot?now={now}", "application/json", b"console_snapshot_rendered"),
+            ("actions_api", "/api/actions", "application/json", b"console_actions_catalog"),
+        ]
+        for name, path, expected_media_type, expected_body in checks:
+            status, media_type, body = server.response_for_get(path, ops_dir)
+            ok = (
+                int(status) == 200
+                and expected_media_type in media_type
+                and expected_body in body
+            )
+            record_step(
+                name,
+                ok,
+                {
+                    "status": int(status),
+                    "media_type": media_type,
+                    "body": body.decode("utf-8", errors="replace")[:500],
+                },
+            )
+        record_step("console_gets_are_read_only", before == file_snapshot(ops_dir))
+
+    if not failures:
+        bad_task = ops_dir / "tasks" / "TASK-ACCEPTANCE-BAD-malformed" / "status.json"
+        write_text(bad_task, "{not json")
+        before = file_snapshot(ops_dir)
+        status, media_type, body = server.response_for_get(f"/api/snapshot?now={now}", ops_dir)
+        try:
+            snapshot_payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            snapshot_payload = {"raw_output": body.decode("utf-8", errors="replace")}
+        malformed_rows = snapshot_payload.get("tasks", {}).get("malformed_statuses", [])
+        warnings = snapshot_payload.get("warnings", [])
+        ok = (
+            int(status) == 200
+            and "application/json" in media_type
+            and snapshot_payload.get("read_only") is True
+            and snapshot_payload.get("changed") is False
+            and any(
+                "TASK-ACCEPTANCE-BAD-malformed" in str(row.get("status_path", ""))
+                for row in malformed_rows
+            )
+            and any(item.get("reason") == "malformed_task_status" for item in warnings)
+            and before == file_snapshot(ops_dir)
+        )
+        record_step("malformed_status_fails_closed", ok, snapshot_payload)
+
+    if failures:
+        return FAILED, {
+            "ok": False,
+            "action": "console_dashboard_hardening_failed",
+            "ops_dir": str(ops_dir),
+            "steps": steps,
+            "failures": failures,
+        }
+    return SUCCESS, {
+        "ok": True,
+        "action": "console_dashboard_hardening_passed",
+        "ops_dir": str(ops_dir),
+        "steps": steps,
+    }
+
+
 def check(name: str, code: int, payload: dict, failures: list[dict], checks: list[dict]) -> None:
     ok = code == SUCCESS and payload.get("ok", True) is not False
     checks.append({"name": name, "ok": ok})
@@ -305,6 +405,9 @@ def main(argv: Iterable[str]) -> int:
     for name, command in starter_checks:
         code, payload = run_cli(command)
         check(name, code, payload, failures, checks)
+
+    code, payload = run_console_hardening_acceptance(args.work_dir / "console-hardening" / "research_ops")
+    check("Console dashboard hardening", code, payload, failures, checks)
 
     code, payload = run_promotion_write_acceptance(args.work_dir / "promotion-write" / "research_ops")
     check("Promotion write end-to-end", code, payload, failures, checks)

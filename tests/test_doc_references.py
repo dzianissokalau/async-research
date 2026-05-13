@@ -413,14 +413,14 @@ class DocumentationReferenceTests(unittest.TestCase):
         self.assertEqual([], failures)
 
     def test_dashboard_mvp_coordination_contract_is_locked(self) -> None:
-        dashboard_path = ROOT / "roadmaps" / "in_progress_dashboard_delivery_roadmap.md"
+        dashboard_path = ROOT / "roadmaps" / "delivered_dashboard_delivery_roadmap.md"
         operator_path = ROOT / "roadmaps" / "delivered_operator_ux_workflow_ergonomics_roadmap.md"
         dashboard = dashboard_path.read_text(encoding="utf-8")
         operator = operator_path.read_text(encoding="utf-8")
         dashboard_normalized = " ".join(dashboard.split())
         operator_normalized = " ".join(operator.split())
 
-        self.assertIn("Status: In Progress", dashboard.splitlines()[:8])
+        self.assertIn("Status: Delivered", dashboard.splitlines()[:8])
         self.assertIn("## MVP Coordination Contract", dashboard)
         self.assertIn("| 3 | Dashboard MVP coordination | Complete |", operator_normalized)
         self.assertIn("Dashboard roadmap is now `In Progress`", operator_normalized)
@@ -461,12 +461,17 @@ class DocumentationReferenceTests(unittest.TestCase):
                 path.read_text(encoding="utf-8"),
                 f"stale dashboard roadmap link in {path.relative_to(ROOT)}",
             )
+            self.assertNotIn(
+                "in_progress_dashboard_delivery_roadmap.md",
+                path.read_text(encoding="utf-8"),
+                f"stale dashboard roadmap link in {path.relative_to(ROOT)}",
+            )
 
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         console_spec = (PACKAGE_ROOT / "docs" / "async_research_console_spec.md").read_text(encoding="utf-8")
         roadmap_index = (ROOT / "roadmaps" / "README.md").read_text(encoding="utf-8")
         for text in [docs_index, console_spec, roadmap_index]:
-            self.assertIn("in_progress_dashboard_delivery_roadmap.md", text)
+            self.assertIn("delivered_dashboard_delivery_roadmap.md", text)
 
 
 if __name__ == "__main__":

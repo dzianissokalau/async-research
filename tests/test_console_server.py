@@ -6,7 +6,9 @@ import contextlib
 import io
 import json
 import tempfile
+import threading
 import unittest
+import urllib.request
 from http import HTTPStatus
 from pathlib import Path
 from unittest import mock
@@ -66,6 +68,48 @@ class FakeConsoleServer:
 
 
 class ConsoleServerTests(unittest.TestCase):
+    def test_http_server_smoke_serves_static_assets_and_apis(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            try:
+                httpd = server.create_server(ops_dir, "127.0.0.1", 0)
+            except PermissionError as exc:
+                self.skipTest(f"loopback bind unavailable in this environment: {exc}")
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            host, port = httpd.server_address[:2]
+            base_url = f"http://{host}:{port}"
+
+            try:
+                with urllib.request.urlopen(f"{base_url}/", timeout=5) as response:
+                    body = response.read()
+                    self.assertEqual(HTTPStatus.OK, response.status)
+                    self.assertIn("text/html", response.headers["Content-Type"])
+                    self.assertIn(b"Async Research Console", body)
+
+                with urllib.request.urlopen(f"{base_url}/app.js", timeout=5) as response:
+                    body = response.read()
+                    self.assertEqual(HTTPStatus.OK, response.status)
+                    self.assertIn(b"renderOperations", body)
+
+                with urllib.request.urlopen(f"{base_url}/api/snapshot?now={NOW}", timeout=5) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(HTTPStatus.OK, response.status)
+                    self.assertEqual("console_snapshot_rendered", payload["action"])
+                    self.assertTrue(payload["read_only"])
+                    self.assertFalse(payload["changed"])
+
+                with urllib.request.urlopen(f"{base_url}/api/actions", timeout=5) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(HTTPStatus.OK, response.status)
+                    self.assertEqual("console_actions_catalog", payload["action"])
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+                thread.join(timeout=5)
+
+            self.assertFalse(thread.is_alive())
+
     def test_server_serves_static_shell_and_snapshot_api_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
