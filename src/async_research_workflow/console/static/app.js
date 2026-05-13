@@ -37,6 +37,13 @@ function money(value) {
   return `$${value.toFixed(2)}`;
 }
 
+function percent(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "unavailable";
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
 function badgeClass(readiness) {
   const exitCode = readiness && readiness.exit_code;
   if (exitCode === 0) {
@@ -1043,6 +1050,86 @@ function renderFoundations(snapshot) {
   );
 }
 
+function commandRow(command) {
+  return record(valueOrUnavailable(command.label), valueOrUnavailable(command.command));
+}
+
+function sourceTitle(source) {
+  return `${valueOrUnavailable(source.source_id)} - ${valueOrUnavailable(source.source_name)}`;
+}
+
+function detailSummary(value) {
+  if (!value) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return `${value.length} detail item${value.length === 1 ? "" : "s"}`;
+  }
+  if (typeof value === "object") {
+    if (Array.isArray(value.sources)) {
+      return `${value.sources.length} source${value.sources.length === 1 ? "" : "s"}`;
+    }
+    const counts = ["error_count", "warning_count", "source_count", "row_count"]
+      .filter((key) => value[key] !== undefined && value[key] !== null)
+      .map((key) => `${key.replaceAll("_", " ")} ${value[key]}`);
+    return counts.length ? counts.join(" / ") : `${Object.keys(value).length} detail fields`;
+  }
+  return String(value);
+}
+
+function renderOperations(snapshot) {
+  const cost = snapshot.cost || {};
+  const sources = snapshot.sources || {};
+  const health = snapshot.health || {};
+  const accepted = snapshot.accepted_outputs || {};
+  const healthSummary = health.summary || {};
+  const sourceSummary = sources.summary || {};
+  const staleRows = accepted.stale_rows || [];
+  const dueRows = accepted.due_rows || [];
+  const healthAlerts = health.alerts || [];
+  const sourceAttention = sources.attention_sources || [];
+  const costRows = cost.top_spend_rows || cost.recent_rows || [];
+
+  el("operation-total").textContent = asNumber(healthSummary.alert_count) + asNumber(sourceSummary.blocked_source_count) + asNumber((accepted.memory_decay || {}).stale_count);
+  el("operation-summary").replaceChildren(
+    metric("Monthly Budget", statusLabel(cost.monthly_budget_state), `${money(cost.month_spend_usd)} / ${money(cost.monthly_budget_usd)} (${percent(cost.monthly_usage_ratio)})`),
+    metric("Weekly Budget", statusLabel(cost.weekly_budget_state), `${money(cost.week_spend_usd)} / ${money(cost.weekly_budget_usd)} (${percent(cost.weekly_usage_ratio)})`),
+    metric("Sources Needing Review", sourceAttention.length, `${asNumber(sourceSummary.usable_today_count)} usable today`),
+    metric("Health Alerts", asNumber(healthSummary.alert_count), `${staleRows.length} stale accepted outputs`)
+  );
+  renderList("cost-ledger", costRows, "No cost ledger rows.", (row) =>
+    record(
+      `${valueOrUnavailable(row.item_id)} - ${money(row.amount_usd)}`,
+      `${valueOrUnavailable(row.date)} / ${valueOrUnavailable(row.role)} / ${valueOrUnavailable(row.model_or_tool)}`,
+      `${valueOrUnavailable(row.total_tokens)} tokens / ${valueOrUnavailable(row.notes || row.usage_source)}`
+    )
+  );
+  renderList("cost-recovery-commands", cost.recovery_commands, "No cost commands.", commandRow);
+  renderList("source-attention", sourceAttention, "No source governance attention needed.", (source) =>
+    record(
+      sourceTitle(source),
+      `${statusLabel(source.approval_status)} / ${valueOrUnavailable(source.source_tier)} / ${valueOrUnavailable((source.attention_reasons || []).join(", "))}`,
+      `${valueOrUnavailable(source.last_reviewed)} / ${valueOrUnavailable(source.known_limitations || source.usability_reason || source.review_notes)}`
+    )
+  );
+  renderList("source-recovery-commands", sources.recovery_commands, "No source commands.", commandRow);
+  renderList("health-alerts", healthAlerts, "No health alerts.", (alert) =>
+    record(
+      `${valueOrUnavailable(alert.severity)} - ${valueOrUnavailable(alert.check)}`,
+      valueOrUnavailable(alert.message),
+      detailSummary(alert.details)
+    )
+  );
+  renderList("accepted-evidence", [...staleRows, ...dueRows], "No stale or due accepted evidence.", (row) =>
+    record(
+      `${valueOrUnavailable(row.task_id)} - ${valueOrUnavailable(row.title)}`,
+      `${statusLabel(row.revalidation_status)} / ${valueOrUnavailable(row.next_recheck_date)} / ${valueOrUnavailable(row.claim_type)}`,
+      valueOrUnavailable(row.source_ids || row.evidence_link)
+    )
+  );
+  renderList("health-recovery-commands", health.recovery_commands, "No health commands.", commandRow);
+}
+
 function renderRuns(snapshot) {
   const runs = snapshot.runs || {};
   el("run-total").textContent = runs.count || 0;
@@ -1185,6 +1272,7 @@ function render(snapshot, actionsCatalog) {
   renderPrompts(snapshot);
   renderSchedules(snapshot);
   renderFoundations(snapshot);
+  renderOperations(snapshot);
   renderRuns(snapshot);
   renderWarnings(snapshot);
 }

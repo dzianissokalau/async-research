@@ -289,6 +289,24 @@ h3 {
   gap: 14px;
 }
 
+.operations-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.operation-panel {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.command-list {
+  display: grid;
+  gap: 8px;
+}
+
 .outcome-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -790,6 +808,7 @@ h3 {
 @media (max-width: 1060px) {
   .metric-grid,
   .foundation-grid,
+  .operations-grid,
   .outcome-summary,
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -835,6 +854,7 @@ h3 {
 
   .metric-grid,
   .foundation-grid,
+  .operations-grid,
   .outcome-summary,
   .action-grid {
     grid-template-columns: 1fr;

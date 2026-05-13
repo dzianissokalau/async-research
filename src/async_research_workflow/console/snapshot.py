@@ -10,8 +10,10 @@ JSON shape conventions:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
-from datetime import datetime, timezone
+import shlex
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -19,11 +21,13 @@ from async_research_workflow.console import outcomes
 from async_research_workflow.idea_catalog import catalog_dashboard_report
 from async_research_workflow.scripts import analysis_surface
 from async_research_workflow.scripts import autonomy_readiness_gate
+from async_research_workflow.scripts import data_source_audit
 from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import schedule_manifest
+from async_research_workflow.scripts import update_accepted_outputs_index
 from async_research_workflow.scripts import validate_transition
 from async_research_workflow.scripts.decision_log import read_decisions
 
@@ -184,6 +188,17 @@ def revalidation_state(rows: list[dict[str, str]]) -> dict[str, int]:
         status = str(row.get("revalidation_status") or "unavailable").strip() or "unavailable"
         counts[status] = counts.get(status, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def command_hint(label: str, argv: list[str]) -> dict[str, str]:
+    return {
+        "label": label,
+        "command": " ".join(shlex.quote(str(part)) for part in argv),
+    }
+
+
+def limited(rows: list[dict[str, Any]], limit: int = RECENT_LIMIT) -> list[dict[str, Any]]:
+    return rows[:limit]
 
 
 def task_id(payload: dict[str, Any], fallback: Path) -> str:
@@ -470,15 +485,22 @@ def health_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
         if blockers
         else ("review health warnings" if alerts else "no health alerts")
     )
+    accepted_memory = report.get("checks", {}).get("accepted_memory", {})
     return {
         "available": True,
         "status": "available",
         "verdict": report.get("summary", {}).get("highest_severity", "unavailable"),
         "exit_code": 0,
+        "alerts": alerts,
         "blockers": blockers,
         "warnings": [item for item in alerts if item.get("severity") != "error"],
         "next_step": next_step,
         "summary": report.get("summary", {}),
+        "checks": report.get("checks", {}),
+        "thresholds": report.get("thresholds", {}),
+        "stale_accepted_evidence": accepted_memory.get("stale_outputs", []) if isinstance(accepted_memory, dict) else [],
+        "due_accepted_evidence": accepted_memory.get("due_outputs", []) if isinstance(accepted_memory, dict) else [],
+        "recovery_commands": health_recovery_commands(ops_dir, report),
     }
 
 
@@ -508,14 +530,45 @@ def human_decisions_snapshot(ops_dir: Path, human_tasks: list[dict[str, Any]]) -
     }, warnings
 
 
-def accepted_outputs_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    rows, warnings = markdown_table_rows(ops_dir / "accepted_outputs_index.md")
+def accepted_outputs_snapshot(ops_dir: Path, now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    index_path = ops_dir / "accepted_outputs_index.md"
+    rows, warnings = markdown_table_rows(index_path)
+    try:
+        memory_decay = update_accepted_outputs_index.memory_decay_report(ops_dir, now=now, index=index_path)
+    except Exception as exc:
+        memory_decay = {
+            "ok": False,
+            "row_count": len(rows),
+            "current_count": 0,
+            "due_count": 0,
+            "stale_count": 0,
+            "manual_review_count": 0,
+            "superseded_count": 0,
+            "due_outputs": [],
+            "stale_outputs": [],
+        }
+        warnings.append(
+            issue(
+                "warning",
+                "accepted_memory_decay_unavailable",
+                "accepted memory freshness could not be computed",
+                index_path,
+                str(exc),
+            )
+        )
     return {
-        "path": str(ops_dir / "accepted_outputs_index.md"),
-        "exists": (ops_dir / "accepted_outputs_index.md").exists(),
+        "path": str(index_path),
+        "exists": index_path.exists(),
         "count": len(rows),
         "recent_rows": rows[-RECENT_LIMIT:],
         "revalidation_state": revalidation_state(rows) if rows else {},
+        "memory_decay": memory_decay,
+        "stale_rows": memory_decay.get("stale_outputs", [])[:RECENT_LIMIT],
+        "due_rows": memory_decay.get("due_outputs", [])[:RECENT_LIMIT],
+        "recovery_commands": [
+            command_hint("Write revalidation schedule", ["async-research", "accepted", "revalidation", str(ops_dir), "--write-schedule"]),
+            command_hint("Run health dry-run", ["async-research", "health", str(ops_dir), "--dry-run"]),
+        ],
     }, warnings
 
 
@@ -566,10 +619,93 @@ def rejected_results_snapshot(ops_dir: Path) -> tuple[dict[str, Any], list[dict[
     return recent_markdown_rows(ops_dir / "rejected_results.md")
 
 
+def health_recovery_commands(ops_dir: Path, report: dict[str, Any]) -> list[dict[str, str]]:
+    alerts = report.get("alerts", []) if isinstance(report.get("alerts"), list) else []
+    checks = {str(alert.get("check")) for alert in alerts if isinstance(alert, dict)}
+    commands = [
+        command_hint("Run health dry-run", ["async-research", "health", str(ops_dir), "--dry-run"]),
+        command_hint("Run workflow check", ["async-research", "workflow", "check", str(ops_dir)]),
+    ]
+    if checks & {"monthly_budget_threshold", "weekly_budget_threshold"}:
+        commands.append(command_hint("Inspect cost summary", ["async-research", "cost", "summary", str(ops_dir)]))
+    if checks & {"source_governance_errors", "source_freshness_warnings", "blocked_data_sources", "data_foundation_findings"}:
+        commands.extend(
+            [
+                command_hint("Validate source register", ["async-research", "source", "validate", str(ops_dir)]),
+                command_hint("Review source freshness", ["async-research", "source", "freshness", str(ops_dir)]),
+                command_hint("Open data dashboard", ["async-research", "data", "dashboard", str(ops_dir)]),
+            ]
+        )
+    if checks & {"stale_accepted_evidence", "accepted_memory_revalidation_due"}:
+        commands.append(command_hint("Write revalidation schedule", ["async-research", "accepted", "revalidation", str(ops_dir), "--write-schedule"]))
+    if checks & {"stale_locks", "malformed_status_files", "stuck_tasks", "revision_limit_breaches"}:
+        commands.append(command_hint("Inspect readiness", ["async-research", "readiness", str(ops_dir), "--dry-run"]))
+    seen: set[str] = set()
+    unique = []
+    for command in commands:
+        if command["command"] in seen:
+            continue
+        seen.add(command["command"])
+        unique.append(command)
+    return unique
+
+
+def budget_state(ratio: Any) -> str:
+    if not isinstance(ratio, (int, float)):
+        return "unconfigured"
+    if ratio >= 1:
+        return "over_budget"
+    if ratio >= 0.8:
+        return "pressure"
+    return "ok"
+
+
+def cost_ledger_detail_rows(ledger_path: Path, now: datetime) -> list[dict[str, Any]]:
+    if not ledger_path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=now.weekday())
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    with ledger_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for index, row in enumerate(reader, start=1):
+            parsed = {str(key): str(value) for key, value in row.items() if key is not None}
+            date = health_check.row_date(parsed)
+            amount = health_check.row_amount(parsed)
+            input_tokens = health_check.row_int(parsed, health_check.INPUT_TOKEN_FIELDS)
+            output_tokens = health_check.row_int(parsed, health_check.OUTPUT_TOKEN_FIELDS)
+            total_tokens = health_check.row_int(parsed, health_check.TOTAL_TOKEN_FIELDS) or input_tokens + output_tokens
+            rows.append(
+                {
+                    "row_number": index,
+                    "date": parsed.get("date") or parsed.get("created_at") or parsed.get("timestamp") or parsed.get("period_start") or "unavailable",
+                    "item_id": parsed.get("item_id", ""),
+                    "role": parsed.get("role", ""),
+                    "model_or_tool": parsed.get("model_or_tool", ""),
+                    "usage_source": parsed.get("usage_source", ""),
+                    "amount_usd": round(amount, 4),
+                    "api_usd": parsed.get("api_usd", ""),
+                    "compute_usd": parsed.get("compute_usd", ""),
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": total_tokens,
+                    "status": parsed.get("status", ""),
+                    "actual": parsed.get("actual", ""),
+                    "notes": parsed.get("notes", ""),
+                    "in_current_month": bool(date and date >= month_start),
+                    "in_current_week": bool(date and date >= week_start),
+                    "sort_date": date.isoformat() if date else "",
+                }
+            )
+    return rows
+
+
 def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
     ledger_path = ops_dir / "cost_ledger.csv"
     try:
         cost = health_check.scan_cost_ledger(ledger_path, None, None, now)
+        detail_rows = cost_ledger_detail_rows(ledger_path, now)
     except Exception as exc:
         warning = issue(
             "warning",
@@ -590,6 +726,10 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
             "monthly_usage_ratio": None,
             "weekly_usage_ratio": None,
             "budget_pressure": False,
+            "summary": {},
+            "recent_rows": [],
+            "top_spend_rows": [],
+            "recovery_commands": [command_hint("Inspect cost summary", ["async-research", "cost", "summary", str(ops_dir)])],
             "warnings": [warning],
         }
     monthly_ratio = cost.get("monthly_usage_ratio")
@@ -613,13 +753,104 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "status": "available",
         "path": cost.get("ledger_path"),
         "exists": cost.get("exists", False),
+        "row_count": cost.get("row_count", 0),
         "month_spend_usd": cost.get("monthly_cost_usd", 0.0),
         "week_spend_usd": cost.get("weekly_cost_usd", 0.0),
         "monthly_budget_usd": cost.get("monthly_budget_usd"),
         "weekly_budget_usd": cost.get("weekly_budget_usd"),
         "monthly_usage_ratio": monthly_ratio,
         "weekly_usage_ratio": weekly_ratio,
+        "monthly_budget_state": budget_state(monthly_ratio),
+        "weekly_budget_state": budget_state(weekly_ratio),
+        "input_tokens": cost.get("input_tokens", 0),
+        "output_tokens": cost.get("output_tokens", 0),
+        "total_tokens": cost.get("total_tokens", 0),
+        "actual_usage_rows": cost.get("actual_usage_rows", 0),
         "budget_pressure": bool(warnings),
+        "recent_rows": sorted(detail_rows, key=lambda row: (row["sort_date"], row["row_number"]), reverse=True)[:RECENT_LIMIT],
+        "top_spend_rows": sorted(detail_rows, key=lambda row: row["amount_usd"], reverse=True)[:RECENT_LIMIT],
+        "summary": {
+            "row_count": cost.get("row_count", 0),
+            "month_spend_usd": cost.get("monthly_cost_usd", 0.0),
+            "week_spend_usd": cost.get("weekly_cost_usd", 0.0),
+            "monthly_budget_state": budget_state(monthly_ratio),
+            "weekly_budget_state": budget_state(weekly_ratio),
+            "total_tokens": cost.get("total_tokens", 0),
+            "actual_usage_rows": cost.get("actual_usage_rows", 0),
+        },
+        "recovery_commands": [
+            command_hint("Inspect cost summary", ["async-research", "cost", "summary", str(ops_dir)]),
+            command_hint("Run health dry-run", ["async-research", "health", str(ops_dir), "--dry-run"]),
+        ],
+        "warnings": warnings,
+    }
+
+
+def source_snapshot(ops_dir: Path, now: datetime, data_dashboard: dict[str, Any]) -> dict[str, Any]:
+    audit_path = ops_dir / "data_source_audit.md"
+    if not audit_path.exists():
+        return unavailable("source_audit_missing", "source audit register is missing", audit_path)
+    governance = data_source_audit.source_governance_report(ops_dir, now=now)
+    sections = data_dashboard.get("sections", {}) if isinstance(data_dashboard.get("sections"), dict) else {}
+    summary = data_dashboard.get("summary", {}) if isinstance(data_dashboard.get("summary"), dict) else {}
+    candidate_sources = sections.get("candidate_sources", []) if isinstance(sections.get("candidate_sources"), list) else []
+    needs_review_sources = sections.get("needs_review_sources", []) if isinstance(sections.get("needs_review_sources"), list) else []
+    usable_today = sections.get("usable_today_sources", []) if isinstance(sections.get("usable_today_sources"), list) else []
+    blocked_sources = sections.get("blocked_sources", []) if isinstance(sections.get("blocked_sources"), list) else governance.get("blocked_sources", [])
+    stale_sources = sections.get("stale_source_reviews", []) if isinstance(sections.get("stale_source_reviews"), list) else governance.get("stale_sources", [])
+    attention_by_id: dict[str, dict[str, Any]] = {}
+    for reason, rows in (
+        ("blocked", blocked_sources),
+        ("stale", stale_sources),
+        ("candidate", candidate_sources),
+        ("needs_review", needs_review_sources),
+    ):
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            source_id = str(row.get("source_id") or "").strip()
+            if not source_id:
+                continue
+            merged = dict(attention_by_id.get(source_id, {}))
+            merged.update(row)
+            reasons = set(merged.get("attention_reasons", []))
+            reasons.add(reason)
+            merged["attention_reasons"] = sorted(reasons)
+            attention_by_id[source_id] = merged
+    warnings: list[dict[str, Any]] = []
+    for item in governance.get("warnings", []) if isinstance(governance.get("warnings"), list) else []:
+        warnings.append(issue("warning", str(item.get("reason", "source_governance_warning")), str(item.get("message", "source governance warning")), audit_path, item))
+    for item in governance.get("errors", []) if isinstance(governance.get("errors"), list) else []:
+        warnings.append(issue("error", "source_governance_error", str(item.get("message", item)), audit_path, item))
+    return {
+        "available": True,
+        "status": "available",
+        "path": str(audit_path),
+        "ok": governance.get("ok") is True and not warnings,
+        "source_count": governance.get("source_count", summary.get("source_count", 0)),
+        "summary": {
+            "source_count": governance.get("source_count", summary.get("source_count", 0)),
+            "usable_today_count": len(usable_today),
+            "blocked_source_count": len(blocked_sources) if isinstance(blocked_sources, list) else 0,
+            "stale_source_count": len(stale_sources) if isinstance(stale_sources, list) else 0,
+            "candidate_source_count": len(candidate_sources),
+            "needs_review_source_count": len(needs_review_sources),
+            "governance_error_count": governance.get("error_count", 0),
+            "governance_warning_count": governance.get("warning_count", 0),
+        },
+        "approval_counts": governance.get("approval_counts", {}),
+        "tier_counts": governance.get("tier_counts", {}),
+        "usable_today_sources": limited(usable_today),
+        "attention_sources": limited(list(attention_by_id.values()), 10),
+        "blocked_sources": limited(blocked_sources if isinstance(blocked_sources, list) else []),
+        "stale_sources": limited(stale_sources if isinstance(stale_sources, list) else []),
+        "candidate_sources": limited(candidate_sources),
+        "needs_review_sources": limited(needs_review_sources),
+        "recovery_commands": [
+            command_hint("Validate source register", ["async-research", "source", "validate", str(ops_dir)]),
+            command_hint("Review source freshness", ["async-research", "source", "freshness", str(ops_dir)]),
+            command_hint("Open data dashboard", ["async-research", "data", "dashboard", str(ops_dir)]),
+        ],
         "warnings": warnings,
     }
 
@@ -748,7 +979,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     readiness = readiness_snapshot(ops_dir, current)
     health = health_snapshot(ops_dir, current)
     human_decisions, human_decision_warnings = human_decisions_snapshot(ops_dir, tasks["human"])
-    accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir)
+    accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir, current)
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current)
@@ -760,13 +991,16 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "library": unavailable("ops_dir_missing", "library dashboard is unavailable until research_ops exists", ops_dir),
         "analysis": unavailable("ops_dir_missing", "analysis dashboard is unavailable until research_ops exists", ops_dir),
     }
+    sources = source_snapshot(ops_dir, current, dashboards["data"]) if workspace_ready else unavailable("ops_dir_missing", "sources are unavailable until research_ops exists", ops_dir)
     runs = runs_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runs are unavailable until research_ops exists", ops_dir)
 
     warnings.extend(human_decision_warnings)
     warnings.extend(accepted_warnings)
     warnings.extend(rejected_warnings)
     warnings.extend(cost.get("warnings", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, runs, *dashboards.values()]))
+    if sources.get("available") is not False:
+        warnings.extend(sources.get("warnings", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -785,6 +1019,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "delivered_projects": delivered_projects,
         "rejected_results": rejected_results,
         "cost": cost,
+        "sources": sources,
         "prompts": prompts,
         "schedules": schedules,
         "ideas": dashboards["ideas"],

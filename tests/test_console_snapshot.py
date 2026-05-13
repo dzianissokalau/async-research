@@ -26,6 +26,7 @@ SNAPSHOT_GROUPS = {
     "delivered_projects",
     "rejected_results",
     "cost",
+    "sources",
     "prompts",
     "schedules",
     "ideas",
@@ -372,6 +373,70 @@ class ConsoleSnapshotTests(unittest.TestCase):
             reasons = {item["reason"] for item in payload["warnings"]}
             self.assertIn("monthly_budget_pressure", reasons)
             self.assertIn("weekly_budget_pressure", reasons)
+
+    def test_snapshot_surfaces_slice_11_operation_details(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "cost_ledger.csv").write_text(
+                "\n".join(
+                    [
+                        "date,item_id,role,model_or_tool,usage_source,input_tokens,output_tokens,total_tokens,amount_usd,monthly_budget_usd,weekly_budget_usd,actual,notes",
+                        "2026-05-11,COST-1,worker,codex,fixture,100,40,140,90,100,100,true,pressure row",
+                        "2026-04-01,COST-OLD,planner,codex,fixture,10,5,15,2,100,100,true,old row",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "data_source_audit.md").write_text(
+                "\n".join(
+                    [
+                        "# Data Source Audit Register",
+                        "",
+                        "Schema version: 1.0",
+                        "",
+                        "| source_id | source_name | url_or_domain | publisher_owner | source_tier | approval_status | approved_use_cases | blocked_use_cases | freshness_window_days | known_limitations | citation_requirements | last_reviewed | approved_by | review_notes |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| DS-0001 | Stale approved source | https://example.test/stale | Fixture | tier_1_official | approved | experiment_planning; accepted_evidence | none | 30 | stale fixture | cite fixture | 2026-01-01 | tester | old review |",
+                        "| DS-0002 | Blocked source | https://example.test/blocked | Fixture | tier_4_untrusted | blocked | none | all | 30 | blocked fixture | cite fixture | 2026-05-01 | none | blocked |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "accepted_outputs_index.md").write_text(
+                "\n".join(
+                    [
+                        "| accepted_date | task_id | title | key_finding | claim_type | freshness_window_days | next_recheck_date | revalidation_status | source_ids | claim_strength | caveats | followups | supersedes | superseded_by | evidence_link |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| 2026-01-01 | TASK-5001 | Stale evidence | Finding | market_price | 30 | 2026-02-01 | current | DS-0001 | moderate | none | refresh | none | none | tasks/TASK-5001/worker_output.md |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("pressure", payload["cost"]["monthly_budget_state"])
+            self.assertEqual(2, payload["cost"]["row_count"])
+            self.assertEqual(155, payload["cost"]["total_tokens"])
+            self.assertEqual("COST-1", payload["cost"]["top_spend_rows"][0]["item_id"])
+            self.assertTrue(any("cost summary" in item["label"].lower() for item in payload["cost"]["recovery_commands"]))
+            source_summary = payload["sources"]["summary"]
+            self.assertEqual(2, source_summary["source_count"])
+            self.assertEqual(1, source_summary["blocked_source_count"])
+            self.assertEqual(1, source_summary["stale_source_count"])
+            attention_ids = {row["source_id"] for row in payload["sources"]["attention_sources"]}
+            self.assertEqual({"DS-0001", "DS-0002"}, attention_ids)
+            self.assertTrue(any("source validate" in item["command"] for item in payload["sources"]["recovery_commands"]))
+            self.assertEqual(1, payload["accepted_outputs"]["memory_decay"]["stale_count"])
+            self.assertEqual("TASK-5001", payload["accepted_outputs"]["stale_rows"][0]["task_id"])
+            alert_checks = {alert["check"] for alert in payload["health"]["alerts"]}
+            self.assertIn("stale_accepted_evidence", alert_checks)
+            self.assertIn("monthly_budget_threshold", alert_checks)
+            self.assertTrue(any("accepted revalidation" in item["command"] for item in payload["health"]["recovery_commands"]))
 
     def test_snapshot_degrades_unreadable_cost_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
