@@ -271,6 +271,14 @@ def review_files_report(task_dir: Path, status: dict[str, Any] | None) -> dict[s
             continue
         review_role = payload.get("reviewer_role")
         if isinstance(review_role, str) and review_role != role:
+            entry.update(
+                {
+                    "valid": False,
+                    "role_mismatch": True,
+                    "declared_role": review_role,
+                    "message": f"file declares reviewer_role {review_role!r}, so it does not satisfy role {role!r}",
+                }
+            )
             role = review_role
             entry = by_role.setdefault(
                 role,
@@ -528,9 +536,9 @@ def next_legal_commands(
     if current_status == "accepted":
         return [
             command_hint(
-                "Refresh outcomes",
+                "Refresh derived outcome surfaces",
                 ["async-research", "outcomes", "refresh", str(ops_dir)],
-                "update delivered-project outcome surfaces for accepted work",
+                "writes derived delivered-project outcome files for accepted work; task state is unchanged",
             )
         ]
 

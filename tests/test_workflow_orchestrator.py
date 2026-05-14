@@ -190,6 +190,34 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             )
             self.assertIn("write the missing required review", payload["next_legal_commands"][0]["reason"])
 
+    def test_status_marks_role_mismatched_review_file_without_hiding_missing_role(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9115-role-mismatch")
+            task_dir.joinpath("worker_output.md").write_text("Output ready for review.\n", encoding="utf-8")
+            self.write_review(task_dir, "accept")
+            review_path = task_dir / "reviews" / "primary.md"
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+            review["reviewer_role"] = "methodology"
+            review_path.write_text(json.dumps(review, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            primary = payload["reviews"]["by_role"]["primary"]
+            methodology = payload["reviews"]["by_role"]["methodology"]
+            self.assertTrue(primary["exists"])
+            self.assertFalse(primary["valid"])
+            self.assertTrue(primary["role_mismatch"])
+            self.assertEqual("methodology", primary["declared_role"])
+            self.assertIn("does not satisfy role 'primary'", primary["message"])
+            self.assertTrue(methodology["exists"])
+            self.assertTrue(methodology["valid"])
+            self.assertEqual(str(review_path), methodology["path"])
+            self.assertEqual(["primary"], payload["reviews"]["missing_required_reviews"])
+            self.assertFalse(payload["reviews"]["ready_to_aggregate"])
+            self.assertIn("review submit", payload["next_legal_commands"][0]["command"])
+
     def test_status_reports_human_gate_resolution_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -242,6 +270,25 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual("workflow_status_refused", payload["action"])
             self.assertEqual("task_dir_ops_mismatch", payload["reason"])
+
+    def test_status_labels_accepted_task_outcome_refresh_as_derived_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9116-status-accepted",
+                status_value="accepted",
+                previous_status="panel_review",
+                result=self.accepted_result(),
+            )
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("accepted", payload["status"])
+            self.assertEqual("Refresh derived outcome surfaces", payload["next_legal_commands"][0]["label"])
+            self.assertIn("writes derived delivered-project outcome files", payload["next_legal_commands"][0]["reason"])
+            self.assertIn("outcomes refresh", payload["next_legal_commands"][0]["command"])
 
     def test_advance_accepts_task_and_refreshes_follow_on_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
