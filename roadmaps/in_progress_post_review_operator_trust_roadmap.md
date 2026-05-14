@@ -3,7 +3,7 @@
 Status: In Progress
 Current phase: Phase 1 - Minimum operator path
 Last updated: 2026-05-14
-Next action: Add workflow next <ops-dir>
+Next action: Add public worker transition wrapper
 Blocked by: None
 
 Created: 2026-05-13
@@ -104,7 +104,7 @@ The next work should make the normal workflow hard to misuse:
 | P0 | 0 | Fix `decisions.md` writer/header mismatch | Make decision writes match the existing Markdown table header, or migrate starter templates to the canonical header. Add regression tests for generic and real-estate starters plus append and resolve-task paths. | Protects the durable human decision audit trail and removes the most concrete correctness bug found by external testing. | Complete |
 | P1 | 0 | Add review-submit state guard | Make review authoring writes refuse when the task is not reviewable, with no Phase 0B override. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Complete |
 | P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Complete |
-| P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Planned |
+| P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Complete |
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Planned |
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Planned |
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Planned |
@@ -218,6 +218,21 @@ Suggested priority order:
 6. due accepted-memory revalidation
 7. source/data/library warnings requiring operator attention
 8. safe maintenance actions such as `surface update`
+
+Shipped behavior:
+
+- `async-research workflow next <ops-dir>` is read-only and returns one
+  recommendation plus lower-priority alternatives.
+- The recommender uses the console snapshot read model, schema-version scan,
+  task-level `workflow status` reports, lock state, review state,
+  accepted-memory decay, and source/data/library warning summaries.
+- Malformed task state is a successful recommendation to run `schema-check`,
+  while a missing workspace still exits 4.
+- The priority order is deterministic: malformed state, human gates, active
+  locks, stale locks, ready-for-review work, ready-for-worker tasks,
+  accepted-memory revalidation, foundation warnings, then maintenance.
+- Recommended commands never suggest direct `status.json` editing or
+  advanced/internal helper calls.
 
 ### Worker Transition Wrapper
 

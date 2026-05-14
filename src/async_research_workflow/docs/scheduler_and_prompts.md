@@ -359,12 +359,13 @@ Task:
 10. If tier is 2 or 3, submit only reviews/primary.md with the same structured metadata; do not edit sibling review files.
 11. If the output needs a higher review tier before it can be accepted, run the advanced/internal helper python -m async_research_workflow.scripts.escalate_review_tier apply <task-dir> --to-tier <2-or-3> --reason "<reason>" --reviewer primary, then stop.
 12. Before accepting, rejecting, or routing to revision/human, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply and stop unless your review is the human-resolution step.
-13. Run async-research workflow status <task-dir>. Inspect the status, lock state, worker output, review files, human gate, revision counters, result state, and next_legal_commands before mutating.
-14. Run async-research workflow advance <task-dir> --dry-run. Inspect the plan, each subcommand exit code, stdout JSON, and next_step.
-15. If the dry run succeeds and all required reviews are present, run async-research workflow advance <task-dir>. The workflow command records the review-start transition when needed, aggregates, refreshes accepted memory/revalidation surfaces, validates the surface, and runs health.
-16. Use the aggregate JSON route and next_step. Do not hand-edit status.json to accepted, needs_revision, needs_human, paused, rejected, single_review, or panel_review.
-17. If the workflow stops, fix the failed public subcommand first. If validation fails because status.json is malformed, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>; otherwise revise the review route or escalate and stop.
-18. Update daily_status.md only through the public surface update path or by rerunning async-research workflow advance <task-dir>.
+13. Run async-research workflow next research_ops. Confirm the recommendation still points at this task or another higher-priority blocker before mutating.
+14. Run async-research workflow status <task-dir>. Inspect the status, lock state, worker output, review files, human gate, revision counters, result state, and next_legal_commands before mutating.
+15. Run async-research workflow advance <task-dir> --dry-run. Inspect the plan, each subcommand exit code, stdout JSON, and next_step.
+16. If the dry run succeeds and all required reviews are present, run async-research workflow advance <task-dir>. The workflow command records the review-start transition when needed, aggregates, refreshes accepted memory/revalidation surfaces, validates the surface, and runs health.
+17. Use the aggregate JSON route and next_step. Do not hand-edit status.json to accepted, needs_revision, needs_human, paused, rejected, single_review, or panel_review.
+18. If the workflow stops, fix the failed public subcommand first. If validation fails because status.json is malformed, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>; otherwise revise the review route or escalate and stop.
+19. Update daily_status.md only through the public surface update path or by rerunning async-research workflow advance <task-dir>.
 
 Review criteria:
 - Did the worker answer the task?

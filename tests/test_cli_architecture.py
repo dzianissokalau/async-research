@@ -190,6 +190,15 @@ class CliArchitectureTests(unittest.TestCase):
         )
 
         with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["workflow", "next", "research_ops", "--stale-minutes", "5"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "workflow_orchestrator",
+            ["next", "research_ops", "--stale-minutes", "5.0"],
+        )
+
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
             code = cli.main(
                 [
                     "workflow",
@@ -280,7 +289,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["discovery-gate"], list(queue_choices))
         self.assertEqual(["init", "list", "validate", "draft", "activate", "diff"], list(prompt_choices))
         self.assertEqual(["init", "list", "validate", "upsert", "set-status", "trigger-dry-run", "trigger-now"], list(schedule_choices))
-        self.assertEqual(["check", "status", "advance"], list(workflow_choices))
+        self.assertEqual(["check", "status", "next", "advance"], list(workflow_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"], list(source_choices))

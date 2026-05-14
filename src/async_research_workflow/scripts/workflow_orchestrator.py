@@ -14,8 +14,9 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Sequence
 
+from async_research_workflow.console import snapshot as console_snapshot
 from async_research_workflow.resources import schema_path
-from async_research_workflow.scripts import task_lock, validate_transition
+from async_research_workflow.scripts import check_schema_versions, task_lock, validate_transition
 from async_research_workflow.scripts.aggregate_reviews import (
     REVIEWER_ROLES,
     read_review,
@@ -570,6 +571,340 @@ def status_headline(status: dict[str, Any] | None, worker_output: dict[str, Any]
     return f"{status.get('id', 'unknown task')} is {status.get('status')} ({lock_label}; {worker_label}; {review_label})"
 
 
+def workspace_action(
+    category: str,
+    label: str,
+    argv: Sequence[str],
+    reason: str,
+    priority: int,
+    *,
+    task: dict[str, Any] | None = None,
+    details: dict[str, Any] | None = None,
+    mutates: bool = False,
+) -> dict[str, Any]:
+    action = command_hint(label, argv, reason, priority)
+    action.update(
+        {
+            "category": category,
+            "mutates": mutates,
+        }
+    )
+    if task is not None:
+        action["task"] = task
+    if details is not None:
+        action["details"] = details
+    return action
+
+
+def workspace_action_from_command(
+    category: str,
+    command: dict[str, Any],
+    priority: int,
+    *,
+    task: dict[str, Any] | None = None,
+    details: dict[str, Any] | None = None,
+    mutates: bool | None = None,
+) -> dict[str, Any]:
+    action = dict(command)
+    action["category"] = category
+    action["priority"] = priority
+    action["mutates"] = inferred_command_mutates(str(command.get("command", ""))) if mutates is None else mutates
+    if task is not None:
+        action["task"] = task
+    if details is not None:
+        action["details"] = details
+    return action
+
+
+def inferred_command_mutates(command: str) -> bool:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        parts = command.split()
+    if "--dry-run" in parts:
+        return False
+    mutating_prefixes = (
+        ("async-research", "review", "submit"),
+        ("async-research", "workflow", "advance"),
+        ("async-research", "decision", "resolve-task"),
+        ("async-research", "revision", "request"),
+        ("async-research", "accepted", "revalidation"),
+        ("async-research", "surface", "update"),
+        ("async-research", "outcomes", "refresh"),
+    )
+    if parts[:3] == ["async-research", "review", "draft"]:
+        return "--write" in parts
+    return any(tuple(parts[: len(prefix)]) == prefix for prefix in mutating_prefixes)
+
+
+def task_identity(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "task_id": row.get("task_id"),
+        "title": row.get("title"),
+        "status": row.get("status"),
+        "task_dir": row.get("task_dir"),
+        "status_path": row.get("status_path"),
+    }
+
+
+def first_task(rows: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
+    candidates = [row for row in rows if isinstance(row, dict)]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda row: (str(row.get("task_id") or ""), str(row.get("task_dir") or "")))[0]
+
+
+def task_status_report_for_row(row: dict[str, Any], ops_dir: Path, stale_minutes: float) -> dict[str, Any] | None:
+    task_dir_value = row.get("task_dir")
+    if not isinstance(task_dir_value, str) or not task_dir_value.strip():
+        return None
+    task_dir = Path(task_dir_value)
+    if not task_dir.exists() or not task_dir.is_dir():
+        return None
+    return build_status_report(task_dir, ops_dir, stale_minutes)
+
+
+def lock_state_for_row(row: dict[str, Any], stale_minutes: float) -> dict[str, Any] | None:
+    task_dir_value = row.get("task_dir")
+    if not isinstance(task_dir_value, str) or not task_dir_value.strip():
+        return None
+    task_dir = Path(task_dir_value)
+    if not task_dir.exists() or not task_dir.is_dir():
+        return None
+    return lock_report(task_dir, stale_minutes)
+
+
+def first_status_command(report: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(report, dict):
+        return None
+    commands = report.get("next_legal_commands")
+    if not isinstance(commands, list) or not commands:
+        return None
+    first = commands[0]
+    return first if isinstance(first, dict) else None
+
+
+def dashboard_warning_count(group: Any) -> int:
+    if not isinstance(group, dict):
+        return 0
+    warnings = group.get("warnings")
+    count = len(warnings) if isinstance(warnings, list) else 0
+    summary = group.get("summary") if isinstance(group.get("summary"), dict) else {}
+    for key in (
+        "error_count",
+        "warning_count",
+        "findings_count",
+        "blocked_source_count",
+        "stale_source_count",
+        "candidate_source_count",
+        "needs_review_source_count",
+        "governance_error_count",
+        "governance_warning_count",
+    ):
+        value = summary.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            count += max(0, value)
+    if group.get("ok") is False or group.get("available") is False:
+        count += 1
+    return count
+
+
+def workflow_next_actions(ops_dir: Path, snapshot: dict[str, Any], schema_report: dict[str, Any], stale_minutes: float) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    tasks = snapshot.get("tasks") if isinstance(snapshot.get("tasks"), dict) else {}
+
+    schema_errors = schema_report.get("errors") if isinstance(schema_report.get("errors"), list) else []
+    malformed_statuses = tasks.get("malformed_statuses") if isinstance(tasks.get("malformed_statuses"), list) else []
+    if schema_errors or malformed_statuses:
+        actions.append(
+            workspace_action(
+                "malformed_state",
+                "Validate schema versions",
+                ["async-research", "schema-check", str(ops_dir)],
+                "repair malformed or schema-invalid workflow state before choosing task work",
+                10,
+                details={
+                    "schema_error_count": len(schema_errors),
+                    "malformed_status_count": len(malformed_statuses),
+                    "first_schema_error": schema_errors[0] if schema_errors else None,
+                    "first_malformed_status": malformed_statuses[0] if malformed_statuses else None,
+                },
+            )
+        )
+
+    human_task = first_task(tasks.get("human", []) if isinstance(tasks.get("human"), list) else [])
+    if human_task is not None:
+        report = task_status_report_for_row(human_task, ops_dir, stale_minutes)
+        command = first_status_command(report)
+        if command is not None:
+            actions.append(
+                workspace_action_from_command(
+                    "needs_human",
+                    command,
+                    20,
+                    task=task_identity(human_task),
+                    details={"human_gate": report.get("human_gate") if isinstance(report, dict) else None},
+                )
+            )
+        else:
+            actions.append(
+                workspace_action(
+                    "needs_human",
+                    "Inspect human-gated task",
+                    ["async-research", "workflow", "status", str(human_task.get("task_dir"))],
+                    "resolve the highest-priority human gate before starting lower-priority work",
+                    20,
+                    task=task_identity(human_task),
+                )
+            )
+
+    all_tasks = tasks.get("all", []) if isinstance(tasks.get("all"), list) else []
+    active_lock_tasks = []
+    stale_lock_tasks = []
+    lock_state_by_task_dir: dict[str, dict[str, Any]] = {}
+    for row in all_tasks:
+        lock_state = lock_state_for_row(row, stale_minutes)
+        if lock_state is None or lock_state.get("locked") is not True:
+            continue
+        task_dir_key = str(row.get("task_dir") or "")
+        lock_state_by_task_dir[task_dir_key] = lock_state
+        if lock_state.get("stale") is True:
+            stale_lock_tasks.append(row)
+        else:
+            active_lock_tasks.append(row)
+    active_lock = first_task(active_lock_tasks)
+    if active_lock is not None:
+        lock_state = lock_state_by_task_dir.get(str(active_lock.get("task_dir") or ""), active_lock.get("lock_state"))
+        actions.append(
+            workspace_action(
+                "active_lock",
+                "Inspect active task lock",
+                ["async-research", "workflow", "status", str(active_lock.get("task_dir"))],
+                "an active task lock is present; inspect it before running mutating task commands",
+                30,
+                task=task_identity(active_lock),
+                details={"lock_state": lock_state},
+            )
+        )
+
+    stale_lock = first_task(stale_lock_tasks)
+    if stale_lock is not None:
+        lock_state = lock_state_by_task_dir.get(str(stale_lock.get("task_dir") or ""), stale_lock.get("lock_state"))
+        actions.append(
+            workspace_action(
+                "stale_lock",
+                "Inspect stale task lock",
+                ["async-research", "workflow", "status", str(stale_lock.get("task_dir"))],
+                "a stale task lock may block future work; inspect owner and task state before continuing",
+                31,
+                task=task_identity(stale_lock),
+                details={"lock_state": lock_state},
+            )
+        )
+
+    review_tasks = [row for row in all_tasks if row.get("status") in REVIEWABLE_STATUSES]
+    for row in sorted(review_tasks, key=lambda item: (str(item.get("task_id") or ""), str(item.get("task_dir") or ""))):
+        report = task_status_report_for_row(row, ops_dir, stale_minutes)
+        if not isinstance(report, dict):
+            continue
+        worker_ready = bool(report.get("worker_output", {}).get("ready_for_review"))
+        if not worker_ready:
+            continue
+        command = first_status_command(report)
+        if command is None:
+            continue
+        actions.append(
+            workspace_action_from_command(
+                "ready_for_review",
+                command,
+                40,
+                task=task_identity(row),
+                details={
+                    "missing_required_reviews": report.get("reviews", {}).get("missing_required_reviews"),
+                    "ready_to_aggregate": report.get("reviews", {}).get("ready_to_aggregate"),
+                    "aggregate": report.get("reviews", {}).get("aggregate"),
+                },
+            )
+        )
+        break
+
+    worker_task = first_task([row for row in all_tasks if row.get("status") == "ready_for_worker"])
+    if worker_task is not None:
+        actions.append(
+            workspace_action(
+                "ready_for_worker",
+                "Inspect ready worker task",
+                ["async-research", "workflow", "status", str(worker_task.get("task_dir"))],
+                "a task is ready for worker execution; inspect it before assigning work",
+                50,
+                task=task_identity(worker_task),
+            )
+        )
+
+    accepted_outputs = snapshot.get("accepted_outputs") if isinstance(snapshot.get("accepted_outputs"), dict) else {}
+    memory_decay = accepted_outputs.get("memory_decay") if isinstance(accepted_outputs.get("memory_decay"), dict) else {}
+    due_count = memory_decay.get("due_count") if isinstance(memory_decay.get("due_count"), int) else 0
+    stale_count = memory_decay.get("stale_count") if isinstance(memory_decay.get("stale_count"), int) else 0
+    if due_count or stale_count:
+        actions.append(
+            workspace_action(
+                "accepted_memory_revalidation",
+                "Write accepted-memory revalidation schedule",
+                ["async-research", "accepted", "revalidation", str(ops_dir), "--write-schedule"],
+                "accepted memory has due or stale entries; this writes the derived revalidation schedule",
+                60,
+                details={"due_count": due_count, "stale_count": stale_count},
+                mutates=True,
+            )
+        )
+
+    foundation_counts = {
+        "source": dashboard_warning_count(snapshot.get("sources")),
+        "data": dashboard_warning_count(snapshot.get("data")),
+        "library": dashboard_warning_count(snapshot.get("library")),
+    }
+    foundation_total = sum(foundation_counts.values())
+    if foundation_total:
+        actions.append(
+            workspace_action(
+                "foundation_attention",
+                "Run workflow check",
+                ["async-research", "workflow", "check", str(ops_dir)],
+                "source, data, or library read models report warnings that need operator attention",
+                70,
+                details=foundation_counts,
+            )
+        )
+
+    actions.append(
+        workspace_action(
+            "maintenance",
+            "Update operator surfaces",
+            ["async-research", "surface", "update", str(ops_dir)],
+            "no higher-priority task action was found; refresh derived operator surfaces",
+            80,
+            mutates=True,
+        )
+    )
+    return sorted(actions, key=lambda item: (int(item.get("priority", 999)), str(item.get("command", ""))))
+
+
+def workflow_next_summary(snapshot: dict[str, Any], schema_report: dict[str, Any]) -> dict[str, Any]:
+    tasks = snapshot.get("tasks") if isinstance(snapshot.get("tasks"), dict) else {}
+    accepted_outputs = snapshot.get("accepted_outputs") if isinstance(snapshot.get("accepted_outputs"), dict) else {}
+    memory_decay = accepted_outputs.get("memory_decay") if isinstance(accepted_outputs.get("memory_decay"), dict) else {}
+    return {
+        "schema_error_count": schema_report.get("error_count", 0),
+        "task_total": tasks.get("total", 0),
+        "malformed_status_count": len(tasks.get("malformed_statuses", []) if isinstance(tasks.get("malformed_statuses"), list) else []),
+        "human_task_count": len(tasks.get("human", []) if isinstance(tasks.get("human"), list) else []),
+        "review_task_count": len(tasks.get("review", []) if isinstance(tasks.get("review"), list) else []),
+        "active_task_count": len(tasks.get("active", []) if isinstance(tasks.get("active"), list) else []),
+        "accepted_memory_due_count": memory_decay.get("due_count", 0),
+        "accepted_memory_stale_count": memory_decay.get("stale_count", 0),
+    }
+
+
 def plan_summary(steps: Sequence[WorkflowStep], dry_run: bool) -> list[dict[str, Any]]:
     plan = []
     for step in steps:
@@ -865,6 +1200,61 @@ def run_status(args: argparse.Namespace) -> int:
     return SUCCESS if report["ok"] else INVALID_STATE
 
 
+def build_next_report(ops_dir: Path, stale_minutes: float) -> dict[str, Any]:
+    schema_report = check_schema_versions.scan_schema_versions(ops_dir)
+    snapshot = console_snapshot.snapshot(ops_dir)
+    actions = workflow_next_actions(ops_dir, snapshot, schema_report, stale_minutes)
+    recommendation = actions[0] if actions else None
+    return {
+        "ok": True,
+        "action": "workflow_next_reported",
+        "ops_dir": str(ops_dir),
+        "read_only": True,
+        "changed": False,
+        "priority_order": [
+            "malformed_state",
+            "needs_human",
+            "active_lock",
+            "stale_lock",
+            "ready_for_review",
+            "ready_for_worker",
+            "accepted_memory_revalidation",
+            "foundation_attention",
+            "maintenance",
+        ],
+        "recommendation": recommendation,
+        "alternatives": actions[1:],
+        "candidate_count": len(actions),
+        "summary": workflow_next_summary(snapshot, schema_report),
+        "snapshot": {
+            "schema_version": snapshot.get("schema_version"),
+            "generated_at": snapshot.get("generated_at"),
+            "readiness": snapshot.get("readiness", {}).get("next_step") if isinstance(snapshot.get("readiness"), dict) else None,
+            "health": snapshot.get("health", {}).get("next_step") if isinstance(snapshot.get("health"), dict) else None,
+        },
+        "next_step": recommendation.get("command") if isinstance(recommendation, dict) else "no recommended command available",
+    }
+
+
+def run_next(args: argparse.Namespace) -> int:
+    ops_dir = args.ops_dir
+    if not ops_dir.exists() or not ops_dir.is_dir():
+        print_json(
+            {
+                "ok": False,
+                "action": "workflow_next_refused",
+                "reason": "ops_dir_missing",
+                "ops_dir": str(ops_dir),
+                "read_only": True,
+                "changed": False,
+                "next_step": f"initialize a workspace with async-research init {shlex.quote(str(ops_dir))}",
+            }
+        )
+        return INVALID_STATE
+    print_json(build_next_report(ops_dir, args.stale_minutes))
+    return SUCCESS
+
+
 def run_check(args: argparse.Namespace) -> int:
     ops_dir = args.ops_dir
     steps = check_steps(ops_dir)
@@ -943,6 +1333,11 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     status.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
     status.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock reporting.")
     status.set_defaults(func=run_status)
+
+    next_cmd = subparsers.add_parser("next", help="Recommend the next safe workspace action.")
+    next_cmd.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"))
+    next_cmd.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock reporting.")
+    next_cmd.set_defaults(func=run_next)
 
     advance = subparsers.add_parser("advance", help="Run the canonical post-worker task workflow.")
     advance.add_argument("task_dir", type=Path)

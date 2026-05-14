@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -289,6 +291,127 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertEqual("Refresh derived outcome surfaces", payload["next_legal_commands"][0]["label"])
             self.assertIn("writes derived delivered-project outcome files", payload["next_legal_commands"][0]["reason"])
             self.assertIn("outcomes refresh", payload["next_legal_commands"][0]["command"])
+
+    def test_next_prioritizes_malformed_state_before_other_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            invalid_task = ops_dir / "tasks" / "TASK-9117-invalid-next"
+            write_json(invalid_task / "status.json", {})
+            self.write_task(
+                ops_dir,
+                "TASK-9118-human-next",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="fixture human gate",
+            )
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+            self.assertEqual("workflow_next_reported", payload["action"])
+            self.assertEqual("malformed_state", payload["recommendation"]["category"])
+            self.assertEqual(f"async-research schema-check {ops_dir}", payload["recommendation"]["command"])
+            self.assertGreaterEqual(payload["summary"]["malformed_status_count"], 1)
+            self.assertIn("needs_human", [item["category"] for item in payload["alternatives"]])
+            self.assertFalse((invalid_task / "review_panel" / "aggregate.json").exists())
+
+    def test_next_recommends_human_gate_before_review_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            human_task = self.write_task(
+                ops_dir,
+                "TASK-9119-human-first",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="fixture human gate",
+            )
+            review_task = self.write_task(ops_dir, "TASK-9120-review-later", result=self.accepted_result())
+            review_task.joinpath("worker_output.md").write_text("Reviewable worker output.\n", encoding="utf-8")
+            self.write_review(review_task, "accept")
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("needs_human", payload["recommendation"]["category"])
+            self.assertEqual("TASK-9119", payload["recommendation"]["task"]["task_id"])
+            self.assertEqual(str(human_task), payload["recommendation"]["task"]["task_dir"])
+            self.assertIn("decision resolve-task", payload["recommendation"]["command"])
+            self.assertIn("--dry-run", payload["recommendation"]["command"])
+            self.assertFalse(payload["recommendation"]["mutates"])
+            self.assertIn("ready_for_review", [item["category"] for item in payload["alternatives"]])
+
+    def test_next_recommends_review_advance_dry_run_for_reviewed_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9121-next-review", result=self.accepted_result())
+            task_dir.joinpath("worker_output.md").write_text("Reviewable worker output.\n", encoding="utf-8")
+            self.write_review(task_dir, "accept")
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("ready_for_review", payload["recommendation"]["category"])
+            self.assertEqual("TASK-9121", payload["recommendation"]["task"]["task_id"])
+            self.assertEqual(f"async-research workflow advance {task_dir} --dry-run", payload["recommendation"]["command"])
+            self.assertFalse(payload["recommendation"]["mutates"])
+            self.assertTrue(payload["recommendation"]["details"]["ready_to_aggregate"])
+            self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
+
+    def test_next_recommends_ready_worker_task_when_no_higher_priority_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9122-worker-ready",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("ready_for_worker", payload["recommendation"]["category"])
+            self.assertEqual(f"async-research workflow status {task_dir}", payload["recommendation"]["command"])
+            self.assertFalse(payload["recommendation"]["mutates"])
+
+    def test_next_uses_stale_minutes_for_lock_recommendation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9123-stale-lock",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+            lock_dir = task_dir / "LOCK"
+            lock_dir.mkdir()
+            old = time.time() - 120
+            os.utime(lock_dir, (old, old))
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir, "--stale-minutes", "1"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("stale_lock", payload["recommendation"]["category"])
+            self.assertEqual(str(task_dir), payload["recommendation"]["task"]["task_dir"])
+            self.assertTrue(payload["recommendation"]["details"]["lock_state"]["stale"])
+            self.assertEqual(1.0, payload["recommendation"]["details"]["lock_state"]["stale_after_minutes"])
+
+    def test_next_refuses_missing_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "missing_ops"
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("workflow_next_refused", payload["action"])
+            self.assertEqual("ops_dir_missing", payload["reason"])
+            self.assertIn("async-research init", payload["next_step"])
 
     def test_advance_accepts_task_and_refreshes_follow_on_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

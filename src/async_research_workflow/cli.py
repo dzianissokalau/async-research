@@ -1312,6 +1312,25 @@ def register_workflow_commands(subparsers) -> None:
             + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else []),
         )
     )
+    next_cmd = add_command(
+        workflow_sub,
+        "next",
+        help="Recommend the next safe workspace action.",
+        description=(
+            "Read the workspace snapshot and recommend one next safe workspace action, with alternatives, "
+            "for malformed state, human gates, locks, review work, worker-ready tasks, accepted-memory revalidation, "
+            "foundation warnings, or maintenance."
+        ),
+    )
+    next_cmd.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"), help="research_ops workspace directory.")
+    next_cmd.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock recommendations.")
+    next_cmd.set_defaults(
+        func=lambda a: module_main(
+            "workflow_orchestrator",
+            ["next", str(a.ops_dir)]
+            + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else []),
+        )
+    )
     advance = add_command(
         workflow_sub,
         "advance",
