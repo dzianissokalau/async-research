@@ -1292,6 +1292,26 @@ def register_workflow_commands(subparsers) -> None:
     )
     add_common_ops(check)
     check.set_defaults(func=lambda a: module_main("workflow_orchestrator", ["check", str(a.ops_dir)]))
+    status = add_command(
+        workflow_sub,
+        "status",
+        help="Report read-only task status and next legal commands.",
+        description=(
+            "Report read-only task status without mutating it: current status, previous status, type, review tier, "
+            "lock state, worker output, review files, human gate, revision counters, result state, and next legal commands."
+        ),
+    )
+    status.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
+    status.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    status.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock reporting.")
+    status.set_defaults(
+        func=lambda a: module_main(
+            "workflow_orchestrator",
+            ["status", str(a.task_dir)]
+            + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else [])
+            + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else []),
+        )
+    )
     advance = add_command(
         workflow_sub,
         "advance",

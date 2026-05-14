@@ -3,7 +3,7 @@
 Status: In Progress
 Current phase: Phase 1 - Minimum operator path
 Last updated: 2026-05-14
-Next action: Add workflow status <task-dir>
+Next action: Add workflow next <ops-dir>
 Blocked by: None
 
 Created: 2026-05-13
@@ -103,7 +103,7 @@ The next work should make the normal workflow hard to misuse:
 | --- | ---: | --- | --- | --- | --- |
 | P0 | 0 | Fix `decisions.md` writer/header mismatch | Make decision writes match the existing Markdown table header, or migrate starter templates to the canonical header. Add regression tests for generic and real-estate starters plus append and resolve-task paths. | Protects the durable human decision audit trail and removes the most concrete correctness bug found by external testing. | Complete |
 | P1 | 0 | Add review-submit state guard | Make review authoring writes refuse when the task is not reviewable, with no Phase 0B override. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Complete |
-| P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Planned |
+| P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Complete |
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Planned |
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Planned |
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Planned |
@@ -189,6 +189,19 @@ Minimum fields:
 - revision count and max revisions
 - result claim strength and claim-staleness state
 - next legal commands
+
+Shipped behavior:
+
+- `async-research workflow status <task-dir>` is read-only and returns JSON.
+- The task must live directly under the inferred or explicit matching
+  `research_ops/tasks/` folder.
+- Missing, malformed, schema-invalid, or transition-invalid status files return
+  exit code 4 with schema/workflow-check recovery commands.
+- Reviewable tasks report worker-output readiness, required/missing/invalid
+  review files, aggregate artifact presence, and safe review/advance commands.
+- `needs_human` tasks surface the human gate and suggest
+  `decision resolve-task` dry-run/write commands rather than direct status
+  edits.
 
 ### `workflow next`
 

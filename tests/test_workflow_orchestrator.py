@@ -38,7 +38,17 @@ class WorkflowOrchestratorTests(unittest.TestCase):
         self.assertEqual(cli.SUCCESS, code, payload)
         return ops_dir
 
-    def write_task(self, ops_dir: Path, task_name: str, *, result: dict | None = None) -> Path:
+    def write_task(
+        self,
+        ops_dir: Path,
+        task_name: str,
+        *,
+        status_value: str = "awaiting_review",
+        previous_status: str | None = "in_progress",
+        requires_human: bool = False,
+        human_gate_reason: str | None = None,
+        result: dict | None = None,
+    ) -> Path:
         task_id = task_name[:9]
         task_dir = ops_dir / "tasks" / task_name
         status = {
@@ -46,8 +56,8 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             "id": task_id,
             "title": f"Workflow orchestrator fixture {task_id}",
             "type": "data_readiness",
-            "status": "awaiting_review",
-            "previous_status": "in_progress",
+            "status": status_value,
+            "previous_status": previous_status,
             "last_transition_reason": "worker_submitted_for_review",
             "priority": 3,
             "revision_count": 0,
@@ -69,7 +79,8 @@ class WorkflowOrchestratorTests(unittest.TestCase):
                 "panel_required": False,
                 "human_required_for_acceptance": False,
             },
-            "requires_human": False,
+            "requires_human": requires_human,
+            "human_gate_reason": human_gate_reason,
             "budget": {
                 "max_api_usd": 0,
                 "max_compute_usd": 0,
@@ -117,6 +128,120 @@ class WorkflowOrchestratorTests(unittest.TestCase):
     def assert_step_status(self, payload: dict, name: str, status: str) -> None:
         step = next(item for item in payload["steps"] if item["name"] == name)
         self.assertEqual(status, step["status"], step)
+
+    def test_status_reports_task_truth_surface_and_advance_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9110-status-ready", result=self.accepted_result())
+            task_dir.joinpath("worker_output.md").write_text(
+                "Workflow status ready output.\n",
+                encoding="utf-8",
+            )
+            self.write_review(task_dir, "accept")
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("workflow_status_reported", payload["action"])
+            self.assertEqual(str(ops_dir), payload["ops_dir"])
+            self.assertEqual(str(task_dir), payload["task_dir"])
+            self.assertEqual("TASK-9110", payload["task_id"])
+            self.assertEqual("awaiting_review", payload["status"])
+            self.assertEqual("in_progress", payload["previous_status"])
+            self.assertEqual("data_readiness", payload["type"])
+            self.assertEqual(1, payload["review_tier"])
+            self.assertTrue(payload["status_validation"]["valid"])
+            self.assertTrue(payload["transition_validation"]["valid"])
+            self.assertEqual(["needs_human", "panel_review", "single_review"], payload["transition_validation"]["allowed_next_statuses"])
+            self.assertFalse(payload["lock_state"]["locked"])
+            self.assertTrue(payload["worker_output"]["exists"])
+            self.assertTrue(payload["worker_output"]["non_empty"])
+            self.assertEqual(["primary"], payload["reviews"]["required_reviewers"])
+            self.assertEqual([], payload["reviews"]["missing_required_reviews"])
+            self.assertTrue(payload["reviews"]["ready_to_aggregate"])
+            self.assertTrue(payload["reviews"]["by_role"]["primary"]["valid"])
+            self.assertEqual("accept", payload["reviews"]["by_role"]["primary"]["decision"])
+            self.assertFalse(payload["human_gate"]["requires_human"])
+            self.assertEqual(0, payload["revisions"]["revision_count"])
+            self.assertEqual("suggestive", payload["result"]["claim_strength"])
+            commands = [item["command"] for item in payload["next_legal_commands"]]
+            self.assertIn(f"async-research workflow advance {task_dir} --dry-run", commands)
+            self.assertIn(f"async-research workflow advance {task_dir}", commands)
+            self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("awaiting_review", status["status"])
+
+    def test_status_reports_missing_review_next_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(ops_dir, "TASK-9111-status-review")
+            task_dir.joinpath("worker_output.md").write_text("Output ready for review.\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(["primary"], payload["reviews"]["missing_required_reviews"])
+            self.assertFalse(payload["reviews"]["ready_to_aggregate"])
+            self.assertEqual(
+                f"async-research review submit {task_dir} --role primary --decision '<decision>' --claim-strength '<strength>' --confidence '<0-1>'",
+                payload["next_legal_commands"][0]["command"],
+            )
+            self.assertIn("write the missing required review", payload["next_legal_commands"][0]["reason"])
+
+    def test_status_reports_human_gate_resolution_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9112-status-human",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="reviewers requested human judgment",
+            )
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["human_gate"]["requires_human"])
+            self.assertEqual("reviewers requested human judgment", payload["human_gate"]["reason"])
+            self.assertEqual("needs_human", payload["status"])
+            self.assertIn("decision resolve-task", payload["next_legal_commands"][0]["command"])
+            self.assertIn("--dry-run", payload["next_legal_commands"][0]["command"])
+
+    def test_status_refuses_schema_invalid_status_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = ops_dir / "tasks" / "TASK-9113-status-invalid"
+            write_json(task_dir / "status.json", {})
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("workflow_status_reported", payload["action"])
+            self.assertFalse(payload["status_validation"]["valid"])
+            self.assertEqual("status_schema_validation_failed", payload["status_validation"]["reason"])
+            self.assertFalse(payload["transition_validation"]["valid"])
+            self.assertEqual("async-research schema-check " + str(ops_dir), payload["next_legal_commands"][0]["command"])
+            self.assertFalse((task_dir / "review_panel" / "aggregate.json").exists())
+
+    def test_status_refuses_task_outside_matching_ops_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root / "left")
+            other_ops_dir = self.init_ops(root / "right")
+            task_dir = self.write_task(ops_dir, "TASK-9114-status-mismatch")
+
+            code, payload = run_cli_json(["workflow", "status", task_dir, "--ops-dir", other_ops_dir])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("workflow_status_refused", payload["action"])
+            self.assertEqual("task_dir_ops_mismatch", payload["reason"])
 
     def test_advance_accepts_task_and_refreshes_follow_on_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

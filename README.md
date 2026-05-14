@@ -197,6 +197,7 @@ Once a task exists, a typical loop is:
 ```bash
 TASK=research_ops/tasks/TASK-0001-example
 
+async-research workflow status "$TASK"
 async-research workflow advance "$TASK" --dry-run
 async-research workflow advance "$TASK"
 ```
@@ -268,6 +269,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research console research_ops` | Serve the local dashboard shell on `127.0.0.1:8765`. | Packaged console assets, the read-only snapshot API, setup action catalog, guarded setup/health actions, task-board inspection actions, delivered-project outcomes, human-decision inbox actions, prompt-library actions, schedule intent actions, trigger previews, and run history. | Serves static assets, `GET /api/snapshot`, `GET /api/actions`, and `POST /api/actions/run`; dashboard mutations are limited to explicit `init`, `surface update`, `outcomes refresh`, confirmed human-decision actions, prompt draft/activation actions, schedule intent edits, and confirmed trigger-now runs. Schedule trigger previews are read-only and never launch Codex. |
 | `async-research console snapshot research_ops --json` | Render the read-only dashboard snapshot. | Workspace files, readiness and health read models, task status, decisions, prompts, schedules, accepted/rejected ledgers, delivered-project outcomes, costs, foundation dashboards, and run artifacts. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research workflow check research_ops` | Run read-only schema, readiness, surface, and health checks as one JSON report. | Workspace state and rendered surfaces. | JSON to stdout only. |
+| `async-research workflow status <task-dir>` | Report one task's status, lock state, worker output, reviews, human gate, revision counters, result state, and next legal commands. | Task `status.json`, task-local lock and worker/review artifacts, and matching workspace path. | JSON to stdout only; read-only. |
 | `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
 | `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
@@ -448,6 +450,7 @@ specific diagnostic.
 | `surface validate` | `0` rendered surface matches workspace state. | `2` validation drift; `4` malformed workspace state or missing required files. |
 | `schema-check` | `0` schema versions pass. | `4` missing, malformed, mismatched, or unreadable versioned artifacts. |
 | `workflow check` | `0` workspace checks passed; readiness warning `2` is reported as a warning but does not fail the orchestration. | Returns the first failed subcommand code, such as `2` for surface drift or `4` for malformed workspace state. |
+| `workflow status` | `0` task status was reported and status/transition validation passed. | `4` missing task, task/workspace mismatch, missing/malformed/schema-invalid `status.json`, or invalid task transition. |
 | `workflow advance` | `0` dry-run checks passed or the canonical post-worker sequence completed; readiness warning `2` is reported as a warning but does not fail the orchestration. | `4` missing task, task/workspace mismatch, or malformed state; otherwise returns the first failed subcommand code. If a later step fails after an earlier mutating step succeeded, JSON sets `partial_mutation: true`. |
 | `source init` | `0` source register exists or was initialized. | No command-specific nonzero return from the backing script. |
 | `source upsert` | `0` source row written. | `2` register validation failed; `3` invalid source id, date, or freshness window; `4` malformed register. |
