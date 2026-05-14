@@ -115,6 +115,44 @@ def decision_row_from_cells(cells: list[str], active_header: tuple[str, ...] | N
     return {key: raw.get(source, "") for key, source in mapping.items()}
 
 
+def active_decision_header(path: Path) -> tuple[str, ...] | None:
+    if not path.exists():
+        return None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line.startswith("|") or "---" in line:
+            continue
+        normalized = normalize_header(split_markdown_row(line))
+        if normalized in HEADER_MAPS:
+            return normalized
+    return None
+
+
+def render_decision_row(row: dict[str, Any], active_header: tuple[str, ...]) -> str:
+    mapping = HEADER_MAPS.get(active_header)
+    if mapping is None:
+        active_header = tuple(HEADER)
+        mapping = HEADER_MAPS[active_header]
+
+    public_values = {key: row.get(key, "") for key in HEADER}
+    source_to_public = {source: public for public, source in mapping.items()}
+    values: list[Any] = []
+    for column in active_header:
+        public_key = source_to_public.get(column)
+        values.append(public_values.get(public_key, "") if public_key else row.get(column, ""))
+    return "| " + " | ".join(markdown_escape(value) for value in values) + " |\n"
+
+
+def render_decision_header(active_header: tuple[str, ...]) -> str:
+    return (
+        "| "
+        + " | ".join(active_header)
+        + " |\n| "
+        + " | ".join("---" for _ in active_header)
+        + " |\n"
+    )
+
+
 def read_decisions(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -153,21 +191,21 @@ def has_decision(
 
 def append_decision(path: Path, row: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    needs_header = not path.exists() or path.stat().st_size == 0
+    active_header = active_decision_header(path)
+    header = active_header or tuple(HEADER)
+    needs_header = active_header is None
     prefix = ""
     if path.exists() and path.stat().st_size > 0:
         text = path.read_text(encoding="utf-8")
         if text and not text.endswith("\n"):
             prefix = "\n"
 
-    values = {key: row.get(key, "") for key in HEADER}
-    line = "| " + " | ".join(markdown_escape(values[key]) for key in HEADER) + " |\n"
+    line = render_decision_row(row, header)
     with path.open("a", encoding="utf-8") as handle:
         if prefix:
             handle.write(prefix)
         if needs_header:
-            handle.write("| " + " | ".join(HEADER) + " |\n")
-            handle.write("| --- | --- | --- | --- | --- | --- |\n")
+            handle.write(render_decision_header(header))
         handle.write(line)
 
 

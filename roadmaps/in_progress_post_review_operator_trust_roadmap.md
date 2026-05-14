@@ -2,8 +2,8 @@
 
 Status: In Progress
 Current phase: Phase 0 - Audit correctness and review guardrails
-Last updated: 2026-05-13
-Next action: Fix decision-log row/header mismatch, then add review-submit state guards
+Last updated: 2026-05-14
+Next action: Add review-submit state guards
 Blocked by: None
 
 Created: 2026-05-13
@@ -101,7 +101,7 @@ The next work should make the normal workflow hard to misuse:
 
 | Priority | Phase | Improvement | Description | Impact | Status |
 | --- | ---: | --- | --- | --- | --- |
-| P0 | 0 | Fix `decisions.md` writer/header mismatch | Make decision writes match the existing Markdown table header, or migrate starter templates to the canonical header. Add regression tests for generic and real-estate starters plus append and resolve-task paths. | Protects the durable human decision audit trail and removes the most concrete correctness bug found by external testing. | Open |
+| P0 | 0 | Fix `decisions.md` writer/header mismatch | Make decision writes match the existing Markdown table header, or migrate starter templates to the canonical header. Add regression tests for generic and real-estate starters plus append and resolve-task paths. | Protects the durable human decision audit trail and removes the most concrete correctness bug found by external testing. | Complete |
 | P1 | 0 | Add review-submit state guard | Make `review submit` refuse, or require explicit override, when the task is not reviewable. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Open |
 | P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Planned |
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Planned |

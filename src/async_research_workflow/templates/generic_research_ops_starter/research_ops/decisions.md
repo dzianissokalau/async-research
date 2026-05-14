@@ -1,4 +1,4 @@
 # Human Decision Log
 
-| decision_id | item_id | decision | decided_at | decided_by | rationale | follow_up |
-| --- | --- | --- | --- | --- | --- | --- |
+| date | item_id | decision | reason | approver | related_artifacts |
+| --- | --- | --- | --- | --- | --- |

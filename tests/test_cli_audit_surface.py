@@ -11,10 +11,22 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import decision_log
 from async_research_workflow.scripts import human_decision_log
 
 
 NOW = "2026-05-05T00:00:00Z"
+CANONICAL_DECISION_HEADER = ["date", "item_id", "decision", "reason", "approver", "related_artifacts"]
+LEGACY_STARTER_DECISION_HEADER = [
+    "decision_id",
+    "item_id",
+    "decision",
+    "decided_at",
+    "decided_by",
+    "rationale",
+    "follow_up",
+]
+WEEK_SIMULATION_DECISION_HEADER = ["date", "item_id", "decision", "approver", "reason", "next_status"]
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -31,6 +43,14 @@ def run_decision_helper_json(argv: list[str | Path]) -> tuple[int, dict]:
         code = human_decision_log.main([str(arg) for arg in argv])
     text = stream.getvalue().strip()
     return code, json.loads(text) if text else {}
+
+
+def decision_table_cells(path: Path) -> list[list[str]]:
+    return [
+        decision_log.split_markdown_row(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith("|") and "---" not in line
+    ]
 
 
 def write_source_audit(ops_dir: Path) -> None:
@@ -171,12 +191,24 @@ def write_clear_task_contract(task_dir: Path) -> None:
 
 
 class CliAuditSurfaceTests(unittest.TestCase):
-    def init_ops(self, root: Path) -> Path:
+    def init_ops(self, root: Path, *, template: str = "generic") -> Path:
         ops_dir = root / "research_ops"
-        code, payload = run_cli_json(["init", ops_dir, "--force"])
+        code, payload = run_cli_json(["init", ops_dir, "--template", template, "--force"])
         self.assertEqual(cli.SUCCESS, code, payload)
         self.assertTrue(payload["ok"])
         return ops_dir
+
+    def assert_decision_table_aligned(self, decisions: Path, expected_header: list[str]) -> list[list[str]]:
+        rows = decision_table_cells(decisions)
+        self.assertGreaterEqual(len(rows), 1, decisions.read_text(encoding="utf-8"))
+        self.assertEqual(expected_header, rows[0])
+        for row in rows[1:]:
+            self.assertEqual(
+                len(expected_header),
+                len(row),
+                f"misaligned decision row in {decisions}:\n{decisions.read_text(encoding='utf-8')}",
+            )
+        return rows
 
     def test_cost_ingest_usage_dry_run_preserves_ledger_and_write_appends_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -418,6 +450,100 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, written)
             self.assertEqual("decision_appended", written["action"])
             self.assertIn("TASK-5001", decisions.read_text(encoding="utf-8"))
+            rows = self.assert_decision_table_aligned(decisions, CANONICAL_DECISION_HEADER)
+            self.assertEqual("TASK-5001", rows[-1][1])
+            self.assertEqual("approve_budget", rows[-1][2])
+
+    def test_decision_append_preserves_legacy_starter_header_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            decisions = ops_dir / "decisions.md"
+            decisions.write_text(
+                "\n".join(
+                    [
+                        "# Human Decision Log",
+                        "",
+                        "| decision_id | item_id | decision | decided_at | decided_by | rationale | follow_up |",
+                        "| --- | --- | --- | --- | --- | --- | --- |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, written = run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5004",
+                    "--decision",
+                    "acknowledge",
+                    "--reason",
+                    "Legacy starter row stays aligned",
+                    "--approver",
+                    "test-owner",
+                    "--related-artifact",
+                    "research_ops/tasks/TASK-5004/status.json",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, written)
+            rows = self.assert_decision_table_aligned(decisions, LEGACY_STARTER_DECISION_HEADER)
+            self.assertEqual("none", rows[-1][0])
+            self.assertEqual("TASK-5004", rows[-1][1])
+            self.assertEqual("acknowledge", rows[-1][2])
+            self.assertEqual(NOW, rows[-1][3])
+            self.assertEqual("test-owner", rows[-1][4])
+            self.assertEqual("Legacy starter row stays aligned", rows[-1][5])
+            parsed = decision_log.read_decisions(decisions)
+            self.assertEqual("Legacy starter row stays aligned", parsed[-1]["reason"])
+
+    def test_decision_append_preserves_week_simulation_legacy_header_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            decisions = ops_dir / "decisions.md"
+            decisions.write_text(
+                "\n".join(
+                    [
+                        "# Human Decisions",
+                        "",
+                        "| date | item_id | decision | approver | reason | next_status |",
+                        "| --- | --- | --- | --- | --- | --- |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, written = run_cli_json(
+                [
+                    "decision",
+                    "append",
+                    ops_dir,
+                    "--item-id",
+                    "TASK-5005",
+                    "--decision",
+                    "resume",
+                    "--reason",
+                    "Week simulation row stays aligned",
+                    "--approver",
+                    "test-owner",
+                    "--related-artifact",
+                    "ready_for_worker",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, written)
+            rows = self.assert_decision_table_aligned(decisions, WEEK_SIMULATION_DECISION_HEADER)
+            self.assertEqual([NOW, "TASK-5005", "resume", "test-owner", "Week simulation row stays aligned", "ready_for_worker"], rows[-1])
+            parsed = decision_log.read_decisions(decisions)
+            self.assertEqual("ready_for_worker", parsed[-1]["related_artifacts"])
 
     def test_decision_check_and_summarize_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -514,6 +640,45 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual("ready_for_worker", status["status"])
             self.assertFalse(status["requires_human"])
             self.assertEqual(NOW, status["human_gate_opened_at"])
+
+    def test_decision_resolve_task_writes_aligned_row_for_real_estate_starter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp), template="real-estate")
+            task_dir = write_task_status(ops_dir, "TASK-5006", "needs_human")
+            decisions = ops_dir / "decisions.md"
+
+            code, resolved = run_cli_json(
+                [
+                    "decision",
+                    "resolve-task",
+                    ops_dir,
+                    task_dir,
+                    "--decision",
+                    "resume",
+                    "--reason",
+                    "Real estate fixture can resume",
+                    "--approver",
+                    "test-owner",
+                    "--status",
+                    "ready_for_worker",
+                    "--date",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, resolved)
+            rows = self.assert_decision_table_aligned(decisions, CANONICAL_DECISION_HEADER)
+            self.assertEqual("TASK-5006", rows[-1][1])
+            self.assertEqual("resume", rows[-1][2])
+
+            code, summary = run_cli_json(["decision", "summarize", ops_dir, "--month", "2026-05"])
+            self.assertEqual(cli.SUCCESS, code, summary)
+            self.assertEqual(1, summary["decision_count"])
+            self.assertEqual({"resume": 1}, summary["by_decision"])
+
+            code, surface = run_cli_json(["surface", "update", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, surface)
+            self.assertTrue(surface["ok"], surface)
 
     def test_escalation_list_and_scan_needs_human_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
