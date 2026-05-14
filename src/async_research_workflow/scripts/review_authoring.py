@@ -28,6 +28,7 @@ VALIDATION_FAILED = 2
 MISSING_REQUIRED = 3
 MALFORMED = 4
 TARGET_EXISTS = 5
+REVIEWABLE_STATUSES = {"awaiting_review", "single_review", "panel_review"}
 
 DEFAULT_DRAFT_CONCERNS = [
     "Draft scaffold only; a reviewer must replace this before acceptance.",
@@ -75,11 +76,47 @@ def load_task_status(task_dir: Path) -> tuple[dict[str, Any] | None, dict[str, A
     return payload, None
 
 
-def validate_task_dir(task_dir: Path) -> dict[str, Any] | None:
+def load_valid_task_status(task_dir: Path) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if not task_dir.exists() or not task_dir.is_dir():
-        return {"reason": "task_dir_missing", "task_dir": str(task_dir)}
-    _, error = load_task_status(task_dir)
+        return None, {"reason": "task_dir_missing", "task_dir": str(task_dir)}
+    return load_task_status(task_dir)
+
+
+def validate_task_dir(task_dir: Path) -> dict[str, Any] | None:
+    _, error = load_valid_task_status(task_dir)
     return error
+
+
+def review_readiness_error(task_dir: Path, status: dict[str, Any]) -> dict[str, Any] | None:
+    current_status = status.get("status")
+    worker_output = task_dir / "worker_output.md"
+    next_step = "complete worker output and move the task to awaiting_review before submitting a review"
+    if current_status not in REVIEWABLE_STATUSES:
+        return {
+            "reason": "task_not_reviewable",
+            "task_dir": str(task_dir),
+            "status": current_status,
+            "allowed_statuses": sorted(REVIEWABLE_STATUSES),
+            "worker_output_path": str(worker_output),
+            "next_step": next_step,
+        }
+    if not worker_output.exists() or not worker_output.is_file():
+        return {
+            "reason": "worker_output_missing",
+            "task_dir": str(task_dir),
+            "status": current_status,
+            "worker_output_path": str(worker_output),
+            "next_step": next_step,
+        }
+    if not worker_output.read_text(encoding="utf-8").strip():
+        return {
+            "reason": "worker_output_empty",
+            "task_dir": str(task_dir),
+            "status": current_status,
+            "worker_output_path": str(worker_output),
+            "next_step": next_step,
+        }
+    return None
 
 
 def split_repeated(values: list[str] | None) -> list[str]:
@@ -210,7 +247,7 @@ def success_payload(
 
 
 def draft_review(args: argparse.Namespace) -> int:
-    error = validate_task_dir(args.task_dir)
+    status, error = load_valid_task_status(args.task_dir)
     if error is not None:
         print_json({"ok": False, **error})
         return MALFORMED
@@ -248,6 +285,10 @@ def draft_review(args: argparse.Namespace) -> int:
 
     markdown = fenced_json(payload)
     if args.write:
+        readiness_error = review_readiness_error(args.task_dir, status or {})
+        if readiness_error is not None:
+            print_json({"ok": False, **readiness_error})
+            return MALFORMED
         ok, write_error = write_review(path, markdown, args.force)
         if not ok:
             print_json({"ok": False, **(write_error or {})})
@@ -280,9 +321,13 @@ def draft_review(args: argparse.Namespace) -> int:
 
 
 def submit_review(args: argparse.Namespace) -> int:
-    error = validate_task_dir(args.task_dir)
+    status, error = load_valid_task_status(args.task_dir)
     if error is not None:
         print_json({"ok": False, **error})
+        return MALFORMED
+    readiness_error = review_readiness_error(args.task_dir, status or {})
+    if readiness_error is not None:
+        print_json({"ok": False, **readiness_error})
         return MALFORMED
 
     missing = [

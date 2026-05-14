@@ -34,22 +34,30 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 class ReviewAuthoringTests(unittest.TestCase):
-    def init_ops(self, root: Path) -> Path:
+    def init_ops(self, root: Path, *, template: str = "generic") -> Path:
         ops_dir = root / "research_ops"
-        code, payload = run_cli_json(["init", ops_dir, "--force"])
+        code, payload = run_cli_json(["init", ops_dir, "--template", template, "--force"])
         self.assertEqual(cli.SUCCESS, code, payload)
         return ops_dir
 
-    def write_task(self, ops_dir: Path, task_name: str = "TASK-9001-review-authoring") -> Path:
+    def write_task(
+        self,
+        ops_dir: Path,
+        task_name: str = "TASK-9001-review-authoring",
+        *,
+        status_value: str = "awaiting_review",
+        worker_output: str | None = "Worker completed bounded fixture output.\n",
+    ) -> Path:
         task_id = task_name.split("-review")[0]
         task_dir = ops_dir / "tasks" / task_name
+        previous_status = "in_progress" if status_value in {"awaiting_review", "single_review", "panel_review"} else None
         status = {
             "schema_version": "1.0",
             "id": task_id,
             "title": "Review authoring fixture",
             "type": "data_readiness",
-            "status": "awaiting_review",
-            "previous_status": "in_progress",
+            "status": status_value,
+            "previous_status": previous_status,
             "last_transition_reason": "worker_submitted_for_review",
             "priority": 3,
             "revision_count": 0,
@@ -83,6 +91,8 @@ class ReviewAuthoringTests(unittest.TestCase):
             },
         }
         write_json(task_dir / "status.json", apply_default_versions(status))
+        if worker_output is not None:
+            (task_dir / "worker_output.md").write_text(worker_output, encoding="utf-8")
         return task_dir
 
     def test_review_draft_previews_conservative_scaffold_without_writing(self) -> None:
@@ -119,6 +129,21 @@ class ReviewAuthoringTests(unittest.TestCase):
             code, forced = run_cli_json(["review", "draft", task_dir, "--role", "primary", "--write", "--force"])
             self.assertEqual(cli.SUCCESS, code, forced)
             self.assertEqual("review_draft_written", forced["action"])
+
+    def test_review_draft_write_requires_reviewable_task_but_preview_does_not_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)), status_value="ready_for_worker", worker_output=None)
+
+            code, preview = run_cli_json(["review", "draft", task_dir, "--role", "primary"])
+            self.assertEqual(cli.SUCCESS, code, preview)
+            self.assertEqual("review_draft_previewed", preview["action"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
+
+            code, refused = run_cli_json(["review", "draft", task_dir, "--role", "primary", "--write"])
+
+            self.assertEqual(review_authoring.MALFORMED, code, refused)
+            self.assertEqual("task_not_reviewable", refused["reason"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
 
     def test_default_review_draft_aggregates_to_needs_human(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -163,6 +188,87 @@ class ReviewAuthoringTests(unittest.TestCase):
             self.assertEqual(review_authoring.MISSING_REQUIRED, code, payload)
             self.assertEqual("missing_required_flags", payload["reason"])
             self.assertEqual(["--role"], payload["missing_flags"])
+
+    def test_review_submit_refuses_non_reviewable_task_state_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)), status_value="ready_for_worker", worker_output=None)
+
+            command = [
+                "review",
+                "submit",
+                task_dir,
+                "--role",
+                "primary",
+                "--decision",
+                "needs_human",
+                "--claim-strength",
+                "none",
+                "--confidence",
+                "0.5",
+            ]
+            code, payload = run_cli_json(command)
+
+            self.assertEqual(review_authoring.MALFORMED, code, payload)
+            self.assertEqual("task_not_reviewable", payload["reason"])
+            self.assertEqual("ready_for_worker", payload["status"])
+            self.assertEqual(["awaiting_review", "panel_review", "single_review"], payload["allowed_statuses"])
+            self.assertIn("worker_output.md", payload["worker_output_path"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
+
+            code, dry = run_cli_json([*command, "--dry-run"])
+
+            self.assertEqual(review_authoring.MALFORMED, code, dry)
+            self.assertEqual("task_not_reviewable", dry["reason"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
+
+    def test_review_submit_requires_worker_output_for_reviewable_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)), worker_output=None)
+
+            code, payload = run_cli_json(
+                [
+                    "review",
+                    "submit",
+                    task_dir,
+                    "--role",
+                    "primary",
+                    "--decision",
+                    "needs_human",
+                    "--claim-strength",
+                    "none",
+                    "--confidence",
+                    "0.5",
+                ]
+            )
+
+            self.assertEqual(review_authoring.MALFORMED, code, payload)
+            self.assertEqual("worker_output_missing", payload["reason"])
+            self.assertEqual("awaiting_review", payload["status"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
+
+    def test_review_submit_requires_non_empty_worker_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)), worker_output=" \n\t\n")
+
+            code, payload = run_cli_json(
+                [
+                    "review",
+                    "submit",
+                    task_dir,
+                    "--role",
+                    "primary",
+                    "--decision",
+                    "needs_human",
+                    "--claim-strength",
+                    "none",
+                    "--confidence",
+                    "0.5",
+                ]
+            )
+
+            self.assertEqual(review_authoring.MALFORMED, code, payload)
+            self.assertEqual("worker_output_empty", payload["reason"])
+            self.assertFalse((task_dir / "reviews" / "primary.md").exists())
 
     def test_schema_invalid_status_refuses_to_write_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -211,6 +317,34 @@ class ReviewAuthoringTests(unittest.TestCase):
             code, refused = run_cli_json(command)
             self.assertEqual(review_authoring.TARGET_EXISTS, code, refused)
             self.assertEqual("target_exists", refused["reason"])
+
+    def test_review_submit_accepts_real_estate_reviewable_task_with_worker_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(
+                self.init_ops(Path(tmp), template="real-estate"),
+                "TASK-9002-review-authoring",
+                worker_output="Real-estate worker completed a bounded fixture output.\n",
+            )
+
+            code, submitted = run_cli_json(
+                [
+                    "review",
+                    "submit",
+                    task_dir,
+                    "--role",
+                    "primary",
+                    "--decision",
+                    "needs_human",
+                    "--claim-strength",
+                    "none",
+                    "--confidence",
+                    "0.5",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, submitted)
+            self.assertEqual("review_submitted", submitted["action"])
+            self.assertTrue((task_dir / "reviews" / "primary.md").exists())
 
     def test_review_submit_payload_can_be_aggregated(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

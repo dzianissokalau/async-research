@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
 Status: In Progress
-Current phase: Phase 0 - Audit correctness and review guardrails
+Current phase: Phase 1 - Minimum operator path
 Last updated: 2026-05-14
-Next action: Add review-submit state guards
+Next action: Add workflow status <task-dir>
 Blocked by: None
 
 Created: 2026-05-13
@@ -102,7 +102,7 @@ The next work should make the normal workflow hard to misuse:
 | Priority | Phase | Improvement | Description | Impact | Status |
 | --- | ---: | --- | --- | --- | --- |
 | P0 | 0 | Fix `decisions.md` writer/header mismatch | Make decision writes match the existing Markdown table header, or migrate starter templates to the canonical header. Add regression tests for generic and real-estate starters plus append and resolve-task paths. | Protects the durable human decision audit trail and removes the most concrete correctness bug found by external testing. | Complete |
-| P1 | 0 | Add review-submit state guard | Make `review submit` refuse, or require explicit override, when the task is not reviewable. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Open |
+| P1 | 0 | Add review-submit state guard | Make review authoring writes refuse when the task is not reviewable, with no Phase 0B override. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Complete |
 | P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Planned |
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Planned |
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Planned |
@@ -156,8 +156,8 @@ Initial guard:
 - accepted statuses: `awaiting_review`, `single_review`, `panel_review`
 - `worker_output.md` must exist and be non-empty
 - existing review file still requires `--force` for replacement
-- an explicit override, if added, must be named as a safety override and must
-  explain that the review is being written outside normal lifecycle state
+- Phase 0B does not add an override. Premature `review submit` is refused; a
+  safety override can be designed later if real operator usage needs it.
 
 Acceptance:
 
@@ -249,8 +249,6 @@ Targeted tests should be added for each phase before marking it complete.
 
 ## Open Decisions
 
-- Should `review submit` have an override flag, or should premature review
-  authoring always be refused?
 - Should the public worker wrapper be `workflow worker-*`, `task claim/complete`,
   or a different command group?
 - Should `workflow next` emit only JSON, or support a compact text mode for

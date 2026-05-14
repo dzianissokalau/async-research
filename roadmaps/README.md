@@ -30,7 +30,7 @@ explicitly requested follow-ups.
 | [Research Foundations Roadmap](./delivered_research_foundations_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor foundation dogfood feedback and patch regressions. | None |
 | [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Hypothesis Testing Framework Roadmap](./delivered_hypothesis_testing_framework_roadmap.md) | Delivered | Complete | 2026-05-10 | Monitor dogfood feedback and split adoption or V2 work from the Future Improvements Backlog when explicitly requested. | None |
-| [Post-Review Operator Trust And Workflow Roadmap](./in_progress_post_review_operator_trust_roadmap.md) | In Progress | Phase 0 - Audit correctness and review guardrails | 2026-05-14 | Add review-submit state guards. | None |
+| [Post-Review Operator Trust And Workflow Roadmap](./in_progress_post_review_operator_trust_roadmap.md) | In Progress | Phase 1 - Minimum operator path | 2026-05-14 | Add workflow status <task-dir>. | None |
 | [Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md) | Not Started | Backlog | 2026-05-11 | Select one item and split it into a dedicated roadmap when explicitly requested. | None |
 | [Operator UX And Workflow Ergonomics Roadmap](./delivered_operator_ux_workflow_ergonomics_roadmap.md) | Delivered | Complete | 2026-05-11 | Monitor operator dogfood feedback and patch regressions. | None |
 | [Dashboard Delivery Roadmap](./delivered_dashboard_delivery_roadmap.md) | Delivered | Complete | 2026-05-13 | Monitor dashboard dogfood feedback and patch regressions. | None |
