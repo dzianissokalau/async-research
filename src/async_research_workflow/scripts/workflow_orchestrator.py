@@ -89,8 +89,13 @@ def command_hint(label: str, argv: Sequence[str], reason: str, priority: int = 1
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
 
 
 def iso_after_minutes(minutes: float) -> str:
@@ -102,6 +107,40 @@ def task_lock_owner_arg(lock_state: dict[str, Any]) -> list[str]:
     owner = lock_state.get("owner")
     owner_name = owner.get("owner") if isinstance(owner, dict) else None
     return ["--owner", owner_name] if isinstance(owner_name, str) and owner_name else []
+
+
+def transitioned_status(status: dict[str, Any], next_status: str, reason: str, **updates: Any) -> dict[str, Any]:
+    updated = dict(status)
+    updated.update(
+        {
+            "previous_status": status.get("status"),
+            "status": next_status,
+            "last_transition_reason": reason,
+            "updated_at": task_lock.iso_now(),
+        }
+    )
+    updated.update(updates)
+    return updated
+
+
+def worker_started_status(status: dict[str, Any], owner: str, stale_minutes: float) -> dict[str, Any]:
+    return transitioned_status(
+        status,
+        "in_progress",
+        "workflow_worker_started",
+        lock_owner=owner,
+        lock_expires_at=iso_after_minutes(stale_minutes),
+    )
+
+
+def worker_completed_status(status: dict[str, Any]) -> dict[str, Any]:
+    return transitioned_status(
+        status,
+        "awaiting_review",
+        "workflow_worker_completed_output",
+        lock_owner=None,
+        lock_expires_at=None,
+    )
 
 
 def inferred_ops_dir_for_task(task_dir: Path) -> Path | None:
@@ -1467,18 +1506,7 @@ def run_worker_start(args: argparse.Namespace) -> int:
         )
         return INVALID_STATE
 
-    timestamp = task_lock.iso_now()
-    updated = dict(status)
-    updated.update(
-        {
-            "previous_status": status.get("status"),
-            "status": "in_progress",
-            "last_transition_reason": "workflow_worker_started",
-            "updated_at": timestamp,
-            "lock_owner": args.owner,
-            "lock_expires_at": iso_after_minutes(args.stale_minutes),
-        }
-    )
+    updated = worker_started_status(status, args.owner, args.stale_minutes)
     status_path = task_dir / "status.json"
     validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
     if validation_error is not None:
@@ -1572,18 +1600,7 @@ def run_worker_start(args: argparse.Namespace) -> int:
         )
         return INVALID_STATE
 
-    timestamp = task_lock.iso_now()
-    updated = dict(latest_status)
-    updated.update(
-        {
-            "previous_status": latest_status.get("status"),
-            "status": "in_progress",
-            "last_transition_reason": "workflow_worker_started",
-            "updated_at": timestamp,
-            "lock_owner": args.owner,
-            "lock_expires_at": iso_after_minutes(args.stale_minutes),
-        }
-    )
+    updated = worker_started_status(latest_status, args.owner, args.stale_minutes)
     validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
     if validation_error is not None:
         release_code, release_json, release_raw, release_stderr = run_module_json(
@@ -1734,18 +1751,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
             )
             return task_lock.RELEASE_DENIED
 
-    timestamp = task_lock.iso_now()
-    updated = dict(status)
-    updated.update(
-        {
-            "previous_status": status.get("status"),
-            "status": "awaiting_review",
-            "last_transition_reason": "workflow_worker_completed_output",
-            "updated_at": timestamp,
-            "lock_owner": None,
-            "lock_expires_at": None,
-        }
-    )
+    updated = worker_completed_status(status)
     status_path = task_dir / "status.json"
     validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
     if validation_error is not None:
@@ -1829,18 +1835,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
             )
             return task_lock.RELEASE_DENIED
 
-    timestamp = task_lock.iso_now()
-    updated = dict(latest_status)
-    updated.update(
-        {
-            "previous_status": latest_status.get("status"),
-            "status": "awaiting_review",
-            "last_transition_reason": "workflow_worker_completed_output",
-            "updated_at": timestamp,
-            "lock_owner": None,
-            "lock_expires_at": None,
-        }
-    )
+    updated = worker_completed_status(latest_status)
     validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
     if validation_error is not None:
         validation_error["ops_dir"] = str(ops_dir)
