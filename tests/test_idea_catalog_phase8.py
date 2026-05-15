@@ -460,6 +460,8 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertTrue(any(item["reason"] == "experiment_plan_gates_not_met" for item in payload["blockers"]))
+            step = next(item for item in payload["remediation_steps"] if item["reason"] == "experiment_plan_gates_not_met")
+            self.assertIn("--task-type data_readiness", step["next_step"])
 
     def test_promote_experiment_plan_requires_audited_data_refs_and_passed_gates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

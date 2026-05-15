@@ -236,6 +236,20 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
             reasons = self.blocker_reasons(payload)
             self.assertIn("selected_idea_already_has_promoted_task_id", reasons)
             self.assertIn("reserved_accepted_output_exists", reasons)
+            accepted_output = next(
+                item for item in payload["task_identity"]["blockers"] if item["reason"] == "reserved_accepted_output_exists"
+            )
+            self.assertEqual("accepted_output", accepted_output["collision_kind"])
+            self.assertIn("accepted_outputs_index.md already contains", accepted_output["message"])
+            self.assertIn("accepted memory", accepted_output["next_step"])
+            selected_task = next(
+                item
+                for item in payload["task_identity"]["blockers"]
+                if item["reason"] == "selected_idea_already_has_promoted_task_id"
+            )
+            self.assertEqual("existing_selected_idea_task", selected_task["collision_kind"])
+            self.assertIn("already records the reserved TASK id", selected_task["message"])
+            self.assertIn("existing promoted task", selected_task["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_accepted_output_note_only_reference_does_not_block_promotion(self) -> None:
@@ -302,6 +316,14 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertIn("selected_idea_has_different_promoted_task_id", self.blocker_reasons(payload))
+            blocker = next(
+                item
+                for item in payload["task_identity"]["blockers"]
+                if item["reason"] == "selected_idea_has_different_promoted_task_id"
+            )
+            self.assertEqual("different_selected_idea_task", blocker["collision_kind"])
+            self.assertIn("different visible promoted task", blocker["message"])
+            self.assertIn("distinct follow-up", blocker["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_other_idea_promoted_task_id_claim_blocks_promotion(self) -> None:

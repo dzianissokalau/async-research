@@ -209,6 +209,14 @@ class IdeaCatalogPhase7Tests(unittest.TestCase):
             ops_dir = self.init_ops(Path(tmp))
             write_json(ops_dir / "ideas" / "IDEA-7207.json", valid_candidate("IDEA-7207", "Duplicate capture title"))
 
+            dry_code, dry = run_cli_json(
+                ["idea", "capture", ops_dir, "--title", "Duplicate capture title", "--id", "IDEA-7208"]
+            )
+            self.assertEqual(cli.SUCCESS, dry_code, dry)
+            self.assertEqual("update_existing", dry["route"])
+            self.assertEqual("explicit_duplicate_marker", dry["reason"])
+            self.assertIn("route=create or same-ID --update-existing", dry["next_step"])
+
             code, payload = run_cli_json(
                 ["idea", "capture", ops_dir, "--title", "Duplicate capture title", "--id", "IDEA-7208", "--write"]
             )
@@ -232,6 +240,22 @@ class IdeaCatalogPhase7Tests(unittest.TestCase):
             self.assertEqual("capture_update_existing_requires_same_id", update_payload["reason"])
             self.assertFalse((ops_dir / "ideas" / "IDEA-7208.json").exists())
 
+    def test_capture_ambiguous_duplicate_guidance_requires_human_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_json(ops_dir / "ideas" / "IDEA-7211.json", valid_candidate("IDEA-7211", "Ambiguous title"))
+            write_json(ops_dir / "ideas" / "IDEA-7212.json", valid_candidate("IDEA-7212", "Ambiguous title"))
+
+            code, payload = run_cli_json(
+                ["idea", "capture", ops_dir, "--title", "Ambiguous title", "--id", "IDEA-7213"]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("needs_human", payload["route"])
+            self.assertEqual("ambiguous_or_explicit_duplicate", payload["reason"])
+            self.assertIn("record a human decision", payload["next_step"])
+            self.assertEqual(["IDEA-7211", "IDEA-7212"], [item["idea_id"] for item in payload["duplicate_matches"]])
+
     def test_capture_update_existing_merges_same_id_metadata_only_when_explicit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -250,6 +274,13 @@ class IdeaCatalogPhase7Tests(unittest.TestCase):
                     ]
                 ),
             )
+
+            dry_code, dry = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7209"])
+            self.assertEqual(cli.SUCCESS, dry_code, dry)
+            self.assertEqual("update_existing", dry["route"])
+            self.assertEqual("same_idea_id", dry["reason"])
+            self.assertIn("idea catalog show", dry["next_step"])
+            self.assertIn("--update-existing", dry["next_step"])
 
             refused_code, refused = run_cli_json(["idea", "capture", ops_dir, "--from-inbox", "IDEA-7209", "--write"])
             self.assertEqual(3, refused_code, refused)

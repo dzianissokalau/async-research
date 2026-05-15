@@ -114,6 +114,14 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual([], missing_id["would_write"])
             self.assertIn("--id IDEA-0000", missing_id["next_step"])
 
+            invalid_id_code, invalid_id = run_cli_json(
+                ["idea", "capture", ops_dir, "--title", "Bad id", "--id", "bad-id"]
+            )
+            self.assertEqual(cli.SUCCESS, invalid_id_code, invalid_id)
+            self.assertEqual("needs_human", invalid_id["route"])
+            self.assertEqual("invalid_idea_id", invalid_id["reason"])
+            self.assertIn("IDEA-0000", invalid_id["next_step"])
+
             code, payload = run_cli_json(
                 [
                     "idea",
