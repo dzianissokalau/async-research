@@ -41,7 +41,7 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
-def valid_score(hard_gate_passed: bool = True) -> dict:
+def valid_score(hard_gate_passed: bool = True, weighted_total: float = 16.5) -> dict:
     return {
         "mission_policy_version": "test_policy_v1.0",
         "budget_mode": "normal",
@@ -53,7 +53,7 @@ def valid_score(hard_gate_passed: bool = True) -> dict:
         "cost": 2,
         "killability": 4,
         "reuse_potential": 4,
-        "weighted_total": 16.5,
+        "weighted_total": weighted_total,
         "promotion_threshold": 14.0,
         "minimum_killability": 3,
         "max_promotions_per_week": 3,
@@ -78,7 +78,11 @@ def valid_score(hard_gate_passed: bool = True) -> dict:
     }
 
 
-def needs_human_candidate(candidate_id: str, hard_gate_passed: bool = True) -> dict:
+def needs_human_candidate(
+    candidate_id: str,
+    hard_gate_passed: bool = True,
+    weighted_total: float = 16.5,
+) -> dict:
     return {
         "schema_version": "1.0",
         "id": candidate_id,
@@ -91,7 +95,7 @@ def needs_human_candidate(candidate_id: str, hard_gate_passed: bool = True) -> d
         "baseline": "Compare against a simple baseline.",
         "main_risks": ["fixture risk"],
         "kill_reason": "Reject if fixture data is unavailable.",
-        "score": valid_score(hard_gate_passed),
+        "score": valid_score(hard_gate_passed, weighted_total),
         "recommended_next_task": "data_readiness",
         "human_gate_reason": "Captured idea needs operator approval before promotion.",
     }
@@ -222,6 +226,33 @@ class IdeaLifecycleResolutionTests(unittest.TestCase):
             self.assertIn("failed_hard_gates", {item["reason"] for item in payload["blockers"]})
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_resolve_to_promote_refuses_below_score_threshold_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_json(ops_dir / "ideas" / "IDEA-7805.json", needs_human_candidate("IDEA-7805", weighted_total=9.0))
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(
+                [
+                    "idea",
+                    "resolve",
+                    ops_dir,
+                    "IDEA-7805",
+                    "--status",
+                    "promote",
+                    "--reason",
+                    "manual review attempted",
+                    "--approver",
+                    "ops",
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("idea_resolution_blocked", payload["action"])
+            self.assertIn("promote_below_score_threshold", {item["reason"] for item in payload["failures"]})
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_resolve_to_park_requires_revisit_and_records_pause_decision(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -274,6 +305,70 @@ class IdeaLifecycleResolutionTests(unittest.TestCase):
             rows = read_decisions(ops_dir / "decisions.md")
             self.assertEqual("pause", rows[-1]["decision"])
             self.assertIn("resolve idea to park", rows[-1]["reason"])
+
+    def test_resolve_to_reject_overwrites_stale_revisit_and_records_reject_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = needs_human_candidate("IDEA-7806")
+            candidate["revisit_condition"] = "Old park revisit condition."
+            write_json(ops_dir / "ideas" / "IDEA-7806.json", candidate)
+
+            code, payload = run_cli_json(
+                [
+                    "idea",
+                    "resolve",
+                    ops_dir,
+                    "IDEA-7806",
+                    "--status",
+                    "reject",
+                    "--reason",
+                    "human rejected the route",
+                    "--approver",
+                    "ops",
+                    "--date",
+                    "2026-05-15T12:00:00Z",
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            updated = read_json(ops_dir / "ideas" / "IDEA-7806.json")
+            self.assertEqual("reject", updated["status"])
+            self.assertIsNone(updated.get("human_gate_reason"))
+            self.assertEqual("Reopen only if a human records a new decision.", updated["revisit_condition"])
+            rows = read_decisions(ops_dir / "decisions.md")
+            self.assertEqual("reject", rows[-1]["decision"])
+            self.assertIn("resolve idea to reject", rows[-1]["reason"])
+
+    def test_resolve_refuses_non_needs_human_idea_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            candidate = needs_human_candidate("IDEA-7807")
+            candidate["status"] = "candidate"
+            candidate["human_gate_reason"] = None
+            write_json(ops_dir / "ideas" / "IDEA-7807.json", candidate)
+            before = file_snapshot(ops_dir)
+
+            code, payload = run_cli_json(
+                [
+                    "idea",
+                    "resolve",
+                    ops_dir,
+                    "IDEA-7807",
+                    "--status",
+                    "promote",
+                    "--reason",
+                    "manual review attempted",
+                    "--approver",
+                    "ops",
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(3, code, payload)
+            self.assertEqual("idea_not_needs_human", payload["reason"])
+            self.assertEqual("candidate", payload["current_status"])
+            self.assertEqual(before, file_snapshot(ops_dir))
 
 
 if __name__ == "__main__":
