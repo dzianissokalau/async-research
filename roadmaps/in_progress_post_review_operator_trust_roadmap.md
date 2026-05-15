@@ -107,7 +107,7 @@ The next work should make the normal workflow hard to misuse:
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Complete |
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Complete |
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Planned |
-| P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Planned |
+| P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Complete |
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Planned |
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Planned |
 | P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Planned |
@@ -262,6 +262,30 @@ Behavior:
   legal commands for ready worker tasks and in-progress tasks with completed
   worker output.
 
+### Queue / Task Listing
+
+Shipped command:
+
+```bash
+async-research queue list <ops-dir>
+```
+
+Behavior:
+
+- `queue list` is read-only and returns JSON with task-board rows, queue
+  counts, status counts, malformed-status counts, stale-lock counts, and a
+  `workflow next` follow-up hint.
+- It uses the dashboard task snapshot read model instead of inventing a second
+  task scanner, so it sees the same status validation, transition validation,
+  lock state, and task-local file metadata as the console surface.
+- `--group` filters the returned rows to `all`, `active`, `ready_for_worker`,
+  `in_progress`, `review`, `human`, `blocked`, or `malformed`.
+- `--status` may be repeated for status filters, `--limit` bounds row count,
+  and `--include-files` includes task-local file-link metadata.
+- Missing workspaces fail closed with exit code `4`; malformed task statuses
+  are reported in the listing summary and `malformed` group rather than
+  failing the read-only listing.
+
 ## Integration With Existing Roadmaps
 
 - Public Alpha Hardening is delivered. This roadmap is its dogfood maintenance
@@ -294,7 +318,5 @@ Targeted tests should be added for each phase before marking it complete.
   or a different command group?
 - Should `workflow next` emit only JSON, or support a compact text mode for
   humans?
-- Should `queue list` be a real command, or should `workflow next/status` make
-  it redundant?
 - What is the safest lifecycle command for approving a `needs_human` captured
   idea without letting operators bypass scoring and hard gates too easily?

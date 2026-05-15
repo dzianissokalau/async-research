@@ -371,6 +371,69 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(2, payload["active_task_count"])
             self.assertEqual(before_daily, daily_status.read_text(encoding="utf-8"))
 
+    def test_queue_list_reports_task_board_state_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            ready_task = write_task_status(ops_dir, "TASK-4004", "ready_for_worker")
+            human_task = write_task_status(ops_dir, "TASK-4005", "needs_human")
+            invalid_task = ops_dir / "tasks" / "TASK-4006-invalid"
+            invalid_task.mkdir(parents=True)
+            (invalid_task / "status.json").write_text("{}\n", encoding="utf-8")
+            daily_status = ops_dir / "daily_status.md"
+            before_daily = daily_status.read_text(encoding="utf-8")
+            queue_before = (ops_dir / "queue.md").read_text(encoding="utf-8")
+
+            code, payload = run_cli_json(
+                ["queue", "list", ops_dir, "--status", "ready_for_worker", "--status", "needs_human", "--limit", "1"]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("queue_listed", payload["action"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(payload["changed"])
+            self.assertEqual("all", payload["group"])
+            self.assertEqual(2, payload["summary"]["filtered_count"])
+            self.assertEqual(1, payload["summary"]["returned_count"])
+            self.assertTrue(payload["summary"]["truncated"])
+            self.assertEqual(1, payload["summary"]["ready_for_worker_count"])
+            self.assertEqual(1, payload["summary"]["human_count"])
+            self.assertEqual(1, payload["summary"]["malformed_status_count"])
+            self.assertEqual(str(ready_task), payload["tasks"][0]["task_dir"])
+            self.assertNotIn("files", payload["tasks"][0])
+            self.assertEqual(before_daily, daily_status.read_text(encoding="utf-8"))
+            self.assertEqual(queue_before, (ops_dir / "queue.md").read_text(encoding="utf-8"))
+
+            code, payload = run_cli_json(["queue", "list", ops_dir, "--status", "needs_human", "--include-files"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(1, payload["summary"]["filtered_count"])
+            self.assertEqual(str(human_task), payload["tasks"][0]["task_dir"])
+            self.assertEqual("needs_human", payload["tasks"][0]["status"])
+            self.assertIn("files", payload["tasks"][0])
+
+    def test_queue_list_refuses_missing_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "missing_ops"
+
+            code, payload = run_cli_json(["queue", "list", ops_dir])
+
+            self.assertEqual(cli.INVALID, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("queue_list_refused", payload["action"])
+            self.assertEqual("ops_dir_missing", payload["reason"])
+
+    def test_queue_list_refuses_negative_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+
+            code, payload = run_cli_json(["queue", "list", ops_dir, "--limit", "-1"])
+
+            self.assertEqual(cli.INVALID, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("queue_list_refused", payload["action"])
+            self.assertEqual("invalid_limit", payload["reason"])
+
     def test_decision_append_dry_run_preserves_log_and_append_writes_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

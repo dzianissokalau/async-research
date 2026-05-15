@@ -197,6 +197,7 @@ Once a task exists, a typical loop is:
 ```bash
 TASK=research_ops/tasks/TASK-0001-example
 
+async-research queue list research_ops
 async-research workflow next research_ops
 async-research workflow status "$TASK"
 async-research workflow worker-start "$TASK" --dry-run
@@ -285,6 +286,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
 | `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
+| `async-research queue list research_ops` | List task-board rows and queue counts, optionally filtered by group or status. | Dashboard task snapshot, task status files, locks, transition validation, and task-local file metadata when requested. | JSON to stdout only; read-only. |
 | `async-research prompts init research_ops` | Create the repo-backed prompt library. | Existing `research_ops/prompts/` files. | Missing prompt Markdown files, drafts, `versions.json`, and `history.jsonl`. |
 | `async-research prompts validate research_ops worker` | Validate prompt front matter and required scheduler prompt sections. | Active prompt or saved draft under `research_ops/prompts/`. | JSON to stdout only; read-only. |
 | `async-research prompts activate research_ops worker --message "<why>"` | Activate a draft as the next prompt version. | Draft prompt, active prompt, and prompt manifest. | Active prompt, archived version, `versions.json`, `history.jsonl`, and `decisions.md`; invalid drafts require `--allow-invalid`. |
@@ -449,6 +451,7 @@ specific diagnostic.
 | `console` | `0` server stopped cleanly after serving the local dashboard. | `3` invalid console arguments. |
 | `console snapshot` | `0` snapshot rendered, including partial or unavailable optional groups. | `3` invalid request flags such as malformed `--now`. |
 | `queue discovery-gate` | `0` active queue capacity is available. | `2` discovery should be skipped because active task capacity is full or status files are malformed. |
+| `queue list` | `0` task-board state printed without mutating the workspace. | `4` workspace is missing or is not a directory. Malformed task status files are included in the listing summary instead of failing the command. |
 | `schedules trigger-dry-run` | `0` trigger preview passed disabled-state, prompt, readiness, and concurrency checks. | `2` disabled, prompt, readiness, or concurrency blocker; `3` missing manifest, unknown job, or invalid timestamp; `4` malformed manifest. |
 | `schedules trigger-now` | `0` run finished with child exit code `0` and artifacts written. | `2` trigger blockers, launch failure, child process failure, or timeout after artifacts are written; `3` missing manifest, unknown job, invalid timestamp, or existing run artifact; `4` malformed manifest. |
 | `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |

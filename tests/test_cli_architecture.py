@@ -286,7 +286,7 @@ class CliArchitectureTests(unittest.TestCase):
         idea_choices = subparser_choices(choices["idea"])
         idea_catalog_choices = subparser_choices(idea_choices["catalog"])
 
-        self.assertEqual(["discovery-gate"], list(queue_choices))
+        self.assertEqual(["discovery-gate", "list"], list(queue_choices))
         self.assertEqual(["init", "list", "validate", "draft", "activate", "diff"], list(prompt_choices))
         self.assertEqual(["init", "list", "validate", "upsert", "set-status", "trigger-dry-run", "trigger-now"], list(schedule_choices))
         self.assertEqual(["check", "status", "next", "worker-start", "worker-complete", "advance"], list(workflow_choices))

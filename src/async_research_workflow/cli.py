@@ -651,6 +651,15 @@ def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_queue_list_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "queue_capacity",
+        ["list", str(args.ops_dir), "--group", args.group, "--limit", str(args.limit)]
+        + repeated_option("--status", args.status)
+        + (["--include-files"] if args.include_files else []),
+    )
+
+
 def run_prompts_init_command(args: argparse.Namespace) -> int:
     return module_main(
         "prompt_library",
@@ -1404,8 +1413,8 @@ def register_queue_commands(subparsers) -> None:
     queue = add_command(
         subparsers,
         "queue",
-        help="Inspect queue capacity gates.",
-        description="Run read-only queue capacity checks used by scheduled discovery jobs.",
+        help="Inspect queue and task-board state.",
+        description="Run read-only queue capacity checks and list task-board state for operators.",
     )
     queue_sub = queue.add_subparsers(dest="queue_command", required=True)
     discovery = add_command(
@@ -1423,6 +1432,25 @@ def register_queue_commands(subparsers) -> None:
         help="Status counted as active. Repeat to override the default active-status set.",
     )
     discovery.set_defaults(func=run_queue_discovery_gate_command)
+    list_cmd = add_command(
+        queue_sub,
+        "list",
+        help="List queue and task-board state.",
+        description=(
+            "Read the dashboard task snapshot and return filtered task-board state plus queue counts without mutating research_ops."
+        ),
+    )
+    add_common_ops(list_cmd)
+    list_cmd.add_argument(
+        "--group",
+        choices=("all", "active", "ready_for_worker", "in_progress", "review", "human", "blocked", "malformed"),
+        default="all",
+        help="Task group to return.",
+    )
+    list_cmd.add_argument("--status", action="append", help="Only include tasks with this status. Repeat to include multiple statuses.")
+    list_cmd.add_argument("--limit", type=int, default=50, help="Maximum rows to return; use 0 for no limit.")
+    list_cmd.add_argument("--include-files", action="store_true", help="Include task-local file link metadata.")
+    list_cmd.set_defaults(func=run_queue_list_command)
 
 
 def register_prompt_commands(subparsers) -> None:
