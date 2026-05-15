@@ -52,6 +52,33 @@ class PromptLibraryTests(unittest.TestCase):
             self.assertIn("prompts/versions/worker/worker_v1.0.md", would_create)
             self.assertEqual("prompts/versions.json", payload["would_write_manifest"]["relative_path"])
             self.assertTrue(any(item["prompt_id"] == "worker" for item in payload["would_append_history"]))
+            self.assertEqual(
+                payload["would_create"]
+                + payload["would_update"]
+                + payload["would_append_history"]
+                + [payload["would_write_manifest"]],
+                payload["would_write"],
+            )
+
+    def test_prompt_library_init_force_dry_run_on_fresh_workspace_reports_creates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+
+            code, payload = prompt_library.init_library(
+                ops_dir,
+                force=True,
+                now=NOW,
+                dry_run=True,
+            )
+
+            self.assertEqual(prompt_library.SUCCESS, code, payload)
+            self.assertTrue(payload["changed"])
+            self.assertTrue(payload["force"])
+            self.assertFalse((ops_dir / "prompts").exists())
+            self.assertEqual([], payload["would_update"])
+            would_create = {item["relative_path"] for item in payload["would_create"]}
+            self.assertIn("prompts/worker.md", would_create)
+            self.assertIn("prompts/drafts/worker.md", would_create)
 
     def test_prompt_library_init_force_dry_run_reports_updates_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -98,6 +125,19 @@ class PromptLibraryTests(unittest.TestCase):
             self.assertEqual(history_before, history_path.read_text(encoding="utf-8"))
             existing = {item["relative_path"] for item in payload["existing_files"]}
             self.assertIn("prompts/worker.md", existing)
+
+    def test_public_prompt_cli_dry_run_missing_ops_dir_fails_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "missing_research_ops"
+
+            code, payload = run_cli_json(["prompts", "init", ops_dir, "--dry-run"])
+
+            self.assertEqual(prompt_library.INVALID_REQUEST, code)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("ops_dir_missing", payload["reason"])
+            self.assertTrue(payload["dry_run"])
+            self.assertTrue(payload["read_only"])
+            self.assertFalse(ops_dir.exists())
 
     def test_prompt_library_init_and_validate_create_default_worker_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
