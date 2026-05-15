@@ -886,9 +886,21 @@ def duplicate_matches(
 
 def capture_source_from_args(args: argparse.Namespace) -> tuple[dict[str, Any] | None, list[dict[str, Any]], int]:
     if args.from_inbox and args.title:
-        return None, [{"reason": "conflicting_capture_inputs", "message": "use either --from-inbox or --title"}], INVALID_REQUEST
+        return None, [
+            {
+                "reason": "conflicting_capture_inputs",
+                "message": "use either --from-inbox or --title",
+                "next_step": "rerun with exactly one capture source: --from-inbox row-N/IDEA-0000 or --title \"...\"",
+            }
+        ], INVALID_REQUEST
     if not args.from_inbox and not args.title:
-        return None, [{"reason": "missing_capture_input", "message": "provide --from-inbox or --title"}], INVALID_REQUEST
+        return None, [
+            {
+                "reason": "missing_capture_input",
+                "message": "provide --from-inbox or --title",
+                "next_step": "start with async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry-run",
+            }
+        ], INVALID_REQUEST
     if args.from_inbox:
         rows, warnings = parse_markdown_table_rows(args.ops_dir / "discovery_inbox.md", warn_non_table_lines=True)
         target = args.from_inbox.strip()
@@ -907,19 +919,66 @@ def capture_source_from_args(args: argparse.Namespace) -> tuple[dict[str, Any] |
                 None,
             )
         if match is None:
+            valid_selectors = available_inbox_selectors(rows)
+            selector_hint = valid_selectors[0] if valid_selectors else "row-N"
             return None, [
                 {
                     "reason": "inbox_row_not_found",
                     "message": "no discovery inbox table row matched --from-inbox; free-form text is never captured automatically",
                     "from_inbox": target,
                     "candidate_row_count": len(rows),
-                    "valid_selectors": available_inbox_selectors(rows),
+                    "valid_selectors": valid_selectors,
                     "nearby_candidate_rows": nearby_inbox_candidate_rows(target, rows),
                     "warnings": warnings,
+                    "next_step": (
+                        f"rerun with a valid selector such as {selector_hint}, or add a canonical table row to discovery_inbox.md"
+                    ),
+                    "example": (
+                        f"async-research idea capture {args.ops_dir} --from-inbox {selector_hint} "
+                        "--id IDEA-0000 --dry-run"
+                    ),
                 }
             ], INVALID_REQUEST
         return match, warnings, SUCCESS
     return None, [], SUCCESS
+
+
+def capture_command_prefix(args: argparse.Namespace, title: str, idea_id: str | None = None) -> str:
+    parts = ["async-research", "idea", "capture", str(args.ops_dir)]
+    if args.from_inbox:
+        parts.extend(["--from-inbox", f'"{args.from_inbox}"'])
+    else:
+        parts.extend(["--title", f'"{title}"'])
+    if idea_id:
+        parts.extend(["--id", idea_id])
+    return " ".join(parts)
+
+
+def capture_plan_next_step(args: argparse.Namespace, plan: dict[str, Any], title: str) -> str:
+    route = str(plan.get("route") or "")
+    reason = str(plan.get("reason") or "")
+    proposal = plan.get("proposal") if isinstance(plan.get("proposal"), dict) else {}
+    idea_id = str(proposal.get("idea_id") or "").strip() or None
+    command = capture_command_prefix(args, title, idea_id)
+    if route == "create":
+        return (
+            f"if the dry-run candidate is correct, run {command} --write; "
+            "then complete and score the needs_human draft before resolving it with async-research idea resolve"
+        )
+    if route == "update_existing" and reason == "same_idea_id":
+        return (
+            f"inspect the existing idea with async-research idea catalog show {args.ops_dir} {idea_id}; "
+            f"if the metadata merge is intentional, rerun {command} --write --update-existing"
+        )
+    if reason == "missing_idea_id":
+        return f"choose the next canonical IDEA-0000 id, then rerun {capture_command_prefix(args, title, 'IDEA-0000')} --dry-run"
+    if reason == "invalid_idea_id":
+        return f"replace the id with IDEA-0000 format, then rerun {capture_command_prefix(args, title, 'IDEA-0000')} --dry-run"
+    if reason == "ambiguous_or_explicit_duplicate":
+        return (
+            f"inspect duplicate_matches, then either use the existing idea or record a human decision before rerunning {command}"
+        )
+    return "inspect the dry-run proposal and rerun with --write only when route=create or same-ID --update-existing is intentional"
 
 
 def build_capture_plan(
@@ -1220,6 +1279,7 @@ def capture_source_and_plan(args: argparse.Namespace, model: dict[str, Any]) -> 
             "title": args.title,
             "idea_id": args.idea_id,
         },
+        "next_step": capture_plan_next_step(args, plan, title),
         **plan,
     }
 
@@ -2505,6 +2565,88 @@ def blocking_items(blockers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [blocker for blocker in blockers if blocker.get("blocking", True) is not False]
 
 
+def promotion_blocker_remediation(ops_dir: Path, idea_id: str, blocker: dict[str, Any]) -> dict[str, Any]:
+    reason = str(blocker.get("reason") or "unknown_blocker")
+    if blocker.get("next_step"):
+        return {
+            "reason": reason,
+            "message": blocker.get("message") or "inspect the blocker before retrying promotion",
+            "next_step": blocker["next_step"],
+        }
+    if reason == "status_not_promotable":
+        status = str(blocker.get("status") or "unknown")
+        if status == "needs_human":
+            next_step = (
+                f"run async-research idea resolve {ops_dir} {idea_id} --status candidate|promote|park|reject "
+                "--reason \"<why>\" --approver \"<who>\" --dry-run"
+            )
+        else:
+            next_step = f"run async-research idea catalog show {ops_dir} {idea_id} and use the lifecycle command for status={status}"
+        return {
+            "reason": reason,
+            "message": f"idea status {status} is not directly promotable",
+            "next_step": next_step,
+        }
+    if reason == "candidate_not_ready_for_promotion":
+        return {
+            "reason": reason,
+            "message": "candidate lifecycle recommendation is not promote",
+            "next_step": f"inspect lifecycle_reason, then update score/gates or resolve the idea with async-research idea resolve {ops_dir} {idea_id}",
+        }
+    if reason == "failed_hard_gates":
+        return {
+            "reason": reason,
+            "message": "promotion hard gates failed",
+            "next_step": f"fix the failed hard gates or resolve the idea to park/reject with async-research idea resolve {ops_dir} {idea_id}",
+        }
+    if reason == "duplicate_requires_human_override":
+        return {
+            "reason": reason,
+            "message": "duplicate or near-duplicate ideas require a human decision",
+            "next_step": "record the non-duplicate angle, then rerun promotion with --allow-duplicate only if the decision permits it",
+        }
+    if reason == "experiment_plan_gates_not_met":
+        return {
+            "reason": reason,
+            "message": "experiment_plan promotion requires audited data refs and passed hard gates",
+            "next_step": f"run async-research idea promote {ops_dir} {idea_id} --task-type data_readiness --dry-run or audit the data refs first",
+        }
+    if reason in {"missing_library_support", "invalid_library_support"}:
+        return {
+            "reason": reason,
+            "message": "library-dependent promotion needs resolved generated source_library.md rows",
+            "next_step": f"run async-research library validate {ops_dir}, resolve LIT-* refs, or route through literature_extract first",
+        }
+    if reason == "catalog_validation_failure":
+        return {
+            "reason": reason,
+            "message": str(blocker.get("message") or "catalog validation blocks promotion"),
+            "next_step": f"run async-research idea catalog validate {ops_dir} and fix the reported validation failure",
+        }
+    return {
+        "reason": reason,
+        "message": str(blocker.get("message") or "promotion is blocked"),
+        "next_step": f"inspect blockers, then rerun async-research idea promote {ops_dir} {idea_id} --dry-run",
+    }
+
+
+def promotion_blocker_guidance(ops_dir: Path, idea_id: str, blockers: list[dict[str, Any]]) -> dict[str, Any]:
+    steps: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for blocker in blockers:
+        step = promotion_blocker_remediation(ops_dir, idea_id, blocker)
+        key = (str(step.get("reason") or ""), str(step.get("next_step") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        steps.append(step)
+    next_step = steps[0]["next_step"] if steps else f"rerun async-research idea promote {ops_dir} {idea_id} --dry-run"
+    return {
+        "next_step": next_step,
+        "remediation_steps": steps,
+    }
+
+
 def promotion_validation_commands(task_type: str, proposed_task_slug: str) -> list[str]:
     commands = [
         "async-research idea catalog validate research_ops",
@@ -2761,6 +2903,9 @@ def promotion_task_identity(
                 "reason": "reserved_task_folder_exists",
                 "task_id": task_id,
                 "paths": task_folder_paths,
+                "collision_kind": "task_folder",
+                "message": "the reserved TASK id already has one or more task folders",
+                "next_step": f"inspect the existing task folder before retrying; do not overwrite {task_id}",
             }
         )
     if queue_row_present:
@@ -2769,6 +2914,9 @@ def promotion_task_identity(
                 "reason": "reserved_queue_row_exists",
                 "task_id": task_id,
                 "path": str(ops_dir / "queue.md"),
+                "collision_kind": "queue_row",
+                "message": "queue.md already contains the reserved TASK id",
+                "next_step": f"run async-research queue list {ops_dir} --status inbox --status ready_for_worker and inspect {task_id}",
             }
         )
     if accepted_output_present:
@@ -2777,6 +2925,9 @@ def promotion_task_identity(
                 "reason": "reserved_accepted_output_exists",
                 "task_id": task_id,
                 "path": str(ops_dir / "accepted_outputs_index.md"),
+                "collision_kind": "accepted_output",
+                "message": "accepted_outputs_index.md already contains the reserved TASK id",
+                "next_step": f"inspect accepted memory for {task_id}; do not create a duplicate promotion task",
             }
         )
 
@@ -2787,6 +2938,9 @@ def promotion_task_identity(
                 "reason": "reserved_task_id_claimed_by_other_idea",
                 "task_id": task_id,
                 "claims": other_claims,
+                "collision_kind": "other_idea_claim",
+                "message": "another catalog idea already claims the reserved TASK id",
+                "next_step": "inspect the claiming idea with idea catalog show before retrying promotion",
             }
         )
 
@@ -2799,6 +2953,9 @@ def promotion_task_identity(
                     "reason": "stale_promoted_task_id",
                     "promoted_task_id": selected_promoted_task_id,
                     "path": record.get("path"),
+                    "collision_kind": "stale_promoted_task_id",
+                    "message": "the selected idea has a promoted_task_id that is not visible in tasks, queue, or accepted outputs",
+                    "next_step": "run async-research idea catalog validate and repair the stale promoted_task_id before retrying promotion",
                 }
             )
         elif selected_promoted_task_id == task_id:
@@ -2807,6 +2964,9 @@ def promotion_task_identity(
                     "reason": "selected_idea_already_has_promoted_task_id",
                     "promoted_task_id": selected_promoted_task_id,
                     "path": record.get("path"),
+                    "collision_kind": "existing_selected_idea_task",
+                    "message": "the selected idea already records the reserved TASK id",
+                    "next_step": "inspect the existing promoted task or rerun the matching write command only if the previous write was incomplete",
                 }
             )
         else:
@@ -2816,6 +2976,9 @@ def promotion_task_identity(
                     "reserved_task_id": task_id,
                     "promoted_task_id": selected_promoted_task_id,
                     "path": record.get("path"),
+                    "collision_kind": "different_selected_idea_task",
+                    "message": "the selected idea already records a different visible promoted task",
+                    "next_step": "inspect the existing promoted task before creating any distinct follow-up",
                 }
             )
 
@@ -3044,11 +3207,13 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         ],
     }
     if blocking:
+        guidance = promotion_blocker_guidance(args.ops_dir, args.idea_id, blocking)
         return VALIDATION_FAILED, {
             "ok": False,
             "action": "idea_promotion_blocked",
             **base,
             "proposal": None,
+            **guidance,
         }
 
     proposal = promotion_task_proposal(
@@ -3989,6 +4154,12 @@ def build_parser() -> argparse.ArgumentParser:
         "capture",
         help="Preview or write explicit discovery-to-catalog capture.",
         description="Build or write one canonical IDEA JSON record from a discovery inbox row or explicit title.",
+        epilog=(
+            "Examples:\n"
+            "  async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry-run\n"
+            "  async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write\n"
+            "  async-research idea capture research_ops --title \"New angle\" --id IDEA-0008 --dry-run"
+        ),
     )
     capture.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     capture.add_argument("--from-inbox", help="Discovery inbox item id or row-N selector to capture explicitly.")
@@ -4003,7 +4174,14 @@ def build_parser() -> argparse.ArgumentParser:
         "promote",
         help="Preview or write one catalog idea promotion task.",
         description="Produce one bounded planner-facing task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
-        epilog="Dry-run is proposal-only and returns promotion_preflight_hash. Write mode requires that matching hash and updates inbox.md, tasks/, queue.md, and the selected idea's promoted_task_id under the catalog lock.",
+        epilog=(
+            "Examples:\n"
+            "  async-research idea promote research_ops IDEA-0007 --dry-run\n"
+            "  async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>\n\n"
+            "Dry-run is proposal-only and returns promotion_preflight_hash. Blocked dry-runs include next_step and "
+            "remediation_steps. Write mode requires that matching hash and updates inbox.md, tasks/, queue.md, "
+            "and the selected idea's promoted_task_id under the catalog lock."
+        ),
     )
     promote.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")

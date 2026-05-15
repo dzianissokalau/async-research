@@ -223,11 +223,15 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             self.assertEqual(2, parked_code, parked_payload)
             self.assertEqual("idea_promotion_blocked", parked_payload["action"])
             self.assertEqual("status_not_promotable", parked_payload["blockers"][0]["reason"])
+            self.assertIn("idea catalog show", parked_payload["next_step"])
+            self.assertEqual("status_not_promotable", parked_payload["remediation_steps"][0]["reason"])
             self.assertIsNone(parked_payload["proposal"])
 
             blocked_code, blocked_payload = run_cli_json(["idea", "promote", ops_dir, "IDEA-7304"])
             self.assertEqual(2, blocked_code, blocked_payload)
             self.assertTrue(any(item["reason"] == "failed_hard_gates" for item in blocked_payload["blockers"]))
+            hard_gate_step = next(item for item in blocked_payload["remediation_steps"] if item["reason"] == "failed_hard_gates")
+            self.assertIn("idea resolve", hard_gate_step["next_step"])
             self.assertFalse(
                 any(
                     item.get("reason") == "catalog_validation_failure"
@@ -261,6 +265,7 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertTrue(any(item["reason"] == "candidate_not_ready_for_promotion" for item in payload["blockers"]))
+            self.assertIn("candidate lifecycle recommendation", payload["remediation_steps"][0]["message"])
             self.assertIsNone(payload["proposal"])
 
     def test_promote_routes_plausible_unaudited_data_to_readiness(self) -> None:
@@ -309,6 +314,8 @@ class IdeaCatalogPhase8Tests(unittest.TestCase):
             blocker = next(item for item in payload["blockers"] if item["reason"] == "missing_library_support")
             self.assertEqual(["LIT-7313"], blocker["unresolved_refs"])
             self.assertTrue(blocker["target"].endswith("research_ops/library/source_library.md"))
+            step = next(item for item in payload["remediation_steps"] if item["reason"] == "missing_library_support")
+            self.assertIn("library validate", step["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_promote_allows_library_required_route_when_library_ref_resolves(self) -> None:

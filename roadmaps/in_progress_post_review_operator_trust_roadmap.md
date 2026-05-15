@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
 Status: In Progress
-Current phase: Phase 2 - Idea lifecycle ergonomics
+Current phase: Phase 3 - JSON/help consistency polish
 Last updated: 2026-05-15
-Next action: Improve idea capture and idea promote guidance
+Next action: Normalize starter-smoke JSON output
 Blocked by: None
 
 Created: 2026-05-13
@@ -108,7 +108,7 @@ The next work should make the normal workflow hard to misuse:
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Complete |
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Complete |
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Complete |
-| P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Planned |
+| P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Complete |
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Planned |
 | P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Planned |
 | P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Backlog |
@@ -330,6 +330,33 @@ Acceptance:
   blockers and leaves files unchanged.
 - parking through resolution requires a revisit condition and records a pause
   decision.
+
+### Capture And Promotion Guidance
+
+Shipped behavior:
+
+- `idea capture` help now includes concrete dry-run/write/title examples.
+- capture dry-run and blocked/ambiguous capture responses include `next_step`.
+- missing `--from-inbox` selectors report valid selectors, nearby candidate
+  rows, ignored free-form lines, and an executable example using a valid
+  selector when available.
+- `idea promote` help now includes dry-run/write examples and documents blocked
+  dry-run guidance fields.
+- blocked promotion dry-runs include top-level `next_step` plus structured
+  `remediation_steps` derived from the blocking reasons.
+- task-id reservation blockers include `collision_kind`, `message`, and a
+  blocker-local `next_step`, covering task folders, queue rows, accepted output
+  rows, stale promoted-task links, existing selected-idea task links, and other
+  idea claims.
+
+Acceptance:
+
+- blocked promotion messages identify concrete remedies without requiring
+  operators to infer them from raw blocker names.
+- task-id collisions tell operators where the collision was detected and what
+  to inspect next.
+- capture selector failures guide operators toward a valid row selector rather
+  than silently ignoring free-form inbox text.
 
 ## Integration With Existing Roadmaps
 

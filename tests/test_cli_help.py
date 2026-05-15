@@ -190,7 +190,7 @@ class CliHelpTests(unittest.TestCase):
             (["exploration"], ["exploration-cycle tasks", "validate"]),
             (["exploration", "validate"], ["worker output", "--task-dir"]),
             (["idea"], ["idea-evaluation JSON artifacts", "score", "validate", "capture", "promote", "resolve", "park", "reject", "catalog"]),
-            (["idea", "capture"], ["discovery_inbox.md", "--from-inbox", "--title", "LOCK"]),
+            (["idea", "capture"], ["discovery_inbox.md", "--from-inbox", "--title", "LOCK", "Examples", "IDEA-0007"]),
             (
                 ["idea", "promote"],
                 [
@@ -201,6 +201,7 @@ class CliHelpTests(unittest.TestCase):
                     "--allow-duplicate",
                     "--preflight-hash",
                     "--human-override",
+                    "remediation_steps",
                     "promoted_task_id",
                     "inbox.md",
                 ],

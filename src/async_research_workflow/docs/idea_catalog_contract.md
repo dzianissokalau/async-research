@@ -246,7 +246,9 @@ new canonical JSON file.
 `--from-inbox` only selects canonical Markdown table rows. Free-form discovery
 notes are warning-only and include line numbers, but they are never captured
 automatically. When a selector is not found, the command reports valid selectors
-and nearby candidate rows so the operator can choose an explicit row.
+and nearby candidate rows so the operator can choose an explicit row. Capture
+responses include `next_step`; selector failures also include an executable
+example using a valid row selector when one is available.
 
 `idea catalog maintain` reads `discovery_inbox.md`, canonical catalog JSON,
 `accepted_outputs_index.md`, and `discovery/rejected_ideas.md`. It only proposes
@@ -326,6 +328,12 @@ state, checks status, lifecycle, score gates, hard gates, duplicate status, data
 refs, and task-type eligibility, then prints at most one bounded task proposal.
 Dry-run never edits `queue.md` or creates task folders. V2 write behavior is
 specified below.
+
+Blocked dry-runs return `next_step` and `remediation_steps` in addition to raw
+`blockers`. Task-id reservation blockers include `collision_kind`, `message`,
+and a blocker-local `next_step` so operators can distinguish existing task
+folders, queue rows, accepted output rows, stale `promoted_task_id` values, and
+claims by other catalog ideas.
 
 Allowed proposal task types are `literature_extract`, `data_readiness`,
 `hypothesis_card`, and `experiment_plan`. Without an override, thin evidence

@@ -112,6 +112,7 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual("needs_human", missing_id["route"])
             self.assertEqual("missing_idea_id", missing_id["reason"])
             self.assertEqual([], missing_id["would_write"])
+            self.assertIn("--id IDEA-0000", missing_id["next_step"])
 
             code, payload = run_cli_json(
                 [
@@ -129,6 +130,8 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual("idea_capture_planned", payload["action"])
             self.assertEqual("create", payload["route"])
+            self.assertIn("--write", payload["next_step"])
+            self.assertIn("idea resolve", payload["next_step"])
             self.assertTrue(payload["changed"])
             self.assertEqual([], payload["duplicate_matches"])
             self.assertEqual(1, len(payload["would_write"]))
@@ -220,6 +223,8 @@ class IdeaCatalogPhase6Tests(unittest.TestCase):
             self.assertEqual(3, failure["candidate_row_count"])
             self.assertIn("row-1", failure["valid_selectors"])
             self.assertIn("IDEA-7111", failure["valid_selectors"])
+            self.assertIn("valid selector", failure["next_step"])
+            self.assertIn("--from-inbox row-1", failure["example"])
             self.assertEqual(["row-3", "row-2", "row-1"], [row["row_id"] for row in failure["nearby_candidate_rows"][:3]])
             free_form_warning = next(item for item in failure["warnings"] if item["reason"] == "non_canonical_markdown_line")
             self.assertEqual(7, free_form_warning["line_number"])

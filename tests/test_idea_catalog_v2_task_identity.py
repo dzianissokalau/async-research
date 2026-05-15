@@ -165,6 +165,11 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
             self.assertEqual(2, code, payload)
             self.assertEqual("blocked", payload["task_identity"]["status"])
             self.assertIn("reserved_task_folder_exists", self.blocker_reasons(payload))
+            blocker = next(item for item in payload["task_identity"]["blockers"] if item["reason"] == "reserved_task_folder_exists")
+            self.assertEqual("task_folder", blocker["collision_kind"])
+            self.assertIn("already has", blocker["message"])
+            self.assertIn("inspect the existing task folder", blocker["next_step"])
+            self.assertIn("inspect the existing task folder", payload["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_existing_reserved_queue_row_blocks_promotion(self) -> None:
@@ -190,6 +195,9 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertIn("reserved_queue_row_exists", self.blocker_reasons(payload))
+            blocker = next(item for item in payload["task_identity"]["blockers"] if item["reason"] == "reserved_queue_row_exists")
+            self.assertEqual("queue_row", blocker["collision_kind"])
+            self.assertIn("queue list", blocker["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_existing_promoted_task_id_blocks_promotion(self) -> None:
@@ -277,6 +285,8 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertIn("stale_promoted_task_id", self.blocker_reasons(payload))
+            step = next(item for item in payload["remediation_steps"] if item["reason"] == "stale_promoted_task_id")
+            self.assertIn("catalog validate", step["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_different_visible_promoted_task_id_blocks_promotion(self) -> None:
@@ -307,6 +317,13 @@ class IdeaCatalogV2TaskIdentityTests(unittest.TestCase):
 
             self.assertEqual(2, code, payload)
             self.assertIn("reserved_task_id_claimed_by_other_idea", self.blocker_reasons(payload))
+            blocker = next(
+                item
+                for item in payload["task_identity"]["blockers"]
+                if item["reason"] == "reserved_task_id_claimed_by_other_idea"
+            )
+            self.assertEqual("other_idea_claim", blocker["collision_kind"])
+            self.assertIn("claiming idea", blocker["next_step"])
             self.assertIsNone(payload["proposal"])
 
     def test_re_running_same_write_command_is_idempotent_when_task_is_complete(self) -> None:

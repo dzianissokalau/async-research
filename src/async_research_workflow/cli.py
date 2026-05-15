@@ -2519,7 +2519,13 @@ def register_artifact_commands(subparsers) -> None:
         "capture",
         help="Preview or write discovery-to-catalog capture.",
         description="Build or write one canonical IDEA JSON record from discovery_inbox.md or an explicit title.",
-        epilog="Write mode uses research_ops/ideas/LOCK and regenerates generated catalog projections without editing queue.md.",
+        epilog=(
+            "Examples:\n"
+            "  async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --dry-run\n"
+            "  async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write\n"
+            "  async-research idea capture research_ops --title \"New angle\" --id IDEA-0008 --dry-run\n\n"
+            "Write mode uses research_ops/ideas/LOCK and regenerates generated catalog projections without editing queue.md."
+        ),
     )
     add_common_ops(idea_capture)
     idea_capture.add_argument("--from-inbox", help="Discovery inbox item id or row-N selector to capture explicitly.")
@@ -2534,7 +2540,14 @@ def register_artifact_commands(subparsers) -> None:
         "promote",
         help="Preview or write one catalog idea promotion task.",
         description="Produce one bounded promotion task proposal from a canonical catalog idea; write mode creates the reserved task folder and queue row.",
-        epilog="Dry-run is proposal-only and returns promotion_preflight_hash. Write mode requires that matching hash, appends inbox.md, creates one tasks/TASK-*/ folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock.",
+        epilog=(
+            "Examples:\n"
+            "  async-research idea promote research_ops IDEA-0007 --dry-run\n"
+            "  async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>\n\n"
+            "Dry-run is proposal-only and returns promotion_preflight_hash. Blocked dry-runs include next_step and "
+            "remediation_steps. Write mode requires the matching hash, appends inbox.md, creates one tasks/TASK-*/ "
+            "folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock."
+        ),
     )
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")

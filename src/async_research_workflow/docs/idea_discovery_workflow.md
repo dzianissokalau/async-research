@@ -167,6 +167,8 @@ async-research idea promote research_ops IDEA-0007 --write --preflight-hash <has
 `--from-inbox` selects only explicit Markdown table rows. Free-form notes in
 `discovery_inbox.md` are surfaced as warnings with line numbers, and a missing
 selector reports nearby candidate rows instead of silently failing.
+Capture dry-runs and failures include `next_step`; selector misses also include
+an example command using a valid row selector when possible.
 
 If capture or maintenance leaves an idea in `needs_human`, use `idea resolve`
 after a real human decision rather than editing JSON directly. Resolving to
@@ -186,7 +188,10 @@ promotion proposals remain catalog/planning state and should be parked,
 rejected, repaired, or routed to human review. Duplicate or near-duplicate ideas
 must not become tasks unless `--allow-duplicate` is backed by a human decision
 or explicit planner note describing the different source, geography, mechanism,
-or decision use.
+or decision use. Blocked dry-runs include `next_step` and `remediation_steps`;
+task-id collisions also identify whether the collision is a task folder, queue
+row, accepted output row, stale promoted-task link, or another catalog idea's
+claim.
 
 The promotion proposal chooses the cheapest safe next task:
 
