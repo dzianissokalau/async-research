@@ -334,6 +334,10 @@ function pathToFileHref(path) {
   if (/^[A-Za-z]:\//.test(normalized)) {
     return `file:///${normalized[0]}:${normalized.slice(2).split("/").map(encodeURIComponent).join("/")}`;
   }
+  if (normalized.startsWith("//") && !normalized.startsWith("///")) {
+    const encodedUnc = normalized.slice(2).split("/").map((part) => encodeURIComponent(part)).join("/");
+    return `file://${encodedUnc}`;
+  }
   const encoded = normalized.split("/").map((part) => encodeURIComponent(part)).join("/");
   return normalized.startsWith("/") ? `file://${encoded}` : `file:///${encoded}`;
 }

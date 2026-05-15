@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
 import unittest
 from importlib import resources as importlib_resources
 from pathlib import Path
@@ -156,6 +159,56 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn('renderList("source-attention"', app)
         self.assertIn("cost.top_spend_rows.length > 0", app)
         self.assertIn('value.join(", ")', app)
+
+    def test_console_file_href_helper_encodes_local_and_unc_paths(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not available")
+
+        app_js = PACKAGE_ROOT / "console" / "static" / "app.js"
+        cases = [
+            [r"\\server\share\folder name\file.md", "file://server/share/folder%20name/file.md"],
+            ["/tmp/folder name/file.md", "file:///tmp/folder%20name/file.md"],
+            [r"C:\Users\Ada Lovelace\task.md", "file:///C:/Users/Ada%20Lovelace/task.md"],
+            ["relative/path with space.md", "file:///relative/path%20with%20space.md"],
+            ["file:///already%20encoded.md", "file:///already%20encoded.md"],
+        ]
+        script = """
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const cases = JSON.parse(process.argv[2]);
+const context = {
+  window: {
+    localStorage: {
+      getItem() { return null; },
+      setItem() {},
+    },
+    clearTimeout() {},
+    setTimeout() { return 0; },
+  },
+  document: {
+    addEventListener() {},
+    getElementById() { return null; },
+  },
+};
+vm.runInNewContext(`${source}\\nthis.__pathToFileHref = pathToFileHref;`, context);
+for (const [input, expected] of cases) {
+  const actual = context.__pathToFileHref(input);
+  if (actual !== expected) {
+    console.error(`${input}: expected ${expected}, got ${actual}`);
+    process.exit(1);
+  }
+}
+"""
+        completed = subprocess.run(
+            [node, "-e", script, str(app_js), json.dumps(cases)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual("", completed.stderr)
+        self.assertEqual(0, completed.returncode, completed.stdout)
 
     def test_generic_starter_is_domain_neutral_and_empty(self) -> None:
         starter = PACKAGE_ROOT / "templates" / "generic_research_ops_starter" / "research_ops"
