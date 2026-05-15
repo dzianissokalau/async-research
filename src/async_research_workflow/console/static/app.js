@@ -1,9 +1,14 @@
+const AUTO_REFRESH_INTERVALS = [15000, 30000, 60000, 300000];
+
 const state = {
   snapshot: null,
   actions: null,
   results: {},
   loading: false,
   runningAction: null,
+  autoRefreshEnabled: window.localStorage.getItem("asyncResearchAutoRefreshEnabled") === "true",
+  autoRefreshIntervalMs: storedAutoRefreshInterval(),
+  autoRefreshTimer: null,
   taskFilter: "all",
   selectedTaskId: null,
   outcomeFilter: "all",
@@ -14,6 +19,79 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
+
+function storedAutoRefreshInterval() {
+  const value = Number.parseInt(window.localStorage.getItem("asyncResearchAutoRefreshIntervalMs") || "", 10);
+  return AUTO_REFRESH_INTERVALS.includes(value) ? value : 30000;
+}
+
+function intervalLabel(ms) {
+  if (ms >= 60000) {
+    return `${Math.round(ms / 60000)}m`;
+  }
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function refreshTimeLabel(date) {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function setRefreshStatus(text) {
+  const node = el("refresh-status");
+  if (node) {
+    node.textContent = text;
+  }
+}
+
+function updateAutoRefreshControls() {
+  const toggle = el("auto-refresh-toggle");
+  const interval = el("auto-refresh-interval");
+  if (!toggle || !interval) {
+    return;
+  }
+  toggle.checked = state.autoRefreshEnabled;
+  interval.value = String(state.autoRefreshIntervalMs);
+  interval.disabled = !state.autoRefreshEnabled;
+  if (state.autoRefreshEnabled && !state.snapshot) {
+    setRefreshStatus(`Auto ${intervalLabel(state.autoRefreshIntervalMs)}`);
+  } else if (!state.snapshot) {
+    setRefreshStatus("Manual");
+  }
+}
+
+function clearAutoRefreshTimer() {
+  if (state.autoRefreshTimer !== null) {
+    window.clearTimeout(state.autoRefreshTimer);
+    state.autoRefreshTimer = null;
+  }
+}
+
+function scheduleAutoRefresh() {
+  clearAutoRefreshTimer();
+  updateAutoRefreshControls();
+  if (!state.autoRefreshEnabled) {
+    return;
+  }
+  state.autoRefreshTimer = window.setTimeout(async () => {
+    if (!state.runningAction) {
+      await refresh({ source: "auto" });
+    }
+    scheduleAutoRefresh();
+  }, state.autoRefreshIntervalMs);
+}
+
+function setAutoRefreshEnabled(enabled) {
+  state.autoRefreshEnabled = enabled;
+  window.localStorage.setItem("asyncResearchAutoRefreshEnabled", String(enabled));
+  scheduleAutoRefresh();
+}
+
+function setAutoRefreshInterval(value) {
+  const parsed = Number.parseInt(value, 10);
+  state.autoRefreshIntervalMs = AUTO_REFRESH_INTERVALS.includes(parsed) ? parsed : 30000;
+  window.localStorage.setItem("asyncResearchAutoRefreshIntervalMs", String(state.autoRefreshIntervalMs));
+  scheduleAutoRefresh();
+}
 
 function valueOrUnavailable(value) {
   if (value === null || value === undefined || value === "") {
@@ -244,13 +322,44 @@ function detailField(label, value) {
   return node;
 }
 
+function pathToFileHref(path) {
+  const raw = String(path || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (/^file:\/\//i.test(raw)) {
+    return raw;
+  }
+  const normalized = raw.replaceAll("\\", "/");
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return `file:///${normalized[0]}:${normalized.slice(2).split("/").map(encodeURIComponent).join("/")}`;
+  }
+  const encoded = normalized.split("/").map((part) => encodeURIComponent(part)).join("/");
+  return normalized.startsWith("/") ? `file://${encoded}` : `file:///${encoded}`;
+}
+
 function detailPathLink(file) {
+  const path = file && file.path ? String(file.path) : "";
+  const label = file && file.label ? file.label : "File";
+  const displayPath = file && file.relative_path ? file.relative_path : valueOrUnavailable(path);
+  const text = `${label}: ${displayPath}${file && file.exists ? "" : " (missing)"}`;
+  if (!path || !file || !file.exists) {
+    const node = document.createElement("span");
+    node.className = "file-link missing";
+    node.textContent = text;
+    if (path) {
+      node.title = path;
+    }
+    return node;
+  }
   const link = document.createElement("a");
-  link.className = file.exists ? "file-link" : "file-link missing";
-  link.href = `file://${file.path}`;
+  link.className = "file-link";
+  link.href = pathToFileHref(path);
   link.target = "_blank";
-  link.rel = "noreferrer";
-  link.textContent = `${file.label}: ${file.path}${file.exists ? "" : " (missing)"}`;
+  link.rel = "noopener noreferrer";
+  link.title = path;
+  link.dataset.filePath = path;
+  link.textContent = text;
   return link;
 }
 
@@ -1869,13 +1978,16 @@ function submitDecisionForm(event) {
   runDecisionAction(pending.action, pending.task, reason, approver);
 }
 
-async function refresh() {
+async function refresh(options = {}) {
   if (state.loading) {
     return;
   }
   state.loading = true;
   const button = el("refresh-button");
   button.disabled = true;
+  if (options.source === "auto") {
+    setRefreshStatus("Refreshing");
+  }
   try {
     const [snapshotResponse, actionsResponse] = await Promise.all([
       fetch("/api/snapshot", { cache: "no-store" }),
@@ -1888,20 +2000,27 @@ async function refresh() {
       throw new Error(`actions request failed with ${actionsResponse.status}`);
     }
     render(await snapshotResponse.json(), await actionsResponse.json());
+    setRefreshStatus(`Updated ${refreshTimeLabel(new Date())}`);
   } catch (error) {
     renderError(error);
+    setRefreshStatus("Refresh failed");
   } finally {
     state.loading = false;
     button.disabled = false;
+    updateAutoRefreshControls();
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   el("refresh-button").addEventListener("click", refresh);
+  el("auto-refresh-toggle").addEventListener("change", (event) => setAutoRefreshEnabled(event.target.checked));
+  el("auto-refresh-interval").addEventListener("change", (event) => setAutoRefreshInterval(event.target.value));
   el("prompt-init").addEventListener("click", runPromptInit);
   el("schedule-init").addEventListener("click", runScheduleInit);
   el("result-close").addEventListener("click", closeResult);
   el("decision-cancel").addEventListener("click", closeDecisionModal);
   el("decision-form").addEventListener("submit", submitDecisionForm);
+  updateAutoRefreshControls();
+  scheduleAutoRefresh();
   refresh();
 });

@@ -3,7 +3,7 @@
 Status: In Progress
 Current phase: Phase 4 - Delivered-feature V2 adoption
 Last updated: 2026-05-15
-Next action: Dashboard polish
+Next action: Add runnable experiment and analysis examples
 Blocked by: None
 
 Created: 2026-05-13
@@ -111,7 +111,7 @@ The next work should make the normal workflow hard to misuse:
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Complete |
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Complete |
 | P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Complete |
-| P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Backlog |
+| P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Complete |
 | P2 | 4 | Add runnable experiment and analysis examples | Add small fixtures that exercise `experiment validate`, `analysis preflight`, `analysis validate-run`, and `analysis validate-results`. | Makes the delivered Hypothesis Testing Framework feel practical end to end, not only contract-complete. | Backlog |
 | P3 | 5 | Publish release-trust assets | Prepare PyPI/release flow, badges, visible hardening report, and versioned documentation guidance when the operator path is stable. | Improves external credibility and lowers adoption friction. | Backlog |
 | P3 | 5 | Add more vertical worked examples | Add one or two full templates beyond real estate, such as market intelligence, policy scanning, literature review, or due diligence. | Clarifies market fit and helps users evaluate the framework in concrete workflows. | Backlog |
@@ -410,6 +410,35 @@ Acceptance:
 - `--force --dry-run` reports updates for existing default prompt files without
   modifying them.
 - public help and README examples expose `--dry-run`.
+
+## Phase 4 Implementation Notes
+
+Phase 4 starts by polishing the delivered dashboard shell before adding more
+example workflows.
+
+### Dashboard Polish
+
+Shipped behavior:
+
+- the local console top bar now includes an optional auto-refresh toggle with
+  bounded 15s, 30s, 1m, and 5m intervals.
+- auto-refresh preferences persist in browser local storage and do not start
+  unless the operator opts in.
+- the refresh status shows manual mode, the selected interval, active refresh,
+  last successful update time, or refresh failure.
+- task and delivered-project local file links now URL-encode paths before
+  producing `file://` targets, keep the absolute path in the link title, and
+  render missing files as non-clickable muted paths.
+- topbar controls keep stable sizing and wrap cleanly on narrow desktop/mobile
+  viewports.
+
+Acceptance:
+
+- packaged static resources expose the auto-refresh controls and JavaScript
+  scheduling path.
+- local-file link rendering includes encoded file URL construction and a
+  non-clickable missing-file state.
+- console docs describe optional auto-refresh and local-file link behavior.
 
 ## Integration With Existing Roadmaps
 

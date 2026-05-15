@@ -148,6 +148,7 @@ It should show:
 Required controls:
 
 - refresh status
+- optionally auto-refresh the dashboard snapshot at a bounded local interval
 - open workspace setup checklist
 - run readiness check
 - run health check
@@ -248,7 +249,9 @@ Each task row/card should show:
 - allowed paths
 - cost estimate or recorded usage if present
 - human gate summary if present
-- links to task files and artifacts
+- links to task files and artifacts; missing local files should render as
+  non-clickable paths and existing local paths should use encoded `file://`
+  URLs so spaces and special characters do not corrupt the link target
 
 Required controls:
 
@@ -829,6 +832,7 @@ left navigation:
 top bar:
   ops_dir selector
   readiness badge
+  auto-refresh toggle and interval selector
   refresh button
   run-now menu
 ```

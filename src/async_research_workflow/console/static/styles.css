@@ -153,6 +153,45 @@ h3 {
   justify-content: flex-end;
 }
 
+.auto-refresh-control {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.auto-refresh-control input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.auto-refresh-interval {
+  min-height: 38px;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.refresh-status {
+  min-width: 92px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
 .button {
   min-height: 38px;
   padding: 8px 13px;
@@ -619,8 +658,14 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+a.file-link {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 .file-link.missing {
   color: var(--muted);
+  cursor: default;
 }
 
 .detail-actions {
@@ -850,6 +895,17 @@ h3 {
 
   .topbar-actions {
     justify-content: flex-start;
+  }
+
+  .auto-refresh-control,
+  .auto-refresh-interval,
+  .refresh-status,
+  .topbar-actions .button {
+    flex: 1 1 132px;
+  }
+
+  .refresh-status {
+    text-align: left;
   }
 
   .metric-grid,

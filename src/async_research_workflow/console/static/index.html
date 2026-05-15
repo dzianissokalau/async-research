@@ -39,6 +39,17 @@
           </div>
           <div class="topbar-actions">
             <span id="readiness-badge" class="badge neutral">Loading</span>
+            <label class="auto-refresh-control" for="auto-refresh-toggle">
+              <input id="auto-refresh-toggle" type="checkbox">
+              <span>Auto refresh</span>
+            </label>
+            <select id="auto-refresh-interval" class="auto-refresh-interval" aria-label="Auto refresh interval">
+              <option value="15000">15s</option>
+              <option value="30000">30s</option>
+              <option value="60000">1m</option>
+              <option value="300000">5m</option>
+            </select>
+            <span id="refresh-status" class="refresh-status" aria-live="polite">Manual</span>
             <button id="refresh-button" class="button" type="button" title="Refresh snapshot">Refresh</button>
           </div>
         </header>
