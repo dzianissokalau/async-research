@@ -3,7 +3,7 @@
 Status: In Progress
 Current phase: Phase 3 - JSON/help consistency polish
 Last updated: 2026-05-15
-Next action: Normalize starter-smoke JSON output
+Next action: Add `prompts init --dry-run`
 Blocked by: None
 
 Created: 2026-05-13
@@ -109,7 +109,7 @@ The next work should make the normal workflow hard to misuse:
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Complete |
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Complete |
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Complete |
-| P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Planned |
+| P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Complete |
 | P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Planned |
 | P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Backlog |
 | P2 | 4 | Add runnable experiment and analysis examples | Add small fixtures that exercise `experiment validate`, `analysis preflight`, `analysis validate-run`, and `analysis validate-results`. | Makes the delivered Hypothesis Testing Framework feel practical end to end, not only contract-complete. | Backlog |
@@ -357,6 +357,34 @@ Acceptance:
   to inspect next.
 - capture selector failures guide operators toward a valid row selector rather
   than silently ignoring free-form inbox text.
+
+## Phase 3 Implementation Notes
+
+Phase 3 removes small consistency traps that make setup and smoke paths harder
+for scripts, dashboards, and LLM reviewers to consume.
+
+### Starter Smoke JSON Envelope
+
+Shipped behavior:
+
+- `async-research starter-smoke <work-dir>` now prints exactly one JSON document
+  after the path-safety preflight passes.
+- the response keeps the existing top-level `checks` and `failures` fields for
+  compatibility.
+- the response also includes `init`, with the captured initializer exit code,
+  arguments, success flag, and payload.
+- the response includes `smoke`, with the aggregate smoke-check success flag,
+  check summaries, and failures.
+- initializer failures are wrapped in the same envelope and do not run the
+  downstream smoke checks.
+
+Acceptance:
+
+- a successful starter smoke run can be parsed with one `json.loads` call.
+- an initializer failure still returns exit code `4`, writes no second JSON
+  object, and reports the init payload under `init.payload`.
+- successful smoke output remains easy for existing consumers to read through
+  top-level `checks` and `failures`.
 
 ## Integration With Existing Roadmaps
 

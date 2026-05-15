@@ -89,6 +89,19 @@ def print_json(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def json_payload_from_output(code: int, text: str) -> dict:
+    text = text.strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return {"ok": code == 0, "raw_output": text}
+    if isinstance(payload, dict):
+        return payload
+    return {"ok": code == 0, "value": payload}
+
+
 def module_main(module_name: str, argv: Sequence[str]) -> int:
     module = importlib.import_module(f"async_research_workflow.scripts.{module_name}")
     return int(module.main(list(argv)))
@@ -98,14 +111,14 @@ def module_json(module_name: str, argv: Sequence[str]) -> tuple[int, dict]:
     stream = io.StringIO()
     with contextlib.redirect_stdout(stream):
         code = module_main(module_name, argv)
-    text = stream.getvalue().strip()
-    if not text:
-        return code, {}
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        payload = {"ok": code == 0, "raw_output": text}
-    return code, payload
+    return code, json_payload_from_output(code, stream.getvalue())
+
+
+def function_json(function, *args) -> tuple[int, dict]:
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        code = int(function(*args))
+    return code, json_payload_from_output(code, stream.getvalue())
 
 
 def template_root(template: str):
@@ -255,9 +268,34 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
     reports: list[dict] = []
 
     init_args = argparse.Namespace(target_dir=ops_dir, template=args.template, force=True)
-    init_code = run_init(init_args)
-    if init_code != SUCCESS:
-        return init_code
+    init_code, init_payload = function_json(run_init, init_args)
+    init_result = {
+        "command": "init",
+        "args": [str(ops_dir), "--template", args.template, "--force"],
+        "exit_code": init_code,
+        "ok": init_code == SUCCESS and init_payload.get("ok", True) is not False,
+        "payload": init_payload,
+    }
+    if not init_result["ok"]:
+        init_failure = {
+            "command": "init",
+            "args": init_result["args"],
+            "exit_code": init_code,
+            "payload": init_payload,
+        }
+        smoke_result = {"ok": False, "checks": [], "failures": [init_failure]}
+        print_json({
+            "ok": False,
+            "action": "starter_smoke_checked",
+            "work_dir": str(base),
+            "ops_dir": str(ops_dir),
+            "template": args.template,
+            "init": init_result,
+            "smoke": smoke_result,
+            "checks": [],
+            "failures": [init_failure],
+        })
+        return init_code if init_code != SUCCESS else INVALID
 
     checks = [
         ("check_schema_versions", [str(ops_dir)]),
@@ -275,12 +313,15 @@ def run_starter_smoke(args: argparse.Namespace) -> int:
         reports.append({"command": module_name, "args": argv, "exit_code": code, "ok": code == 0})
         if code != 0:
             failures.append({"command": module_name, "args": argv, "exit_code": code, "payload": payload})
+    smoke_result = {"ok": not failures, "checks": reports, "failures": failures}
     print_json({
         "ok": not failures,
         "action": "starter_smoke_checked",
         "work_dir": str(base),
         "ops_dir": str(ops_dir),
         "template": args.template,
+        "init": init_result,
+        "smoke": smoke_result,
         "checks": reports,
         "failures": failures,
     })

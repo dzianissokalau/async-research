@@ -74,6 +74,56 @@ class StarterSmokeSafetyTests(unittest.TestCase):
             self.assertEqual(init_args.template, "real-estate")
             self.assertTrue(init_args.force)
 
+    def test_starter_smoke_wraps_init_output_in_single_json_envelope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp) / "smoke"
+
+            def fake_run_init(init_args):
+                cli.print_json({
+                    "ok": True,
+                    "action": "initialized",
+                    "target_dir": str(init_args.target_dir),
+                    "template": init_args.template,
+                })
+                return cli.SUCCESS
+
+            with mock.patch.object(cli, "run_init", side_effect=fake_run_init):
+                with mock.patch.object(cli, "module_json", return_value=(cli.SUCCESS, {"ok": True})):
+                    code, payload = self.run_cli_json(["starter-smoke", str(work_dir)])
+
+            self.assertEqual(code, cli.SUCCESS)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["action"], "starter_smoke_checked")
+            self.assertEqual(payload["init"]["exit_code"], cli.SUCCESS)
+            self.assertEqual(payload["init"]["payload"]["action"], "initialized")
+            self.assertEqual(payload["smoke"]["checks"], payload["checks"])
+            self.assertEqual(payload["smoke"]["failures"], payload["failures"])
+            self.assertEqual(len(payload["checks"]), 9)
+
+    def test_starter_smoke_wraps_init_failure_without_running_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp) / "smoke"
+
+            def fake_run_init(init_args):
+                cli.print_json({
+                    "ok": False,
+                    "reason": "init_failed",
+                    "target_dir": str(init_args.target_dir),
+                })
+                return cli.INVALID
+
+            with mock.patch.object(cli, "run_init", side_effect=fake_run_init):
+                with mock.patch.object(cli, "module_json") as module_json:
+                    code, payload = self.run_cli_json(["starter-smoke", str(work_dir)])
+
+            self.assertEqual(code, cli.INVALID)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["init"]["exit_code"], cli.INVALID)
+            self.assertEqual(payload["init"]["payload"]["reason"], "init_failed")
+            self.assertEqual(payload["failures"][0]["command"], "init")
+            self.assertEqual(payload["smoke"]["checks"], [])
+            module_json.assert_not_called()
+
     def test_starter_smoke_refuses_file_work_dir_with_json_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_file = Path(tmp) / "smoke-file"

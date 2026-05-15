@@ -112,6 +112,9 @@ async-research init research_ops --template real-estate
 
 Use `--force` only when you deliberately want to replace an existing target.
 Non-forced `init` and `starter-smoke` refuse existing non-empty directories.
+`starter-smoke` prints one JSON envelope containing the initializer result and
+the smoke-check result so CI, dashboards, and LLM reviewers can parse a single
+document.
 
 For the shortest first operator pass after setup, use the packaged
 [First Success Quickstart](src/async_research_workflow/docs/first_success_quickstart.md).
@@ -445,7 +448,7 @@ specific diagnostic.
 | --- | --- | --- |
 | `version` | `0` version printed. | No command-specific runtime failures. |
 | `init` | `0` workspace initialized. | `4` target exists without `--force`, target is invalid, template/bootstrap failed, or rollback/reportable init failure occurred. |
-| `starter-smoke` | `0` all starter checks passed. | `1` one or more smoke checks failed; `4` target path is unsafe or init failed. |
+| `starter-smoke` | `0` all starter checks passed. The JSON response is one envelope with `init` and `smoke` results. | `1` one or more smoke checks failed; `4` target path is unsafe or init failed. |
 | `acceptance-suite` | `0` all checks passed. | `1` one or more acceptance checks failed. |
 | `readiness` | `0` safe; `2` warnings only. | `3` skip loop; `4` invalid state; `5` human required. |
 | `health` | `0` health report generated or printed. | `4` invalid input or malformed workspace state. |
