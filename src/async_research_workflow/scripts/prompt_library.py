@@ -393,6 +393,82 @@ def write_manifest(ops_dir: Path) -> dict[str, Any]:
     return payload
 
 
+def prompt_file_plan_entry(ops_dir: Path, prompt_id: str, target: Path, operation: str, text: str) -> dict[str, Any]:
+    return {
+        "operation": operation,
+        "prompt_id": prompt_id,
+        "relative_path": rel_path(ops_dir, target),
+        "path": str(target),
+        "bytes": len(text.encode("utf-8")),
+    }
+
+
+def init_library_plan(
+    ops_dir: Path,
+    *,
+    force: bool = False,
+    now: str | None = None,
+) -> dict[str, Any]:
+    timestamp = now or utc_now()
+    would_create: list[dict[str, Any]] = []
+    would_update: list[dict[str, Any]] = []
+    existing_files: list[dict[str, Any]] = []
+    would_append_history: list[dict[str, Any]] = []
+
+    for spec in DEFAULT_PROMPTS:
+        text = default_prompt_text(spec, timestamp)
+        prompt_changed = False
+        for target in (
+            prompt_path(ops_dir, spec.prompt_id),
+            draft_path(ops_dir, spec.prompt_id),
+            archived_prompt_path(ops_dir, spec.prompt_id, spec.version),
+        ):
+            if target.exists():
+                if force:
+                    would_update.append(prompt_file_plan_entry(ops_dir, spec.prompt_id, target, "update", text))
+                    prompt_changed = True
+                else:
+                    existing_files.append(
+                        {
+                            "operation": "keep",
+                            "prompt_id": spec.prompt_id,
+                            "relative_path": rel_path(ops_dir, target),
+                            "path": str(target),
+                        }
+                    )
+            else:
+                would_create.append(prompt_file_plan_entry(ops_dir, spec.prompt_id, target, "create", text))
+                prompt_changed = True
+        if prompt_changed:
+            would_append_history.append(
+                {
+                    "operation": "append_history",
+                    "prompt_id": spec.prompt_id,
+                    "version": spec.version,
+                    "action": "init",
+                    "reason": "prompt library initialized",
+                    "author": "system",
+                    "relative_path": rel_path(ops_dir, history_path(ops_dir)),
+                    "path": str(history_path(ops_dir)),
+                }
+            )
+
+    would_write_manifest = {
+        "operation": "write_manifest",
+        "relative_path": rel_path(ops_dir, manifest_path(ops_dir)),
+        "path": str(manifest_path(ops_dir)),
+    }
+    return {
+        "timestamp": timestamp,
+        "would_create": would_create,
+        "would_update": would_update,
+        "existing_files": existing_files,
+        "would_append_history": would_append_history,
+        "would_write_manifest": would_write_manifest,
+        "would_write": [*would_create, *would_update, *would_append_history, would_write_manifest],
+    }
+
+
 def append_prompt_decision(ops_dir: Path, prompt_id: str, action: str, reason: str, author: str, artifact: Path) -> None:
     append_decision(
         ops_dir / "decisions.md",
@@ -435,7 +511,13 @@ def append_history(
     return row
 
 
-def init_library(ops_dir: Path, *, force: bool = False, now: str | None = None) -> tuple[int, dict[str, Any]]:
+def init_library(
+    ops_dir: Path,
+    *,
+    force: bool = False,
+    now: str | None = None,
+    dry_run: bool = False,
+) -> tuple[int, dict[str, Any]]:
     if not ops_dir.is_dir():
         return INVALID_REQUEST, {
             "ok": False,
@@ -443,9 +525,34 @@ def init_library(ops_dir: Path, *, force: bool = False, now: str | None = None) 
             "message": "Initialize research_ops before creating the prompt library.",
             "changed": False,
             "read_only": True,
+            "dry_run": dry_run,
         }
     timestamp = now or utc_now()
     root = prompt_root(ops_dir)
+    if dry_run:
+        plan = init_library_plan(ops_dir, force=force, now=timestamp)
+        changed = bool(plan["would_create"] or plan["would_update"])
+        return SUCCESS, {
+            "ok": True,
+            "action": "prompt_library_init_planned",
+            "changed": changed,
+            "read_only": True,
+            "dry_run": True,
+            "force": force,
+            "prompts_dir": str(root),
+            "timestamp": plan["timestamp"],
+            "would_create": plan["would_create"],
+            "would_update": plan["would_update"],
+            "existing_files": plan["existing_files"],
+            "would_append_history": plan["would_append_history"],
+            "would_write_manifest": plan["would_write_manifest"],
+            "would_write": plan["would_write"],
+            "next_step": (
+                "rerun without --dry-run to apply this prompt library initialization plan"
+                if changed
+                else "prompt library is already initialized; no prompt files would be created or updated"
+            ),
+        }
     created: list[str] = []
     updated: list[str] = []
     root.mkdir(parents=True, exist_ok=True)
@@ -769,6 +876,7 @@ def build_parser() -> argparse.ArgumentParser:
     init = subparsers.add_parser("init", help="Create missing research_ops/prompts files.")
     init.add_argument("ops_dir", type=Path)
     init.add_argument("--force", action="store_true", help="Replace existing default prompt files.")
+    init.add_argument("--dry-run", action="store_true", help="Preview prompt library files and history rows without writing.")
     init.add_argument("--now", help="Timestamp for deterministic tests.")
     validate = subparsers.add_parser("validate", help="Validate prompt drafts or active prompt files.")
     validate.add_argument("ops_dir", type=Path)
@@ -798,7 +906,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv or []))
     if args.command == "init":
-        code, payload = init_library(args.ops_dir, force=args.force, now=args.now)
+        code, payload = init_library(args.ops_dir, force=args.force, now=args.now, dry_run=args.dry_run)
     elif args.command == "list":
         code, payload = SUCCESS, library_snapshot(args.ops_dir)
         payload.update({"ok": True, "action": "prompt_library_listed", "changed": False, "read_only": True})

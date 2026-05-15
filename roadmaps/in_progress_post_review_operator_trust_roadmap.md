@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
 Status: In Progress
-Current phase: Phase 3 - JSON/help consistency polish
+Current phase: Phase 4 - Delivered-feature V2 adoption
 Last updated: 2026-05-15
-Next action: Add `prompts init --dry-run`
+Next action: Dashboard polish
 Blocked by: None
 
 Created: 2026-05-13
@@ -110,7 +110,7 @@ The next work should make the normal workflow hard to misuse:
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Complete |
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Complete |
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Complete |
-| P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Planned |
+| P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Complete |
 | P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Backlog |
 | P2 | 4 | Add runnable experiment and analysis examples | Add small fixtures that exercise `experiment validate`, `analysis preflight`, `analysis validate-run`, and `analysis validate-results`. | Makes the delivered Hypothesis Testing Framework feel practical end to end, not only contract-complete. | Backlog |
 | P3 | 5 | Publish release-trust assets | Prepare PyPI/release flow, badges, visible hardening report, and versioned documentation guidance when the operator path is stable. | Improves external credibility and lowers adoption friction. | Backlog |
@@ -385,6 +385,31 @@ Acceptance:
   object, and reports the init payload under `init.payload`.
 - successful smoke output remains easy for existing consumers to read through
   top-level `checks` and `failures`.
+
+### Prompt Library Init Dry Run
+
+Shipped behavior:
+
+- `async-research prompts init <ops-dir> --dry-run` now returns a read-only JSON
+  initialization plan.
+- the dry-run plan reports prompt files that would be created, prompt files
+  that would be updated under `--force`, existing files that would be kept,
+  history rows that would be appended, and the manifest path that would be
+  written.
+- dry-run mode does not create `research_ops/prompts/`, prompt files,
+  `versions.json`, or `history.jsonl`.
+- default `prompts init` behavior remains unchanged for compatibility: without
+  `--dry-run`, it creates missing prompt library files.
+- direct helper usage through `prompt_library.py init --dry-run` uses the same
+  read-only path as the public CLI wrapper.
+
+Acceptance:
+
+- a fresh workspace can preview prompt initialization without creating a
+  `prompts/` directory.
+- `--force --dry-run` reports updates for existing default prompt files without
+  modifying them.
+- public help and README examples expose `--dry-run`.
 
 ## Integration With Existing Roadmaps
 

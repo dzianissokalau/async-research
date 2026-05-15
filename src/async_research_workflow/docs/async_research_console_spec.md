@@ -792,6 +792,7 @@ async-research surface validate research_ops
 async-research outcomes refresh research_ops
 async-research outcomes list research_ops --status accepted
 async-research outcomes summary research_ops
+async-research prompts init research_ops --dry-run
 async-research prompts init research_ops
 async-research prompts validate research_ops
 async-research prompts activate research_ops worker --message "tighten worker stop rules"

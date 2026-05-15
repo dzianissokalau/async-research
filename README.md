@@ -290,7 +290,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
 | `async-research queue list research_ops` | List task-board rows and queue counts, optionally filtered by group or status. | Dashboard task snapshot, task status files, locks, transition validation, and task-local file metadata when requested. | JSON to stdout only; read-only. |
-| `async-research prompts init research_ops` | Create the repo-backed prompt library. | Existing `research_ops/prompts/` files. | Missing prompt Markdown files, drafts, `versions.json`, and `history.jsonl`. |
+| `async-research prompts init research_ops --dry-run` | Preview or create the repo-backed prompt library. | Existing `research_ops/prompts/` files. | With `--dry-run`, JSON to stdout only; without it, missing prompt Markdown files, drafts, `versions.json`, and `history.jsonl`. |
 | `async-research prompts validate research_ops worker` | Validate prompt front matter and required scheduler prompt sections. | Active prompt or saved draft under `research_ops/prompts/`. | JSON to stdout only; read-only. |
 | `async-research prompts activate research_ops worker --message "<why>"` | Activate a draft as the next prompt version. | Draft prompt, active prompt, and prompt manifest. | Active prompt, archived version, `versions.json`, `history.jsonl`, and `decisions.md`; invalid drafts require `--allow-invalid`. |
 | `async-research schedules init research_ops` | Create `research_ops/schedules.json` with recurring-job intent rows. | Prompt manifest when available, default schedule specs. | `schedules.json`, `schedules_history.jsonl`, and `decisions.md`; no cron, launchd, GitHub Actions, or Codex automation is installed. |
@@ -379,6 +379,7 @@ async-research library validate research_ops
 async-research library dashboard research_ops
 async-research console research_ops
 async-research console snapshot research_ops --json
+async-research prompts init research_ops --dry-run
 async-research prompts init research_ops
 async-research prompts validate research_ops
 async-research prompts activate research_ops worker --message "tighten worker stop rules"
@@ -456,6 +457,7 @@ specific diagnostic.
 | `console snapshot` | `0` snapshot rendered, including partial or unavailable optional groups. | `3` invalid request flags such as malformed `--now`. |
 | `queue discovery-gate` | `0` active queue capacity is available. | `2` discovery should be skipped because active task capacity is full or status files are malformed. |
 | `queue list` | `0` task-board state printed without mutating the workspace. | `4` workspace is missing, workspace path is not a directory, or `--limit` is negative. Malformed task status files are included in the listing summary instead of failing the command. |
+| `prompts init` | `0` prompt-library dry-run plan printed or files initialized. | `3` workspace is missing. |
 | `schedules trigger-dry-run` | `0` trigger preview passed disabled-state, prompt, readiness, and concurrency checks. | `2` disabled, prompt, readiness, or concurrency blocker; `3` missing manifest, unknown job, or invalid timestamp; `4` malformed manifest. |
 | `schedules trigger-now` | `0` run finished with child exit code `0` and artifacts written. | `2` trigger blockers, launch failure, child process failure, or timeout after artifacts are written; `3` missing manifest, unknown job, invalid timestamp, or existing run artifact; `4` malformed manifest. |
 | `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |

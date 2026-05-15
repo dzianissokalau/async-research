@@ -707,6 +707,7 @@ def run_prompts_init_command(args: argparse.Namespace) -> int:
         "prompt_library",
         ["init", str(args.ops_dir)]
         + (["--force"] if args.force else [])
+        + (["--dry-run"] if args.dry_run else [])
         + optional_text("--now", args.now),
     )
 
@@ -1526,6 +1527,7 @@ def register_prompt_commands(subparsers) -> None:
     )
     add_common_ops(init)
     init.add_argument("--force", action="store_true", help="Replace existing default prompt files.")
+    init.add_argument("--dry-run", action="store_true", help="Preview prompt library files and history rows without writing.")
     init.add_argument("--now", help="Override the initialization timestamp.")
     init.set_defaults(func=run_prompts_init_command)
     list_cmd = add_command(

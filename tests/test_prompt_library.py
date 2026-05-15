@@ -33,6 +33,72 @@ def init_ops(root: Path) -> Path:
 
 
 class PromptLibraryTests(unittest.TestCase):
+    def test_prompt_library_init_dry_run_reports_plan_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+
+            code, payload = prompt_library.init_library(ops_dir, now=NOW, dry_run=True)
+
+            self.assertEqual(prompt_library.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("prompt_library_init_planned", payload["action"])
+            self.assertTrue(payload["dry_run"])
+            self.assertTrue(payload["read_only"])
+            self.assertTrue(payload["changed"])
+            self.assertFalse((ops_dir / "prompts").exists())
+            would_create = {item["relative_path"] for item in payload["would_create"]}
+            self.assertIn("prompts/worker.md", would_create)
+            self.assertIn("prompts/drafts/worker.md", would_create)
+            self.assertIn("prompts/versions/worker/worker_v1.0.md", would_create)
+            self.assertEqual("prompts/versions.json", payload["would_write_manifest"]["relative_path"])
+            self.assertTrue(any(item["prompt_id"] == "worker" for item in payload["would_append_history"]))
+
+    def test_prompt_library_init_force_dry_run_reports_updates_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            prompt_library.init_library(ops_dir, now=NOW)
+            worker_path = ops_dir / "prompts" / "worker.md"
+            before = worker_path.read_text(encoding="utf-8")
+
+            code, payload = prompt_library.init_library(
+                ops_dir,
+                force=True,
+                now="2026-05-12T01:00:00Z",
+                dry_run=True,
+            )
+
+            self.assertEqual(prompt_library.SUCCESS, code, payload)
+            self.assertTrue(payload["changed"])
+            self.assertTrue(payload["force"])
+            self.assertEqual(before, worker_path.read_text(encoding="utf-8"))
+            would_update = {item["relative_path"] for item in payload["would_update"]}
+            self.assertIn("prompts/worker.md", would_update)
+            self.assertIn("prompts/drafts/worker.md", would_update)
+
+    def test_prompt_library_init_dry_run_keeps_initialized_library_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            prompt_library.init_library(ops_dir, now=NOW)
+            manifest_path = ops_dir / "prompts" / "versions.json"
+            history_path = ops_dir / "prompts" / "history.jsonl"
+            manifest_before = manifest_path.read_text(encoding="utf-8")
+            history_before = history_path.read_text(encoding="utf-8")
+
+            code, payload = prompt_library.init_library(
+                ops_dir,
+                now="2026-05-12T01:00:00Z",
+                dry_run=True,
+            )
+
+            self.assertEqual(prompt_library.SUCCESS, code, payload)
+            self.assertFalse(payload["changed"])
+            self.assertEqual([], payload["would_create"])
+            self.assertEqual([], payload["would_update"])
+            self.assertEqual(manifest_before, manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(history_before, history_path.read_text(encoding="utf-8"))
+            existing = {item["relative_path"] for item in payload["existing_files"]}
+            self.assertIn("prompts/worker.md", existing)
+
     def test_prompt_library_init_and_validate_create_default_worker_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
@@ -161,6 +227,12 @@ class PromptLibraryTests(unittest.TestCase):
     def test_public_prompt_cli_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
+
+            code, dry_run = run_cli_json(["prompts", "init", ops_dir, "--dry-run", "--now", NOW])
+            self.assertEqual(cli.SUCCESS, code, dry_run)
+            self.assertTrue(dry_run["dry_run"])
+            self.assertTrue(dry_run["read_only"])
+            self.assertFalse((ops_dir / "prompts").exists())
 
             code, init_payload = run_cli_json(["prompts", "init", ops_dir, "--now", NOW])
             self.assertEqual(cli.SUCCESS, code, init_payload)
