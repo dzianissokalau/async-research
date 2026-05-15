@@ -451,7 +451,7 @@ specific diagnostic.
 | `console` | `0` server stopped cleanly after serving the local dashboard. | `3` invalid console arguments. |
 | `console snapshot` | `0` snapshot rendered, including partial or unavailable optional groups. | `3` invalid request flags such as malformed `--now`. |
 | `queue discovery-gate` | `0` active queue capacity is available. | `2` discovery should be skipped because active task capacity is full or status files are malformed. |
-| `queue list` | `0` task-board state printed without mutating the workspace. | `4` workspace is missing or is not a directory. Malformed task status files are included in the listing summary instead of failing the command. |
+| `queue list` | `0` task-board state printed without mutating the workspace. | `4` workspace is missing, workspace path is not a directory, or `--limit` is negative. Malformed task status files are included in the listing summary instead of failing the command. |
 | `schedules trigger-dry-run` | `0` trigger preview passed disabled-state, prompt, readiness, and concurrency checks. | `2` disabled, prompt, readiness, or concurrency blocker; `3` missing manifest, unknown job, or invalid timestamp; `4` malformed manifest. |
 | `schedules trigger-now` | `0` run finished with child exit code `0` and artifacts written. | `2` trigger blockers, launch failure, child process failure, or timeout after artifacts are written; `3` missing manifest, unknown job, invalid timestamp, or existing run artifact; `4` malformed manifest. |
 | `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |

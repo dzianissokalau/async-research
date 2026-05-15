@@ -261,6 +261,7 @@ class CliHelpTests(unittest.TestCase):
             "JSON sets `partial_mutation: true`",
             "| `queue discovery-gate` | `0` active queue capacity is available.",
             "| `queue list` | `0` task-board state printed without mutating the workspace.",
+            "or `--limit` is negative",
             "| `decision append` | `0` decision row appended or dry-run row printed.",
             "| `escalation evaluate` | `0` no escalation is needed.",
             "| `source upsert` | `0` source row written.",
