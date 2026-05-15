@@ -1331,6 +1331,56 @@ def register_workflow_commands(subparsers) -> None:
             + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else []),
         )
     )
+    worker_start = add_command(
+        workflow_sub,
+        "worker-start",
+        help="Claim a ready task and move it to in_progress.",
+        description=(
+            "Acquire the task-local LOCK/ and transition one ready task from ready_for_worker to in_progress. "
+            "Use --dry-run first to validate the task, workspace, and transition without writing."
+        ),
+    )
+    worker_start.add_argument("task_dir", type=Path, help="Task directory containing status.json.")
+    worker_start.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    worker_start.add_argument("--owner", help="Worker owner written to LOCK/owner.json; defaults to the task-lock owner heuristic.")
+    worker_start.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock takeover.")
+    worker_start.add_argument("--dry-run", action="store_true", help="Validate the claim and transition without writing status.json or LOCK/.")
+    worker_start.set_defaults(
+        func=lambda a: module_main(
+            "workflow_orchestrator",
+            ["worker-start", str(a.task_dir)]
+            + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else [])
+            + (["--owner", str(a.owner)] if a.owner else [])
+            + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else [])
+            + (["--dry-run"] if a.dry_run else []),
+        )
+    )
+    worker_complete = add_command(
+        workflow_sub,
+        "worker-complete",
+        help="Move an in-progress task with worker output to awaiting_review.",
+        description=(
+            "Validate non-empty worker_output.md for an in-progress task, write the in_progress -> awaiting_review transition, "
+            "and release the task-local LOCK/ when present."
+        ),
+    )
+    worker_complete.add_argument("task_dir", type=Path, help="Task directory containing status.json and worker_output.md.")
+    worker_complete.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    worker_complete.add_argument("--owner", help="Worker owner expected in LOCK/owner.json; defaults to the task-lock owner heuristic.")
+    worker_complete.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for lock-state reporting.")
+    worker_complete.add_argument("--force-release", action="store_true", help="Release a mismatched lock owner after external confirmation.")
+    worker_complete.add_argument("--dry-run", action="store_true", help="Validate output and transition without writing status.json or releasing LOCK/.")
+    worker_complete.set_defaults(
+        func=lambda a: module_main(
+            "workflow_orchestrator",
+            ["worker-complete", str(a.task_dir)]
+            + (["--ops-dir", str(a.ops_dir)] if a.ops_dir else [])
+            + (["--owner", str(a.owner)] if a.owner else [])
+            + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else [])
+            + (["--force-release"] if a.force_release else [])
+            + (["--dry-run"] if a.dry_run else []),
+        )
+    )
     advance = add_command(
         workflow_sub,
         "advance",

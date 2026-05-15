@@ -277,31 +277,30 @@ Task:
 1. Read research_ops/queue.md.
 2. Pick the oldest task with status ready_for_worker and no active lock.
 3. Read that task's task.md, anti_context.md if present, status.json, and research_ops/escalation_policy.md.
-4. Before writing any output, acquire the task-local LOCK/ using the advanced/internal helper async_research_workflow/scripts/task_lock.py.
-5. If lock acquisition fails because the lock is fresh, skip that task and try the next ready task.
-6. Work only inside the task's allowed_paths.
-7. Complete exactly one task.
-8. Write worker_output.md.
-9. For `data_readiness` tasks, update research_ops/data_source_audit.md with `async-research source upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
-10. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
-11. For `idea_discovery` tasks, run the advanced/internal helper `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
-12. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
-13. For `run_analysis` tasks, read the accepted plan references from task.md/status.json, write artifacts/analysis_run/run_manifest.json conforming to async_research_workflow/schemas/analysis_run.schema.json with run_status="planned", then run async-research analysis preflight <task-dir> --ops-dir research_ops before analysis starts. Optional local-script runs may use async-research analysis run-adapter <task-dir> --ops-dir research_ops --execute only after clean preflight. Resolve blockers, and surface warning-only preflights for review, before execution.
-14. For `run_analysis` tasks, run only the accepted plan. Keep all outputs inside the task folder, update run_manifest.json after execution, write metrics.json, diagnostics.json, and robustness_checks.json under artifacts/analysis_run/ using the packaged templates, and make the result summary cite artifacts/analysis_run/run_manifest.json. Whenever worker_output.md includes a result summary, write claim_gates.json even for claim_strength="none" and run async-research analysis validate-results <task-dir> --ops-dir research_ops. Always run async-research analysis validate-run <task-dir> --ops-dir research_ops before review.
-15. For `evaluate_results` tasks, do not rerun the analysis or invent new metrics. Evaluate the existing run_manifest.json, metrics.json, diagnostics.json, robustness_checks.json, claim_gates.json, and review notes; include a result summary that cites the upstream analysis manifest. Resolve the upstream run_analysis task directory from run_manifest_path, then run async-research analysis validate-run <upstream-run-analysis-task-dir> --ops-dir research_ops and async-research analysis validate-results <upstream-run-analysis-task-dir> --ops-dir research_ops before review. Pass async-research result-acceptance during review.
-16. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, stop, and report the structured human gate.
-17. Update status.json to awaiting_review, needs_human, paused, or rejected, setting previous_status, last_transition_reason, and prompt_versions.worker="worker_v1.0".
-18. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_json_artifact --schema async_research_workflow/schemas/task_status.schema.json <task-dir>/status.json.
-19. Run async-research schema-check research_ops.
-20. Run the advanced/internal helper python -m async_research_workflow.scripts.validate_transition <task-dir>.
-21. If schema or transition validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
-22. Release LOCK/ only after final writes and validation or recovery are complete.
+4. Before writing any output, run async-research workflow worker-start <task-dir> --owner "$RESEARCH_WORKER_OWNER" --dry-run.
+5. If worker-start reports a fresh lock or invalid transition, skip that task and try the next ready task.
+6. Run async-research workflow worker-start <task-dir> --owner "$RESEARCH_WORKER_OWNER" to acquire the task-local LOCK/ and move the task to in_progress.
+7. Work only inside the task's allowed_paths.
+8. Complete exactly one task.
+9. Write worker_output.md.
+10. For `data_readiness` tasks, update research_ops/data_source_audit.md with `async-research source upsert` when readiness or governance status changes; every record needs source tier, approval status, use-case rules, freshness window, limitations, citation requirements, last reviewed date, approved by, and review notes.
+11. For `idea_discovery` tasks, include a fenced JSON exploration cycle block or exploration_cycle.json conforming to async_research_workflow/schemas/exploration_cycle.schema.json, then run async-research exploration validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before updating discovery_inbox.md.
+12. For `idea_discovery` tasks, run the advanced/internal helper `python -m async_research_workflow.scripts.validate_mission_policy`, score candidate JSON files with `async-research idea score`, log parked/rejected candidates, then run `async-research idea validate` on each candidate before updating discovery_inbox.md or marking the task ready for review.
+13. For `experiment_plan` tasks, include a fenced JSON plan block or experiment_plan.json conforming to async_research_workflow/schemas/experiment_plan.schema.json, then run async-research experiment validate <task-dir>/worker_output.md --ops-dir research_ops --task-dir <task-dir> before marking the task ready for review.
+14. For `run_analysis` tasks, read the accepted plan references from task.md/status.json, write artifacts/analysis_run/run_manifest.json conforming to async_research_workflow/schemas/analysis_run.schema.json with run_status="planned", then run async-research analysis preflight <task-dir> --ops-dir research_ops before analysis starts. Optional local-script runs may use async-research analysis run-adapter <task-dir> --ops-dir research_ops --execute only after clean preflight. Resolve blockers, and surface warning-only preflights for review, before execution.
+15. For `run_analysis` tasks, run only the accepted plan. Keep all outputs inside the task folder, update run_manifest.json after execution, write metrics.json, diagnostics.json, and robustness_checks.json under artifacts/analysis_run/ using the packaged templates, and make the result summary cite artifacts/analysis_run/run_manifest.json. Whenever worker_output.md includes a result summary, write claim_gates.json even for claim_strength="none" and run async-research analysis validate-results <task-dir> --ops-dir research_ops. Always run async-research analysis validate-run <task-dir> --ops-dir research_ops before review.
+16. For `evaluate_results` tasks, do not rerun the analysis or invent new metrics. Evaluate the existing run_manifest.json, metrics.json, diagnostics.json, robustness_checks.json, claim_gates.json, and review notes; include a result summary that cites the upstream analysis manifest. Resolve the upstream run_analysis task directory from run_manifest_path, then run async-research analysis validate-run <upstream-run-analysis-task-dir> --ops-dir research_ops and async-research analysis validate-results <upstream-run-analysis-task-dir> --ops-dir research_ops before review. Pass async-research result-acceptance during review.
+17. Before moving the task forward, run async-research escalation evaluate <task-dir> --ops-dir research_ops. If it exits 2, rerun with --apply, release LOCK/ with the advanced/internal helper python -m async_research_workflow.scripts.task_lock release <task-dir> --owner "$RESEARCH_WORKER_OWNER", stop, and report the structured human gate.
+18. For normal completion, run async-research workflow worker-complete <task-dir> --owner "$RESEARCH_WORKER_OWNER" --dry-run.
+19. If the dry run passes, run async-research workflow worker-complete <task-dir> --owner "$RESEARCH_WORKER_OWNER"; it writes awaiting_review, validates the transition, and releases LOCK/.
+20. Run async-research schema-check research_ops.
+21. If schema validation fails, run the advanced/internal helper python -m async_research_workflow.scripts.recover_status_json <task-dir>, then stop and report the recovery result.
 
 Rules:
 - Do not edit queue.md unless the task explicitly allows it.
 - Do not edit other task folders.
 - Do not write worker_output.md before acquiring LOCK/.
-- Do not change status without setting previous_status and last_transition_reason.
+- Do not hand-edit status for normal worker start or completion; use async-research workflow worker-start and async-research workflow worker-complete.
 - Do not remove prompt_versions or framework_versions.
 - Explicitly address do-not-repeat warnings from anti_context.md; if the task repeats a known failure without a new angle, set needs_human.
 - Do not treat a JSON write as complete until schema validation passes.

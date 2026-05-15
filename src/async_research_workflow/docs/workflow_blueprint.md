@@ -146,17 +146,15 @@ Every task also has `status.json`:
 Worker claim rule:
 
 1. Pick the oldest task with `status = ready_for_worker`.
-2. Attempt to acquire `LOCK/` using `async_research_workflow/scripts/task_lock.py`.
-3. Skip the task if lock acquisition fails because the lock is fresh.
-4. If the lock is stale, the helper renames it and retries acquisition.
-5. After lock acquisition succeeds, set `status = in_progress`.
-6. Set `previous_status = ready_for_worker` and `last_transition_reason = worker_claimed`.
-7. Set `lock_owner = <job-name-or-run-id>` and `lock_expires_at = now + max_minutes + 15 minutes`.
-8. Run `async_research_workflow/scripts/validate_transition.py`.
-9. Work only inside `allowed_paths`.
-10. On completion, set `previous_status = in_progress`, set `status = awaiting_review`, and set `last_transition_reason = worker_completed_output`.
-11. Run `validate_transition.py` again.
-12. Release `LOCK/` only after all final writes are complete.
+2. Run `async-research workflow worker-start <task-dir> --owner <job-name-or-run-id> --dry-run`.
+3. Skip the task if worker-start reports a fresh lock or invalid transition.
+4. Run `async-research workflow worker-start <task-dir> --owner <job-name-or-run-id>`.
+5. The wrapper acquires `LOCK/`, re-reads `status.json`, sets `status = in_progress`, records `previous_status = ready_for_worker`, records `last_transition_reason = workflow_worker_started`, and mirrors `lock_owner` / `lock_expires_at`.
+6. Work only inside `allowed_paths`.
+7. Write a non-empty `worker_output.md`.
+8. Run `async-research workflow worker-complete <task-dir> --owner <job-name-or-run-id> --dry-run`.
+9. Run `async-research workflow worker-complete <task-dir> --owner <job-name-or-run-id>`.
+10. The wrapper validates `worker_output.md`, writes `previous_status = in_progress`, writes `status = awaiting_review`, records `last_transition_reason = workflow_worker_completed_output`, clears lock metadata, and releases `LOCK/`.
 
 The worker must not write `worker_output.md` before acquiring `LOCK/`.
 

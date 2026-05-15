@@ -150,9 +150,12 @@ Then still use task-local `LOCK/` inside the worker prompt. Workflow-level concu
 Every worker prompt should include:
 
 ```text
-Before writing any task output, acquire the task-local LOCK/ using
-async_research_workflow/scripts/task_lock.py. If lock acquisition fails,
-skip that task. Release the lock only after final status and output writes complete.
+Before writing any task output, run async-research workflow worker-start
+<task-dir> --dry-run, then async-research workflow worker-start <task-dir>
+after the dry run passes. If worker-start reports a fresh lock, skip that
+task. After writing worker_output.md, run async-research workflow
+worker-complete <task-dir> --dry-run, then rerun without --dry-run to move the
+task to awaiting_review and release LOCK/.
 ```
 
 ## Acceptance Tests

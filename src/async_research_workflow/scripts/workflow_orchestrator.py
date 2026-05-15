@@ -8,8 +8,10 @@ import contextlib
 import importlib
 import io
 import json
+import os
 import shlex
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 import sys
 from typing import Any, Iterable, Sequence
@@ -83,6 +85,23 @@ def command_hint(label: str, argv: Sequence[str], reason: str, priority: int = 1
         "reason": reason,
         "priority": priority,
     }
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def iso_after_minutes(minutes: float) -> str:
+    seconds = max(1, int(minutes * 60))
+    return (task_lock.utc_now() + timedelta(seconds=seconds)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def task_lock_owner_arg(lock_state: dict[str, Any]) -> list[str]:
+    owner = lock_state.get("owner")
+    owner_name = owner.get("owner") if isinstance(owner, dict) else None
+    return ["--owner", owner_name] if isinstance(owner_name, str) and owner_name else []
 
 
 def inferred_ops_dir_for_task(task_dir: Path) -> Path | None:
@@ -180,6 +199,37 @@ def transition_report(status: dict[str, Any] | None, status_path: Path) -> dict[
         "status": current_status,
         "allowed_next_statuses": sorted(validate_transition.ALLOWED.get(current_status, set())) if isinstance(current_status, str) else [],
         "details": result,
+    }
+
+
+def validate_status_for_write(status_path: Path, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    schema = load_json(STATUS_SCHEMA)
+    if not isinstance(schema, dict):
+        return INVALID_STATE, {
+            "valid": False,
+            "reason": "status_schema_malformed",
+            "issues": [{"path": str(STATUS_SCHEMA), "message": "schema is not an object"}],
+        }
+    errors = [error.to_dict() for error in validate(payload, schema)]
+    if errors:
+        return INVALID_STATE, {
+            "valid": False,
+            "reason": "status_schema_validation_failed",
+            "issues": errors,
+        }
+
+    decisions_path = validate_transition.infer_decisions_path(status_path)
+    code, result = validate_transition.validate_payload(payload, decisions_path=decisions_path)
+    if code != validate_transition.SUCCESS:
+        return INVALID_STATE, {
+            "valid": False,
+            "reason": result.get("reason") or "status_transition_validation_failed",
+            "transition": result,
+        }
+    return SUCCESS, {
+        "valid": True,
+        "reason": "valid",
+        "transition": result,
     }
 
 
@@ -394,6 +444,38 @@ def next_legal_commands(
         ]
 
     current_status = status.get("status")
+    if current_status == "in_progress":
+        if worker_output.get("ready_for_review"):
+            owner_arg = task_lock_owner_arg(lock_state)
+            return [
+                command_hint(
+                    "Dry-run worker completion",
+                    ["async-research", "workflow", "worker-complete", str(task_dir), *owner_arg, "--dry-run"],
+                    "worker_output.md is ready; validate the in_progress -> awaiting_review transition before writing it",
+                ),
+                command_hint(
+                    "Complete worker task",
+                    ["async-research", "workflow", "worker-complete", str(task_dir), *owner_arg],
+                    "move the task to awaiting_review and release the task-local lock when present",
+                    priority=2,
+                ),
+            ]
+        if lock_state.get("locked") and not lock_state.get("stale"):
+            return [
+                command_hint(
+                    "Run workflow check",
+                    ["async-research", "workflow", "check", str(ops_dir)],
+                    "task is actively locked and worker_output.md is not ready; wait for the owner before mutating task state",
+                )
+            ]
+        return [
+            command_hint(
+                "Run workflow check",
+                ["async-research", "workflow", "check", str(ops_dir)],
+                "worker_output.md must exist and be non-empty before completing worker execution",
+            )
+        ]
+
     if lock_state.get("locked") and not lock_state.get("stale"):
         return [
             command_hint(
@@ -528,9 +610,15 @@ def next_legal_commands(
     if current_status == "ready_for_worker":
         return [
             command_hint(
-                "Run workflow check",
-                ["async-research", "workflow", "check", str(ops_dir)],
-                "confirm workspace readiness before assigning or starting worker execution",
+                "Dry-run worker start",
+                ["async-research", "workflow", "worker-start", str(task_dir), "--dry-run"],
+                "validate the ready_for_worker -> in_progress transition and lock claim before writing it",
+            ),
+            command_hint(
+                "Start worker task",
+                ["async-research", "workflow", "worker-start", str(task_dir)],
+                "claim the task-local lock and move the task to in_progress before writing worker output",
+                priority=2,
             )
         ]
 
@@ -626,6 +714,8 @@ def inferred_command_mutates(command: str) -> bool:
     mutating_prefixes = (
         ("async-research", "review", "submit"),
         ("async-research", "workflow", "advance"),
+        ("async-research", "workflow", "worker-start"),
+        ("async-research", "workflow", "worker-complete"),
         ("async-research", "decision", "resolve-task"),
         ("async-research", "revision", "request"),
         ("async-research", "accepted", "revalidation"),
@@ -802,6 +892,31 @@ def workflow_next_actions(ops_dir: Path, snapshot: dict[str, Any], schema_report
             )
         )
 
+    completion_tasks = [row for row in all_tasks if row.get("status") == "in_progress"]
+    for row in sorted(completion_tasks, key=lambda item: (str(item.get("task_id") or ""), str(item.get("task_dir") or ""))):
+        report = task_status_report_for_row(row, ops_dir, stale_minutes)
+        if not isinstance(report, dict):
+            continue
+        worker_ready = bool(report.get("worker_output", {}).get("ready_for_review"))
+        if not worker_ready:
+            continue
+        command = first_status_command(report)
+        if command is None:
+            continue
+        actions.append(
+            workspace_action_from_command(
+                "worker_completion",
+                command,
+                35,
+                task=task_identity(row),
+                details={
+                    "lock_state": report.get("lock_state"),
+                    "worker_output": report.get("worker_output"),
+                },
+            )
+        )
+        break
+
     review_tasks = [row for row in all_tasks if row.get("status") in REVIEWABLE_STATUSES]
     for row in sorted(review_tasks, key=lambda item: (str(item.get("task_id") or ""), str(item.get("task_dir") or ""))):
         report = task_status_report_for_row(row, ops_dir, stale_minutes)
@@ -830,16 +945,29 @@ def workflow_next_actions(ops_dir: Path, snapshot: dict[str, Any], schema_report
 
     worker_task = first_task([row for row in all_tasks if row.get("status") == "ready_for_worker"])
     if worker_task is not None:
-        actions.append(
-            workspace_action(
-                "ready_for_worker",
-                "Inspect ready worker task",
-                ["async-research", "workflow", "status", str(worker_task.get("task_dir"))],
-                "a task is ready for worker execution; inspect it before assigning work",
-                50,
-                task=task_identity(worker_task),
+        report = task_status_report_for_row(worker_task, ops_dir, stale_minutes)
+        command = first_status_command(report)
+        if command is not None:
+            actions.append(
+                workspace_action_from_command(
+                    "ready_for_worker",
+                    command,
+                    50,
+                    task=task_identity(worker_task),
+                    details={"lock_state": report.get("lock_state") if isinstance(report, dict) else None},
+                )
             )
-        )
+        else:
+            actions.append(
+                workspace_action(
+                    "ready_for_worker",
+                    "Inspect ready worker task",
+                    ["async-research", "workflow", "status", str(worker_task.get("task_dir"))],
+                    "a task is ready for worker execution; inspect it before assigning work",
+                    50,
+                    task=task_identity(worker_task),
+                )
+            )
 
     accepted_outputs = snapshot.get("accepted_outputs") if isinstance(snapshot.get("accepted_outputs"), dict) else {}
     memory_decay = accepted_outputs.get("memory_decay") if isinstance(accepted_outputs.get("memory_decay"), dict) else {}
@@ -1216,6 +1344,7 @@ def build_next_report(ops_dir: Path, stale_minutes: float) -> dict[str, Any]:
             "needs_human",
             "active_lock",
             "stale_lock",
+            "worker_completion",
             "ready_for_review",
             "ready_for_worker",
             "accepted_memory_revalidation",
@@ -1252,6 +1381,531 @@ def run_next(args: argparse.Namespace) -> int:
         )
         return INVALID_STATE
     print_json(build_next_report(ops_dir, args.stale_minutes))
+    return SUCCESS
+
+
+def load_valid_task_status(task_dir: Path, action: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    status, status_validation = load_status_for_report(task_dir)
+    status_path = task_dir / "status.json"
+    transition = transition_report(status, status_path)
+    if status is None or not status_validation.get("valid") or not transition.get("valid"):
+        return None, {
+            "ok": False,
+            "action": action,
+            "reason": "status_invalid",
+            "task_dir": str(task_dir),
+            "status_path": str(status_path),
+            "status_validation": status_validation,
+            "transition_validation": transition,
+            "changed": False,
+            "next_step": "repair status.json before running workflow worker transition commands",
+        }
+    return status, None
+
+
+def validate_transition_candidate(status_path: Path, payload: dict[str, Any], action: str, task_dir: Path) -> dict[str, Any] | None:
+    code, validation = validate_status_for_write(status_path, payload)
+    if code == SUCCESS:
+        return None
+    return {
+        "ok": False,
+        "action": action,
+        "reason": "transition_validation_failed",
+        "task_dir": str(task_dir),
+        "status_path": str(status_path),
+        "validation": validation,
+        "changed": False,
+        "next_step": "inspect the task status transition before retrying the worker wrapper",
+    }
+
+
+def run_worker_start(args: argparse.Namespace) -> int:
+    task_dir = args.task_dir
+    action = "workflow_worker_start_refused"
+    if not task_dir.exists() or not task_dir.is_dir():
+        ops_dir = args.ops_dir or inferred_ops_dir_for_task(task_dir)
+        payload: dict[str, Any] = {
+            "ok": False,
+            "action": action,
+            "reason": "task_dir_missing",
+            "task_dir": str(task_dir),
+            "changed": False,
+            "next_step": "choose an existing research_ops/tasks/<TASK-ID> directory",
+        }
+        if ops_dir is not None:
+            payload["ops_dir"] = str(ops_dir)
+        print_json(payload)
+        return INVALID_STATE
+
+    ops_dir, workspace_error = resolve_task_ops_dir(task_dir, args.ops_dir, action=action)
+    if workspace_error is not None:
+        workspace_error["changed"] = False
+        print_json(workspace_error)
+        return INVALID_STATE
+    assert ops_dir is not None
+
+    status, error = load_valid_task_status(task_dir, action)
+    if error is not None:
+        error["ops_dir"] = str(ops_dir)
+        print_json(error)
+        return INVALID_STATE
+    assert status is not None
+
+    if status.get("status") != "ready_for_worker":
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "task_not_ready_for_worker",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "current_status": status.get("status"),
+                "required_status": "ready_for_worker",
+                "changed": False,
+                "next_step": f"run async-research workflow status {shlex.quote(str(task_dir))}",
+            }
+        )
+        return INVALID_STATE
+
+    timestamp = task_lock.iso_now()
+    updated = dict(status)
+    updated.update(
+        {
+            "previous_status": status.get("status"),
+            "status": "in_progress",
+            "last_transition_reason": "workflow_worker_started",
+            "updated_at": timestamp,
+            "lock_owner": args.owner,
+            "lock_expires_at": iso_after_minutes(args.stale_minutes),
+        }
+    )
+    status_path = task_dir / "status.json"
+    validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
+    if validation_error is not None:
+        validation_error["ops_dir"] = str(ops_dir)
+        print_json(validation_error)
+        return INVALID_STATE
+
+    lock_state = lock_report(task_dir, args.stale_minutes)
+    if lock_state.get("locked") and not lock_state.get("stale"):
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "lock_acquire_failed",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "owner": args.owner,
+                "lock_state": lock_state,
+                "dry_run": args.dry_run,
+                "changed": False,
+                "next_step": "wait for the lock owner, inspect stale locks, or retry after the lock becomes stale",
+            }
+        )
+        return task_lock.LOCKED
+
+    if args.dry_run:
+        print_json(
+            {
+                "ok": True,
+                "action": "workflow_worker_start_dry_run",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "status_path": str(status_path),
+                "dry_run": True,
+                "changed": False,
+                "current_status": status.get("status"),
+                "next_status": "in_progress",
+                "owner": args.owner,
+                "lock_state": lock_state,
+                "would_acquire_lock": True,
+                "would_write_status": True,
+                "next_step": f"rerun without --dry-run to claim the task, then write {shlex.quote(str(task_dir / 'worker_output.md'))}",
+            }
+        )
+        return SUCCESS
+
+    acquire_code, acquire_json, raw_output, stderr = run_module_json(
+        "task_lock",
+        ["acquire", str(task_dir), "--owner", args.owner, "--stale-minutes", str(args.stale_minutes)],
+    )
+    if acquire_code != SUCCESS:
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "lock_acquire_failed",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "owner": args.owner,
+                "lock_result": acquire_json,
+                "stdout_text": raw_output,
+                "stderr": stderr,
+                "changed": False,
+                "next_step": "wait for the lock owner, inspect stale locks, or retry with a stale threshold after review",
+            }
+        )
+        return int(acquire_code)
+
+    latest_status, latest_error = load_valid_task_status(task_dir, action)
+    if latest_error is not None or latest_status is None or latest_status.get("status") != "ready_for_worker":
+        release_code, release_json, release_raw, release_stderr = run_module_json(
+            "task_lock",
+            ["release", str(task_dir), "--owner", args.owner],
+        )
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "status_changed_after_lock",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "current_status": latest_status.get("status") if latest_status is not None else None,
+                "status_error": latest_error,
+                "lock_result": acquire_json,
+                "release_result": release_json,
+                "release_stdout_text": release_raw,
+                "release_stderr": release_stderr,
+                "changed": release_code == SUCCESS,
+                "next_step": "inspect the current task state before retrying worker-start",
+            }
+        )
+        return INVALID_STATE
+
+    timestamp = task_lock.iso_now()
+    updated = dict(latest_status)
+    updated.update(
+        {
+            "previous_status": latest_status.get("status"),
+            "status": "in_progress",
+            "last_transition_reason": "workflow_worker_started",
+            "updated_at": timestamp,
+            "lock_owner": args.owner,
+            "lock_expires_at": iso_after_minutes(args.stale_minutes),
+        }
+    )
+    validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
+    if validation_error is not None:
+        release_code, release_json, release_raw, release_stderr = run_module_json(
+            "task_lock",
+            ["release", str(task_dir), "--owner", args.owner],
+        )
+        validation_error.update(
+            {
+                "ops_dir": str(ops_dir),
+                "lock_result": acquire_json,
+                "release_result": release_json,
+                "release_stdout_text": release_raw,
+                "release_stderr": release_stderr,
+                "changed": release_code == SUCCESS,
+            }
+        )
+        print_json(validation_error)
+        return INVALID_STATE
+
+    try:
+        atomic_write_json(status_path, updated)
+    except OSError as exc:
+        release_code, release_json, release_raw, release_stderr = run_module_json(
+            "task_lock",
+            ["release", str(task_dir), "--owner", args.owner],
+        )
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "status_write_failed",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "status_path": str(status_path),
+                "error": str(exc),
+                "lock_result": acquire_json,
+                "release_result": release_json,
+                "release_stdout_text": release_raw,
+                "release_stderr": release_stderr,
+                "changed": release_code == SUCCESS,
+                "next_step": "fix the filesystem error, then rerun worker-start",
+            }
+        )
+        return INVALID_STATE
+
+    print_json(
+        {
+            "ok": True,
+            "action": "workflow_worker_started",
+            "ops_dir": str(ops_dir),
+            "task_dir": str(task_dir),
+            "status_path": str(status_path),
+            "dry_run": False,
+            "changed": True,
+            "previous_status": latest_status.get("status"),
+            "status": "in_progress",
+            "owner": args.owner,
+            "lock_result": acquire_json,
+            "next_step": f"write {shlex.quote(str(task_dir / 'worker_output.md'))}, then run async-research workflow worker-complete {shlex.quote(str(task_dir))} --owner {shlex.quote(args.owner)} --dry-run",
+        }
+    )
+    return SUCCESS
+
+
+def run_worker_complete(args: argparse.Namespace) -> int:
+    task_dir = args.task_dir
+    action = "workflow_worker_complete_refused"
+    if not task_dir.exists() or not task_dir.is_dir():
+        ops_dir = args.ops_dir or inferred_ops_dir_for_task(task_dir)
+        payload: dict[str, Any] = {
+            "ok": False,
+            "action": action,
+            "reason": "task_dir_missing",
+            "task_dir": str(task_dir),
+            "changed": False,
+            "next_step": "choose an existing research_ops/tasks/<TASK-ID> directory",
+        }
+        if ops_dir is not None:
+            payload["ops_dir"] = str(ops_dir)
+        print_json(payload)
+        return INVALID_STATE
+
+    ops_dir, workspace_error = resolve_task_ops_dir(task_dir, args.ops_dir, action=action)
+    if workspace_error is not None:
+        workspace_error["changed"] = False
+        print_json(workspace_error)
+        return INVALID_STATE
+    assert ops_dir is not None
+
+    status, error = load_valid_task_status(task_dir, action)
+    if error is not None:
+        error["ops_dir"] = str(ops_dir)
+        print_json(error)
+        return INVALID_STATE
+    assert status is not None
+
+    if status.get("status") != "in_progress":
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "task_not_in_progress",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "current_status": status.get("status"),
+                "required_status": "in_progress",
+                "changed": False,
+                "next_step": f"run async-research workflow status {shlex.quote(str(task_dir))}",
+            }
+        )
+        return INVALID_STATE
+
+    worker_output = worker_output_report(task_dir)
+    if not worker_output.get("ready_for_review"):
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "worker_output_not_ready",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "worker_output": worker_output,
+                "changed": False,
+                "next_step": f"write a non-empty {shlex.quote(str(task_dir / 'worker_output.md'))} before completing the worker task",
+            }
+        )
+        return INVALID_STATE
+
+    lock_state = lock_report(task_dir, args.stale_minutes)
+    lock_owner = None
+    if lock_state.get("locked"):
+        owner_payload = lock_state.get("owner")
+        lock_owner = owner_payload.get("owner") if isinstance(owner_payload, dict) else None
+        if lock_owner and lock_owner != args.owner and not args.force_release:
+            print_json(
+                {
+                    "ok": False,
+                    "action": action,
+                    "reason": "lock_owner_mismatch",
+                    "ops_dir": str(ops_dir),
+                    "task_dir": str(task_dir),
+                    "expected_owner": lock_owner,
+                    "requested_owner": args.owner,
+                    "lock_state": lock_state,
+                    "changed": False,
+                    "next_step": "rerun with the lock owner or use --force-release only after confirming the owner is inactive",
+                }
+            )
+            return task_lock.RELEASE_DENIED
+
+    timestamp = task_lock.iso_now()
+    updated = dict(status)
+    updated.update(
+        {
+            "previous_status": status.get("status"),
+            "status": "awaiting_review",
+            "last_transition_reason": "workflow_worker_completed_output",
+            "updated_at": timestamp,
+            "lock_owner": None,
+            "lock_expires_at": None,
+        }
+    )
+    status_path = task_dir / "status.json"
+    validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
+    if validation_error is not None:
+        validation_error["ops_dir"] = str(ops_dir)
+        print_json(validation_error)
+        return INVALID_STATE
+
+    if args.dry_run:
+        print_json(
+            {
+                "ok": True,
+                "action": "workflow_worker_complete_dry_run",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "status_path": str(status_path),
+                "dry_run": True,
+                "changed": False,
+                "current_status": status.get("status"),
+                "next_status": "awaiting_review",
+                "owner": args.owner,
+                "lock_state": lock_state,
+                "worker_output": worker_output,
+                "would_release_lock": bool(lock_state.get("locked")),
+                "would_write_status": True,
+                "next_step": "rerun without --dry-run to move the task to awaiting_review and release the lock",
+            }
+        )
+        return SUCCESS
+
+    latest_status, latest_error = load_valid_task_status(task_dir, action)
+    if latest_error is not None or latest_status is None or latest_status.get("status") != "in_progress":
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "status_changed_before_write",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "current_status": latest_status.get("status") if latest_status is not None else None,
+                "status_error": latest_error,
+                "changed": False,
+                "next_step": "inspect the current task state before retrying worker-complete",
+            }
+        )
+        return INVALID_STATE
+
+    worker_output = worker_output_report(task_dir)
+    if not worker_output.get("ready_for_review"):
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "worker_output_changed_before_write",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "worker_output": worker_output,
+                "changed": False,
+                "next_step": f"restore a non-empty {shlex.quote(str(task_dir / 'worker_output.md'))} before completing the worker task",
+            }
+        )
+        return INVALID_STATE
+
+    lock_state = lock_report(task_dir, args.stale_minutes)
+    if lock_state.get("locked"):
+        owner_payload = lock_state.get("owner")
+        lock_owner = owner_payload.get("owner") if isinstance(owner_payload, dict) else None
+        if lock_owner and lock_owner != args.owner and not args.force_release:
+            print_json(
+                {
+                    "ok": False,
+                    "action": action,
+                    "reason": "lock_owner_mismatch",
+                    "ops_dir": str(ops_dir),
+                    "task_dir": str(task_dir),
+                    "expected_owner": lock_owner,
+                    "requested_owner": args.owner,
+                    "lock_state": lock_state,
+                    "changed": False,
+                    "next_step": "rerun with the lock owner or use --force-release only after confirming the owner is inactive",
+                }
+            )
+            return task_lock.RELEASE_DENIED
+
+    timestamp = task_lock.iso_now()
+    updated = dict(latest_status)
+    updated.update(
+        {
+            "previous_status": latest_status.get("status"),
+            "status": "awaiting_review",
+            "last_transition_reason": "workflow_worker_completed_output",
+            "updated_at": timestamp,
+            "lock_owner": None,
+            "lock_expires_at": None,
+        }
+    )
+    validation_error = validate_transition_candidate(status_path, updated, action, task_dir)
+    if validation_error is not None:
+        validation_error["ops_dir"] = str(ops_dir)
+        print_json(validation_error)
+        return INVALID_STATE
+
+    try:
+        atomic_write_json(status_path, updated)
+    except OSError as exc:
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "status_write_failed",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "status_path": str(status_path),
+                "error": str(exc),
+                "changed": False,
+                "next_step": "fix the filesystem error, then rerun worker-complete",
+            }
+        )
+        return INVALID_STATE
+
+    release_argv = ["release", str(task_dir), "--owner", args.owner]
+    if args.force_release:
+        release_argv.append("--force")
+    release_code, release_json, raw_output, stderr = run_module_json("task_lock", release_argv)
+    if release_code != SUCCESS:
+        print_json(
+            {
+                "ok": False,
+                "action": action,
+                "reason": "lock_release_failed_after_status_write",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "status_path": str(status_path),
+                "owner": args.owner,
+                "release_result": release_json,
+                "stdout_text": raw_output,
+                "stderr": stderr,
+                "changed": True,
+                "partial_mutation": True,
+                "next_step": "inspect and release the task-local lock before continuing review work",
+            }
+        )
+        return int(release_code)
+
+    print_json(
+        {
+            "ok": True,
+            "action": "workflow_worker_completed",
+            "ops_dir": str(ops_dir),
+            "task_dir": str(task_dir),
+            "status_path": str(status_path),
+            "dry_run": False,
+            "changed": True,
+            "previous_status": latest_status.get("status"),
+            "status": "awaiting_review",
+            "owner": args.owner,
+            "lock_missing": not bool(lock_state.get("locked")),
+            "release_result": release_json,
+            "next_step": f"run async-research workflow status {shlex.quote(str(task_dir))} or submit reviews before workflow advance",
+        }
+    )
     return SUCCESS
 
 
@@ -1338,6 +1992,23 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     next_cmd.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"))
     next_cmd.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock reporting.")
     next_cmd.set_defaults(func=run_next)
+
+    worker_start = subparsers.add_parser("worker-start", help="Claim a ready task and move it to in_progress.")
+    worker_start.add_argument("task_dir", type=Path)
+    worker_start.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    worker_start.add_argument("--owner", default=task_lock.default_owner(), help="Worker owner written to LOCK/owner.json.")
+    worker_start.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for stale-lock takeover.")
+    worker_start.add_argument("--dry-run", action="store_true", help="Validate the claim and transition without writing status.json or LOCK/.")
+    worker_start.set_defaults(func=run_worker_start)
+
+    worker_complete = subparsers.add_parser("worker-complete", help="Move an in-progress task with worker output to awaiting_review.")
+    worker_complete.add_argument("task_dir", type=Path)
+    worker_complete.add_argument("--ops-dir", type=Path, help="Override the research_ops directory inferred from the task path.")
+    worker_complete.add_argument("--owner", default=task_lock.default_owner(), help="Worker owner expected in LOCK/owner.json.")
+    worker_complete.add_argument("--stale-minutes", type=float, default=60.0, help="Lock age threshold for lock-state reporting.")
+    worker_complete.add_argument("--force-release", action="store_true", help="Release a mismatched lock owner after external confirmation.")
+    worker_complete.add_argument("--dry-run", action="store_true", help="Validate output and transition without writing status.json or releasing LOCK/.")
+    worker_complete.set_defaults(func=run_worker_complete)
 
     advance = subparsers.add_parser("advance", help="Run the canonical post-worker task workflow.")
     advance.add_argument("task_dir", type=Path)

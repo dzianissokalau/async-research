@@ -192,6 +192,45 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             )
             self.assertIn("write the missing required review", payload["next_legal_commands"][0]["reason"])
 
+    def test_status_reports_worker_start_commands_for_ready_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9124-start-status",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            commands = [item["command"] for item in payload["next_legal_commands"]]
+            self.assertEqual(f"async-research workflow worker-start {task_dir} --dry-run", commands[0])
+            self.assertIn(f"async-research workflow worker-start {task_dir}", commands)
+            self.assertFalse((task_dir / "LOCK").exists())
+
+    def test_status_reports_worker_complete_commands_for_ready_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9125-complete-status",
+                status_value="in_progress",
+                previous_status="ready_for_worker",
+            )
+            task_dir.joinpath("worker_output.md").write_text("Worker result ready.\n", encoding="utf-8")
+            lock_dir = task_dir / "LOCK"
+            lock_dir.mkdir()
+            write_json(lock_dir / "owner.json", {"owner": "worker-a"})
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            commands = [item["command"] for item in payload["next_legal_commands"]]
+            self.assertEqual(f"async-research workflow worker-complete {task_dir} --owner worker-a --dry-run", commands[0])
+            self.assertIn(f"async-research workflow worker-complete {task_dir} --owner worker-a", commands)
+
     def test_status_marks_role_mismatched_review_file_without_hiding_missing_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -376,7 +415,25 @@ class WorkflowOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual("ready_for_worker", payload["recommendation"]["category"])
-            self.assertEqual(f"async-research workflow status {task_dir}", payload["recommendation"]["command"])
+            self.assertEqual(f"async-research workflow worker-start {task_dir} --dry-run", payload["recommendation"]["command"])
+            self.assertFalse(payload["recommendation"]["mutates"])
+
+    def test_next_recommends_worker_completion_when_output_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9126-next-complete",
+                status_value="in_progress",
+                previous_status="ready_for_worker",
+            )
+            task_dir.joinpath("worker_output.md").write_text("Worker result ready.\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["workflow", "next", ops_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("worker_completion", payload["recommendation"]["category"])
+            self.assertEqual(f"async-research workflow worker-complete {task_dir} --dry-run", payload["recommendation"]["command"])
             self.assertFalse(payload["recommendation"]["mutates"])
 
     def test_next_uses_stale_minutes_for_lock_recommendation(self) -> None:
@@ -412,6 +469,183 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertEqual("workflow_next_refused", payload["action"])
             self.assertEqual("ops_dir_missing", payload["reason"])
             self.assertIn("async-research init", payload["next_step"])
+
+    def test_worker_start_dry_run_does_not_write_lock_or_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9127-start-dry",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a", "--dry-run"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("workflow_worker_start_dry_run", payload["action"])
+            self.assertFalse(payload["changed"])
+            self.assertFalse((task_dir / "LOCK").exists())
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+
+    def test_worker_start_claims_lock_and_updates_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9128-start-write",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("workflow_worker_started", payload["action"])
+            self.assertTrue(payload["changed"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("in_progress", status["status"])
+            self.assertEqual("ready_for_worker", status["previous_status"])
+            self.assertEqual("workflow_worker_started", status["last_transition_reason"])
+            self.assertEqual("worker-a", status["lock_owner"])
+            self.assertTrue((task_dir / "LOCK" / "owner.json").exists())
+            owner = json.loads((task_dir / "LOCK" / "owner.json").read_text(encoding="utf-8"))
+            self.assertEqual("worker-a", owner["owner"])
+
+    def test_worker_start_refuses_fresh_lock_without_status_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9129-start-locked",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+            lock_dir = task_dir / "LOCK"
+            lock_dir.mkdir()
+            write_json(lock_dir / "owner.json", {"owner": "worker-b"})
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a", "--dry-run"])
+
+            self.assertEqual(2, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("lock_acquire_failed", payload["reason"])
+            self.assertFalse(payload["changed"])
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(2, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("lock_acquire_failed", payload["reason"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+            self.assertEqual("worker-b", json.loads((lock_dir / "owner.json").read_text(encoding="utf-8"))["owner"])
+
+    def test_worker_start_refuses_schema_invalid_status_without_lock_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = ops_dir / "tasks" / "TASK-9133-start-invalid"
+            write_json(task_dir / "status.json", {})
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("status_invalid", payload["reason"])
+            self.assertFalse((task_dir / "LOCK").exists())
+
+    def test_worker_wrappers_refuse_task_outside_matching_ops_dir_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root / "left")
+            other_ops_dir = self.init_ops(root / "right")
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9134-wrapper-mismatch",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--ops-dir", other_ops_dir, "--owner", "worker-a"])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("task_dir_ops_mismatch", payload["reason"])
+            self.assertFalse((task_dir / "LOCK").exists())
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+
+    def test_worker_complete_requires_non_empty_worker_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9130-complete-empty",
+                status_value="in_progress",
+                previous_status="ready_for_worker",
+            )
+            task_dir.joinpath("worker_output.md").write_text("   \n", encoding="utf-8")
+
+            code, payload = run_cli_json(["workflow", "worker-complete", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(workflow_orchestrator.INVALID_STATE, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("worker_output_not_ready", payload["reason"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("in_progress", status["status"])
+
+    def test_worker_complete_moves_to_review_and_releases_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9131-complete-write",
+                status_value="ready_for_worker",
+                previous_status="ready_for_planning",
+            )
+            code, payload = run_cli_json(["workflow", "worker-start", task_dir, "--owner", "worker-a"])
+            self.assertEqual(cli.SUCCESS, code, payload)
+            task_dir.joinpath("worker_output.md").write_text("Completed worker result.\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["workflow", "worker-complete", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("workflow_worker_completed", payload["action"])
+            self.assertTrue(payload["changed"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("awaiting_review", status["status"])
+            self.assertEqual("in_progress", status["previous_status"])
+            self.assertEqual("workflow_worker_completed_output", status["last_transition_reason"])
+            self.assertIsNone(status["lock_owner"])
+            self.assertIsNone(status["lock_expires_at"])
+            self.assertFalse((task_dir / "LOCK").exists())
+
+    def test_worker_complete_refuses_mismatched_owner_without_status_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9132-complete-owner",
+                status_value="in_progress",
+                previous_status="ready_for_worker",
+            )
+            task_dir.joinpath("worker_output.md").write_text("Completed worker result.\n", encoding="utf-8")
+            lock_dir = task_dir / "LOCK"
+            lock_dir.mkdir()
+            write_json(lock_dir / "owner.json", {"owner": "worker-b"})
+
+            code, payload = run_cli_json(["workflow", "worker-complete", task_dir, "--owner", "worker-a"])
+
+            self.assertEqual(3, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("lock_owner_mismatch", payload["reason"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("in_progress", status["status"])
+            self.assertTrue(lock_dir.exists())
 
     def test_advance_accepts_task_and_refreshes_follow_on_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

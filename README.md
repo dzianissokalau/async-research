@@ -199,6 +199,12 @@ TASK=research_ops/tasks/TASK-0001-example
 
 async-research workflow next research_ops
 async-research workflow status "$TASK"
+async-research workflow worker-start "$TASK" --dry-run
+async-research workflow worker-start "$TASK"
+# write "$TASK/worker_output.md"
+async-research workflow worker-complete "$TASK" --dry-run
+async-research workflow worker-complete "$TASK"
+# submit required reviews shown by workflow status
 async-research workflow advance "$TASK" --dry-run
 async-research workflow advance "$TASK"
 ```
@@ -272,6 +278,10 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research workflow check research_ops` | Run read-only schema, readiness, surface, and health checks as one JSON report. | Workspace state and rendered surfaces. | JSON to stdout only. |
 | `async-research workflow status <task-dir>` | Report one task's status, lock state, worker output, reviews, human gate, revision counters, result state, and next legal commands. | Task `status.json`, task-local lock and worker/review artifacts, and matching workspace path. | JSON to stdout only; read-only. |
 | `async-research workflow next research_ops` | Recommend the next safe workspace command, with lower-priority alternatives. | Console snapshot read model, schema-version scan, task status, locks, review state, accepted-memory decay, and source/data/library warnings. | JSON to stdout only; read-only. |
+| `async-research workflow worker-start <task-dir> --dry-run` | Preview claiming a `ready_for_worker` task through the public wrapper. | Task `status.json`, task-local lock state, and matching workspace path. | JSON to stdout only; read-only. |
+| `async-research workflow worker-start <task-dir>` | Acquire the task-local `LOCK/` and move a `ready_for_worker` task to `in_progress`. | Task `status.json`, task-local lock state, and matching workspace path. | `LOCK/owner.json` and task `status.json`. |
+| `async-research workflow worker-complete <task-dir> --dry-run` | Preview moving an `in_progress` task with non-empty `worker_output.md` to review. | Task `status.json`, `worker_output.md`, task-local lock state, and matching workspace path. | JSON to stdout only; read-only. |
+| `async-research workflow worker-complete <task-dir>` | Validate non-empty worker output, move the task to `awaiting_review`, and release `LOCK/` when present. | Task `status.json`, `worker_output.md`, task-local lock state, and matching workspace path. | Task `status.json`; removes task-local `LOCK/` on successful release. |
 | `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
 | `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
@@ -454,6 +464,8 @@ specific diagnostic.
 | `workflow check` | `0` workspace checks passed; readiness warning `2` is reported as a warning but does not fail the orchestration. | Returns the first failed subcommand code, such as `2` for surface drift or `4` for malformed workspace state. |
 | `workflow status` | `0` task status was reported and status/transition validation passed. | `4` missing task, task/workspace mismatch, missing/malformed/schema-invalid `status.json`, or invalid task transition. |
 | `workflow next` | `0` next safe workspace action was recommended. | `4` workspace is missing or is not a directory. Malformed task state is reported as the highest-priority recommendation instead of failing the recommender. |
+| `workflow worker-start` | `0` dry-run validation passed or the task lock/status transition was written. | `2` task lock is held or stale-lock takeover failed; `4` missing task, task/workspace mismatch, malformed state, wrong current status, transition validation failure, or write failure. |
+| `workflow worker-complete` | `0` dry-run validation passed or the task was moved to `awaiting_review` and lock release succeeded. | `3` lock owner mismatch without `--force-release`; `4` missing task, task/workspace mismatch, malformed state, wrong current status, missing/empty `worker_output.md`, transition validation failure, or write failure. If status was written but lock release fails, JSON sets `partial_mutation: true` and returns the lock helper code. |
 | `workflow advance` | `0` dry-run checks passed or the canonical post-worker sequence completed; readiness warning `2` is reported as a warning but does not fail the orchestration. | `4` missing task, task/workspace mismatch, or malformed state; otherwise returns the first failed subcommand code. If a later step fails after an earlier mutating step succeeded, JSON sets `partial_mutation: true`. |
 | `source init` | `0` source register exists or was initialized. | No command-specific nonzero return from the backing script. |
 | `source upsert` | `0` source row written. | `2` register validation failed; `3` invalid source id, date, or freshness window; `4` malformed register. |

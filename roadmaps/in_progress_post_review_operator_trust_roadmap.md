@@ -105,7 +105,7 @@ The next work should make the normal workflow hard to misuse:
 | P1 | 0 | Add review-submit state guard | Make review authoring writes refuse when the task is not reviewable, with no Phase 0B override. Guard at minimum on task status and non-empty `worker_output.md`. | Prevents premature reviews and makes the review lifecycle harder for humans or LLMs to misuse. | Complete |
 | P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Complete |
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Complete |
-| P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Planned |
+| P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Complete |
 | P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Planned |
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Planned |
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Planned |
@@ -236,18 +236,31 @@ Shipped behavior:
 
 ### Worker Transition Wrapper
 
-The wrapper should call existing transition and lock primitives rather than
-editing `status.json` directly.
-
-Candidate command names:
+Shipped command names:
 
 ```bash
 async-research workflow worker-start <task-dir>
 async-research workflow worker-complete <task-dir>
 ```
 
-Open decision: whether this should also write or validate `worker_output.md`,
-or only transition state after the worker output is already present.
+Behavior:
+
+- `worker-start --dry-run` validates the task/workspace match, current
+  `ready_for_worker` state, and proposed `ready_for_worker -> in_progress`
+  transition without writing.
+- `worker-start` acquires the task-local `LOCK/`, re-reads `status.json` after
+  the lock claim, then writes `status = in_progress`, `previous_status =
+  ready_for_worker`, `last_transition_reason = workflow_worker_started`,
+  `lock_owner`, and `lock_expires_at`.
+- `worker-complete --dry-run` validates the task/workspace match, current
+  `in_progress` state, non-empty `worker_output.md`, lock owner when present,
+  and proposed `in_progress -> awaiting_review` transition without writing.
+- `worker-complete` writes `status = awaiting_review`, clears lock metadata,
+  and releases the task-local `LOCK/` when present. A mismatched lock owner
+  returns `3` unless `--force-release` is supplied after external confirmation.
+- `workflow status` and `workflow next` now surface these wrappers as the next
+  legal commands for ready worker tasks and in-progress tasks with completed
+  worker output.
 
 ## Integration With Existing Roadmaps
 
