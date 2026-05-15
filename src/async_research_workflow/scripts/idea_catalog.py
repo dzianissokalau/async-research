@@ -45,6 +45,8 @@ from async_research_workflow.idea_catalog import read_catalog
 from async_research_workflow.idea_catalog import validate_candidate_record
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import task_transaction
+from async_research_workflow.scripts.decision_log import append_decision
+from async_research_workflow.scripts.decision_log import normalize_related_artifacts
 from async_research_workflow.scripts.version_metadata import apply_default_versions
 
 
@@ -69,6 +71,13 @@ TIMESTAMP_PLACEHOLDER = "TO_BE_SET_AT_WRITE_TIME"
 PROMOTION_DRY_RUN_POLICY_VERSION = "catalog_promotion_dry_run_v1.0"
 PROMOTION_WRITE_POLICY_VERSION = "catalog_promotion_task_write_v2.6"
 TASK_ID_RESERVATION_POLICY_VERSION = "catalog_task_id_reservation_v2.5"
+IDEA_RESOLUTION_TARGET_STATUSES = ("candidate", "promote", "park", "reject")
+IDEA_RESOLUTION_DECISION_BY_STATUS = {
+    "candidate": "approve",
+    "promote": "approve",
+    "park": "pause",
+    "reject": "reject",
+}
 INBOX_FILE = "inbox.md"
 INBOX_TEMPLATE = "# Inbox\n\n| item | source | notes |\n| --- | --- | --- |\n"
 TASK_LIMITS = {
@@ -1869,6 +1878,361 @@ def run_status_command(args: argparse.Namespace, target_status: str) -> int:
         release_catalog_lock(lock)
 
 
+def decisions_path(ops_dir: Path) -> Path:
+    return ops_dir / "decisions.md"
+
+
+def idea_resolution_decision_row(
+    idea_id: str,
+    target_status: str,
+    reason: str,
+    approver: str,
+    related_artifacts: list[str],
+    decided_at: str,
+) -> dict[str, Any]:
+    artifacts = [f"{IDEAS_DIR}/{idea_id}.json", *related_artifacts]
+    return {
+        "date": decided_at,
+        "item_id": idea_id,
+        "decision": IDEA_RESOLUTION_DECISION_BY_STATUS[target_status],
+        "reason": f"resolve idea to {target_status}: {reason}",
+        "approver": approver,
+        "related_artifacts": normalize_related_artifacts(artifacts),
+    }
+
+
+def apply_idea_resolution_update(
+    payload: dict[str, Any],
+    target_status: str,
+    reason: str,
+    revisit_condition: str | None,
+    actor: str,
+    now: datetime,
+) -> tuple[dict[str, Any], bool]:
+    updated, changed = apply_status_update(payload, target_status, reason, revisit_condition, actor, now)
+    if target_status in {"candidate", "promote"}:
+        updated["human_gate_reason"] = None
+        updated.pop("revisit_condition", None)
+    if target_status in {"park", "reject"}:
+        updated["human_gate_reason"] = None
+    return updated, changed
+
+
+def idea_resolution_target_failures(
+    ops_dir: Path,
+    target_record: dict[str, Any],
+    target_status: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    _warnings, failures = validate_candidate_record(target_record, ops_dir)
+    blockers: list[dict[str, Any]] = []
+    if target_status == "promote":
+        task_type, route_reason = choose_promotion_task_type(ops_dir, target_record, None)
+        blockers = promotion_blockers(ops_dir, target_record, task_type, allow_duplicate=False)
+        for blocker in blockers:
+            blocker.setdefault("target_task_type", task_type)
+            blocker.setdefault("route_reason", route_reason)
+    return failures, blockers
+
+
+def idea_resolution_plan(
+    ops_dir: Path,
+    model: dict[str, Any],
+    idea_id: str,
+    target_status: str,
+    reason: str,
+    revisit_condition: str | None,
+    approver: str,
+    related_artifacts: list[str],
+    actor: str,
+    now: datetime,
+    decided_at: str | None,
+) -> tuple[int, dict[str, Any], dict[Path, dict[str, Any]], dict[str, Any] | None]:
+    if target_status not in IDEA_RESOLUTION_TARGET_STATUSES:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_resolution_failed",
+            "reason": "invalid_target_status",
+            "target_status": target_status,
+            "allowed": list(IDEA_RESOLUTION_TARGET_STATUSES),
+        }, {}, None
+    if not IDEA_ID_PATTERN.match(idea_id):
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_resolution_failed",
+            "reason": "invalid_idea_id",
+            "idea_id": idea_id,
+            "message": "idea id must use IDEA-0000 format",
+        }, {}, None
+    duplicate = duplicate_record_failure(model, idea_id)
+    if duplicate is not None:
+        return MALFORMED, {
+            "ok": False,
+            "action": "idea_resolution_failed",
+            "reason": "duplicate_idea_id",
+            "idea_id": idea_id,
+            "failures": [duplicate],
+        }, {}, None
+    record = find_catalog_record(model, idea_id)
+    if record is None:
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_resolution_failed",
+            "reason": "idea_not_found",
+            "idea_id": idea_id,
+            "next_step": "run async-research idea catalog list to inspect available ideas",
+        }, {}, None
+
+    current_status = str(record["payload"].get("status") or "candidate")
+    if current_status != "needs_human":
+        return INVALID_REQUEST, {
+            "ok": False,
+            "action": "idea_resolution_failed",
+            "reason": "idea_not_needs_human",
+            "idea_id": idea_id,
+            "current_status": current_status,
+            "message": "idea resolve only changes needs_human catalog ideas",
+            "next_step": "use idea park/reject for explicit non-human-gate decisions, or idea promote for already-promotable ideas",
+        }, {}, None
+
+    updated, changed = apply_idea_resolution_update(
+        record["payload"],
+        target_status,
+        reason,
+        revisit_condition,
+        actor,
+        now,
+    )
+    target_record = record_for_payload(ops_dir, updated, Path(str(record["path"])))
+    failures, blockers = idea_resolution_target_failures(ops_dir, target_record, target_status)
+    if failures or blockers:
+        return VALIDATION_FAILED, {
+            "ok": False,
+            "action": "idea_resolution_blocked",
+            "reason": "target_status_not_safe",
+            "idea_id": idea_id,
+            "from_status": current_status,
+            "to_status": target_status,
+            "failures": failures,
+            "blockers": blockers,
+            "message": "resolution refuses to write a target status that would fail catalog validation or promotion gates",
+            "next_step": (
+                "fix the listed blockers, choose --status candidate to keep the idea in the catalog, "
+                "or choose --status park/--status reject with an explicit reason"
+            ),
+        }, {}, None
+
+    path = Path(str(record["path"]))
+    decision = idea_resolution_decision_row(
+        idea_id,
+        target_status,
+        reason,
+        approver,
+        related_artifacts,
+        decided_at or utc_timestamp(now),
+    )
+    change = {
+        "action": "resolve_idea_status",
+        "path": str(path),
+        "idea_id": idea_id,
+        "from_status": current_status,
+        "to_status": target_status,
+        "reason": reason,
+        "fields": {
+            "status": updated.get("status"),
+            "status_reason": updated.get("status_reason"),
+            "human_gate_reason": updated.get("human_gate_reason"),
+            "revisit_condition": updated.get("revisit_condition"),
+        },
+        "proposed_decision_history_entry": {
+            "at": utc_timestamp(now) if changed else TIMESTAMP_PLACEHOLDER,
+            "from_status": current_status,
+            "to_status": target_status,
+            "reason": reason,
+            "actor": actor,
+        },
+        "decision_log_row": decision,
+    }
+    payloads_by_path = {path: updated} if changed else {}
+    return SUCCESS, {
+        "ok": True,
+        "action": "idea_resolution_planned",
+        "ops_dir": str(ops_dir),
+        "idea_id": idea_id,
+        "dry_run": True,
+        "changed": changed,
+        "from_status": current_status,
+        "to_status": target_status,
+        "decision": decision,
+        "proposed_file_changes": [change] if changed else [],
+        "proposal": change,
+    }, payloads_by_path, decision
+
+
+def run_resolve(args: argparse.Namespace) -> int:
+    if args.write and args.dry_run:
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_resolution_failed",
+                "reason": "conflicting_flags",
+                "message": "use either --dry-run or --write, not both",
+            }
+        )
+        return INVALID_REQUEST
+    if not str(args.reason or "").strip() or not str(args.approver or "").strip():
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_resolution_failed",
+                "reason": "reason_and_approver_required",
+                "message": "idea resolution requires --reason and --approver",
+            }
+        )
+        return INVALID_REQUEST
+    if args.status == "park" and not str(args.revisit or "").strip():
+        print_json(
+            {
+                "ok": False,
+                "action": "idea_resolution_failed",
+                "reason": "missing_revisit_condition",
+                "message": "resolving an idea to park requires --revisit",
+            }
+        )
+        return INVALID_REQUEST
+
+    dry_run = not args.write
+    if dry_run:
+        model = read_catalog(args.ops_dir)
+        if model["failures"]:
+            report = catalog_validation_report_from_model(args.ops_dir, model)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_resolution_failed",
+                    "reason": "catalog_read_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "warnings": model["warnings"],
+                    "failures": model["failures"],
+                    "next_step": "run async-research idea catalog validate before resolving catalog lifecycle state",
+                }
+            )
+            return catalog_validation_exit_code(report)
+        code, payload, _payloads_by_path, _decision = idea_resolution_plan(
+            args.ops_dir,
+            model,
+            args.idea_id,
+            args.status,
+            args.reason,
+            args.revisit,
+            args.approver,
+            args.related_artifact,
+            "catalog_resolution_dry_run",
+            utc_now(),
+            args.date,
+        )
+        print_json(payload)
+        return code
+
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_catalog_lock(args.ops_dir, "idea resolve --write")
+        model = read_catalog(args.ops_dir)
+        if model["failures"]:
+            report = catalog_validation_report_from_model(args.ops_dir, model)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_resolution_write_failed",
+                    "reason": "catalog_read_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "warnings": model["warnings"],
+                    "failures": model["failures"],
+                    "next_step": "run async-research idea catalog validate before resolving catalog lifecycle state",
+                }
+            )
+            return catalog_validation_exit_code(report)
+        code, payload, payloads_by_path, decision = idea_resolution_plan(
+            args.ops_dir,
+            model,
+            args.idea_id,
+            args.status,
+            args.reason,
+            args.revisit,
+            args.approver,
+            args.related_artifact,
+            "catalog_resolution_write",
+            utc_now(),
+            args.date,
+        )
+        if code != SUCCESS:
+            print_json(payload)
+            return code
+        decision_log = decisions_path(args.ops_dir)
+        projection_paths = [args.ops_dir / IDEAS_DIR / CATALOG_FILE, args.ops_dir / IDEAS_DIR / PRIORITIZATION_FILE]
+        snapshots = snapshot_files([decision_log, *payloads_by_path.keys(), *projection_paths])
+        files_written, failures, validation = write_catalog_outputs(args.ops_dir, model, payloads_by_path)
+        if failures:
+            restored = restore_file_snapshots(snapshots)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_resolution_write_failed",
+                    "reason": "post_write_validation_failed" if files_written else "proposed_catalog_validation_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "failures": failures,
+                    "files_written": files_written,
+                    "rollback": restored,
+                    "dry_run_plan": payload,
+                    **post_write_failure_context(files_written),
+                }
+            )
+            return VALIDATION_FAILED
+        try:
+            append_decision(decision_log, decision or {})
+        except OSError as exc:
+            restored = restore_file_snapshots(snapshots)
+            print_json(
+                {
+                    "ok": False,
+                    "action": "idea_resolution_write_failed",
+                    "reason": "decision_log_write_failed",
+                    "ops_dir": str(args.ops_dir),
+                    "decisions": str(decision_log),
+                    "error": str(exc),
+                    "files_written": files_written,
+                    "rollback": restored,
+                }
+            )
+            return MALFORMED
+        all_files_written = [*files_written, {"path": str(decision_log), "action": "append_decision"}]
+        print_json(
+            {
+                **payload,
+                "action": "idea_resolution_written",
+                "dry_run": False,
+                "changed": bool(all_files_written),
+                "lock": lock,
+                "files_written": all_files_written,
+                "validation": {
+                    "ok": validation.get("ok", False),
+                    "candidate_count": validation.get("candidate_count", 0),
+                    "warning_count": len(validation.get("warnings", [])),
+                    "failure_count": len(validation.get("failures", [])),
+                },
+                "would_not_write": [
+                    {"path": str(args.ops_dir / "queue.md"), "reason": "idea resolution never edits queue.md"},
+                    {"path": str(args.ops_dir / "tasks"), "reason": "idea resolution never creates task folders"},
+                ],
+            }
+        )
+        return SUCCESS
+    except CatalogLockError as exc:
+        print_json({"ok": False, "action": "idea_resolution_write_refused", **exc.payload})
+        return VALIDATION_FAILED
+    finally:
+        release_catalog_lock(lock)
+
+
 def run_park(args: argparse.Namespace) -> int:
     return run_status_command(args, "park")
 
@@ -3650,6 +4014,26 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
     promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     promote.set_defaults(func=run_promote)
+
+    resolve = subparsers.add_parser(
+        "resolve",
+        help="Resolve a needs_human catalog idea with an audited decision.",
+        description=(
+            "Move one needs_human catalog idea to candidate, promote, park, or reject while appending decisions.md "
+            "and preserving promotion hard gates."
+        ),
+    )
+    resolve.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    resolve.add_argument("idea_id", help="Canonical IDEA-0000 id to resolve.")
+    resolve.add_argument("--status", required=True, choices=IDEA_RESOLUTION_TARGET_STATUSES, help="Target lifecycle status.")
+    resolve.add_argument("--reason", required=True, help="Human reason for resolving the idea.")
+    resolve.add_argument("--approver", required=True, help="Human or agent identity approving the decision.")
+    resolve.add_argument("--revisit", help="Concrete revisit condition; required when --status park.")
+    resolve.add_argument("--related-artifact", action="append", default=[], help="Additional artifact to link in decisions.md. Repeatable.")
+    resolve.add_argument("--date", help="Decision timestamp override in ISO-8601 format.")
+    resolve.add_argument("--dry-run", action="store_true", help="Preview status and decision-log changes without writing; this is the default.")
+    resolve.add_argument("--write", action="store_true", help="Apply the resolution under research_ops/ideas/LOCK and append decisions.md.")
+    resolve.set_defaults(func=run_resolve)
 
     park = subparsers.add_parser(
         "park",

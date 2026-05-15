@@ -270,6 +270,7 @@ Phase 7 enables explicit write mode for safe catalog maintenance:
 ```bash
 async-research idea capture research_ops --from-inbox IDEA-0001 --write
 async-research idea catalog maintain research_ops --write
+async-research idea resolve research_ops IDEA-0001 --status promote --reason "..." --approver "..." --write
 async-research idea park research_ops IDEA-0001 --reason "..." --revisit "..." --write
 async-research idea reject research_ops IDEA-0001 --reason "..." --write
 ```
@@ -297,6 +298,14 @@ Post-write validation failures do not automatically roll back files that were
 already written. Failure responses include the written paths and direct the
 operator to run `async-research idea catalog validate` before retrying so the
 on-disk state can be inspected.
+
+`idea resolve` is the audited path out of `needs_human` for common operator
+decisions. It can move a human-gated idea to `candidate`, `promote`, `park`, or
+`reject`; it appends `decisions.md`, clears the human gate, records
+`decision_history`, regenerates projections, and never edits `queue.md` or task
+folders. A `promote` target must still pass catalog validation, score
+thresholds, duplicate checks, and hard gates. Failed hard gates or unsafe target
+states are returned as blockers, not bypassed.
 
 Explicit `park` and `reject` commands require a reason. `park` also requires a
 revisit condition. Status-changing writes append `decision_history` and update

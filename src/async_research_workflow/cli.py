@@ -38,6 +38,7 @@ DECISION_CHOICES = (
     "resume",
 )
 RESOLUTION_STATUS_CHOICES = ("paused", "ready_for_worker", "rejected")
+IDEA_RESOLUTION_STATUS_CHOICES = ("candidate", "promote", "park", "reject")
 SOURCE_TIER_CHOICES = (
     "tier_1_official",
     "tier_2_institutional",
@@ -1068,6 +1069,21 @@ def run_idea_promote_command(args: argparse.Namespace) -> int:
         + optional_text("--preflight-hash", args.preflight_hash)
         + (["--allow-duplicate"] if args.allow_duplicate else [])
         + (["--human-override"] if args.human_override else [])
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
+def run_idea_resolve_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "idea_catalog",
+        ["resolve", str(args.ops_dir), args.idea_id]
+        + optional_text("--status", args.status)
+        + optional_text("--reason", args.reason)
+        + optional_text("--approver", args.approver)
+        + optional_text("--revisit", args.revisit)
+        + repeated_option("--related-artifact", args.related_artifact)
+        + optional_text("--date", args.date)
         + (["--dry-run"] if args.dry_run else [])
         + (["--write"] if args.write else []),
     )
@@ -2529,6 +2545,27 @@ def register_artifact_commands(subparsers) -> None:
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
     idea_promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     idea_promote.set_defaults(func=run_idea_promote_command)
+    idea_resolve = add_command(
+        idea_sub,
+        "resolve",
+        help="Resolve a needs_human catalog idea.",
+        description=(
+            "Resolve one needs_human catalog idea to candidate, promote, park, or reject with a decisions.md row, "
+            "decision history, regenerated projections, and promotion hard-gate checks."
+        ),
+        epilog="Dry-run is the default. Write mode uses research_ops/ideas/LOCK, appends decisions.md, never edits queue.md, and refuses unsafe promote targets.",
+    )
+    add_common_ops(idea_resolve)
+    idea_resolve.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_resolve.add_argument("--status", required=True, choices=IDEA_RESOLUTION_STATUS_CHOICES, help="Target lifecycle status.")
+    idea_resolve.add_argument("--reason", required=True, help="Human reason for resolving the idea.")
+    idea_resolve.add_argument("--approver", required=True, help="Human or agent identity approving the decision.")
+    idea_resolve.add_argument("--revisit", help="Concrete revisit condition; required when --status park.")
+    idea_resolve.add_argument("--related-artifact", action="append", default=[], help="Additional artifact to link in decisions.md. Repeatable.")
+    idea_resolve.add_argument("--date", help="Decision timestamp override in ISO-8601 format.")
+    idea_resolve.add_argument("--dry-run", action="store_true", help="Preview the status and decision-log changes without writing; this is the default.")
+    idea_resolve.add_argument("--write", action="store_true", help="Apply the resolution under research_ops/ideas/LOCK and append decisions.md.")
+    idea_resolve.set_defaults(func=run_idea_resolve_command)
     idea_park = add_command(
         idea_sub,
         "park",

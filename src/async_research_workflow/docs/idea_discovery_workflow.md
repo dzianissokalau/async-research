@@ -168,6 +168,18 @@ async-research idea promote research_ops IDEA-0007 --write --preflight-hash <has
 `discovery_inbox.md` are surfaced as warnings with line numbers, and a missing
 selector reports nearby candidate rows instead of silently failing.
 
+If capture or maintenance leaves an idea in `needs_human`, use `idea resolve`
+after a real human decision rather than editing JSON directly. Resolving to
+`candidate` approves the captured record for catalog tracking; resolving to
+`promote` is allowed only when the scored idea still passes promotion
+thresholds, duplicate checks, and hard gates. Blocked target statuses return
+specific blockers and write nothing.
+
+```bash
+async-research idea resolve research_ops IDEA-0007 --status promote --reason "human reviewed capture and score" --approver "<who>" --dry-run
+async-research idea resolve research_ops IDEA-0007 --status promote --reason "human reviewed capture and score" --approver "<who>" --write
+```
+
 Only a successful `idea_promotion_planned` response may be passed to write mode,
 and the write must use the returned `promotion_preflight_hash`. Blocked
 promotion proposals remain catalog/planning state and should be parked,

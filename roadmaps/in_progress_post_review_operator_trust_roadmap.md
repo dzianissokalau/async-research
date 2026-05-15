@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
 Status: In Progress
-Current phase: Phase 1 - Minimum operator path
-Last updated: 2026-05-14
-Next action: Add public worker transition wrapper
+Current phase: Phase 2 - Idea lifecycle ergonomics
+Last updated: 2026-05-15
+Next action: Improve idea capture and idea promote guidance
 Blocked by: None
 
 Created: 2026-05-13
@@ -106,7 +106,7 @@ The next work should make the normal workflow hard to misuse:
 | P1 | 1 | Add `workflow status <task-dir>` | Print current status, previous status, type, lock state, worker-output presence, review files, human gate, revision count, result state, and next legal task-level commands. | Gives operators and agents a single task truth surface instead of requiring raw `status.json` inspection. | Complete |
 | P1 | 1 | Add `workflow next <ops-dir>` | Read the workspace snapshot and recommend the next safe command, such as check health, resolve a human gate, run a review, update surfaces, or inspect a blocked task. | Turns a broad CLI into a guided operating loop and reduces first-user abandonment. | Complete |
 | P1 | 1 | Add public worker transition wrapper | Add `workflow worker-start/worker-complete`, `task claim/complete`, or equivalent around existing lock and transition helpers for `ready_for_worker -> in_progress -> awaiting_review`. | Closes the biggest solo-operator gap between planning and review without teaching users internal helpers. | Complete |
-| P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Planned |
+| P1 | 2 | Smooth idea lifecycle resolution | Add explicit decision-backed commands for common blocked idea states, such as approving completed capture, updating allowed hard-gate outcomes, or moving a valid idea from `needs_human` to a promotable state. | Makes idea discovery/catalog usable by new operators without manual JSON edits while preserving hard gates. | Complete |
 | P2 | 1 | Add `queue list` or equivalent | Add a read-only queue/task listing command, or make `workflow status/next` cover this need clearly. | Resolves a documentation/expectation mismatch and improves visibility into active work. | Complete |
 | P2 | 2 | Improve `idea capture` and `idea promote` guidance | Add clearer help text, examples, blocked-promotion `next_step` guidance, and specific task-id collision diagnostics. | Keeps the existing safety model but reduces syntax and blocker confusion. | Planned |
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Planned |
@@ -286,6 +286,51 @@ Behavior:
   are reported in the listing summary and `malformed` group rather than
   failing the read-only listing.
 
+## Phase 2 Implementation Notes
+
+Phase 2 reduces the need for operators or LLM planners to hand-edit
+`ideas/IDEA-*.json` after catalog capture or maintenance routes an idea to
+`needs_human`.
+
+### Idea Lifecycle Resolution
+
+Shipped command:
+
+```bash
+async-research idea resolve <ops-dir> <IDEA-ID> --status candidate|promote|park|reject --reason "<why>" --approver "<who>"
+```
+
+Behavior:
+
+- default mode is a dry run; `--write` acquires `research_ops/ideas/LOCK/`.
+- the selected idea must currently be `needs_human`; already-candidate,
+  parked, rejected, promoted, or promotable ideas use their existing public
+  paths instead.
+- `--status candidate` approves a completed capture for normal catalog
+  tracking.
+- `--status promote` moves only a valid scored idea to a promotable catalog
+  state. It still enforces schema validation, score thresholds, duplicate
+  rules, allowed next-task routes, source/data/library blockers, and hard
+  gates. Failed hard gates return blockers and write nothing.
+- `--status park` requires `--revisit`; `--status reject` uses the same
+  conservative reopen semantics as the existing reject path.
+- write mode updates canonical JSON, clears the human gate, appends
+  `decision_history`, regenerates catalog projections, and appends
+  `decisions.md`.
+- the command never edits `queue.md` or creates task folders. Task creation
+  remains owned by `async-research idea promote ... --write --preflight-hash`.
+
+Acceptance:
+
+- a `needs_human` capture can be resolved to `candidate` with a decision-log
+  row and no manual JSON edits.
+- a valid scored `needs_human` idea can be resolved to `promote`, after which
+  `idea promote --dry-run` succeeds.
+- a failed hard-gate idea cannot be resolved to `promote`; the command returns
+  blockers and leaves files unchanged.
+- parking through resolution requires a revisit condition and records a pause
+  decision.
+
 ## Integration With Existing Roadmaps
 
 - Public Alpha Hardening is delivered. This roadmap is its dogfood maintenance
@@ -314,9 +359,5 @@ Targeted tests should be added for each phase before marking it complete.
 
 ## Open Decisions
 
-- Should the public worker wrapper be `workflow worker-*`, `task claim/complete`,
-  or a different command group?
 - Should `workflow next` emit only JSON, or support a compact text mode for
   humans?
-- What is the safest lifecycle command for approving a `needs_human` captured
-  idea without letting operators bypass scoring and hard gates too easily?
