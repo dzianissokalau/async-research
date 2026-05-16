@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
 Status: In Progress
-Current phase: Phase 4 - Delivered-feature V2 adoption
-Last updated: 2026-05-15
-Next action: Add runnable experiment and analysis examples
+Current phase: Phase 5 - Public adoption and release trust
+Last updated: 2026-05-16
+Next action: Publish release-trust assets
 Blocked by: None
 
 Created: 2026-05-13
@@ -112,7 +112,7 @@ The next work should make the normal workflow hard to misuse:
 | P2 | 3 | Normalize `starter-smoke` JSON output | Wrap init and smoke results in one JSON envelope rather than emitting two top-level JSON objects. | Makes smoke output easier for CI, shell tools, LLMs, and dashboards to parse. | Complete |
 | P2 | 3 | Add `prompts init --dry-run` | Align prompt initialization with `library init`, `idea catalog init`, and `schedules init`. | Reduces setup surprise and keeps initializer command semantics consistent. | Complete |
 | P2 | 4 | Dashboard polish | Add optional auto-refresh, improve local-file link handling, and check desktop-first responsive behavior. | Improves the daily operator experience on top of an already useful dashboard. | Complete |
-| P2 | 4 | Add runnable experiment and analysis examples | Add small fixtures that exercise `experiment validate`, `analysis preflight`, `analysis validate-run`, and `analysis validate-results`. | Makes the delivered Hypothesis Testing Framework feel practical end to end, not only contract-complete. | Backlog |
+| P2 | 4 | Add runnable experiment and analysis examples | Add small fixtures that exercise `experiment validate`, `analysis preflight`, `analysis validate-run`, and `analysis validate-results`. | Makes the delivered Hypothesis Testing Framework feel practical end to end, not only contract-complete. | Complete |
 | P3 | 5 | Publish release-trust assets | Prepare PyPI/release flow, badges, visible hardening report, and versioned documentation guidance when the operator path is stable. | Improves external credibility and lowers adoption friction. | Backlog |
 | P3 | 5 | Add more vertical worked examples | Add one or two full templates beyond real estate, such as market intelligence, policy scanning, literature review, or due diligence. | Clarifies market fit and helps users evaluate the framework in concrete workflows. | Backlog |
 | P3 | 5 | Document scaling boundaries | Explain expected file-backed workspace scale, linear-scan tradeoffs, and when to graduate to heavier orchestration. | Prevents overextension of the local-file model and sets honest expectations. | Backlog |
@@ -439,6 +439,30 @@ Acceptance:
 - local-file link rendering includes encoded file URL construction and a
   non-clickable missing-file state.
 - console docs describe optional auto-refresh and local-file link behavior.
+
+### Runnable Experiment And Analysis Examples
+
+Shipped behavior:
+
+- `src/async_research_workflow/examples/runnable_experiment_analysis/` now
+  contains a trimmed `research_ops/` fixture with one accepted experiment plan
+  and one completed analysis run.
+- the fixture includes source governance, data foundation files, accepted-memory
+  linkage, task statuses, result acceptance for the plan, and completed analysis
+  artifacts.
+- the example README gives copy-and-run public CLI commands for
+  `experiment validate`, `analysis preflight`, `analysis validate-run`, and
+  `analysis validate-results`.
+- package data now includes Markdown, JSON, CSV, and JSONL resources under
+  `examples/`, so the fixture is available with the installed package.
+
+Acceptance:
+
+- the runnable example can be copied to a temporary workspace and all four
+  public commands exit `0` with `ok: true`.
+- packaged resource tests assert the example README and key fixture artifacts
+  are importlib-resource visible.
+- docs link to the example from the package docs index and root README.
 
 ## Integration With Existing Roadmaps
 

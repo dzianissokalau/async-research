@@ -1,0 +1,114 @@
+{
+  "cap_reasons": [],
+  "claim": "The candidate feature improves predictive accuracy in this bounded backtest.",
+  "claim_decision": "accepted",
+  "claim_gate_results": [
+    {
+      "evidence": [],
+      "gate": "metrics_schema_valid",
+      "max_claim_strength": "strong",
+      "reason": "metrics artifact schema is valid",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "diagnostics_schema_valid",
+      "max_claim_strength": "strong",
+      "reason": "diagnostics artifact schema is valid",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "robustness_schema_valid",
+      "max_claim_strength": "strong",
+      "reason": "robustness artifact schema is valid",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "claim_identity_present",
+      "max_claim_strength": "strong",
+      "reason": "result summary provenance identifiers are present",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "artifact_identity_matches_claim",
+      "max_claim_strength": "strong",
+      "reason": "artifact identities match the claim summary",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "claim_type_classified",
+      "max_claim_strength": "strong",
+      "reason": "claim_type is classified as predictive",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "claim_limitations_declared",
+      "max_claim_strength": "strong",
+      "reason": "claim limitations are declared",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "diagnostic_quality",
+      "max_claim_strength": "strong",
+      "reason": "diagnostics do not cap the claim",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "passed baseline comparisons: 1",
+        "out-of-sample splits: 1"
+      ],
+      "gate": "predictive_validation_and_baseline",
+      "max_claim_strength": "moderate",
+      "reason": "predictive validation and baseline comparison are present; predictive claims remain capped at moderate",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "statuses: pass"
+      ],
+      "gate": "predictive_leakage_checks",
+      "max_claim_strength": "moderate",
+      "reason": "predictive leakage checks include a passing row",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "robustness_decision_impact",
+      "max_claim_strength": "strong",
+      "reason": "no robustness decision impacts block the claim",
+      "status": "pass"
+    },
+    {
+      "evidence": [],
+      "gate": "human_approval_required",
+      "max_claim_strength": "strong",
+      "reason": "human approval is not required",
+      "status": "pass"
+    }
+  ],
+  "claim_type": "predictive",
+  "experiment_plan_id": "EXP-8001",
+  "framework_version": "analysis_claim_gates_v1.0",
+  "generated_at": "2026-05-09T00:00:00Z",
+  "human_gate": {
+    "reason": "not required",
+    "required": false,
+    "satisfied": true
+  },
+  "max_claim_strength": "moderate",
+  "recommended_route": "accept_as_evidence",
+  "requested_claim_strength": "moderate",
+  "review_notes": [
+    "Claim gates accepted the requested claim strength."
+  ],
+  "run_id": "RUN-8002",
+  "schema_version": "1.0",
+  "task_id": "TASK-8002"
+}

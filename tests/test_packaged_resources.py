@@ -97,6 +97,20 @@ class PackagedResourceTests(unittest.TestCase):
             ("docs", "idea_catalog_contract.md"),
             ("docs", "knowledge_library_contract.md"),
             ("examples", "github_actions_codex_worker.yml"),
+            ("examples", "runnable_experiment_analysis", "README.md"),
+            ("examples", "runnable_experiment_analysis", "research_ops", "data_source_audit.md"),
+            ("examples", "runnable_experiment_analysis", "research_ops", "data", "profiles", "README.md"),
+            ("examples", "runnable_experiment_analysis", "research_ops", "tasks", "TASK-8001-experiment-plan", "worker_output.md"),
+            (
+                "examples",
+                "runnable_experiment_analysis",
+                "research_ops",
+                "tasks",
+                "TASK-8002-run-analysis",
+                "artifacts",
+                "analysis_run",
+                "run_manifest.json",
+            ),
             ("mission_policy.json",),
         ]
         required.extend(

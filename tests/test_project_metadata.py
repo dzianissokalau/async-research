@@ -41,6 +41,18 @@ class ProjectMetadataTests(unittest.TestCase):
 
         self.assertEqual(data["project"]["version"], __version__)
 
+    def test_package_data_includes_runnable_examples(self) -> None:
+        data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        package_data = data["tool"]["setuptools"]["package-data"]["async_research_workflow"]
+
+        for pattern in [
+            "examples/**/*.md",
+            "examples/**/*.json",
+            "examples/**/*.csv",
+            "examples/**/*.jsonl",
+        ]:
+            self.assertIn(pattern, package_data)
+
 
 if __name__ == "__main__":
     unittest.main()

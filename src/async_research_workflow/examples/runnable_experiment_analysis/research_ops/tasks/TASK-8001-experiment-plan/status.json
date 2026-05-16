@@ -1,0 +1,72 @@
+{
+  "allow_browsing": false,
+  "allow_code_execution": false,
+  "allow_network": false,
+  "allowed_paths": [
+    "research_ops/tasks/TASK-8001-*/**"
+  ],
+  "allowed_tools": [
+    "read_files",
+    "write_task_files"
+  ],
+  "budget": {
+    "max_api_usd": 1.0,
+    "max_compute_usd": 2.0
+  },
+  "created_at": "2026-05-09T00:00:00Z",
+  "data_audit_refs": [
+    "DS-0001"
+  ],
+  "framework_versions": {
+    "accepted_outputs_index": "accepted_outputs_index_v1.0",
+    "data_source_audit": "data_source_audit_v1.0",
+    "escalation_policy": "escalation_policy_v1.0",
+    "experimentation": "experimentation_v1.0",
+    "exploration": "exploration_v1.0",
+    "idea_evaluation": "idea_evaluation_v1.0",
+    "mission_scoring": "mission_scoring_v1.0",
+    "result_acceptance": "result_acceptance_v1.0",
+    "review_aggregation": "review_aggregation_v1.0",
+    "schema_versioning": "schema_versioning_v1.0"
+  },
+  "id": "TASK-8001",
+  "last_transition_reason": "runnable_example_fixture",
+  "max_minutes": 30,
+  "max_revisions": 1,
+  "max_turns": 1,
+  "model_tier": "low",
+  "previous_status": "ready_for_planning",
+  "priority": 3,
+  "prompt_versions": {
+    "discovery_scout": "discovery_scout_v1.0",
+    "health_monitor": "health_monitor_v1.0",
+    "methodology_reviewer": "methodology_reviewer_v1.0",
+    "planner": "planner_v1.0",
+    "primary_reviewer": "primary_reviewer_v1.0",
+    "review_aggregator": "review_aggregator_v1.0",
+    "skeptic_reviewer": "skeptic_reviewer_v1.0",
+    "weekly_synthesizer": "weekly_synthesizer_v1.0",
+    "worker": "worker_v1.0"
+  },
+  "requires_human": false,
+  "result": {
+    "claim_strength": "none",
+    "followup_count": 0,
+    "recommendation": null
+  },
+  "review_policy": {
+    "human_required_for_acceptance": false,
+    "panel_required": false,
+    "required_reviewers": [
+      "primary"
+    ],
+    "tier": 1
+  },
+  "revision_count": 0,
+  "revision_limit_hit": false,
+  "schema_version": "1.0",
+  "status": "accepted",
+  "title": "Runnable example experiment plan",
+  "type": "experiment_plan",
+  "updated_at": "2026-05-09T00:00:00Z"
+}

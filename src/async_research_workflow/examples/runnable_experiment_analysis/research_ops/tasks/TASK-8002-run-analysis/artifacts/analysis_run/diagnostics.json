@@ -1,0 +1,86 @@
+{
+  "calibration_checks": [
+    {
+      "applicable": false,
+      "evidence": "This run does not make a probability or calibrated-risk claim.",
+      "metric_name": "none",
+      "name": "Probability calibration",
+      "status": "not_applicable",
+      "value": "not applicable"
+    }
+  ],
+  "experiment_plan_id": "EXP-8001",
+  "framework_version": "analysis_diagnostics_v1.0",
+  "generated_at": "2026-05-09T10:35:00Z",
+  "join_quality_checks": [
+    {
+      "applicable": true,
+      "duplicate_key_rate": 0.0,
+      "evidence": "Join audit found low unmatched records and no duplicate keys.",
+      "join_keys": [
+        "entity_id",
+        "effective_month"
+      ],
+      "left_source_id": "DS-0001",
+      "name": "Feature-to-outcome join",
+      "right_source_id": "DS-0001",
+      "status": "pass",
+      "unmatched_rate": 0.02
+    }
+  ],
+  "leakage_checks": [
+    {
+      "evidence": "All features are timestamped before the prediction date.",
+      "leakage_type": "future information",
+      "name": "Point-in-time feature availability",
+      "planned_check_ref": "experiment_plan.leakage_checklist.feature_availability_before_prediction_date",
+      "reviewer_action_required": false,
+      "status": "pass"
+    }
+  ],
+  "limitations": [
+    {
+      "claim_boundary": "Supports workflow validation only, not a domain claim.",
+      "impact": "medium",
+      "limitation": "Diagnostics are illustrative until replaced by project-owned analysis output.",
+      "mitigation": "Replace with real project diagnostics before result acceptance."
+    }
+  ],
+  "missingness_checks": [
+    {
+      "affected_fields": [
+        "target_outcome"
+      ],
+      "evidence": "Validation split target missingness is below the accepted threshold.",
+      "missing_rate": 0.01,
+      "name": "Outcome missingness",
+      "scope": "validation split",
+      "status": "pass",
+      "threshold": 0.05
+    }
+  ],
+  "run_id": "RUN-8002",
+  "schema_version": "1.0",
+  "segment_diagnostics": [
+    {
+      "metric_name": "MAE",
+      "metric_value": 9.7,
+      "notes": "No segment-specific degradation detected in the fixture output.",
+      "sample_size": 1250,
+      "segment_name": "geography_group",
+      "segment_value": "all",
+      "status": "pass"
+    }
+  ],
+  "task_id": "TASK-8002",
+  "uncertainty_checks": [
+    {
+      "applicable": false,
+      "evidence": "This run does not make an uncertainty interval claim.",
+      "metric_name": "none",
+      "name": "Uncertainty interval coverage",
+      "status": "not_applicable",
+      "value": "not applicable"
+    }
+  ]
+}

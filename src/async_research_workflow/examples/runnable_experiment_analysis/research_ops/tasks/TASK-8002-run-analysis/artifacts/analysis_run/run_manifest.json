@@ -1,0 +1,95 @@
+{
+  "accepted_plan_path": "research_ops/tasks/TASK-8001-experiment-plan/worker_output.md",
+  "accepted_plan_result_acceptance_path": "research_ops/tasks/TASK-8001-experiment-plan/review_panel/result_acceptance.json",
+  "accepted_plan_task_id": "TASK-8001",
+  "analysis_config_path": "none",
+  "baseline_refs": [
+    {
+      "expected_output_path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
+      "name": "local median",
+      "planned_baseline_ref": "experiment_plan.baselines[0]"
+    }
+  ],
+  "candidate_method": {
+    "name": "fixture regression",
+    "planned_method_ref": "experiment_plan.candidate_methods[0]"
+  },
+  "code_version": {
+    "dirty": false,
+    "type": "git",
+    "value": "fixture"
+  },
+  "completed_at": "2026-05-09T00:00:00Z",
+  "cost": {
+    "api_usd": 0.0,
+    "compute_usd": 0.1,
+    "total_usd": 0.1
+  },
+  "data_versions": [
+    {
+      "accessed_at": "2026-05-09T00:00:00Z",
+      "artifact_path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/source_snapshot.json",
+      "role": "outcome",
+      "source_id": "DS-0001",
+      "version": "fixture"
+    }
+  ],
+  "deviations_from_plan": [],
+  "experiment_plan_id": "EXP-8001",
+  "framework_version": "analysis_run_v1.0",
+  "manifest_created_at": "2026-05-09T00:00:00Z",
+  "method_family": "regression",
+  "output_paths": [
+    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
+    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/metrics.json",
+    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/diagnostics.json",
+    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/robustness_checks.json"
+  ],
+  "planned_outputs": [
+    {
+      "name": "baseline metrics",
+      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
+      "required_for_acceptance": true
+    },
+    {
+      "name": "candidate metrics",
+      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/metrics.json",
+      "required_for_acceptance": true
+    },
+    {
+      "name": "diagnostics",
+      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/diagnostics.json",
+      "required_for_acceptance": true
+    },
+    {
+      "name": "robustness checks",
+      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/robustness_checks.json",
+      "required_for_acceptance": true
+    }
+  ],
+  "primary_metric": {
+    "direction": "decrease",
+    "name": "MAE lower is better",
+    "planned_metric_ref": "experiment_plan.metrics.primary_metric"
+  },
+  "reproducibility": {
+    "determinism_notes": "deterministic fixture",
+    "environment": "test",
+    "random_seed": "none",
+    "rerun_command": "manual fixture",
+    "rerun_possible": true
+  },
+  "run_id": "RUN-8002",
+  "run_status": "completed",
+  "runner": {
+    "entrypoint": "manual fixture",
+    "execution_environment": "test",
+    "parameters_ref": "none",
+    "type": "manual"
+  },
+  "runtime_minutes": 10,
+  "schema_version": "1.0",
+  "started_at": "2026-05-09T00:00:00Z",
+  "task_id": "TASK-8002",
+  "task_type": "run_analysis"
+}

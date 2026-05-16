@@ -1,0 +1,79 @@
+{
+  "accepted_memory": {
+    "claim_type": "methodology_note",
+    "freshness_window_days": "manual_review",
+    "next_recheck_date": "manual_review",
+    "revalidation_status": "manual_review",
+    "superseded_by": "none",
+    "supersedes": "none"
+  },
+  "analysis_run": null,
+  "claim_strength": "none",
+  "claim_strength_policy": "fixture methodology note",
+  "evaluated_at": "2026-05-09T00:00:00Z",
+  "evidence_ledger": {
+    "evidence_link": "research_ops/tasks/TASK-8001-experiment-plan/worker_output.md",
+    "ledger_path": "research_ops/evidence_ledger.md",
+    "logged": false,
+    "required": false
+  },
+  "followups": [],
+  "framework_version": "result_acceptance_v1.0",
+  "hard_gate_results": [
+    {
+      "gate": "fixture",
+      "passed": true,
+      "reason": "accepted"
+    }
+  ],
+  "human_gate": {
+    "reason": "fixture",
+    "required": false,
+    "satisfied": true
+  },
+  "max_claim_strength": "none",
+  "recommended_decision": "ready",
+  "rejection_logging": {
+    "log_path": "research_ops/rejected_results.md",
+    "logged": false,
+    "required": false
+  },
+  "review_notes": [
+    "fixture accepted plan"
+  ],
+  "reviewer_panel": {
+    "aggregate_decision": "accepted",
+    "aggregate_present": true,
+    "disagreement_present": false,
+    "required_reviewers": [
+      "primary"
+    ],
+    "reviewer_count": 1,
+    "tier": 1
+  },
+  "route": "accept_as_evidence",
+  "schema_version": "1.0",
+  "scorecard": {
+    "baseline_comparison": 5,
+    "claim_discipline": 5,
+    "decision_usefulness": 5,
+    "leakage_safety": 5,
+    "limitation_honesty": 5,
+    "metric_validity": 5,
+    "plan_compliance": 5,
+    "reproducibility": 5,
+    "robustness_strength": 5,
+    "validation_strength": 5
+  },
+  "source_governance": {
+    "blocked": [],
+    "ok": true,
+    "required": true,
+    "source_ids": [
+      "DS-0001"
+    ],
+    "warnings": []
+  },
+  "task_id": "TASK-8001",
+  "task_type": "experiment_plan"
+}

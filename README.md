@@ -542,6 +542,7 @@ clean environment, and reruns installed CLI smokes.
 - [Operational readiness runbook](src/async_research_workflow/docs/operational_readiness_runbook.md)
 - [Generic starter README](src/async_research_workflow/templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example README](src/async_research_workflow/templates/research_ops_starter/research_ops/README.md)
+- [Runnable experiment and analysis example](src/async_research_workflow/examples/runnable_experiment_analysis/README.md)
 - [Roadmaps](roadmaps/README.md)
 - [Release checklist](RELEASE_CHECKLIST.md)
 

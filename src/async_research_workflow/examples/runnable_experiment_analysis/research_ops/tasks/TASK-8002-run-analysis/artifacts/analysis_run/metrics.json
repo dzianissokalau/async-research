@@ -1,0 +1,89 @@
+{
+  "baseline_comparisons": [
+    {
+      "baseline_name": "Local median baseline",
+      "baseline_value": 10.4,
+      "candidate_name": "Fixture feature backtest",
+      "candidate_value": 9.7,
+      "comparison_direction": "candidate_lower_better",
+      "delta": -0.7,
+      "metric_name": "MAE",
+      "notes": "Candidate improves validation MAE versus the planned baseline.",
+      "passed": true,
+      "planned_baseline_ref": "experiment_plan.baselines[0]"
+    }
+  ],
+  "baseline_metrics": [
+    {
+      "direction": "decrease",
+      "metric_name": "MAE",
+      "notes": "Naive local median baseline.",
+      "planned_metric_ref": "experiment_plan.metrics.primary_metric",
+      "role": "baseline",
+      "segment": "all",
+      "source": "analysis output table",
+      "split": "validation",
+      "unit": "target units",
+      "value": 10.4
+    }
+  ],
+  "candidate_metrics": [
+    {
+      "direction": "decrease",
+      "metric_name": "MAE",
+      "notes": "Candidate method from the accepted plan.",
+      "planned_metric_ref": "experiment_plan.metrics.primary_metric",
+      "role": "candidate",
+      "segment": "all",
+      "source": "analysis output table",
+      "split": "validation",
+      "unit": "target units",
+      "value": 9.7
+    }
+  ],
+  "experiment_plan_id": "EXP-8001",
+  "framework_version": "analysis_metrics_v1.0",
+  "generated_at": "2026-05-09T10:30:00Z",
+  "limitations": [
+    {
+      "claim_boundary": "Supports workflow validation only, not a domain claim.",
+      "impact": "medium",
+      "limitation": "Fixture values are illustrative until replaced by project-owned analysis output.",
+      "mitigation": "Replace with real project metrics before result acceptance."
+    }
+  ],
+  "metric_rows": [],
+  "primary_metric_name": "MAE lower is better",
+  "run_id": "RUN-8002",
+  "schema_version": "1.0",
+  "task_id": "TASK-8002",
+  "validation_metrics": [
+    {
+      "direction": "decrease",
+      "metric_name": "MAE",
+      "notes": "Primary validation split metric used for result acceptance.",
+      "planned_metric_ref": "experiment_plan.metrics.primary_metric",
+      "role": "validation",
+      "segment": "all",
+      "source": "analysis output table",
+      "split": "validation",
+      "unit": "target units",
+      "value": 9.7
+    }
+  ],
+  "validation_splits": [
+    {
+      "geography_scope": "accepted plan geography",
+      "metric_refs": [
+        "baseline_metrics[0]",
+        "candidate_metrics[0]",
+        "validation_metrics[0]"
+      ],
+      "notes": "Split follows the accepted experiment plan.",
+      "sample_size": 1250,
+      "split_name": "2025 holdout",
+      "split_role": "validation",
+      "time_window": "2025-01 through 2025-12"
+    }
+  ]
+}
