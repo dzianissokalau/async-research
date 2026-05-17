@@ -34,6 +34,14 @@ STATIC_FILES = {
     "/styles.css": "styles.css",
     "/app.js": "app.js",
 }
+ARTIFACT_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": (
+        "sandbox allow-downloads; default-src 'none'; style-src 'unsafe-inline'; "
+        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    ),
+    "X-Frame-Options": "DENY",
+}
 
 
 class ConsoleServer(ThreadingHTTPServer):
@@ -59,6 +67,18 @@ def content_type(name: str) -> str:
     return "application/octet-stream"
 
 
+def artifact_content_type(path: Path, *, raw: bool, download: bool) -> str:
+    if download:
+        return "application/octet-stream"
+    if is_markdown_path(path):
+        return content_type(path.name) if raw else "text/html; charset=utf-8"
+    return "application/octet-stream"
+
+
+def security_headers_for_path(path: str) -> dict[str, str]:
+    return ARTIFACT_SECURITY_HEADERS if urlparse(path).path.startswith(ARTIFACT_ROUTE_PREFIX) else {}
+
+
 def response_for_artifact(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
     parsed = urlparse(path)
     route_path = parsed.path.removeprefix(ARTIFACT_ROUTE_PREFIX)
@@ -74,11 +94,11 @@ def response_for_artifact(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, by
     raw = "raw" in query or download
     try:
         if raw:
-            media_type = "application/octet-stream" if download else content_type(artifact_path.name)
+            media_type = artifact_content_type(artifact_path, raw=True, download=download)
             return HTTPStatus.OK, media_type, artifact_path.read_bytes()
         if is_markdown_path(artifact_path):
-            return HTTPStatus.OK, "text/html; charset=utf-8", artifact_view_html(artifact_path, ops_dir).encode("utf-8")
-        return HTTPStatus.OK, content_type(artifact_path.name), artifact_path.read_bytes()
+            return HTTPStatus.OK, artifact_content_type(artifact_path, raw=False, download=False), artifact_view_html(artifact_path, ops_dir).encode("utf-8")
+        return HTTPStatus.OK, artifact_content_type(artifact_path, raw=False, download=False), artifact_path.read_bytes()
     except OSError as exc:
         payload = {
             "reason": "artifact_unreadable",
@@ -268,11 +288,13 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
         def log_message(self, format: str, *args: Any) -> None:
             return
 
-        def send_bytes(self, status: HTTPStatus, body: bytes, media_type: str) -> None:
+        def send_bytes(self, status: HTTPStatus, body: bytes, media_type: str, headers: dict[str, str] | None = None) -> None:
             self.send_response(status.value)
             self.send_header("Content-Type", media_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -285,7 +307,7 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:
             status, media_type, body = response_for_get(self.path, self.server.ops_dir)
-            self.send_bytes(status, body, media_type)
+            self.send_bytes(status, body, media_type, security_headers_for_path(self.path))
 
         def do_POST(self) -> None:
             if urlparse(self.path).path != "/api/actions/run":

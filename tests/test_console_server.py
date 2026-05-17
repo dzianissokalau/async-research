@@ -113,6 +113,9 @@ class ConsoleServerTests(unittest.TestCase):
                     body = response.read()
                     self.assertEqual(HTTPStatus.OK, response.status)
                     self.assertIn("text/html", response.headers["Content-Type"])
+                    self.assertEqual("nosniff", response.headers["X-Content-Type-Options"])
+                    self.assertIn("default-src 'none'", response.headers["Content-Security-Policy"])
+                    self.assertIn("sandbox", response.headers["Content-Security-Policy"])
                     self.assertIn(b"<h1>Data readiness</h1>", body)
             finally:
                 httpd.shutdown()
@@ -187,6 +190,34 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertEqual(HTTPStatus.OK, status)
             self.assertEqual("application/octet-stream", media_type)
             self.assertEqual(output.read_bytes(), body)
+
+    def test_task_artifact_html_and_svg_are_served_as_inert_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            artifacts_dir = ops_dir / "tasks" / "TASK-0002-generated" / "artifacts" / "nested"
+            artifacts_dir.mkdir(parents=True)
+            html_report = artifacts_dir / "report.html"
+            html_report.write_text("<script>fetch('/api/actions/run')</script>\n", encoding="utf-8")
+            svg_chart = artifacts_dir / "chart.svg"
+            svg_chart.write_text("<svg><script>fetch('/api/snapshot')</script></svg>\n", encoding="utf-8")
+
+            routes = [
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.html",
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.html?raw=1",
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/chart.svg",
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/chart.svg?raw=1",
+            ]
+            for route in routes:
+                with self.subTest(route=route):
+                    status, media_type, body = server.response_for_get(route, ops_dir)
+                    headers = server.security_headers_for_path(route)
+                    self.assertEqual(HTTPStatus.OK, status)
+                    self.assertEqual("application/octet-stream", media_type)
+                    self.assertNotIn("text/html", media_type)
+                    self.assertNotIn("image/svg+xml", media_type)
+                    self.assertEqual("nosniff", headers["X-Content-Type-Options"])
+                    self.assertIn("default-src 'none'", headers["Content-Security-Policy"])
+                    self.assertIn(b"<script>", body)
 
     def test_artifact_viewer_handles_spaces_missing_files_and_rejects_escape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

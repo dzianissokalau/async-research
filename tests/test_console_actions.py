@@ -815,6 +815,45 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertEqual("task_outside_workspace", result["reason"])
             self.assertNotIn("Escaping paths fail closed", (ops_dir / "decisions.md").read_text(encoding="utf-8"))
 
+    def test_decision_actions_accept_research_ops_prefix_for_custom_workspace_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "my_research_workspace"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(
+                ops_dir,
+                task_id="TASK-2602",
+                status="needs_human",
+                available_decisions=["approve_data_use", "pause", "reject"],
+            )
+            renamed_task_dir = task_dir.with_name("TASK-2602-data-readiness")
+            task_dir.rename(renamed_task_dir)
+
+            status, result = actions.run_action(
+                "decision_add_note",
+                ops_dir,
+                {
+                    "task_dir": "research_ops/tasks/TASK-2602-data-readiness",
+                    "reason": "Custom workspace path normalization check",
+                    "approver": "test-owner",
+                    "date": "2026-05-12T00:00:00Z",
+                    "confirm": actions.decision_confirmation_token("decision_add_note"),
+                },
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(str(renamed_task_dir.resolve()), result["task_dir"])
+            self.assertNotIn("my_research_workspace/tasks/research_ops/tasks", result["command"])
+            self.assertTrue(result["decision_audit"]["validated"])
+
     def test_coffee_project_relative_resume_path_resolves_human_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"

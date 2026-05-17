@@ -663,11 +663,12 @@ def normalized_task_candidate_paths(ops_dir: Path, ref: str) -> list[Path]:
         candidates.append(raw)
     else:
         parts = raw.parts
-        if parts and parts[0] == resolved_ops.name:
-            candidates.append(resolved_ops.parent.joinpath(*parts))
+        project_root_prefixes = {resolved_ops.name, "research_ops"}
+        if parts and parts[0] in project_root_prefixes:
+            candidates.append(resolved_ops.joinpath(*parts[1:]))
         if parts and parts[0] == "tasks":
             candidates.append(resolved_ops.joinpath(*parts))
-        if parts and parts[0] not in {resolved_ops.name, "tasks"}:
+        if parts and parts[0] not in project_root_prefixes | {"tasks"}:
             candidates.append(tasks_root / raw)
             candidates.append(resolved_ops / raw)
         if not parts:

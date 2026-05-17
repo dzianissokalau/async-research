@@ -413,6 +413,78 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(["DS-0002"], payload["source_refs_by_intent"]["rejected_source"])
             self.assertEqual("rejected_source", payload["non_evidence_source_decisions"][0]["intent"])
 
+    def test_source_check_claim_treats_casual_prose_refs_as_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            cases = [
+                "Background context: DS-0001 confirms the country concentration claim.\n",
+                "In the context of coffee markets, DS-0001 provides the price data.\n",
+                "Per DS-0001 (a rejected legacy approach was replaced), current data supports the claim.\n",
+            ]
+            for index, text in enumerate(cases, start=1):
+                with self.subTest(text=text):
+                    artifact = ops_dir / "tasks" / f"TASK-3010-prose-{index}" / "worker_output.md"
+                    artifact.parent.mkdir(parents=True)
+                    artifact.write_text(text, encoding="utf-8")
+
+                    code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+                    self.assertEqual(cli.SUCCESS, code, payload)
+                    self.assertTrue(payload["ok"])
+                    self.assertEqual(["DS-0001"], payload["gated_source_refs"])
+                    self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["used_as_evidence"])
+                    self.assertEqual([], payload["non_evidence_source_decisions"])
+
+    def test_explicit_source_intent_table_can_mark_non_evidence_without_prose_downgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            artifact = ops_dir / "tasks" / "TASK-3011-context-only" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\n".join(
+                    [
+                        "| source_id | source_use_intent | note |",
+                        "| --- | --- | --- |",
+                        "| DS-0001 | context_only | background context, not accepted evidence |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual([], payload["gated_source_refs"])
+            self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["context_only"])
+
+    def test_later_evidence_reference_upgrades_weaker_prior_source_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            artifact = ops_dir / "tasks" / "TASK-3012-upgrade-intent" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\n".join(
+                    [
+                        "source_use_intent: context_only for DS-0001 as background.",
+                        "DS-0001 underpins the accepted memo recommendation.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(["DS-0001"], payload["gated_source_refs"])
+            self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["used_as_evidence"])
+
     def test_metrics_summarize_outputs_json_and_optional_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -988,6 +1060,23 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(2, code, payload)
             self.assertEqual("source_register_locked", payload["reason"])
             self.assertIn("retry source upsert", payload["next_step"])
+
+    def test_source_init_force_reports_fresh_register_lock_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            write_source_audit(ops_dir)
+            before = (ops_dir / "data_source_audit.md").read_text(encoding="utf-8")
+            lock = data_source_audit.acquire_source_register_lock(ops_dir, "test hold source register")
+            try:
+                code, payload = run_cli_json(["source", "init", ops_dir, "--force"])
+            finally:
+                data_source_audit.release_source_register_lock(lock)
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("source_register_locked", payload["reason"])
+            self.assertIn("retry source upsert", payload["next_step"])
+            self.assertEqual(before, (ops_dir / "data_source_audit.md").read_text(encoding="utf-8"))
 
     def test_batch_lifecycle_commands_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

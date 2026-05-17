@@ -55,6 +55,10 @@ SOURCE_INTENT_PRIORITY = {
 }
 SOURCE_ID_COLUMNS = {"source_id", "source_ids", "data_source_id", "data_source_ids", "source", "sources"}
 SOURCE_INTENT_COLUMNS = {"source_use_intent", "use_intent", "intent", "source_intent", "role", "source_role"}
+INLINE_SOURCE_INTENT_LABEL_PATTERN = re.compile(
+    r"\b(?:source[\s_-]*use[\s_-]*intent|source[\s_-]*intent|use[\s_-]*intent|source[\s_-]*role)\s*[:=]\s*"
+    r"([a-zA-Z0-9 _-]+)"
+)
 SOURCE_TIERS = {
     "tier_1_official",
     "tier_2_institutional",
@@ -534,11 +538,12 @@ def normalize_source_intent(value: Any) -> str | None:
 
 
 def source_intent_from_line(line: str) -> str | None:
-    normalized = re.sub(r"[^a-z0-9]+", "_", line.lower()).strip("_")
-    for preferred in ("rejected_source", "restricted_optional", "context_only", "used_as_evidence"):
-        for token, intent in SOURCE_INTENT_ALIASES.items():
-            if intent == preferred and re.search(rf"(?:^|_){re.escape(token)}(?:_|$)", normalized):
-                return intent
+    for match in INLINE_SOURCE_INTENT_LABEL_PATTERN.finditer(line):
+        normalized = re.sub(r"[^a-z0-9]+", "_", match.group(1).lower()).strip("_")
+        for preferred in ("rejected_source", "restricted_optional", "context_only", "used_as_evidence"):
+            for token, intent in SOURCE_INTENT_ALIASES.items():
+                if intent == preferred and re.search(rf"(?:^|_){re.escape(token)}(?:_|$)", normalized):
+                    return intent
     return None
 
 
@@ -550,6 +555,11 @@ def prefer_source_intent(current: str | None, candidate: str | None) -> str:
     if SOURCE_INTENT_PRIORITY[candidate] > SOURCE_INTENT_PRIORITY[current]:
         return candidate
     return current
+
+
+def is_markdown_table_line(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("|") and stripped.endswith("|")
 
 
 def table_source_intents(lines: list[str]) -> dict[str, str]:
@@ -590,10 +600,10 @@ def extract_source_refs_with_intent(path: Path) -> dict[str, Any]:
         refs = SOURCE_REF_PATTERN.findall(line)
         if not refs:
             continue
+        if is_markdown_table_line(line):
+            continue
         intent = source_intent_from_line(line)
         for ref in refs:
-            if ref in intents:
-                continue
             intents[ref] = prefer_source_intent(intents.get(ref), intent)
     for ref in SOURCE_REF_PATTERN.findall(text):
         intents.setdefault(ref, "used_as_evidence")
@@ -952,9 +962,17 @@ def cmd_init(args: argparse.Namespace) -> int:
     if path.exists() and not args.force:
         print_json({"ok": True, "action": "exists", "path": str(path)})
         return SUCCESS
-    atomic_write_text(path, empty_register_text())
-    print_json({"ok": True, "action": "initialized", "path": str(path)})
-    return SUCCESS
+    lock: dict[str, Any] | None = None
+    try:
+        lock = acquire_source_register_lock(args.ops_dir, "source init")
+        atomic_write_text(path, empty_register_text())
+        print_json({"ok": True, "action": "initialized", "path": str(path), "lock": lock})
+        return SUCCESS
+    except SourceRegisterLockError as exc:
+        print_json(exc.payload)
+        return VALIDATION_FAILED
+    finally:
+        release_source_register_lock(lock)
 
 
 def cmd_upsert(args: argparse.Namespace) -> int:

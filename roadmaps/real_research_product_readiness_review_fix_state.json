@@ -1,0 +1,47 @@
+{
+  "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
+  "review": "/Users/dzianissokalau/Downloads/async-research-phase-0-5-independent-review.md",
+  "roadmap_slug": "real-research-product-readiness",
+  "fix_scope": "independent_review_phase_0_5_findings",
+  "base_branch": "codex/real-research-product-readiness-review",
+  "branch": "codex/real-research-product-readiness-review-fixes",
+  "status": "delivered",
+  "review_iterations": 1,
+  "max_review_iterations": 3,
+  "last_verification": {
+    "completed_at": "2026-05-17T19:14:16Z",
+    "commands": [
+      {
+        "command": ".venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_cli_audit_surface",
+        "status": "passed",
+        "summary": "Ran 77 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_doc_references",
+        "status": "passed",
+        "summary": "Ran 12 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest discover -s tests",
+        "status": "passed",
+        "summary": "Ran 638 tests"
+      },
+      {
+        "command": ".venv/bin/async-research acceptance-suite",
+        "status": "passed",
+        "summary": "14 acceptance checks"
+      }
+    ]
+  },
+  "last_review": {
+    "completed_at": "2026-05-17T19:15:17Z",
+    "path": "roadmaps/reviews/real-research-product-readiness-review-fixes-review-iteration-1.md",
+    "verdict": "delivered"
+  },
+  "blocked_reason": null,
+  "commit_delivered_fix_locally": true,
+  "push_to_github": false,
+  "execution_environment": "local",
+  "cadence": "hourly",
+  "updated_at": "2026-05-17T19:15:17Z"
+}
