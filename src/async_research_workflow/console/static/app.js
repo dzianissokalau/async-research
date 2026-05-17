@@ -1261,6 +1261,136 @@ function closeDecisionModal() {
   modal.setAttribute("aria-hidden", "true");
 }
 
+function lifecycleStatusClass(station) {
+  if (!station) {
+    return "badge neutral";
+  }
+  if (station.status === "complete") {
+    return "badge good";
+  }
+  if (station.status === "blocked") {
+    return "badge bad";
+  }
+  if (station.status === "active" || station.status === "queued") {
+    return "badge warn";
+  }
+  return "badge neutral";
+}
+
+function lifecycleCommandNode(command) {
+  const node = document.createElement("code");
+  node.className = "action-command lifecycle-command";
+  node.textContent = valueOrUnavailable((command || {}).command);
+  return node;
+}
+
+function lifecycleAcceptedOutputs(outputs) {
+  const list = document.createElement("div");
+  list.className = "lifecycle-output-list";
+  if (!outputs || outputs.length === 0) {
+    list.append(empty("No accepted outputs linked to this station."));
+    return list;
+  }
+  for (const output of outputs) {
+    const row = document.createElement("div");
+    row.className = "record-row";
+    const title = document.createElement("div");
+    title.className = "record-title";
+    title.textContent = `${valueOrUnavailable(output.task_id)} - ${valueOrUnavailable(output.title)}`;
+    const meta = document.createElement("div");
+    meta.className = "record-meta";
+    meta.textContent = `${statusLabel(output.status)} / ${valueOrUnavailable(output.claim_strength)} / ${valueOrUnavailable(output.accepted_date)}`;
+    row.append(title, meta);
+    const links = (output.links || []).filter((file) => file && file.exists && artifactHref(file));
+    if (links.length) {
+      const files = document.createElement("div");
+      files.className = "file-list";
+      links.slice(0, 3).forEach((file) => files.append(detailPathLink(file)));
+      row.append(files);
+    }
+    list.append(row);
+  }
+  return list;
+}
+
+function lifecycleBlockers(blockers) {
+  const list = document.createElement("div");
+  list.className = "lifecycle-blockers";
+  if (!blockers || blockers.length === 0) {
+    return list;
+  }
+  for (const blocker of blockers) {
+    list.append(record(
+      `${valueOrUnavailable(blocker.task_id || blocker.source_id || blocker.status)} - ${valueOrUnavailable(blocker.reason)}`,
+      valueOrUnavailable(blocker.task_dir || blocker.path)
+    ));
+  }
+  return list;
+}
+
+function lifecycleStationCard(station, index) {
+  const card = document.createElement("article");
+  card.className = `lifecycle-station lifecycle-${station.status || "unknown"}`;
+  const marker = document.createElement("div");
+  marker.className = "lifecycle-marker";
+  marker.textContent = String(index + 1);
+
+  const body = document.createElement("div");
+  body.className = "lifecycle-body";
+  const heading = document.createElement("div");
+  heading.className = "lifecycle-heading";
+  const title = document.createElement("div");
+  title.className = "record-title";
+  title.textContent = valueOrUnavailable(station.label);
+  const badge = document.createElement("span");
+  badge.className = lifecycleStatusClass(station);
+  badge.textContent = statusLabel(station.status);
+  heading.append(title, badge);
+
+  const objective = document.createElement("div");
+  objective.className = "record-meta";
+  objective.textContent = valueOrUnavailable(station.objective);
+
+  const fields = document.createElement("div");
+  fields.className = "lifecycle-fields";
+  fields.replaceChildren(
+    detailField("Owner / Runner", station.owner_runner),
+    detailField("Current Task", station.active_task ? `${valueOrUnavailable(station.active_task.task_id)} / ${statusLabel(station.active_task.status)}` : "none"),
+    detailField("Next", station.next_recommended_task),
+    detailField("Summary", station.summary)
+  );
+
+  const files = document.createElement("div");
+  files.className = "file-list";
+  for (const file of ((station.active_task || {}).files || [])) {
+    files.append(detailPathLink(file));
+  }
+  for (const file of station.artifact_links || []) {
+    files.append(detailPathLink(file));
+  }
+
+  body.append(heading, objective, fields, lifecycleCommandNode(station.next_command), lifecycleBlockers(station.blockers), files, lifecycleAcceptedOutputs(station.accepted_outputs));
+  card.append(marker, body);
+  return card;
+}
+
+function renderLifecycle(snapshot) {
+  const lifecycle = snapshot.lifecycle || {};
+  const stations = lifecycle.stations || [];
+  el("lifecycle-current").textContent = lifecycle.current_station_label
+    ? `Current: ${lifecycle.current_station_label}`
+    : "Unavailable";
+  el("lifecycle-summary").replaceChildren(
+    metric("Stations", asNumber(lifecycle.station_count), `${asNumber(lifecycle.completed_count)} complete`),
+    metric("Active / Blocked", asNumber(lifecycle.active_count), `missing ${asNumber(lifecycle.missing_count)}`),
+    metric("Accepted Outputs", asNumber(lifecycle.accepted_output_count), "linked into lifecycle stations"),
+    metric("Next Action", valueOrUnavailable(lifecycle.current_station_label), valueOrUnavailable(lifecycle.next_action))
+  );
+  el("lifecycle-map").replaceChildren(
+    ...(stations.length ? stations.map(lifecycleStationCard) : [empty("Lifecycle is unavailable until the workspace is initialized.")])
+  );
+}
+
 function foundationCard(name, group, countKeys) {
   const card = document.createElement("article");
   card.className = "foundation-card";
@@ -1506,6 +1636,7 @@ function render(snapshot, actionsCatalog) {
   el("workspace-path").textContent = snapshot.ops_dir || "research_ops";
   setBadge(snapshot.readiness);
   renderMetrics(snapshot);
+  renderLifecycle(snapshot);
   renderSetup(snapshot, actionsCatalog);
   renderTasks(snapshot);
   renderDecisions(snapshot);

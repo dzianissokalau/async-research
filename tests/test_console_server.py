@@ -202,6 +202,11 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertIn("text/html", media_type)
             self.assertIn(b"<h1>Idea note</h1>", body)
 
+            status, media_type, body = server.response_for_get("/artifacts/discovery_inbox.md", ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIn("text/html", media_type)
+            self.assertIn(b"Discovery Inbox", body)
+
             status, _media_type, body = server.response_for_get("/artifacts/ideas/missing.md", ops_dir)
             self.assertEqual(HTTPStatus.NOT_FOUND, status)
             self.assertIn(b"artifact_missing", body)

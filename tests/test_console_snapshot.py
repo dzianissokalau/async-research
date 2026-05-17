@@ -33,9 +33,24 @@ SNAPSHOT_GROUPS = {
     "data",
     "library",
     "analysis",
+    "lifecycle",
     "runs",
     "warnings",
 }
+
+
+def previous_status_for(status: str) -> str | None:
+    return {
+        "in_progress": "ready_for_worker",
+        "awaiting_review": "in_progress",
+        "single_review": "awaiting_review",
+        "panel_review": "awaiting_review",
+        "accepted": "panel_review",
+        "synthesized": "accepted",
+        "rejected": "panel_review",
+        "needs_human": "ready_for_worker",
+        "paused": "needs_human",
+    }.get(status)
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -54,7 +69,14 @@ def file_snapshot(root: Path) -> dict[str, bytes]:
     }
 
 
-def write_task_status(ops_dir: Path, task_id: str, status: str = "ready_for_worker", requires_human: bool = False) -> Path:
+def write_task_status(
+    ops_dir: Path,
+    task_id: str,
+    status: str = "ready_for_worker",
+    requires_human: bool = False,
+    task_type: str = "admin",
+    title: str | None = None,
+) -> Path:
     task_dir = ops_dir / "tasks" / f"{task_id}-fixture"
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "status.json").write_text(
@@ -62,10 +84,10 @@ def write_task_status(ops_dir: Path, task_id: str, status: str = "ready_for_work
             {
                 "schema_version": "1.0",
                 "id": task_id,
-                "title": f"{task_id} fixture",
-                "type": "admin",
+                "title": title or f"{task_id} fixture",
+                "type": task_type,
                 "status": status,
-                "previous_status": "ready_for_worker" if status == "needs_human" else None,
+                "previous_status": previous_status_for(status),
                 "last_transition_reason": "fixture",
                 "priority": 2,
                 "revision_count": 0,
@@ -122,6 +144,15 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertFalse(payload["schedules"]["available"])
             self.assertEqual("unavailable", payload["schedules"]["status"])
             self.assertIn("month_spend_usd", payload["cost"])
+            lifecycle = payload["lifecycle"]
+            self.assertEqual("available", lifecycle["status"])
+            self.assertEqual(10, lifecycle["station_count"])
+            self.assertEqual("topic", lifecycle["current_station_id"])
+            self.assertEqual(0, lifecycle["accepted_output_count"])
+            by_station = {station["id"]: station for station in lifecycle["stations"]}
+            self.assertEqual("Discovery Inbox", by_station["discovery"]["label"])
+            discovery_links = {link["label"]: link for link in by_station["discovery"]["artifact_links"]}
+            self.assertTrue(discovery_links["Discovery inbox"]["viewer_allowed"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
     def test_snapshot_surfaces_malformed_task_status_as_warning(self) -> None:
@@ -383,6 +414,61 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertIn("monthly_budget_pressure", reasons)
             self.assertIn("weekly_budget_pressure", reasons)
 
+    def test_lifecycle_maps_coffee_pilot_style_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            data_task = write_task_status(
+                ops_dir,
+                "TASK-0001",
+                "accepted",
+                task_type="data_readiness",
+                title="Coffee country concentration data readiness",
+            )
+            analysis_task = write_task_status(
+                ops_dir,
+                "TASK-0005",
+                "in_progress",
+                task_type="run_analysis",
+                title="Coffee climate exposure overlay analysis",
+            )
+            write_task_status(
+                ops_dir,
+                "TASK-0006",
+                "ready_for_worker",
+                task_type="memo_section",
+                title="Coffee volatility synthesis memo",
+            )
+            (data_task / "worker_output.md").write_text("# Data readiness\n\nAccepted source foundation.\n", encoding="utf-8")
+            (analysis_task / "worker_output.md").write_text("# Analysis draft\n\nClimate exposure overlay in progress.\n", encoding="utf-8")
+            (ops_dir / "accepted_outputs_index.md").write_text(
+                "\n".join(
+                    [
+                        "| accepted_date | task_id | title | key_finding | claim_type | freshness_window_days | next_recheck_date | revalidation_status | source_ids | claim_strength | caveats | followups | supersedes | superseded_by | evidence_link |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        f"| 2026-05-10 | TASK-0001 | Coffee country concentration data readiness | Concentration sources are usable with caveats | data_readiness | 90 | 2026-08-08 | current | DS-0001 | moderate | caveats documented | none | none | none | tasks/{data_task.name}/worker_output.md |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            lifecycle = payload["lifecycle"]
+            self.assertEqual("analysis", lifecycle["current_station_id"])
+            by_station = {station["id"]: station for station in lifecycle["stations"]}
+            self.assertEqual("complete", by_station["source_data"]["status"])
+            self.assertEqual("active", by_station["analysis"]["status"])
+            self.assertEqual("queued", by_station["synthesis"]["status"])
+            self.assertEqual("TASK-0005", by_station["analysis"]["active_task"]["task_id"])
+            self.assertIn("workflow worker-complete", by_station["analysis"]["next_command"]["command"])
+            self.assertEqual("TASK-0001", by_station["source_data"]["accepted_outputs"][0]["task_id"])
+            evidence_links = by_station["source_data"]["accepted_outputs"][0]["links"]
+            self.assertTrue(any(link["label"] == "Accepted memory evidence" and link["viewer_url"].endswith("/worker_output.md") for link in evidence_links))
+            source_links = {link["label"]: link for link in by_station["source_data"]["artifact_links"]}
+            self.assertTrue(source_links["Source audit"]["viewer_allowed"])
+
     def test_snapshot_surfaces_slice_11_operation_details(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -446,6 +532,9 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertIn("stale_accepted_evidence", alert_checks)
             self.assertIn("monthly_budget_threshold", alert_checks)
             self.assertTrue(any("accepted revalidation" in item["command"] for item in payload["health"]["recovery_commands"]))
+            lifecycle_by_station = {station["id"]: station for station in payload["lifecycle"]["stations"]}
+            self.assertEqual("blocked", lifecycle_by_station["source_data"]["status"])
+            self.assertTrue(any(blocker.get("source_id") == "DS-0002" for blocker in lifecycle_by_station["source_data"]["blockers"]))
 
     def test_budget_state_treats_non_finite_values_as_unconfigured(self) -> None:
         self.assertEqual("unconfigured", snapshot_module.budget_state(float("inf")))

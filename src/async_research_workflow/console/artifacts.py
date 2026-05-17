@@ -25,15 +25,24 @@ ROOT_MARKDOWN_FILES = {
     "data_source_audit.md",
     "decisions.md",
     "daily_status.md",
+    "discovery_inbox.md",
+    "evidence_ledger.md",
     "human_review_queue.md",
+    "inbox.md",
+    "queue.md",
+    "rejected_results.md",
+    "result_acceptance_policy.md",
+    "revalidation_schedule.md",
     "weekly_digest.md",
     "research_roadmap.md",
 }
-ROOT_MARKDOWN_PREFIXES = ("roadmap", "research_roadmap", "accepted", "source")
+ROOT_MARKDOWN_PREFIXES = ("roadmap", "research_roadmap", "accepted", "source", "discovery", "evidence")
 TOP_LEVEL_MARKDOWN_DIRS = {
     "accepted",
     "accepted_memory",
     "data",
+    "discovery",
+    "evidence",
     "idea",
     "ideas",
     "library",

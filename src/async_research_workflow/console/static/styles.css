@@ -426,6 +426,85 @@ h3 {
   gap: 8px;
 }
 
+.lifecycle-map {
+  display: grid;
+  gap: 12px;
+}
+
+.lifecycle-station {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.lifecycle-station.lifecycle-active,
+.lifecycle-station.lifecycle-queued {
+  border-color: #e2b64f;
+  background: #fffaf0;
+}
+
+.lifecycle-station.lifecycle-blocked {
+  border-color: #efb5ae;
+  background: #fff8f7;
+}
+
+.lifecycle-station.lifecycle-complete {
+  border-color: #a7dbc0;
+  background: #f4fbf7;
+}
+
+.lifecycle-marker {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lifecycle-body {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.lifecycle-heading {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lifecycle-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lifecycle-output-list,
+.lifecycle-blockers {
+  display: grid;
+  gap: 7px;
+}
+
+.lifecycle-blockers:empty {
+  display: none;
+}
+
+.lifecycle-command {
+  min-height: 34px;
+}
+
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -902,6 +981,7 @@ a.file-link {
   .foundation-grid,
   .operations-grid,
   .outcome-summary,
+  .lifecycle-fields,
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -935,6 +1015,7 @@ a.file-link {
   .task-layout,
   .prompt-layout,
   .outcome-layout,
+  .lifecycle-fields,
   .detail-grid {
     display: grid;
     grid-template-columns: 1fr;

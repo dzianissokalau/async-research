@@ -1,6 +1,6 @@
 # Real Research Product Readiness Delivery Log
 
-Status: Phase 0 delivered; ready for Phase 1
+Status: Phase 1 delivered; ready for Phase 2
 Roadmap: `roadmaps/in_progress_real_research_product_readiness_roadmap.md`
 Automation template: `roadmaps/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/real_research_product_readiness_delivery_state.json`
@@ -93,3 +93,45 @@ Branch: `codex/real-research-product-readiness-phase-0`
 ### Next Action
 
 - Next automation run should start Phase 1 on `codex/real-research-product-readiness-phase-1`.
+
+## Phase 1 - 2026-05-17 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/real-research-product-readiness-phase-1`
+
+### Scope
+
+- Project-level research lifecycle map for the dashboard.
+- Minimum stations from topic/objective through final review and polish.
+- Station detail fields for objective, status, accepted outputs, active task, blockers, next task/command, owner/runner, and artifact links.
+- Coffee-pilot-inspired regression coverage for accepted data readiness, active analysis, and queued synthesis.
+
+### Changes
+
+- Added a read-only lifecycle read model to the console snapshot.
+- Rendered the lifecycle as a dense dashboard timeline with station cards and summary metrics.
+- Added lifecycle-linked artifact viewer coverage for root/discovery/evidence Markdown files.
+- Marked source/data lifecycle stations blocked when source-governance blockers are present.
+- Added snapshot, server, and static resource tests for lifecycle behavior.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources`: passed, 73 tests
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 621 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 14 checks
+- Browser smoke at `http://127.0.0.1:8766`: passed, lifecycle visible with 10 station cards and current station text
+
+### Review
+
+- Review file: `roadmaps/reviews/real-research-product-readiness-phase-1-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly requested.
+- Lifecycle station inference is heuristic until the optional durable roadmap artifact contract is implemented in later/backlog scope.
+
+### Next Action
+
+- Next automation run should start Phase 2 on `codex/real-research-product-readiness-phase-2`.
