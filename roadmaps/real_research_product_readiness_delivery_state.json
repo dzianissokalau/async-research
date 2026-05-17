@@ -1,8 +1,8 @@
 {
   "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
   "roadmap_slug": "real-research-product-readiness",
-  "current_phase": "4",
-  "branch": "codex/real-research-product-readiness-phase-4",
+  "current_phase": "5",
+  "branch": "codex/real-research-product-readiness-phase-5",
   "status": "ready_for_next_run",
   "review_iterations": 1,
   "max_review_iterations": 3,
@@ -15,7 +15,7 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "626 tests"
+        "details": "627 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -25,28 +25,28 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources",
         "status": "passed",
-        "details": "74 targeted dashboard server/action/snapshot/static checks"
+        "details": "75 targeted dashboard server/action/snapshot/outcome/static checks"
       },
       {
-        "command": "browser smoke http://127.0.0.1:8768",
+        "command": "browser smoke http://127.0.0.1:8769",
         "status": "passed",
-        "details": "source attention rendered blocked source and action guidance with zero console errors"
+        "details": "idea/library/cost drilldowns rendered coffee fixture records"
       }
     ],
-    "completed_at": "2026-05-17T12:34:31Z"
+    "completed_at": "2026-05-17T13:36:57Z"
   },
   "last_review": {
-    "phase": "3",
-    "file": "roadmaps/reviews/real-research-product-readiness-phase-3-review-iteration-1.md",
+    "phase": "4",
+    "file": "roadmaps/reviews/real-research-product-readiness-phase-4-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-17T12:34:31Z"
+    "completed_at": "2026-05-17T13:36:57Z"
   },
-  "last_delivered_phase": "3",
+  "last_delivered_phase": "4",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-17T12:34:31Z"
+  "updated_at": "2026-05-17T13:36:57Z"
 }

@@ -328,6 +328,20 @@ h3 {
   gap: 14px;
 }
 
+.foundation-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.foundation-panel {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
 .operations-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1009,6 +1023,7 @@ a.file-link {
 @media (max-width: 1060px) {
   .metric-grid,
   .foundation-grid,
+  .foundation-detail-grid,
   .operations-grid,
   .outcome-summary,
   .lifecycle-fields,
@@ -1068,6 +1083,7 @@ a.file-link {
 
   .metric-grid,
   .foundation-grid,
+  .foundation-detail-grid,
   .operations-grid,
   .outcome-summary,
   .action-grid {

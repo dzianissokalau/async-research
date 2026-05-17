@@ -1,6 +1,6 @@
 # Real Research Product Readiness Delivery Log
 
-Status: Phase 3 delivered; ready for Phase 4
+Status: Phase 4 delivered; ready for Phase 5
 Roadmap: `roadmaps/in_progress_real_research_product_readiness_roadmap.md`
 Automation template: `roadmaps/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/real_research_product_readiness_delivery_state.json`
@@ -218,3 +218,45 @@ Branch: `codex/real-research-product-readiness-phase-3`
 ### Next Action
 
 - Next automation run should start Phase 4 on `codex/real-research-product-readiness-phase-4`.
+
+## Phase 4 - 2026-05-17 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/real-research-product-readiness-phase-4`
+
+### Scope
+
+- Idea catalog and knowledge-library dashboard drilldowns.
+- Foundation artifact links for idea, data, and library read models.
+- Cost panels for task economics, roles, models/providers, budget, network, external service, and approval indicators.
+- Coffee-pilot-inspired regression coverage for hidden foundation/cost details.
+
+### Changes
+
+- Preserved full idea/library dashboard sections in the console snapshot and added artifact links for foundational Markdown files.
+- Added library claim and method previews to the knowledge-library read model.
+- Added task budget/network metadata to task rows and task/role/model cost summaries to the cost snapshot.
+- Rendered idea catalog, knowledge library, task-cost, role-cost, and model/provider drilldowns in the web dashboard.
+- Added snapshot and packaged static-resource tests for the Phase 4 dashboard behavior.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 627 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 14 checks
+- `.venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources`: passed, 75 tests
+- Browser smoke at `http://127.0.0.1:8769`: passed, Phase 4 idea/library/cost drilldowns rendered expected coffee fixture records
+
+### Review
+
+- Review file: `roadmaps/reviews/real-research-product-readiness-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly requested.
+- Cost external-service and approval indicators rely on current ledger/status fields until richer usage ingestion exists.
+
+### Next Action
+
+- Next automation run should start Phase 5 on `codex/real-research-product-readiness-phase-5`.

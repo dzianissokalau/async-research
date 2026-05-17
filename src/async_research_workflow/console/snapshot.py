@@ -239,7 +239,34 @@ def unavailable(reason: str, message: str, path: Path | str | None = None, detai
     return payload
 
 
-def compact_dashboard(report: dict[str, Any]) -> dict[str, Any]:
+def dashboard_links(ops_dir: Path, report: dict[str, Any], name: str) -> list[dict[str, Any]]:
+    links: list[dict[str, Any]] = []
+    if name == "ideas":
+        for label, key in (("Idea catalog", "catalog_path"), ("Idea prioritization", "prioritization_path")):
+            value = report.get(key)
+            if value:
+                links.append(artifact_link(ops_dir, label, Path(str(value))))
+    elif name == "library":
+        for label, relative in (
+            ("Source library", "library/source_library.md"),
+            ("Knowledge index", "library/knowledge_index.md"),
+            ("Claim map", "library/claim_map.md"),
+            ("Method index", "library/method_index.md"),
+            ("Open questions", "library/open_questions.md"),
+        ):
+            links.append(artifact_link(ops_dir, label, ops_dir / relative))
+    elif name == "data":
+        for label, relative in (
+            ("Data catalog", "data/data_catalog.md"),
+            ("Known data gaps", "data/known_data_gaps.md"),
+            ("Join map", "data/join_map.md"),
+            ("Source audit", "data_source_audit.md"),
+        ):
+            links.append(artifact_link(ops_dir, label, ops_dir / relative))
+    return links
+
+
+def compact_dashboard(report: dict[str, Any], ops_dir: Path, name: str) -> dict[str, Any]:
     return {
         "available": True,
         "status": "available",
@@ -247,7 +274,10 @@ def compact_dashboard(report: dict[str, Any]) -> dict[str, Any]:
         "ok": report.get("ok"),
         "summary": report.get("summary", {}),
         "warnings": report.get("warnings", []),
+        "failures": report.get("failures", []),
         "sections": report.get("sections", {}),
+        "operator_summary": report.get("operator_summary", {}),
+        "links": dashboard_links(ops_dir, report, name),
     }
 
 
@@ -264,7 +294,7 @@ def guarded_dashboard(
             required_path,
         )
     try:
-        return compact_dashboard(loader())
+        return compact_dashboard(loader(), ops_dir, name)
     except Exception as exc:
         return unavailable(
             f"{name}_dashboard_unavailable",
@@ -838,6 +868,9 @@ def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_pa
     payload = item["payload"]
     transition = transition_summary(payload, status_path)
     files = task_file_links(ops_dir, task_dir, status_path)
+    budget = payload.get("budget") if isinstance(payload.get("budget"), dict) else {}
+    max_api_usd = health_check.safe_float(budget.get("max_api_usd"))
+    max_compute_usd = health_check.safe_float(budget.get("max_compute_usd"))
     return {
         "task_id": task_id(payload, task_dir),
         "title": payload.get("title", "unavailable"),
@@ -854,6 +887,14 @@ def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_pa
         "human_gate_reason": payload.get("human_gate_reason"),
         "human_gate": payload.get("human_gate") if isinstance(payload.get("human_gate"), dict) else None,
         "last_transition_reason": payload.get("last_transition_reason"),
+        "allow_network": payload.get("allow_network", False),
+        "model_tier": payload.get("model_tier", "unavailable"),
+        "max_minutes": payload.get("max_minutes", "unavailable"),
+        "budget": {
+            "max_api_usd": max_api_usd if max_api_usd is not None else 0.0,
+            "max_compute_usd": max_compute_usd if max_compute_usd is not None else 0.0,
+            "max_total_usd": round((max_api_usd or 0.0) + (max_compute_usd or 0.0), 4),
+        },
         "allowed_paths": payload.get("allowed_paths", []),
         "allowed_next_statuses": transition["allowed_next_statuses"],
         "status_validation": status_validation_entry(status_path, malformed_by_path),
@@ -895,6 +936,14 @@ def malformed_task_row(item: dict[str, Any], now: datetime, ops_dir: Path | None
         "human_gate_reason": item.get("reason"),
         "human_gate": None,
         "last_transition_reason": item.get("error") or item.get("reason"),
+        "allow_network": False,
+        "model_tier": "unavailable",
+        "max_minutes": "unavailable",
+        "budget": {
+            "max_api_usd": 0.0,
+            "max_compute_usd": 0.0,
+            "max_total_usd": 0.0,
+        },
         "allowed_paths": [],
         "allowed_next_statuses": [],
         "status_validation": {
@@ -1256,6 +1305,143 @@ def budget_state(ratio: Any) -> str:
     return "ok"
 
 
+def cost_number(row: dict[str, str], fields: Iterable[str]) -> float:
+    for field in fields:
+        value = health_check.safe_float(row.get(field))
+        if value is not None:
+            return value
+    return 0.0
+
+
+def cost_flag(row: dict[str, str], fields: Iterable[str]) -> bool | None:
+    true_values = {"1", "true", "yes", "y", "required", "requires_approval", "approved"}
+    false_values = {"0", "false", "no", "n", "none", "not_required", "not required"}
+    for field in fields:
+        raw = row.get(field)
+        if raw is None:
+            continue
+        value = str(raw).strip().lower()
+        if value in true_values:
+            return True
+        if value in false_values:
+            return False
+    return None
+
+
+def cost_label(row: dict[str, Any], fields: Iterable[str], fallback: str = "unavailable") -> str:
+    for field in fields:
+        value = row.get(field)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return fallback
+
+
+def cost_dimension_summary(rows: list[dict[str, Any]], fields: Iterable[str]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = cost_label(row, fields)
+        group = groups.setdefault(
+            key,
+            {
+                "label": key,
+                "row_count": 0,
+                "amount_usd": 0.0,
+                "actual_spend_usd": 0.0,
+                "estimated_spend_usd": 0.0,
+                "api_usd": 0.0,
+                "compute_usd": 0.0,
+                "data_usd": 0.0,
+                "total_tokens": 0,
+            },
+        )
+        amount = health_check.safe_float(row.get("amount_usd")) or 0.0
+        group["row_count"] += 1
+        group["amount_usd"] += amount
+        if row.get("actual_usage") is True:
+            group["actual_spend_usd"] += amount
+        else:
+            group["estimated_spend_usd"] += amount
+        group["api_usd"] += health_check.safe_float(row.get("api_usd")) or 0.0
+        group["compute_usd"] += health_check.safe_float(row.get("compute_usd")) or 0.0
+        group["data_usd"] += health_check.safe_float(row.get("data_usd")) or 0.0
+        group["total_tokens"] += int(row.get("total_tokens") or 0)
+    return [
+        {
+            **group,
+            "amount_usd": round(group["amount_usd"], 4),
+            "actual_spend_usd": round(group["actual_spend_usd"], 4),
+            "estimated_spend_usd": round(group["estimated_spend_usd"], 4),
+            "api_usd": round(group["api_usd"], 4),
+            "compute_usd": round(group["compute_usd"], 4),
+            "data_usd": round(group["data_usd"], 4),
+        }
+        for group in sorted(groups.values(), key=lambda item: item["amount_usd"], reverse=True)
+    ][:RECENT_LIMIT]
+
+
+def cost_task_summaries(detail_rows: list[dict[str, Any]], task_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    task_by_id = {str(row.get("task_id")): row for row in task_rows if row.get("task_id")}
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in detail_rows:
+        item_id = str(row.get("item_id") or "").strip() or "unmapped"
+        grouped.setdefault(item_id, []).append(row)
+
+    summaries: list[dict[str, Any]] = []
+    for item_id, rows in grouped.items():
+        task = task_by_id.get(item_id, {})
+        budget = task.get("budget") if isinstance(task.get("budget"), dict) else {}
+        planned_api = health_check.safe_float(budget.get("max_api_usd")) or 0.0
+        planned_compute = health_check.safe_float(budget.get("max_compute_usd")) or 0.0
+        planned_total = health_check.safe_float(budget.get("max_total_usd")) or round(planned_api + planned_compute, 4)
+        amount_total = sum(health_check.safe_float(row.get("amount_usd")) or 0.0 for row in rows)
+        actual_total = sum((health_check.safe_float(row.get("amount_usd")) or 0.0) for row in rows if row.get("actual_usage") is True)
+        estimated_total = round(amount_total - actual_total, 4)
+        api_total = sum(health_check.safe_float(row.get("api_usd")) or 0.0 for row in rows)
+        compute_total = sum(health_check.safe_float(row.get("compute_usd")) or 0.0 for row in rows)
+        data_total = sum(health_check.safe_float(row.get("data_usd")) or 0.0 for row in rows)
+        network_rows = [row for row in rows if row.get("network_use") is True]
+        external_rows = [row for row in rows if row.get("external_service") != "unavailable" or row.get("network_use") is True]
+        explicit_approval = any(row.get("approval_required") is True for row in rows)
+        task_requires_approval = bool(task.get("requires_human")) and (
+            bool(task.get("allow_network")) or planned_total > 0 or amount_total > 0
+        )
+        approval_required = explicit_approval or task_requires_approval
+        budget_ratio = round(amount_total / planned_total, 4) if planned_total else None
+        summaries.append(
+            {
+                "item_id": item_id,
+                "task_id": task.get("task_id", item_id if item_id.startswith("TASK-") else "unavailable"),
+                "task_title": task.get("title", "unavailable"),
+                "task_status": task.get("status", "unavailable"),
+                "task_type": task.get("type", "unavailable"),
+                "planned_api_usd": round(planned_api, 4),
+                "planned_compute_usd": round(planned_compute, 4),
+                "planned_total_usd": round(planned_total, 4),
+                "actual_spend_usd": round(actual_total, 4),
+                "estimated_spend_usd": round(estimated_total, 4),
+                "amount_usd": round(amount_total, 4),
+                "api_usd": round(api_total, 4),
+                "compute_usd": round(compute_total, 4),
+                "data_usd": round(data_total, 4),
+                "budget_ratio": budget_ratio,
+                "budget_state": budget_state(budget_ratio),
+                "row_count": len(rows),
+                "roles": sorted({cost_label(row, ("role",)) for row in rows}),
+                "models": sorted({cost_label(row, ("model_or_tool", "provider")) for row in rows}),
+                "usage_sources": sorted({cost_label(row, ("usage_source",)) for row in rows}),
+                "network_use": bool(task.get("allow_network")) or bool(network_rows),
+                "network_row_count": len(network_rows),
+                "external_service_count": len(external_rows),
+                "approval_required": approval_required,
+                "approval_status": "required" if approval_required else "not indicated",
+            }
+        )
+    return sorted(summaries, key=lambda item: (item["approval_required"] is False, -item["amount_usd"], item["item_id"]))[:RECENT_LIMIT]
+
+
 def cost_ledger_detail_rows(ledger_path: Path, now: datetime) -> list[dict[str, Any]]:
     if not ledger_path.exists():
         return []
@@ -1269,6 +1455,28 @@ def cost_ledger_detail_rows(ledger_path: Path, now: datetime) -> list[dict[str, 
             parsed = {str(key): str(value) for key, value in row.items() if key is not None}
             date = health_check.row_date(parsed)
             amount = health_check.row_amount(parsed)
+            input_usd = cost_number(parsed, ("input_usd",))
+            output_usd = cost_number(parsed, ("output_usd",))
+            api_usd = cost_number(parsed, ("api_usd", "estimated_api_usd"))
+            if api_usd == 0.0:
+                api_usd = input_usd + output_usd
+            compute_usd = cost_number(parsed, ("compute_usd", "estimated_compute_usd"))
+            data_usd = cost_number(parsed, ("data_usd", "external_data_usd", "paid_data_usd"))
+            actual_usage = parsed.get("actual", "").strip().lower() == "true"
+            network_use = cost_flag(parsed, ("network_use", "network_used", "allow_network", "external_network"))
+            if network_use is None:
+                usage_source = parsed.get("usage_source", "").lower()
+                model_or_tool = parsed.get("model_or_tool", "").lower()
+                network_use = any(token in usage_source or token in model_or_tool for token in ("api", "batch", "provider", "openai", "anthropic", "web"))
+            approval_required = cost_flag(
+                parsed,
+                (
+                    "approval_required",
+                    "requires_approval",
+                    "paid_service_requires_approval",
+                    "human_approval_required",
+                ),
+            )
             input_tokens = health_check.row_int(parsed, health_check.INPUT_TOKEN_FIELDS)
             output_tokens = health_check.row_int(parsed, health_check.OUTPUT_TOKEN_FIELDS)
             total_tokens = health_check.row_int(parsed, health_check.TOTAL_TOKEN_FIELDS) or input_tokens + output_tokens
@@ -1279,15 +1487,23 @@ def cost_ledger_detail_rows(ledger_path: Path, now: datetime) -> list[dict[str, 
                     "item_id": parsed.get("item_id", ""),
                     "role": parsed.get("role", ""),
                     "model_or_tool": parsed.get("model_or_tool", ""),
+                    "provider": parsed.get("provider") or parsed.get("model_provider") or "",
                     "usage_source": parsed.get("usage_source", ""),
+                    "external_service": parsed.get("external_service") or parsed.get("service") or parsed.get("provider") or "unavailable",
                     "amount_usd": round(amount, 4),
-                    "api_usd": parsed.get("api_usd", ""),
-                    "compute_usd": parsed.get("compute_usd", ""),
+                    "api_usd": round(api_usd, 4),
+                    "compute_usd": round(compute_usd, 4),
+                    "data_usd": round(data_usd, 4),
+                    "input_usd": round(input_usd, 4),
+                    "output_usd": round(output_usd, 4),
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
                     "status": parsed.get("status", ""),
                     "actual": parsed.get("actual", ""),
+                    "actual_usage": actual_usage,
+                    "network_use": bool(network_use),
+                    "approval_required": bool(approval_required),
                     "notes": parsed.get("notes", ""),
                     "in_current_month": bool(date and date >= month_start),
                     "in_current_week": bool(date and date >= week_start),
@@ -1297,7 +1513,7 @@ def cost_ledger_detail_rows(ledger_path: Path, now: datetime) -> list[dict[str, 
     return rows
 
 
-def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+def cost_snapshot(ops_dir: Path, now: datetime, task_rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     ledger_path = ops_dir / "cost_ledger.csv"
     try:
         cost = health_check.scan_cost_ledger(ledger_path, None, None, now)
@@ -1325,6 +1541,9 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
             "summary": {},
             "recent_rows": [],
             "top_spend_rows": [],
+            "task_costs": [],
+            "role_costs": [],
+            "model_provider_costs": [],
             "recovery_commands": [command_hint("Inspect cost summary", ["async-research", "cost", "summary", str(ops_dir)])],
             "warnings": [warning],
         }
@@ -1344,6 +1563,9 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
                     {"usage_ratio": ratio},
                 )
             )
+    task_costs = cost_task_summaries(detail_rows, task_rows or [])
+    role_costs = cost_dimension_summary(detail_rows, ("role",))
+    model_provider_costs = cost_dimension_summary(detail_rows, ("provider", "model_or_tool"))
     return {
         "available": True,
         "status": "available",
@@ -1365,6 +1587,9 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
         "budget_pressure": bool(warnings),
         "recent_rows": sorted(detail_rows, key=lambda row: (row["sort_date"], row["row_number"]), reverse=True)[:RECENT_LIMIT],
         "top_spend_rows": sorted(detail_rows, key=lambda row: row["amount_usd"], reverse=True)[:RECENT_LIMIT],
+        "task_costs": task_costs,
+        "role_costs": role_costs,
+        "model_provider_costs": model_provider_costs,
         "summary": {
             "row_count": cost.get("row_count", 0),
             "month_spend_usd": cost.get("monthly_cost_usd", 0.0),
@@ -1373,6 +1598,15 @@ def cost_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
             "weekly_budget_state": budget_state(weekly_ratio),
             "total_tokens": cost.get("total_tokens", 0),
             "actual_usage_rows": cost.get("actual_usage_rows", 0),
+            "task_cost_count": len(task_costs),
+            "approval_required_count": len([row for row in task_costs if row["approval_required"]]),
+            "network_use_count": len([row for row in detail_rows if row.get("network_use") is True]),
+            "external_service_count": len([row for row in detail_rows if row.get("external_service") != "unavailable"]),
+            "actual_spend_usd": round(sum(row["amount_usd"] for row in detail_rows if row.get("actual_usage") is True), 4),
+            "estimated_spend_usd": round(sum(row["amount_usd"] for row in detail_rows if row.get("actual_usage") is not True), 4),
+            "api_usd": round(sum(row["api_usd"] for row in detail_rows), 4),
+            "compute_usd": round(sum(row["compute_usd"] for row in detail_rows), 4),
+            "data_usd": round(sum(row["data_usd"] for row in detail_rows), 4),
         },
         "recovery_commands": [
             command_hint("Inspect cost summary", ["async-research", "cost", "summary", str(ops_dir)]),
@@ -1877,7 +2111,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir, current)
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
-    cost = cost_snapshot(ops_dir, current)
+    cost = cost_snapshot(ops_dir, current, tasks.get("all", []))
     prompts = prompts_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "prompts are unavailable until research_ops exists", ops_dir)
     schedules = schedules_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "schedules are unavailable until research_ops exists", ops_dir)
     dashboards = dashboard_summaries(ops_dir, current) if workspace_ready else {

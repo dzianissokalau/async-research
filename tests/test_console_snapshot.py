@@ -109,6 +109,61 @@ def write_task_status(
     return task_dir
 
 
+def write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def idea_score() -> dict:
+    return {
+        "mission_policy_version": "test_policy_v1.0",
+        "budget_mode": "normal",
+        "decision_impact": 4,
+        "novelty": 3,
+        "data_availability": 4,
+        "feasibility": 4,
+        "robustness_risk": 2,
+        "cost": 2,
+        "killability": 4,
+        "reuse_potential": 4,
+        "weighted_total": 16.5,
+        "promotion_threshold": 14.0,
+        "minimum_killability": 3,
+        "max_promotions_per_week": 3,
+        "budget_pressure_threshold": 0.8,
+        "budget_mode_reason": "manual_normal",
+        "budget_usage": {
+            "monthly_usage_ratio": None,
+            "weekly_usage_ratio": None,
+            "monthly_cost_usd": 0.0,
+            "weekly_cost_usd": 0.0,
+            "monthly_budget_usd": None,
+            "weekly_budget_usd": None,
+        },
+        "hard_gate_results": [{"gate": "research_question_present", "passed": True, "reason": "question is present"}],
+        "score_explanation": "Coffee pilot fixture score.",
+    }
+
+
+def idea_candidate(candidate_id: str, title: str) -> dict:
+    return {
+        "schema_version": "1.0",
+        "id": candidate_id,
+        "status": "candidate",
+        "title": title,
+        "question": "Can coffee country concentration interact with climate exposure?",
+        "why_it_might_matter": "It mirrors the coffee pilot foundation path.",
+        "required_data": ["country concentration source", "climate exposure source"],
+        "minimum_viable_test": "Run a bounded data-readiness check.",
+        "baseline": "Compare against static country concentration shares.",
+        "main_risks": ["source freshness", "coverage gaps"],
+        "kill_reason": "Reject if governed source coverage is unavailable.",
+        "score": idea_score(),
+        "recommended_next_task": "data_readiness",
+        "updated_at": "2026-05-07T10:00:00Z",
+    }
+
+
 class ConsoleSnapshotTests(unittest.TestCase):
     def init_ops(self, root: Path) -> Path:
         ops_dir = root / "research_ops"
@@ -718,6 +773,154 @@ class ConsoleSnapshotTests(unittest.TestCase):
             lifecycle_by_station = {station["id"]: station for station in payload["lifecycle"]["stations"]}
             self.assertEqual("blocked", lifecycle_by_station["source_data"]["status"])
             self.assertTrue(any(blocker.get("source_id") == "DS-0002" for blocker in lifecycle_by_station["source_data"]["blockers"]))
+
+    def test_snapshot_surfaces_phase4_foundation_and_cost_drilldowns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(
+                ops_dir,
+                "TASK-0006",
+                "needs_human",
+                requires_human=True,
+                task_type="data_readiness",
+                title="Coffee climate exposure foundation",
+            )
+            status_path = task_dir / "status.json"
+            status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+            status_payload.update(
+                {
+                    "allow_network": True,
+                    "human_gate_reason": "Budget and external API approval required.",
+                    "budget": {"max_api_usd": 4.0, "max_compute_usd": 1.5},
+                    "model_tier": "frontier",
+                }
+            )
+            write_json(status_path, status_payload)
+            promoted = idea_candidate("IDEA-0006", "Coffee climate exposure concentration")
+            promoted.update({"status": "promoted", "promoted_task_id": "TASK-0006", "library_refs": ["LIT-0006"]})
+            write_json(ops_dir / "ideas" / "IDEA-0006.json", promoted)
+            (ops_dir / "library" / "source_library.md").write_text(
+                "\n".join(
+                    [
+                        "# Source Library",
+                        "",
+                        "<!-- LIBRARY-SOURCES: schema_version=1.0 -->",
+                        "| source_id | status | trust_tier | type | title | author_or_publisher | location | reviewed_date | notes |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| LIT-0006 | context_only | background | report | Coffee climate background | Fixture Publisher | https://example.test/coffee | 2026-05-09 | context only until source governance is ready |",
+                        "<!-- /LIBRARY-SOURCES -->",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "library" / "knowledge_index.md").write_text(
+                "\n".join(
+                    [
+                        "# Knowledge Index",
+                        "",
+                        "<!-- LIBRARY-KNOWLEDGE: schema_version=1.0 -->",
+                        "| topic | summary | source_refs | confidence | caveats | updated_at |",
+                        "| --- | --- | --- | --- | --- | --- |",
+                        "| Coffee climate exposure | Climate overlays are useful context for concentration research. | LIT-0006 | medium | context-only source | 2026-05-09 |",
+                        "<!-- /LIBRARY-KNOWLEDGE -->",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "library" / "claim_map.md").write_text(
+                "\n".join(
+                    [
+                        "# Claim Map",
+                        "",
+                        "<!-- LIBRARY-CLAIMS: schema_version=1.0 -->",
+                        "| claim | source_refs | claim_strength | disputed_status | caveats | reviewed_date |",
+                        "| --- | --- | --- | --- | --- | --- |",
+                        "| Coffee concentration work needs climate context. | LIT-0006 | moderate | context_only | planning context only | 2026-05-09 |",
+                        "<!-- /LIBRARY-CLAIMS -->",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "library" / "method_index.md").write_text(
+                "\n".join(
+                    [
+                        "# Method Index",
+                        "",
+                        "<!-- LIBRARY-METHODS: schema_version=1.0 -->",
+                        "| method | use_case | assumptions | source_refs | risks | reviewed_date |",
+                        "| --- | --- | --- | --- | --- | --- |",
+                        "| Overlay climate exposure with origin concentration | planning | comparable country identifiers | LIT-0006 | source freshness | 2026-05-09 |",
+                        "<!-- /LIBRARY-METHODS -->",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "library" / "open_questions.md").write_text(
+                "\n".join(
+                    [
+                        "# Open Questions",
+                        "",
+                        "<!-- LIBRARY-OPEN-QUESTIONS: schema_version=1.0 -->",
+                        "| question_id | question | why_it_matters | source_refs | next_task | status |",
+                        "| --- | --- | --- | --- | --- | --- |",
+                        "| Q-0006 | Which origins drive climate exposure concentration? | guides data readiness | LIT-0006 | TASK-0006 | open |",
+                        "<!-- /LIBRARY-OPEN-QUESTIONS -->",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (ops_dir / "cost_ledger.csv").write_text(
+                "\n".join(
+                    [
+                        "date,item_id,role,provider,model_or_tool,usage_source,external_service,input_tokens,output_tokens,total_tokens,input_usd,output_usd,api_usd,compute_usd,data_usd,amount_usd,status,actual,network_use,approval_required,monthly_budget_usd,weekly_budget_usd,notes",
+                        "2026-05-11,TASK-0006,worker,openai,gpt-5.4-mini,external_api,paid_api,1000,500,1500,0.50,1.00,1.50,0.25,0.75,2.50,needs_human,true,true,true,10,5,coffee foundation fixture",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            idea_links = payload["ideas"]["sections"]["idea_to_task_links"]
+            self.assertEqual(
+                [{"idea_id": "IDEA-0006", "link_status": "available", "promoted_task_id": "TASK-0006"}],
+                [
+                    {
+                        "idea_id": item["idea_id"],
+                        "link_status": item["link_status"],
+                        "promoted_task_id": item["promoted_task_id"],
+                    }
+                    for item in idea_links
+                ],
+            )
+            self.assertTrue(any(link["viewer_allowed"] for link in payload["ideas"]["links"]))
+            library_sections = payload["library"]["sections"]
+            self.assertEqual("Coffee climate exposure", library_sections["coverage_by_topic"][0]["topic"])
+            self.assertEqual("Coffee concentration work needs climate context.", library_sections["claims"][0]["claim"])
+            self.assertEqual("Overlay climate exposure with origin concentration", library_sections["methods"][0]["method"])
+            self.assertEqual("LIT-0006", library_sections["risky_sources"][0]["source_id"])
+            self.assertEqual("Q-0006", library_sections["open_questions"][0]["question_id"])
+            self.assertTrue(any(link["viewer_allowed"] for link in payload["library"]["links"]))
+            task_cost = payload["cost"]["task_costs"][0]
+            self.assertEqual("TASK-0006", task_cost["task_id"])
+            self.assertEqual(5.5, task_cost["planned_total_usd"])
+            self.assertEqual(2.5, task_cost["actual_spend_usd"])
+            self.assertEqual(1.5, task_cost["api_usd"])
+            self.assertEqual(0.75, task_cost["data_usd"])
+            self.assertTrue(task_cost["network_use"])
+            self.assertTrue(task_cost["approval_required"])
+            self.assertEqual("required", task_cost["approval_status"])
+            self.assertEqual("worker", payload["cost"]["role_costs"][0]["label"])
+            self.assertEqual("openai", payload["cost"]["model_provider_costs"][0]["label"])
+            self.assertEqual(1, payload["cost"]["summary"]["approval_required_count"])
+            self.assertEqual(1, payload["cost"]["summary"]["network_use_count"])
 
     def test_budget_state_treats_non_finite_values_as_unconfigured(self) -> None:
         self.assertEqual("unconfigured", snapshot_module.budget_state(float("inf")))

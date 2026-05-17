@@ -694,6 +694,28 @@ def risky_claim_previews(
     return previews
 
 
+def claim_previews(rows: list[dict[str, Any]], path: Path) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        line = int(row.get("_line") or 0)
+        refs, _errors = parse_source_refs(row.get("source_refs"), path, line, "source_refs")
+        preview = row_preview(row, ["claim", "claim_strength", "disputed_status", "caveats", "reviewed_date"])
+        preview["source_refs"] = refs
+        previews.append(preview)
+    return previews
+
+
+def method_previews(rows: list[dict[str, Any]], path: Path) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for row in rows:
+        line = int(row.get("_line") or 0)
+        refs, _errors = parse_source_refs(row.get("source_refs"), path, line, "source_refs")
+        preview = row_preview(row, ["method", "use_case", "assumptions", "risks", "reviewed_date"])
+        preview["source_refs"] = refs
+        previews.append(preview)
+    return previews
+
+
 def empty_library_read_model() -> dict[str, Any]:
     return {
         "source_ids": [],
@@ -702,6 +724,8 @@ def empty_library_read_model() -> dict[str, Any]:
             "by_status": {},
             "by_trust_tier": {},
         },
+        "claims": [],
+        "methods": [],
         "recently_reviewed_sources": [],
         "stale_sources": [],
         "stale_claims": [],
@@ -721,10 +745,12 @@ def library_read_model(
     source_relative = str(Path(LIBRARY_DIR) / SOURCE_LIBRARY_FILE)
     knowledge_relative = str(Path(LIBRARY_DIR) / KNOWLEDGE_INDEX_FILE)
     claim_relative = str(Path(LIBRARY_DIR) / CLAIM_MAP_FILE)
+    method_relative = str(Path(LIBRARY_DIR) / METHOD_INDEX_FILE)
     open_question_relative = str(Path(LIBRARY_DIR) / OPEN_QUESTIONS_FILE)
     source_rows = rows_by_relative.get(source_relative, [])
     knowledge_rows = rows_by_relative.get(knowledge_relative, [])
     claim_rows = rows_by_relative.get(claim_relative, [])
+    method_rows = rows_by_relative.get(method_relative, [])
     open_question_rows = rows_by_relative.get(open_question_relative, [])
     source_status_by_id = {
         normalize_text(row.get("source_id")): normalize_text(row.get("status")).lower()
@@ -747,6 +773,8 @@ def library_read_model(
             "by_status": count_by_value(source_rows, "status"),
             "by_trust_tier": count_by_value(source_rows, "trust_tier"),
         },
+        "claims": claim_previews(claim_rows, ops_dir / LIBRARY_DIR / CLAIM_MAP_FILE),
+        "methods": method_previews(method_rows, ops_dir / LIBRARY_DIR / METHOD_INDEX_FILE),
         "recently_reviewed_sources": recently_reviewed_source_previews(source_rows, now),
         "stale_sources": stale_row_previews(
             source_rows,
@@ -1044,6 +1072,8 @@ def library_dashboard_report(
     sections = {
         "coverage_by_topic": read_model.get("coverage_by_topic", []),
         "source_counts": source_counts,
+        "claims": read_model.get("claims", []),
+        "methods": read_model.get("methods", []),
         "recently_reviewed_sources": read_model.get("recently_reviewed_sources", []),
         "stale_sources": read_model.get("stale_sources", []),
         "stale_claims": read_model.get("stale_claims", []),

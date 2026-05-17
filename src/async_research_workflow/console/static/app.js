@@ -1544,6 +1544,123 @@ function foundationCard(name, group, countKeys) {
   return card;
 }
 
+function compactTextList(values, emptyText = "none") {
+  if (!Array.isArray(values) || values.length === 0) {
+    return emptyText;
+  }
+  return values.map(valueOrUnavailable).join(", ");
+}
+
+function findingText(finding) {
+  return `${valueOrUnavailable(finding.reason || finding.check || finding.severity)} / ${valueOrUnavailable(finding.message || finding.path)}`;
+}
+
+function renderFoundationLinks(target, links) {
+  const rows = Array.isArray(links) ? links.filter((file) => file && file.path) : [];
+  const list = el(target);
+  if (!rows.length) {
+    list.replaceChildren(empty("No foundation artifact links."));
+    return;
+  }
+  list.replaceChildren(...rows.map(detailPathLink));
+}
+
+function ideaDrilldownRows(ideas) {
+  const sections = (ideas && ideas.sections) || {};
+  const rows = [];
+  (sections.candidate_ideas || []).slice(0, 4).forEach((idea) => {
+    rows.push(record(
+      `Candidate ${valueOrUnavailable(idea.idea_id)} - ${valueOrUnavailable(idea.title)}`,
+      `score ${valueOrUnavailable(idea.weighted_score)} / priority ${valueOrUnavailable(idea.human_priority)} / next ${valueOrUnavailable(idea.recommended_next_task)}`,
+      `status ${statusLabel(idea.status)} / blockers ${compactTextList(idea.hard_gate_blockers, "none")} / issues ${asNumber(idea.issue_count)}`
+    ));
+  });
+  (sections.promoted_ideas || []).slice(0, 3).forEach((idea) => {
+    rows.push(record(
+      `Promoted ${valueOrUnavailable(idea.idea_id)} - ${valueOrUnavailable(idea.title)}`,
+      `task ${valueOrUnavailable(idea.promoted_task_id)} / status ${statusLabel(idea.status)}`,
+      `updated ${valueOrUnavailable(idea.updated_at)}`
+    ));
+  });
+  (sections.idea_to_task_links || []).slice(0, 3).forEach((link) => {
+    rows.push(record(
+      `Task Link ${valueOrUnavailable(link.idea_id)} -> ${valueOrUnavailable(link.promoted_task_id)}`,
+      statusLabel(link.link_status),
+      valueOrUnavailable(link.title)
+    ));
+  });
+  (sections.next_recommended_tasks || []).slice(0, 3).forEach((task) => {
+    rows.push(record(
+      `Next Task ${valueOrUnavailable(task.recommended_next_task)}`,
+      `${asNumber(task.idea_count)} idea${asNumber(task.idea_count) === 1 ? "" : "s"}`,
+      compactTextList((task.ideas || []).map((idea) => idea.idea_id), "no ideas")
+    ));
+  });
+  (sections.top_blockers || []).slice(0, 3).forEach((finding) => {
+    rows.push(record(
+      `Blocker ${valueOrUnavailable(finding.candidate_id || finding.idea_id)}`,
+      valueOrUnavailable(finding.reason),
+      findingText(finding)
+    ));
+  });
+  return rows;
+}
+
+function libraryDrilldownRows(library) {
+  const sections = (library && library.sections) || {};
+  const rows = [];
+  (sections.coverage_by_topic || []).slice(0, 3).forEach((topic) => {
+    rows.push(record(
+      `Topic ${valueOrUnavailable(topic.topic)}`,
+      `confidence ${valueOrUnavailable(topic.confidence)} / sources ${asNumber(topic.source_count)}`,
+      valueOrUnavailable(topic.summary || topic.caveats)
+    ));
+  });
+  (sections.claims || []).slice(0, 3).forEach((claim) => {
+    rows.push(record(
+      `Claim ${valueOrUnavailable(claim.claim)}`,
+      `${valueOrUnavailable(claim.claim_strength)} / ${statusLabel(claim.disputed_status)}`,
+      `sources ${compactTextList(claim.source_refs, "none")} / caveats ${valueOrUnavailable(claim.caveats)}`
+    ));
+  });
+  (sections.methods || []).slice(0, 3).forEach((method) => {
+    rows.push(record(
+      `Method ${valueOrUnavailable(method.method)}`,
+      valueOrUnavailable(method.use_case),
+      `sources ${compactTextList(method.source_refs, "none")} / risks ${valueOrUnavailable(method.risks)}`
+    ));
+  });
+  (sections.open_questions || []).slice(0, 3).forEach((question) => {
+    rows.push(record(
+      `Open Question ${valueOrUnavailable(question.question_id)}`,
+      valueOrUnavailable(question.question),
+      `next ${valueOrUnavailable(question.next_task)} / status ${statusLabel(question.status)}`
+    ));
+  });
+  (sections.risky_sources || []).slice(0, 3).forEach((source) => {
+    rows.push(record(
+      `Risky Source ${valueOrUnavailable(source.source_id)}`,
+      `${statusLabel(source.status)} / ${valueOrUnavailable(source.trust_tier)}`,
+      valueOrUnavailable(source.notes || source.title)
+    ));
+  });
+  (sections.risky_claims || []).slice(0, 3).forEach((claim) => {
+    rows.push(record(
+      `Risky Claim ${valueOrUnavailable(claim.claim)}`,
+      `${valueOrUnavailable(claim.claim_strength)} / ${statusLabel(claim.disputed_status)}`,
+      `risky refs ${valueOrUnavailable(JSON.stringify(claim.risky_source_refs || {}))}`
+    ));
+  });
+  (sections.validator_findings || []).slice(0, 3).forEach((finding) => {
+    rows.push(record(
+      `Validator ${valueOrUnavailable(finding.reason)}`,
+      valueOrUnavailable(finding.severity),
+      findingText(finding)
+    ));
+  });
+  return rows;
+}
+
 function renderFoundations(snapshot) {
   el("foundation-cards").replaceChildren(
     foundationCard("Ideas", snapshot.ideas, ["candidate_count", "failure_count", "warning_count"]),
@@ -1551,6 +1668,12 @@ function renderFoundations(snapshot) {
     foundationCard("Library", snapshot.library, ["source_count", "claim_count", "validator_warning_count"]),
     foundationCard("Analysis", snapshot.analysis, ["active_run_analysis_count", "preflight_blocked_count", "revalidation_needed_count"])
   );
+  const ideaRows = ideaDrilldownRows(snapshot.ideas || {});
+  el("idea-drilldown").replaceChildren(...(ideaRows.length ? ideaRows : [empty("No idea catalog records.")]));
+  renderFoundationLinks("idea-foundation-links", (snapshot.ideas || {}).links);
+  const libraryRows = libraryDrilldownRows(snapshot.library || {});
+  el("library-drilldown").replaceChildren(...(libraryRows.length ? libraryRows : [empty("No library records.")]));
+  renderFoundationLinks("library-foundation-links", (snapshot.library || {}).links);
 }
 
 function commandRow(command) {
@@ -1587,10 +1710,14 @@ function renderOperations(snapshot) {
   const accepted = snapshot.accepted_outputs || {};
   const healthSummary = health.summary || {};
   const sourceSummary = sources.summary || {};
+  const costSummary = cost.summary || {};
   const staleRows = accepted.stale_rows || [];
   const dueRows = accepted.due_rows || [];
   const healthAlerts = health.alerts || [];
   const sourceAttention = sources.attention_sources || [];
+  const taskCosts = Array.isArray(cost.task_costs) ? cost.task_costs : [];
+  const roleCosts = Array.isArray(cost.role_costs) ? cost.role_costs : [];
+  const modelCosts = Array.isArray(cost.model_provider_costs) ? cost.model_provider_costs : [];
   const costRows = Array.isArray(cost.top_spend_rows) && cost.top_spend_rows.length > 0
     ? cost.top_spend_rows
     : cost.recent_rows || [];
@@ -1600,13 +1727,34 @@ function renderOperations(snapshot) {
     metric("Monthly Budget", statusLabel(cost.monthly_budget_state), `${money(cost.month_spend_usd)} / ${money(cost.monthly_budget_usd)} (${percent(cost.monthly_usage_ratio)})`),
     metric("Weekly Budget", statusLabel(cost.weekly_budget_state), `${money(cost.week_spend_usd)} / ${money(cost.weekly_budget_usd)} (${percent(cost.weekly_usage_ratio)})`),
     metric("Sources Needing Review", sourceAttention.length, `${asNumber(sourceSummary.usable_today_count)} usable today`),
-    metric("Health Alerts", asNumber(healthSummary.alert_count), `${staleRows.length} stale accepted outputs`)
+    metric("Task Economics", asNumber(costSummary.task_cost_count), `${asNumber(costSummary.approval_required_count)} approvals / ${asNumber(costSummary.network_use_count)} network rows`)
+  );
+  renderList("cost-task-drilldown", taskCosts, "No task economics rows.", (row) =>
+    record(
+      `${valueOrUnavailable(row.item_id)} - ${money(row.amount_usd)}`,
+      `${valueOrUnavailable(row.task_type)} / ${statusLabel(row.task_status)} / budget ${money(row.planned_total_usd)} (${percent(row.budget_ratio)})`,
+      `actual ${money(row.actual_spend_usd)} / estimate ${money(row.estimated_spend_usd)} / API ${money(row.api_usd)} / compute ${money(row.compute_usd)} / data ${money(row.data_usd)} / ${row.network_use ? "network" : "no network signal"} / approval ${statusLabel(row.approval_status)}`
+    )
+  );
+  renderList("cost-role-drilldown", roleCosts, "No role cost rows.", (row) =>
+    record(
+      `Role ${valueOrUnavailable(row.label)} - ${money(row.amount_usd)}`,
+      `${asNumber(row.row_count)} rows / actual ${money(row.actual_spend_usd)} / estimate ${money(row.estimated_spend_usd)}`,
+      `${valueOrUnavailable(row.total_tokens)} tokens / API ${money(row.api_usd)} / compute ${money(row.compute_usd)}`
+    )
+  );
+  renderList("cost-model-drilldown", modelCosts, "No model or provider cost rows.", (row) =>
+    record(
+      `Model ${valueOrUnavailable(row.label)} - ${money(row.amount_usd)}`,
+      `${asNumber(row.row_count)} rows / actual ${money(row.actual_spend_usd)} / estimate ${money(row.estimated_spend_usd)}`,
+      `${valueOrUnavailable(row.total_tokens)} tokens / API ${money(row.api_usd)} / data ${money(row.data_usd)}`
+    )
   );
   renderList("cost-ledger", costRows, "No cost ledger rows.", (row) =>
     record(
       `${valueOrUnavailable(row.item_id)} - ${money(row.amount_usd)}`,
-      `${valueOrUnavailable(row.date)} / ${valueOrUnavailable(row.role)} / ${valueOrUnavailable(row.model_or_tool)}`,
-      `${valueOrUnavailable(row.total_tokens)} tokens / ${valueOrUnavailable(row.notes || row.usage_source)}`
+      `${valueOrUnavailable(row.date)} / ${valueOrUnavailable(row.role)} / ${valueOrUnavailable(row.provider || row.model_or_tool)}`,
+      `${valueOrUnavailable(row.total_tokens)} tokens / API ${money(row.api_usd)} / compute ${money(row.compute_usd)} / ${valueOrUnavailable(row.notes || row.usage_source)}`
     )
   );
   renderList("cost-recovery-commands", cost.recovery_commands, "No cost commands.", commandRow);
