@@ -322,6 +322,121 @@ function detailField(label, value) {
   return node;
 }
 
+function compactList(values, emptyText = "none recorded") {
+  if (!Array.isArray(values) || values.length === 0) {
+    return [emptyText];
+  }
+  return values.map((value) => {
+    if (value && typeof value === "object") {
+      return Object.entries(value)
+        .filter(([, item]) => item !== null && item !== undefined && item !== "")
+        .map(([key, item]) => `${key}: ${Array.isArray(item) ? item.join(", ") : item}`)
+        .join(" / ");
+    }
+    return valueOrUnavailable(value);
+  });
+}
+
+function detailListField(label, values, emptyText) {
+  const node = document.createElement("div");
+  node.className = "detail-field detail-list-field";
+  const heading = document.createElement("h3");
+  heading.textContent = label;
+  const list = document.createElement("div");
+  list.className = "insight-list";
+  compactList(values, emptyText).forEach((value) => {
+    const item = document.createElement("div");
+    item.className = "insight-item";
+    item.textContent = value;
+    list.append(item);
+  });
+  node.append(heading, list);
+  return node;
+}
+
+function taskInsightPanel(titleText, children) {
+  const panel = document.createElement("section");
+  panel.className = "task-insight-panel";
+  const title = document.createElement("div");
+  title.className = "task-insight-title";
+  title.textContent = titleText;
+  panel.append(title, ...children);
+  return panel;
+}
+
+function confidenceText(summary) {
+  if (!summary || !summary.count) {
+    return "not recorded";
+  }
+  return `avg ${summary.average} / min ${summary.min} / ${summary.count} review${summary.count === 1 ? "" : "s"}`;
+}
+
+function sourceGateText(sourceGate) {
+  if (!sourceGate) {
+    return "not recorded";
+  }
+  const ids = compactList(sourceGate.source_ids, "no source ids").join(", ");
+  return `${statusLabel(sourceGate.status)} / ${ids}`;
+}
+
+function scorecardText(scorecard) {
+  if (!scorecard || Object.keys(scorecard).length === 0) {
+    return ["none recorded"];
+  }
+  return Object.entries(scorecard).map(([key, value]) => `${key.replaceAll("_", " ")}: ${valueOrUnavailable(value)}`);
+}
+
+function reviewChainItems(chain) {
+  if (!Array.isArray(chain) || chain.length === 0) {
+    return ["no reviewer records"];
+  }
+  return chain.map((review) => {
+    const confidence = review.confidence === null || review.confidence === undefined ? "confidence unavailable" : `confidence ${review.confidence}`;
+    const gaps = compactList(review.evidence_gaps, "no gaps").join(", ");
+    return `${valueOrUnavailable(review.role)}: ${valueOrUnavailable(review.decision)} / ${valueOrUnavailable(review.claim_strength)} / ${confidence} / ${gaps}`;
+  });
+}
+
+function taskExplainabilityPanel(task) {
+  const explanation = task.explainability || {};
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Why", explanation.rationale),
+    detailField("Question", explanation.research_question),
+    detailField("Trigger", explanation.trigger),
+    detailField("Next", explanation.next_recommended_task),
+    detailListField("Inputs", explanation.input_artifacts, "no inputs recorded"),
+    detailListField("Outputs", explanation.output_artifacts, "no outputs recorded"),
+    detailListField("Dependencies", explanation.dependencies, "no dependencies recorded"),
+    detailListField("Unblocks", explanation.unblocks, "no downstream unblock recorded"),
+    detailListField("Validation Commands", explanation.validation_commands, "no validation commands recorded")
+  );
+  const command = lifecycleCommandNode(explanation.next_command);
+  return taskInsightPanel("Task Explanation", [fields, command]);
+}
+
+function taskQaPanel(task) {
+  const qa = task.qa || {};
+  const fields = document.createElement("div");
+  fields.className = "detail-grid";
+  fields.replaceChildren(
+    detailField("Review Status", `${statusLabel(qa.review_status)} / ${valueOrUnavailable(qa.routing_reason)}`),
+    detailField("Review Mode", compactList(qa.review_modes, "not recorded").join(", ")),
+    detailField("Confidence", confidenceText(qa.reviewer_confidence)),
+    detailField("Claim", `${valueOrUnavailable(qa.claim_strength)} / max ${valueOrUnavailable(qa.max_claim_strength)}`),
+    detailField("Source Gate", sourceGateText(qa.source_gate)),
+    detailField("Acceptance", `${valueOrUnavailable((qa.result_acceptance || {}).route)} / ${valueOrUnavailable((qa.result_acceptance || {}).recommended_decision)}`),
+    detailListField("Caveats", qa.caveats, "no caveats recorded"),
+    detailListField("Evidence Gaps", qa.evidence_gaps, "no evidence gaps recorded"),
+    detailListField("Validation Checks", qa.validation_checks, "no validation checks recorded"),
+    detailListField("Reproducibility", qa.reproducibility_checks, "no reproducibility checks recorded"),
+    detailListField("Scorecard", scorecardText(qa.scorecard), "no scorecard recorded"),
+    detailListField("Review Chain", reviewChainItems(qa.review_chain), "no reviewer records")
+  );
+  return taskInsightPanel("Review And QA", [fields]);
+}
+
 function artifactHref(file, mode = "view") {
   if (!file) {
     return "";
@@ -608,7 +723,7 @@ function renderTaskDetail(rows) {
   const taskActions = ((state.actions || {}).task_actions || []);
   actionRow.replaceChildren(...taskActions.map((action) => taskActionButton(action, task)));
 
-  panel.replaceChildren(title, fields, files, actionRow);
+  panel.replaceChildren(title, fields, taskExplainabilityPanel(task), taskQaPanel(task), files, actionRow);
 }
 
 function renderTasks(snapshot) {

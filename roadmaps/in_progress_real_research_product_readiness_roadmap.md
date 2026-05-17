@@ -1,9 +1,9 @@
 # Real Research Product Readiness Roadmap
 
 Status: In Progress
-Current phase: Phase 2 - Task explainability and QA visibility
+Current phase: Phase 3 - Source governance semantics
 Last updated: 2026-05-17
-Next action: Surface task rationale, inputs, outputs, review chain, claim strength, caveats, validation checks, and reviewer confidence
+Next action: Lock or concurrency-protect source upserts and clarify source-use/check-claim semantics
 Blocked by: None
 
 Created: 2026-05-16
@@ -101,7 +101,7 @@ subsystems.
 | ---: | --- | --- | --- |
 | 0 | Dashboard control-plane repair | Artifact viewer, robust path normalization, human-decision cards, source-blocker explanations, and decision action regression tests. | A human can inspect evidence and resolve a human gate from the dashboard without `file://` links or CLI path workarounds. |
 | 1 | Research lifecycle map | Project-level roadmap/subway-map view, current phase, completed outputs, active task, next task, final deliverables, and station detail panels. | Complete - The dashboard answers where the research is, what is done, what is missing, and what happens next. |
-| 2 | Task explainability and QA visibility | Task rationale, inputs, outputs, unblocks, review chain, claim strength, caveats, validation checks, and reviewer confidence. | Accepted tasks no longer look like unchecked agent output. |
+| 2 | Task explainability and QA visibility | Task rationale, inputs, outputs, unblocks, review chain, claim strength, caveats, validation checks, and reviewer confidence. | Complete - Accepted tasks no longer look like unchecked agent output. |
 | 3 | Source governance semantics | Register write locking, source-use intent, check-claim path normalization, LIT-only behavior, and source-blocker action guidance. | Source governance blocks are precise, explainable, and safe under concurrent operator actions. |
 | 4 | Foundations and cost drilldowns | Idea catalog/library drilldowns, cost panels, budget/source/network indicators, and foundation contents. | Humans can inspect ideas, library contents, and task economics from the dashboard. |
 | 5 | Task authoring and claim-strength guardrails | Minimal valid task templates, task creation helper, schema diagnostics, promoted-task preparation, and claim-cap warnings. | Manual or LLM-created tasks validate on first try, and claim-strength caps are visible before aggregation. |
@@ -115,8 +115,8 @@ subsystems.
 | P0 | 3 | Lock or concurrency-protect `source upsert` | Add register-level locking or optimistic read-version checks around `data_source_audit.md` writes. Report retry guidance when a concurrent write is detected. | Prevents silent loss of source-governance updates, a core data-integrity risk for file-backed state. | Open |
 | P1 | 0 | Human decision evidence cards | Each human decision should show links/viewers for worker output, aggregate review, result acceptance, relevant source/data/library dashboards, exact decision options, target statuses, and consequence of each option. | The human can approve, pause, reject, or resume from evidence rather than from an opaque gate label. | Complete |
 | P1 | 1 | Research lifecycle map | Add a project-level lifecycle view with stations for topic, discovery, idea, source/data readiness, literature, datasets, analysis, synthesis, draft, review, and final polish. | Makes the full research path legible and prevents accepted tasks from being mistaken for finished research. | Complete |
-| P1 | 2 | Task rationale and contents panel | For each task, surface why it exists, what it contains, input artifacts, output artifacts, dependency chain, what it unblocks, and next recommended task. | Reduces the need for chat explanations about why tasks were created and how they fit together. | Open |
-| P1 | 2 | Review and QA visibility panel | Show reviewer role, decision, confidence, claim strength, caveats, evidence gaps, source-gate status, reproducibility checks, validation commands, and whether review was independent, same-agent, panel-based, or human-approved. | Makes quality assurance visible; improves trust in accepted outputs. | Open |
+| P1 | 2 | Task rationale and contents panel | For each task, surface why it exists, what it contains, input artifacts, output artifacts, dependency chain, what it unblocks, and next recommended task. | Reduces the need for chat explanations about why tasks were created and how they fit together. | Complete |
+| P1 | 2 | Review and QA visibility panel | Show reviewer role, decision, confidence, claim strength, caveats, evidence gaps, source-gate status, reproducibility checks, validation commands, and whether review was independent, same-agent, panel-based, or human-approved. | Makes quality assurance visible; improves trust in accepted outputs. | Complete |
 | P1 | 3 | Source-use intent in claim gates | Distinguish `used_as_evidence`, `context_only`, `rejected_source`, `restricted_optional`, and similar source intents instead of treating every `DS-*` mention as accepted evidence. | Prevents useful source-audit discussion from blocking acceptance just because it mentions restricted sources. | Open |
 | P1 | 3 | Normalize `source check-claim` artifact paths | Accept absolute, project-root-relative, and ops-relative artifact paths. Return resolved path diagnostics when missing. | Removes confusing false failures when operators pass paths the way other framework commands accept them. | Open |
 | P1 | 3 | Clarify LIT-only source checks | When no `DS-*` refs are present but `LIT-*` refs are, explain that source-governance check is not applicable and recommend `library validate` or a library/source review path. | Avoids turning expected literature-only artifacts into scary source-governance failures. | Open |

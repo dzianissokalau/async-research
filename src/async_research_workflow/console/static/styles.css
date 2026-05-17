@@ -766,10 +766,40 @@ h3 {
   background: #ffffff;
 }
 
+.detail-list-field {
+  align-content: start;
+}
+
 .detail-value {
   color: var(--text);
   font-size: 13px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-insight-panel {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.task-insight-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.insight-list {
+  display: grid;
+  gap: 6px;
+}
+
+.insight-item {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 

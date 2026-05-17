@@ -469,6 +469,185 @@ class ConsoleSnapshotTests(unittest.TestCase):
             source_links = {link["label"]: link for link in by_station["source_data"]["artifact_links"]}
             self.assertTrue(source_links["Source audit"]["viewer_allowed"])
 
+    def test_task_detail_surfaces_coffee_style_explainability_and_qa(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(
+                ops_dir,
+                "TASK-0001",
+                "accepted",
+                task_type="data_readiness",
+                title="Coffee country concentration data readiness",
+            )
+            status_path = task_dir / "status.json"
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["catalog_idea_id"] = "IDEA-COFFEE-001"
+            status["data_audit_refs"] = ["DS-COFFEE-001"]
+            status["allowed_paths"] = [
+                "research_ops/tasks/TASK-0001-fixture/**",
+                "research_ops/data_source_audit.md",
+                "research_ops/data/**",
+            ]
+            status["review_policy"] = {
+                "tier": 2,
+                "required_reviewers": ["primary", "methodology"],
+                "panel_required": True,
+                "human_required_for_acceptance": False,
+            }
+            status["result"] = {
+                "recommendation": "ready",
+                "claim_strength": "moderate",
+                "claim_type": "data_readiness",
+                "caveats": ["ICO source requires manual refresh"],
+                "followups": ["TASK-0005 climate exposure overlay"],
+            }
+            status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            (task_dir / "task.md").write_text(
+                "\n".join(
+                    [
+                        "# TASK-0001",
+                        "",
+                        "## Objective",
+                        "Explain whether coffee-country concentration sources are usable for downstream climate research.",
+                        "",
+                        "## Research Question",
+                        "Can accepted ICO and FAOSTAT sources support country concentration claims?",
+                        "",
+                        "## Context",
+                        "- research_ops/data_source_audit.md",
+                        "- research_ops/data/profiles/DS-COFFEE-001.md",
+                        "",
+                        "## Required Output",
+                        "- source-by-source readiness verdict",
+                        "- recommended next task: `climate_overlay`",
+                        "- validation results from `async-research source validate research_ops`",
+                        "- validation results from `async-research data validate research_ops`",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_dir / "worker_output.md").write_text(
+                "Coffee readiness accepted.\n\n"
+                "`async-research source validate research_ops`\n"
+                "`async-research data validate research_ops`\n",
+                encoding="utf-8",
+            )
+            (task_dir / "review_panel").mkdir(exist_ok=True)
+            (task_dir / "review_panel" / "aggregate.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "task_id": "TASK-0001",
+                        "tier": 2,
+                        "required_reviewers": ["primary", "methodology"],
+                        "missing_required_reviews": [],
+                        "aggregate_decision": "accepted",
+                        "routing_reason": "all_required_reviewers_accept",
+                        "aggregate_claim_strength": "moderate",
+                        "human_gate_required": False,
+                        "revision_limit_hit": False,
+                        "reviews": [
+                            {
+                                "reviewer_role": "primary",
+                                "decision": "accept",
+                                "claim_strength": "moderate",
+                                "confidence": 0.9,
+                                "main_concerns": [],
+                                "evidence_gaps": [],
+                            },
+                            {
+                                "reviewer_role": "methodology",
+                                "decision": "accept_with_caveats",
+                                "claim_strength": "moderate",
+                                "confidence": 0.8,
+                                "main_concerns": ["Manual source refresh cadence remains a caveat"],
+                                "evidence_gaps": ["No automated refresh job yet"],
+                            },
+                        ],
+                        "agreements": ["All required reviewers accepted or accepted with caveats."],
+                        "disagreements": [],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_dir / "review_panel" / "result_acceptance.json").write_text(
+                json.dumps(
+                    {
+                        "route": "accept_as_evidence",
+                        "recommended_decision": "ready",
+                        "claim_strength": "moderate",
+                        "max_claim_strength": "moderate",
+                        "review_notes": ["accepted with refresh caveat"],
+                        "scorecard": {"claim_discipline": 5, "reproducibility": 4},
+                        "reviewer_panel": {
+                            "aggregate_decision": "accepted",
+                            "tier": 2,
+                            "reviewer_count": 2,
+                            "disagreement_present": False,
+                        },
+                        "source_governance": {
+                            "ok": True,
+                            "required": True,
+                            "source_ids": ["DS-COFFEE-001"],
+                            "blocked": [],
+                            "warnings": [],
+                        },
+                        "hard_gate_results": [{"gate": "source_governance", "passed": True, "reason": "approved"}],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            claim_dir = task_dir / "artifacts" / "analysis_run"
+            claim_dir.mkdir(parents=True)
+            (claim_dir / "claim_gates.json").write_text(
+                json.dumps(
+                    {
+                        "claim_decision": "accepted",
+                        "max_claim_strength": "moderate",
+                        "claim_gate_results": [
+                            {"gate": "source_refs_present", "status": "pass"},
+                            {"gate": "claim_limitations_declared", "status": "pass"},
+                        ],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            task = next(row for row in payload["tasks"]["all"] if row["task_id"] == "TASK-0001")
+            explanation = task["explainability"]
+            self.assertIn("coffee-country concentration", explanation["rationale"])
+            self.assertIn("ICO and FAOSTAT", explanation["research_question"])
+            self.assertEqual("IDEA-COFFEE-001", explanation["trigger"])
+            self.assertIn("research_ops/data_source_audit.md", explanation["input_artifacts"])
+            self.assertTrue(any("source-by-source readiness verdict" in row for row in explanation["output_artifacts"]))
+            self.assertIn("data source: DS-COFFEE-001", explanation["dependencies"])
+            self.assertIn("async-research source validate research_ops", explanation["validation_commands"])
+            self.assertEqual("TASK-0005 climate exposure overlay", explanation["next_recommended_task"])
+
+            qa = task["qa"]
+            self.assertEqual("accepted", qa["review_status"])
+            self.assertIn("panel-based", qa["review_modes"])
+            self.assertIn("independent", qa["review_modes"])
+            self.assertEqual({"count": 2, "min": 0.8, "average": 0.85}, qa["reviewer_confidence"])
+            self.assertEqual("moderate", qa["claim_strength"])
+            self.assertEqual("pass", qa["source_gate"]["status"])
+            self.assertEqual(["DS-COFFEE-001"], qa["source_gate"]["source_ids"])
+            self.assertIn("No automated refresh job yet", qa["evidence_gaps"])
+            self.assertIn("scorecard reproducibility: 4", qa["reproducibility_checks"])
+            self.assertTrue(any("claim_gates.json: pass: 2" == row for row in qa["validation_checks"]))
+            self.assertEqual("accept_as_evidence", qa["result_acceptance"]["route"])
+
     def test_snapshot_surfaces_slice_11_operation_details(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

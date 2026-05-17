@@ -13,6 +13,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import shlex
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -347,6 +348,408 @@ def limited(rows: list[dict[str, Any]], limit: int = RECENT_LIMIT) -> list[dict[
     return rows[:limit]
 
 
+def safe_read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def safe_read_embedded_json(path: Path) -> dict[str, Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}
+    for match in re.finditer(r"```(?:json)?\s*(.*?)```", text, re.IGNORECASE | re.DOTALL):
+        try:
+            payload = json.loads(match.group(1).strip())
+        except json.JSONDecodeError:
+            continue
+        return payload if isinstance(payload, dict) else {}
+    start = text.find("{")
+    if start < 0:
+        return {}
+    decoder = json.JSONDecoder()
+    try:
+        payload, _index = decoder.raw_decode(text[start:])
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def normalize_heading(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+
+def markdown_sections(path: Path) -> dict[str, str]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    sections: dict[str, list[str]] = {"intro": []}
+    current = "intro"
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("## "):
+            current = normalize_heading(stripped[3:])
+            sections.setdefault(current, [])
+            continue
+        if stripped.startswith("# "):
+            continue
+        if stripped:
+            sections.setdefault(current, []).append(stripped)
+    return {key: "\n".join(value).strip() for key, value in sections.items() if "\n".join(value).strip()}
+
+
+def first_section(sections: dict[str, str], *names: str) -> str:
+    for name in names:
+        text = sections.get(normalize_heading(name), "").strip()
+        if text:
+            return text
+    return ""
+
+
+def compact_text(value: Any, fallback: str = "unavailable", limit: int = 900) -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text or text.lower() == "none":
+        return fallback
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def normalize_list_value(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        rows = value
+    elif isinstance(value, tuple):
+        rows = list(value)
+    elif isinstance(value, dict):
+        rows = [f"{key}: {val}" for key, val in value.items()]
+    else:
+        text = str(value).strip()
+        if not text or text.lower() == "none":
+            return []
+        rows = re.split(r"\s*(?:;|\n)\s*", text)
+    output: list[str] = []
+    for item in rows:
+        text = str(item).strip().strip("-").strip()
+        if text and text.lower() != "none" and text not in output:
+            output.append(text)
+    return output
+
+
+def markdown_bullets(text: str, limit: int = RECENT_LIMIT) -> list[str]:
+    rows: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("-", "*")):
+            rows.append(stripped[1:].strip())
+        elif stripped and not rows:
+            rows.append(stripped)
+        if len(rows) >= limit:
+            break
+    return [row for row in rows if row]
+
+
+def reference_ids_from_text(*texts: str) -> list[str]:
+    refs: list[str] = []
+    for text in texts:
+        for match in re.findall(r"\b(?:DS|LIT|IDEA|TASK)-[A-Za-z0-9_-]+\b", text):
+            if match not in refs:
+                refs.append(match)
+    return refs
+
+
+def extract_validation_commands(*paths: Path) -> list[str]:
+    commands: list[str] = []
+    patterns = [
+        re.compile(r"`((?:\.venv/bin/)?async-research\s+[^`]+)`"),
+        re.compile(r"((?:\.venv/bin/)?async-research\s+[A-Za-z0-9][^\n]+)"),
+    ]
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for pattern in patterns:
+            for match in pattern.findall(text):
+                command = str(match).strip().rstrip(".")
+                if command and command not in commands:
+                    commands.append(command)
+                if len(commands) >= RECENT_LIMIT:
+                    return commands
+    return commands
+
+
+def task_trigger(payload: dict[str, Any], sections: dict[str, str]) -> str:
+    for key in ("catalog_idea_id", "origin_idea_id", "parent_task_id", "triggered_by_task_id"):
+        value = compact_text(payload.get(key), "", 240)
+        if value:
+            return value
+    promotion = payload.get("catalog_promotion")
+    if isinstance(promotion, dict):
+        value = compact_text(promotion.get("catalog_idea_id") or promotion.get("source"), "", 240)
+        if value:
+            return value
+    context = first_section(sections, "Cross-Task Anti-Context", "Context")
+    if context:
+        return compact_text(context, limit=360)
+    return compact_text(payload.get("last_transition_reason"), "not recorded", 360)
+
+
+def task_input_artifacts(payload: dict[str, Any], sections: dict[str, str]) -> list[str]:
+    rows = normalize_list_value(payload.get("allowed_paths"))
+    rows.extend(markdown_bullets(first_section(sections, "Context"), RECENT_LIMIT))
+    output: list[str] = []
+    for row in rows:
+        if row not in output:
+            output.append(row)
+    return output[:8]
+
+
+def task_output_artifacts(task_dir: Path, sections: dict[str, str], files: list[dict[str, Any]]) -> list[str]:
+    rows = markdown_bullets(first_section(sections, "Required Output", "Output", "Deliverables"), RECENT_LIMIT)
+    existing = [
+        f"{file.get('label')}: {file.get('relative_path') or file.get('path')}"
+        for file in files
+        if file.get("exists") and file.get("label") in {"Worker output", "Result acceptance", "Review aggregate", "Review aggregate JSON"}
+    ]
+    rows.extend(existing)
+    if (task_dir / "artifacts").is_dir():
+        rows.append("Task artifacts directory")
+    output: list[str] = []
+    for row in rows:
+        if row not in output:
+            output.append(row)
+    return output[:8]
+
+
+def next_task_text(payload: dict[str, Any], sections: dict[str, str]) -> str:
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    followups = normalize_list_value(result.get("followups"))
+    if followups:
+        return followups[0]
+    recommendation = compact_text(result.get("recommendation"), "", 240)
+    if recommendation:
+        return recommendation
+    required = first_section(sections, "Required Output")
+    match = re.search(r"recommended next task:?\s*`?([A-Za-z0-9_\- ]+)`?", required, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    status = str(payload.get("status") or "")
+    if status in {"awaiting_review", "single_review", "panel_review"}:
+        return "complete or aggregate review"
+    if status in {"accepted", "synthesized"}:
+        return "inspect downstream lifecycle station"
+    if payload.get("requires_human") or status == "needs_human":
+        return "resolve the human gate"
+    if status == "ready_for_worker":
+        return "run the worker"
+    return "inspect workflow next"
+
+
+def task_dependencies(payload: dict[str, Any], sections: dict[str, str], worker_text: str) -> list[str]:
+    rows = [f"data source: {ref}" for ref in normalize_list_value(payload.get("data_audit_refs"))]
+    rows.extend(reference_ids_from_text(json.dumps(payload, sort_keys=True), "\n".join(sections.values()), worker_text))
+    output: list[str] = []
+    for row in rows:
+        if row not in output:
+            output.append(row)
+    return output[:8]
+
+
+def task_explainability(ops_dir: Path, task_dir: Path, payload: dict[str, Any], files: list[dict[str, Any]]) -> dict[str, Any]:
+    task_path = task_dir / "task.md"
+    worker_path = task_dir / "worker_output.md"
+    sections = markdown_sections(task_path)
+    worker_text = tail_text(worker_path, 2000)
+    objective = first_section(sections, "Objective", "Scope", "Context")
+    research_question = first_section(sections, "Research Question", "Question")
+    if not research_question:
+        research_question = objective
+    return {
+        "available": bool(sections or worker_text or payload),
+        "rationale": compact_text(objective or payload.get("title"), limit=700),
+        "research_question": compact_text(research_question or payload.get("title"), limit=700),
+        "trigger": task_trigger(payload, sections),
+        "input_artifacts": task_input_artifacts(payload, sections),
+        "output_artifacts": task_output_artifacts(task_dir, sections, files),
+        "dependencies": task_dependencies(payload, sections, worker_text),
+        "unblocks": normalize_list_value((payload.get("result") or {}).get("followups") if isinstance(payload.get("result"), dict) else None),
+        "next_recommended_task": next_task_text(payload, sections),
+        "next_command": command_hint("Inspect workflow next", ["async-research", "workflow", "next", str(ops_dir)]),
+        "validation_commands": extract_validation_commands(worker_path, task_dir / "review_panel" / "aggregate.md"),
+    }
+
+
+def read_task_reviews(task_dir: Path, aggregate: dict[str, Any]) -> list[dict[str, Any]]:
+    reviews = aggregate.get("reviews")
+    if isinstance(reviews, list):
+        return [review for review in reviews if isinstance(review, dict)]
+    loaded: list[dict[str, Any]] = []
+    reviews_dir = task_dir / "reviews"
+    if reviews_dir.is_dir():
+        for path in sorted(reviews_dir.glob("*.md")):
+            payload = safe_read_embedded_json(path)
+            if payload:
+                loaded.append(payload)
+    return loaded
+
+
+def confidence_summary(reviews: list[dict[str, Any]]) -> dict[str, Any]:
+    values = [
+        float(review["confidence"])
+        for review in reviews
+        if isinstance(review.get("confidence"), (int, float)) and not isinstance(review.get("confidence"), bool)
+    ]
+    if not values:
+        return {"count": 0, "min": None, "average": None}
+    return {
+        "count": len(values),
+        "min": round(min(values), 3),
+        "average": round(sum(values) / len(values), 3),
+    }
+
+
+def review_modes(payload: dict[str, Any], aggregate: dict[str, Any], acceptance: dict[str, Any], reviews: list[dict[str, Any]]) -> list[str]:
+    modes: list[str] = []
+    policy = payload.get("review_policy") if isinstance(payload.get("review_policy"), dict) else {}
+    panel = acceptance.get("reviewer_panel") if isinstance(acceptance.get("reviewer_panel"), dict) else {}
+    reviewer_count = panel.get("reviewer_count") if isinstance(panel.get("reviewer_count"), int) else len(reviews)
+    tier = aggregate.get("tier") if isinstance(aggregate.get("tier"), int) else policy.get("tier")
+    if reviewer_count > 1 or policy.get("panel_required") is True or (isinstance(tier, int) and tier >= 2):
+        modes.append("panel-based")
+    if reviews:
+        modes.append("independent")
+    human_gate = acceptance.get("human_gate") if isinstance(acceptance.get("human_gate"), dict) else {}
+    if policy.get("human_required_for_acceptance") is True or human_gate.get("satisfied") is True and human_gate.get("required") is True:
+        modes.append("human-approved")
+    if not modes:
+        modes.append("same-agent or not recorded")
+    return modes
+
+
+def source_gate_summary(payload: dict[str, Any], acceptance: dict[str, Any]) -> dict[str, Any]:
+    source = acceptance.get("source_governance") if isinstance(acceptance.get("source_governance"), dict) else {}
+    source_ids = normalize_list_value(source.get("source_ids") if source else payload.get("data_audit_refs"))
+    blocked = source.get("blocked") if isinstance(source.get("blocked"), list) else []
+    warnings = source.get("warnings") if isinstance(source.get("warnings"), list) else []
+    if source:
+        status = "pass" if source.get("ok") is True and not blocked else "blocked"
+    elif source_ids:
+        status = "not checked"
+    else:
+        status = "not applicable"
+    return {
+        "status": status,
+        "required": source.get("required") if source else bool(source_ids),
+        "source_ids": source_ids,
+        "blocked": blocked[:RECENT_LIMIT],
+        "warnings": warnings[:RECENT_LIMIT],
+    }
+
+
+def claim_gate_summary(task_dir: Path) -> list[str]:
+    checks: list[str] = []
+    for path in sorted((task_dir / "artifacts").glob("**/claim_gates.json")):
+        payload = safe_read_json(path)
+        gates = payload.get("claim_gate_results") if isinstance(payload.get("claim_gate_results"), list) else []
+        counts: dict[str, int] = {}
+        for gate in gates:
+            if not isinstance(gate, dict):
+                continue
+            status = str(gate.get("status") or "unknown")
+            counts[status] = counts.get(status, 0) + 1
+        if counts:
+            summary = ", ".join(f"{status}: {count}" for status, count in sorted(counts.items()))
+            checks.append(f"{path.name}: {summary}")
+        if payload.get("claim_decision"):
+            checks.append(f"claim decision: {payload.get('claim_decision')}")
+        if payload.get("max_claim_strength"):
+            checks.append(f"max claim strength: {payload.get('max_claim_strength')}")
+    return checks[:RECENT_LIMIT]
+
+
+def reproducibility_checks(acceptance: dict[str, Any], task_dir: Path) -> list[str]:
+    checks: list[str] = []
+    scorecard = acceptance.get("scorecard") if isinstance(acceptance.get("scorecard"), dict) else {}
+    if "reproducibility" in scorecard:
+        checks.append(f"scorecard reproducibility: {scorecard['reproducibility']}")
+    analysis_run = acceptance.get("analysis_run") if isinstance(acceptance.get("analysis_run"), dict) else {}
+    if analysis_run.get("run_id"):
+        checks.append(f"analysis run: {analysis_run['run_id']}")
+    for filename in ("run_manifest.json", "metrics.json", "diagnostics.json", "robustness_checks.json"):
+        if any(task_dir.glob(f"artifacts/**/{filename}")):
+            checks.append(f"{filename} present")
+    return checks[:RECENT_LIMIT]
+
+
+def task_qa_summary(task_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    aggregate = safe_read_json(task_dir / "review_panel" / "aggregate.json")
+    acceptance = safe_read_json(task_dir / "review_panel" / "result_acceptance.json")
+    reviews = read_task_reviews(task_dir, aggregate)
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    caveats = normalize_list_value(result.get("caveats"))
+    caveats.extend(normalize_list_value(acceptance.get("review_notes") if acceptance else []))
+    evidence_gaps: list[str] = []
+    for review in reviews:
+        evidence_gaps.extend(normalize_list_value(review.get("evidence_gaps")))
+    hard_gates = acceptance.get("hard_gate_results") if isinstance(acceptance.get("hard_gate_results"), list) else []
+    failed_gates = [
+        f"{gate.get('gate')}: {gate.get('reason')}"
+        for gate in hard_gates
+        if isinstance(gate, dict) and gate.get("passed") is False
+    ]
+    evidence_gaps.extend(failed_gates)
+    source_gate = source_gate_summary(payload, acceptance)
+    validation_checks = [
+        f"status validation: {payload.get('status') or 'unknown'}",
+        *claim_gate_summary(task_dir),
+    ]
+    if source_gate["status"] != "not applicable":
+        validation_checks.append(f"source gate: {source_gate['status']}")
+    panel = acceptance.get("reviewer_panel") if isinstance(acceptance.get("reviewer_panel"), dict) else {}
+    return {
+        "available": bool(aggregate or acceptance or reviews or result),
+        "review_status": compact_text(panel.get("aggregate_decision") or aggregate.get("aggregate_decision") or payload.get("status")),
+        "routing_reason": compact_text(aggregate.get("routing_reason") or payload.get("last_transition_reason"), "unavailable", 360),
+        "review_modes": review_modes(payload, aggregate, acceptance, reviews),
+        "review_chain": [
+            {
+                "role": review.get("reviewer_role") or review.get("role") or "unavailable",
+                "decision": review.get("decision", "unavailable"),
+                "confidence": review.get("confidence"),
+                "claim_strength": review.get("claim_strength", "unavailable"),
+                "concerns": normalize_list_value(review.get("main_concerns"))[:3],
+                "evidence_gaps": normalize_list_value(review.get("evidence_gaps"))[:3],
+            }
+            for review in reviews[:RECENT_LIMIT]
+        ],
+        "reviewer_confidence": confidence_summary(reviews),
+        "claim_strength": compact_text(
+            acceptance.get("claim_strength") or aggregate.get("aggregate_claim_strength") or result.get("claim_strength"),
+            "none",
+            120,
+        ),
+        "max_claim_strength": compact_text(acceptance.get("max_claim_strength"), "unavailable", 120),
+        "caveats": caveats[:RECENT_LIMIT],
+        "evidence_gaps": evidence_gaps[:RECENT_LIMIT],
+        "source_gate": source_gate,
+        "reproducibility_checks": reproducibility_checks(acceptance, task_dir),
+        "validation_checks": validation_checks[:RECENT_LIMIT],
+        "scorecard": acceptance.get("scorecard") if isinstance(acceptance.get("scorecard"), dict) else {},
+        "result_acceptance": {
+            "route": compact_text(acceptance.get("route"), "unavailable", 160),
+            "recommended_decision": compact_text(acceptance.get("recommended_decision"), "unavailable", 160),
+        },
+    }
+
+
 def task_id(payload: dict[str, Any], fallback: Path) -> str:
     return str(payload.get("id") or fallback.name)
 
@@ -434,6 +837,7 @@ def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_pa
     status_path = item["status_path"]
     payload = item["payload"]
     transition = transition_summary(payload, status_path)
+    files = task_file_links(ops_dir, task_dir, status_path)
     return {
         "task_id": task_id(payload, task_dir),
         "title": payload.get("title", "unavailable"),
@@ -455,7 +859,9 @@ def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_pa
         "status_validation": status_validation_entry(status_path, malformed_by_path),
         "transition_validation": transition,
         "lock_state": task_lock_state(task_dir, now),
-        "files": task_file_links(ops_dir, task_dir, status_path),
+        "files": files,
+        "explainability": task_explainability(ops_dir, task_dir, payload, files),
+        "qa": task_qa_summary(task_dir, payload),
         "task_dir": str(task_dir),
         "status_path": str(status_path),
     }
@@ -508,6 +914,36 @@ def malformed_task_row(item: dict[str, Any], now: datetime, ops_dir: Path | None
         if task_dir is not None
         else {"locked": False, "stale": False, "lock_dir": "", "age_minutes": None, "owner": None},
         "files": task_file_links(workspace_dir, task_dir, status_path) if workspace_dir is not None and task_dir is not None and status_path is not None else [],
+        "explainability": {
+            "available": False,
+            "rationale": "unavailable",
+            "research_question": "unavailable",
+            "trigger": item.get("reason", "invalid_status"),
+            "input_artifacts": [],
+            "output_artifacts": [],
+            "dependencies": [],
+            "unblocks": [],
+            "next_recommended_task": "fix status.json",
+            "next_command": command_hint("Validate workflow", ["async-research", "workflow", "check", str(workspace_dir or "")]),
+            "validation_commands": [],
+        },
+        "qa": {
+            "available": False,
+            "review_status": "invalid",
+            "routing_reason": item.get("reason", "invalid_status"),
+            "review_modes": ["not recorded"],
+            "review_chain": [],
+            "reviewer_confidence": {"count": 0, "min": None, "average": None},
+            "claim_strength": "none",
+            "max_claim_strength": "unavailable",
+            "caveats": [],
+            "evidence_gaps": item.get("errors") or [item],
+            "source_gate": {"status": "not applicable", "required": False, "source_ids": [], "blocked": [], "warnings": []},
+            "reproducibility_checks": [],
+            "validation_checks": ["status validation: invalid"],
+            "scorecard": {},
+            "result_acceptance": {"route": "unavailable", "recommended_decision": "unavailable"},
+        },
         "task_dir": str(task_dir) if task_dir is not None else "",
         "status_path": str(status_path) if status_path is not None else "",
     }
