@@ -260,3 +260,49 @@ Branch: `codex/real-research-product-readiness-phase-4`
 ### Next Action
 
 - Next automation run should start Phase 5 on `codex/real-research-product-readiness-phase-5`.
+
+## Phase 5 - 2026-05-17 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/real-research-product-readiness-phase-5`
+
+### Scope
+
+- Minimal valid manual/LLM task templates and task creation helper.
+- Actionable schema diagnostics for `result: null` and `last_transition_reason: null`.
+- Promoted-task preparation actions after idea promotion.
+- Claim-strength cap preflight before review aggregation/result acceptance.
+
+### Changes
+
+- Added `workflow create-task` backed by a public task-authoring helper that previews or writes schema-valid task folders with non-null placeholders.
+- Added status schema diagnostics and threaded them through JSON validation, workflow status, review submission, and task transactions.
+- Added promoted-task preparation guidance to idea promotion dry runs and write output.
+- Added review submit/workflow/aggregation claim-strength cap preflight and capped accepted aggregate result state when generic artifacts cannot support the submitted strength.
+- Updated task contracts, task template guidance, CLI docs, and regression tests.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 632 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 14 checks
+- `.venv/bin/python -m unittest tests.test_task_authoring`: passed, 3 tests
+- `.venv/bin/python -m unittest tests.test_review_authoring`: passed, 18 tests
+- `.venv/bin/python -m unittest tests.test_workflow_orchestrator`: passed, 42 tests
+- `.venv/bin/python -m unittest tests.test_idea_catalog_v2_proposal_write`: passed, 19 tests
+- `.venv/bin/python -m unittest tests.test_cli_architecture tests.test_cli_help`: passed, 17 tests
+- `.venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources`: passed, 75 tests
+
+### Review
+
+- Review file: `roadmaps/reviews/real-research-product-readiness-phase-5-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly requested.
+- Claim-cap precision remains tied to the existing result-acceptance structured-summary policy.
+
+### Next Action
+
+- All phases in this roadmap are delivered. Follow-on publication-readiness work belongs in the separate deliverable maturity/editorial QA roadmap.

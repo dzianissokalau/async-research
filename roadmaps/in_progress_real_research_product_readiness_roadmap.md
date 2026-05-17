@@ -1,9 +1,9 @@
 # Real Research Product Readiness Roadmap
 
 Status: In Progress
-Current phase: Phase 5 - Task authoring and claim-strength guardrails
+Current phase: Complete - all product readiness phases delivered
 Last updated: 2026-05-17
-Next action: Add task authoring helpers, schema diagnostics, and claim-strength cap preflight
+Next action: Use the follow-on deliverable maturity/editorial QA roadmap for publication-readiness work
 Blocked by: None
 
 Created: 2026-05-16
@@ -104,7 +104,7 @@ subsystems.
 | 2 | Task explainability and QA visibility | Task rationale, inputs, outputs, unblocks, review chain, claim strength, caveats, validation checks, and reviewer confidence. | Complete - Accepted tasks no longer look like unchecked agent output. |
 | 3 | Source governance semantics | Register write locking, source-use intent, check-claim path normalization, LIT-only behavior, and source-blocker action guidance. | Source governance blocks are precise, explainable, and safe under concurrent operator actions. |
 | 4 | Foundations and cost drilldowns | Idea catalog/library drilldowns, cost panels, budget/source/network indicators, and foundation contents. | Complete - Humans can inspect ideas, library contents, and task economics from the dashboard. |
-| 5 | Task authoring and claim-strength guardrails | Minimal valid task templates, task creation helper, schema diagnostics, promoted-task preparation, and claim-cap warnings. | Manual or LLM-created tasks validate on first try, and claim-strength caps are visible before aggregation. |
+| 5 | Task authoring and claim-strength guardrails | Minimal valid task templates, task creation helper, schema diagnostics, promoted-task preparation, and claim-cap warnings. | Complete - Manual or LLM-created tasks validate on first try, and claim-strength caps are visible before aggregation. |
 
 ## Prioritized Improvements
 
@@ -122,8 +122,8 @@ subsystems.
 | P1 | 3 | Clarify LIT-only source checks | When no `DS-*` refs are present but `LIT-*` refs are, explain that source-governance check is not applicable and recommend `library validate` or a library/source review path. | Avoids turning expected literature-only artifacts into scary source-governance failures. | Complete |
 | P2 | 4 | Idea and library dashboard drilldowns | Render idea catalog and library read models inside the web dashboard, including idea status, prioritization, source rows, topic coverage, claims, methods, open questions, risky/context-only sources, and validator findings. | Makes foundational research memory visible without raw file inspection. | Complete |
 | P2 | 4 | Cost and external-service panel | Show per-task estimated budget, actual spend, model/API/data costs, network/API use, and whether any paid or external service requires approval. | Lets humans understand task economics before approving or continuing work. | Complete |
-| P2 | 5 | Minimal valid task templates and task creation helper | Provide a helper or template for manual/LLM task creation with valid `status.json` placeholders, including non-null `result` and `last_transition_reason`. | Avoids schema failures for natural but invalid `null` values during task creation. | Open |
-| P2 | 5 | Claim-strength cap preflight | Warn in `review submit`, `workflow worker-complete`, or `workflow advance --dry-run` when task type/artifact structure caps acceptable claim strength below the submitted review. | Makes claim-strength policy visible before aggregation fails. | Open |
+| P2 | 5 | Minimal valid task templates and task creation helper | Provide a helper or template for manual/LLM task creation with valid `status.json` placeholders, including non-null `result` and `last_transition_reason`. | Avoids schema failures for natural but invalid `null` values during task creation. | Complete |
+| P2 | 5 | Claim-strength cap preflight | Warn in `review submit`, `workflow worker-complete`, or `workflow advance --dry-run` when task type/artifact structure caps acceptable claim strength below the submitted review. | Makes claim-strength policy visible before aggregation fails. | Complete |
 | P2 | 0 | Source blocker action guidance | When source governance blocks acceptance, show which sources blocked, why, and available actions: approve source, accept for planning only, continue with caveats, or revise source audit. | Turns a good guardrail into an actionable workflow instead of a dead end. | Complete |
 | P3 | 1 | Research roadmap artifact contract | Standardize an optional `research_ops/research_roadmap.md` or JSON read model so project-level roadmap state is not an ad hoc external file. | Lets dashboards and agents share a durable current-phase/current-task view. | Backlog |
 | P3 | 4 | Dashboard vocabulary cleanup | Rename outcome columns from `PROJECT` to `TASK`, `OUTPUT`, or `ACCEPTED OUTPUT`, reserving project for the whole workspace. | Reduces conceptual confusion between workspace, idea, task, output, and paper. | Backlog |

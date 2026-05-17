@@ -318,6 +318,33 @@ class ReviewAuthoringTests(unittest.TestCase):
             self.assertEqual(review_authoring.TARGET_EXISTS, code, refused)
             self.assertEqual("target_exists", refused["reason"])
 
+    def test_review_submit_warns_when_claim_strength_exceeds_generic_artifact_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(self.init_ops(Path(tmp)))
+
+            code, payload = run_cli_json(
+                [
+                    "review",
+                    "submit",
+                    task_dir,
+                    "--role",
+                    "primary",
+                    "--decision",
+                    "accept",
+                    "--claim-strength",
+                    "moderate",
+                    "--confidence",
+                    "0.8",
+                    "--dry-run",
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("suggestive", payload["claim_strength_cap"]["max_claim_strength"])
+            self.assertTrue(payload["claim_strength_cap"]["warning"])
+            self.assertIn("structured result artifacts", payload["claim_strength_cap"]["next_step"])
+            self.assertTrue(any(item["warning"] == "claim_strength_exceeds_cap" for item in payload["warnings"]))
+
     def test_review_submit_accepts_real_estate_reviewable_task_with_worker_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             task_dir = self.write_task(
@@ -371,6 +398,51 @@ class ReviewAuthoringTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, aggregate)
             self.assertEqual("needs_revision", aggregate["aggregate_decision"])
             self.assertEqual("reviewer_requested_revision", aggregate["routing_reason"])
+
+    def test_review_submit_warns_and_aggregate_caps_generic_artifact_claim_strength(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self.write_task(
+                self.init_ops(Path(tmp)),
+                "TASK-9003-review-authoring",
+                worker_output="Coffee pilot generic readiness memo with no structured result summary.\n",
+            )
+
+            command = [
+                "review",
+                "submit",
+                task_dir,
+                "--role",
+                "primary",
+                "--decision",
+                "accept",
+                "--claim-strength",
+                "moderate",
+                "--confidence",
+                "0.8",
+            ]
+            code, dry = run_cli_json([*command, "--dry-run"])
+            self.assertEqual(cli.SUCCESS, code, dry)
+            self.assertTrue(dry["claim_strength_cap"]["warning"])
+            self.assertEqual("suggestive", dry["claim_strength_cap"]["max_claim_strength"])
+            self.assertIn("claim_strength_exceeds_cap", dry["warnings"][0]["warning"])
+
+            code, submitted = run_cli_json(command)
+            self.assertEqual(cli.SUCCESS, code, submitted)
+            self.assertTrue(submitted["claim_strength_cap"]["warning"])
+
+            code, aggregate = run_cli_json(["review", "aggregate", task_dir, "--record-review-start"])
+
+            self.assertEqual(cli.SUCCESS, code, aggregate)
+            self.assertEqual("accepted", aggregate["aggregate_decision"])
+            self.assertEqual("moderate", aggregate["requested_aggregate_claim_strength"])
+            self.assertEqual("suggestive", aggregate["aggregate_claim_strength"])
+            self.assertTrue(aggregate["claim_strength_cap"]["applied"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("accepted", status["status"])
+            self.assertEqual("suggestive", status["result"]["claim_strength"])
+            result_acceptance = json.loads((task_dir / "review_panel" / "result_acceptance.json").read_text(encoding="utf-8"))
+            self.assertEqual("suggestive", result_acceptance["claim_strength"])
+            self.assertEqual("suggestive", result_acceptance["max_claim_strength"])
 
     def test_role_mismatch_is_reported_by_authoring_validation(self) -> None:
         payload = review_authoring.review_payload(

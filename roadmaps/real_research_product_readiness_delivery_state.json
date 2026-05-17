@@ -1,21 +1,22 @@
 {
   "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
   "roadmap_slug": "real-research-product-readiness",
-  "current_phase": "5",
+  "current_phase": "complete",
   "branch": "codex/real-research-product-readiness-phase-5",
-  "status": "ready_for_next_run",
+  "status": "delivered",
   "review_iterations": 1,
   "max_review_iterations": 3,
   "last_verification": {
     "commands": [
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
-        "status": "passed"
+        "status": "passed",
+        "details": "12 tests"
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "627 tests"
+        "details": "632 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -23,30 +24,30 @@
         "details": "14 checks"
       },
       {
+        "command": ".venv/bin/python -m unittest tests.test_task_authoring tests.test_review_authoring tests.test_workflow_orchestrator tests.test_idea_catalog_v2_proposal_write tests.test_cli_architecture tests.test_cli_help",
+        "status": "passed",
+        "details": "99 targeted Phase 5 task/review/workflow/idea/CLI tests"
+      },
+      {
         "command": ".venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources",
         "status": "passed",
         "details": "75 targeted dashboard server/action/snapshot/outcome/static checks"
-      },
-      {
-        "command": "browser smoke http://127.0.0.1:8769",
-        "status": "passed",
-        "details": "idea/library/cost drilldowns rendered coffee fixture records"
       }
     ],
-    "completed_at": "2026-05-17T13:36:57Z"
+    "completed_at": "2026-05-17T16:07:45Z"
   },
   "last_review": {
-    "phase": "4",
-    "file": "roadmaps/reviews/real-research-product-readiness-phase-4-review-iteration-1.md",
+    "phase": "5",
+    "file": "roadmaps/reviews/real-research-product-readiness-phase-5-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-17T13:36:57Z"
+    "completed_at": "2026-05-17T16:07:45Z"
   },
-  "last_delivered_phase": "4",
+  "last_delivered_phase": "5",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-17T13:36:57Z"
+  "updated_at": "2026-05-17T16:07:45Z"
 }

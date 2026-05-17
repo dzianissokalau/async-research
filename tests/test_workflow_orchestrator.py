@@ -723,6 +723,7 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual("workflow_worker_completed", payload["action"])
             self.assertTrue(payload["changed"])
+            self.assertEqual("suggestive", payload["claim_strength_preflight"]["max_claim_strength"])
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("awaiting_review", status["status"])
             self.assertEqual("in_progress", status["previous_status"])

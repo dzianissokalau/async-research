@@ -20,13 +20,17 @@ from async_research_workflow.console import snapshot as console_snapshot
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts import check_schema_versions, task_lock, validate_transition
 from async_research_workflow.scripts.aggregate_reviews import (
+    CLAIM_STRENGTH_ORDER,
     REVIEWER_ROLES,
+    current_claim_strength,
     read_review,
     required_reviewers,
     review_tier,
     validate_review,
 )
+from async_research_workflow.scripts.schema_diagnostics import status_schema_diagnostics
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
+from async_research_workflow.scripts.validate_result_acceptance import cap_claim_strength, load_result_summary
 
 
 SUCCESS = 0
@@ -213,7 +217,8 @@ def load_status_for_report(task_dir: Path) -> tuple[dict[str, Any] | None, dict[
         return payload, {**base, "reason": "status_schema_malformed", "issues": [{"path": str(STATUS_SCHEMA), "message": "schema is not an object"}]}
     errors = [error.to_dict() for error in validate(payload, schema)]
     if errors:
-        return payload, {**base, "reason": "status_schema_validation_failed", "issues": errors}
+        diagnostics = status_schema_diagnostics(payload, errors)
+        return payload, {**base, "reason": "status_schema_validation_failed", "issues": errors, "diagnostics": diagnostics}
     return payload, {**base, "valid": True}
 
 
@@ -454,6 +459,66 @@ def result_report(status: dict[str, Any] | None) -> dict[str, Any]:
         "claim_strength_policy": result.get("claim_strength_policy"),
         "revalidation_status": result.get("revalidation_status"),
         "next_recheck_date": result.get("next_recheck_date"),
+    }
+
+
+def claim_strength_preflight_report(
+    task_dir: Path,
+    status: dict[str, Any] | None,
+    reviews: dict[str, Any] | None = None,
+    requested_claim_strength: str | None = None,
+) -> dict[str, Any]:
+    if status is None:
+        return {
+            "available": False,
+            "reason": "status_unavailable",
+            "warnings": [],
+        }
+    summary = load_result_summary(task_dir)
+    cap, reasons = cap_claim_strength(summary, None, str(status.get("type") or ""))
+    submitted: list[dict[str, Any]] = []
+    if requested_claim_strength:
+        submitted.append({"role": "requested", "claim_strength": requested_claim_strength})
+    elif isinstance(reviews, dict):
+        by_role = reviews.get("by_role") if isinstance(reviews.get("by_role"), dict) else {}
+        for role, review in by_role.items():
+            if isinstance(review, dict) and review.get("valid") is True and review.get("claim_strength") in CLAIM_STRENGTH_ORDER:
+                submitted.append({"role": role, "claim_strength": review["claim_strength"]})
+    submitted_strengths = [
+        str(item["claim_strength"])
+        for item in submitted
+        if item.get("claim_strength") in CLAIM_STRENGTH_ORDER
+    ]
+    aggregate_claim_strength = current_claim_strength([{"claim_strength": value} for value in submitted_strengths]) if submitted_strengths else None
+    warnings = [
+        {
+            "role": item["role"],
+            "requested_claim_strength": item["claim_strength"],
+            "max_claim_strength": cap,
+            "reason": "claim_strength_exceeds_cap",
+            "message": (
+                f"requested claim strength {item['claim_strength']} exceeds current cap {cap}; "
+                "lower the review claim strength or add structured/reproducible result artifacts"
+            ),
+        }
+        for item in submitted
+        if item.get("claim_strength") in CLAIM_STRENGTH_ORDER
+        and CLAIM_STRENGTH_ORDER.index(str(item["claim_strength"])) > CLAIM_STRENGTH_ORDER.index(cap)
+    ]
+    return {
+        "available": True,
+        "structured_result_summary_present": summary is not None,
+        "max_claim_strength": cap,
+        "cap_reasons": reasons,
+        "submitted_reviews": submitted,
+        "aggregate_claim_strength": aggregate_claim_strength,
+        "warnings": warnings,
+        "ok": not warnings,
+        "next_step": (
+            "claim strength is within the current task/artifact cap"
+            if not warnings
+            else "lower submitted review claim strength or add structured result summary/analysis claim gates before aggregation"
+        ),
     }
 
 
@@ -1300,6 +1365,7 @@ def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> 
     human_gate = human_gate_report(status)
     revisions = revision_report(status)
     result = result_report(status)
+    claim_strength_preflight = claim_strength_preflight_report(task_dir, status, reviews)
     commands = next_legal_commands(
         task_dir,
         ops_dir,
@@ -1331,6 +1397,7 @@ def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> 
         "human_gate": human_gate,
         "revisions": revisions,
         "result": result,
+        "claim_strength_preflight": claim_strength_preflight,
         "next_legal_commands": commands,
         "next_step": commands[0]["command"] if commands else "no safe task-level command is available",
         "summary": {
@@ -1729,6 +1796,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
         )
         return INVALID_STATE
 
+    claim_strength_preflight = claim_strength_preflight_report(task_dir, status)
     lock_state = lock_report(task_dir, args.stale_minutes)
     lock_owner = None
     if lock_state.get("locked"):
@@ -1774,6 +1842,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
                 "owner": args.owner,
                 "lock_state": lock_state,
                 "worker_output": worker_output,
+                "claim_strength_preflight": claim_strength_preflight,
                 "would_release_lock": bool(lock_state.get("locked")),
                 "would_write_status": True,
                 "next_step": "rerun without --dry-run to move the task to awaiting_review and release the lock",
@@ -1814,6 +1883,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
         )
         return INVALID_STATE
 
+    claim_strength_preflight = claim_strength_preflight_report(task_dir, latest_status)
     lock_state = lock_report(task_dir, args.stale_minutes)
     if lock_state.get("locked"):
         owner_payload = lock_state.get("owner")
@@ -1898,6 +1968,7 @@ def run_worker_complete(args: argparse.Namespace) -> int:
             "owner": args.owner,
             "lock_missing": not bool(lock_state.get("locked")),
             "release_result": release_json,
+            "claim_strength_preflight": claim_strength_preflight,
             "next_step": f"run async-research workflow status {shlex.quote(str(task_dir))} or submit reviews before workflow advance",
         }
     )
@@ -1945,6 +2016,9 @@ def run_advance(args: argparse.Namespace) -> int:
         print_json(workspace_error)
         return INVALID_STATE
     assert ops_dir is not None
+    status, _status_validation = load_status_for_report(task_dir)
+    preflight_reviews = review_files_report(task_dir, status)
+    claim_strength_preflight = claim_strength_preflight_report(task_dir, status, preflight_reviews)
     steps = advance_steps(task_dir, ops_dir, args.dry_run)
     results, failed = run_steps(steps, dry_run=args.dry_run)
     decision = aggregate_decision_from(results)
@@ -1963,6 +2037,7 @@ def run_advance(args: argparse.Namespace) -> int:
             "failed_step": None if failed is None else failed["name"],
             "partial_mutation": partial_mutation,
             "aggregate_decision": decision,
+            "claim_strength_preflight": claim_strength_preflight,
             "next_step": route_next_step(decision, args.dry_run, failed is not None),
         }
     )

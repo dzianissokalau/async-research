@@ -17,6 +17,8 @@ import re
 import sys
 from typing import Any, Iterable, List
 
+from async_research_workflow.scripts.schema_diagnostics import status_schema_diagnostics
+
 
 SUCCESS = 0
 VALIDATION_FAILED = 2
@@ -39,12 +41,30 @@ SUPPORTED_SCHEMA_KEYWORDS = {
 
 
 class ValidationError:
-    def __init__(self, path: str, message: str) -> None:
+    def __init__(self, path: str, message: str, hint: str | None = None) -> None:
         self.path = path
         self.message = message
+        self.hint = hint
 
     def to_dict(self) -> dict:
-        return {"path": self.path, "message": self.message}
+        payload = {"path": self.path, "message": self.message}
+        if self.hint:
+            payload["hint"] = self.hint
+        return payload
+
+
+def common_schema_hint(path: str, value: Any) -> str | None:
+    if value is None and path == "$.last_transition_reason":
+        return "Use a non-empty transition reason such as \"manual_task_created\"; null is invalid."
+    if value is None and path == "$.result":
+        return (
+            "Use a result object placeholder instead of null, for example "
+            "{\"recommendation\": null, \"claim_strength\": \"none\", "
+            "\"claim_strength_stale\": false, \"claim_strength_revalidation_required\": false, "
+            "\"claim_strength_revalidation_reason\": null, \"claim_strength_revalidated_at\": null, "
+            "\"claim_strength_policy\": \"result_acceptance_v1.0_claim_caps\", \"followup_count\": 0}."
+        )
+    return None
 
 
 def load_json(path: Path) -> Any:
@@ -94,7 +114,13 @@ def validate(instance: Any, schema: dict, path: str = "$") -> List[ValidationErr
             return unsupported
 
     if "type" in schema and not type_matches(instance, schema["type"]):
-        errors.append(ValidationError(path, f"expected type {schema['type']}, got {json_type(instance)}"))
+        errors.append(
+            ValidationError(
+                path,
+                f"expected type {schema['type']}, got {json_type(instance)}",
+                common_schema_hint(path, instance),
+            )
+        )
         return errors
 
     if "enum" in schema and instance not in schema["enum"]:
@@ -104,7 +130,7 @@ def validate(instance: Any, schema: dict, path: str = "$") -> List[ValidationErr
         required = schema.get("required", [])
         for key in required:
             if key not in instance:
-                errors.append(ValidationError(f"{path}.{key}", "required field missing"))
+                errors.append(ValidationError(f"{path}.{key}", "required field missing", common_schema_hint(f"{path}.{key}", None)))
 
         properties = schema.get("properties", {})
         for key, subschema in properties.items():
@@ -199,6 +225,7 @@ def main(argv: Iterable[str]) -> int:
 
     errors = validate(artifact, schema)
     if errors:
+        diagnostics = status_schema_diagnostics(artifact, [error.to_dict() for error in errors]) if args.schema.name == "task_status.schema.json" else []
         print_json(
             {
                 "ok": False,
@@ -206,6 +233,7 @@ def main(argv: Iterable[str]) -> int:
                 "artifact": str(args.artifact),
                 "schema": str(args.schema),
                 "errors": [error.to_dict() for error in errors],
+                "diagnostics": diagnostics,
             }
         )
         return VALIDATION_FAILED

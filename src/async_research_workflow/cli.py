@@ -17,6 +17,7 @@ from async_research_workflow import __version__
 from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
+from async_research_workflow.scripts.task_authoring import TASK_TYPES
 
 
 SUCCESS = 0
@@ -1055,6 +1056,34 @@ def run_anti_context_build_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_workflow_create_task_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "task_authoring",
+        ["create", str(args.ops_dir), "--title", args.title]
+        + optional_text("--task-id", args.task_id)
+        + optional_text("--slug", args.slug)
+        + optional_text("--task-type", args.task_type)
+        + optional_text("--objective", args.objective)
+        + repeated_option("--context", args.context)
+        + repeated_option("--allowed-path", args.allowed_path)
+        + repeated_option("--data-audit-ref", args.data_audit_ref)
+        + optional_text("--catalog-idea-id", args.catalog_idea_id)
+        + ["--priority", str(args.priority)]
+        + ["--review-tier", str(args.review_tier)]
+        + ["--max-minutes", str(args.max_minutes)]
+        + ["--max-turns", str(args.max_turns)]
+        + ["--max-revisions", str(args.max_revisions)]
+        + optional_text("--model-tier", args.model_tier)
+        + ["--max-api-usd", str(args.max_api_usd)]
+        + ["--max-compute-usd", str(args.max_compute_usd)]
+        + (["--allow-browsing"] if args.allow_browsing else [])
+        + (["--allow-network"] if args.allow_network else [])
+        + optional_text("--transition-reason", args.transition_reason)
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else []),
+    )
+
+
 def run_idea_catalog_init_command(args: argparse.Namespace) -> int:
     return module_main(
         "idea_catalog",
@@ -1398,6 +1427,39 @@ def register_workflow_commands(subparsers) -> None:
             + (["--stale-minutes", str(a.stale_minutes)] if a.stale_minutes != 60.0 else []),
         )
     )
+    create_task = add_command(
+        workflow_sub,
+        "create-task",
+        help="Preview or write a minimal valid task folder.",
+        description=(
+            "Create a manual or LLM-authored minimal valid task folder from a public helper: status.json uses non-null placeholders, "
+            "task.md documents generic-artifact claim caps, and --write creates the task folder without overwriting existing tasks."
+        ),
+    )
+    create_task.add_argument("ops_dir", nargs="?", type=Path, default=Path("research_ops"), help="research_ops workspace directory.")
+    create_task.add_argument("--title", required=True, help="Human-readable task title.")
+    create_task.add_argument("--task-id", help="Explicit TASK-0000 id; defaults to the next available id.")
+    create_task.add_argument("--slug", help="Task directory slug; defaults to a slugified title.")
+    create_task.add_argument("--task-type", choices=TASK_TYPES, default="data_readiness", help="Task type for status.json.")
+    create_task.add_argument("--objective", help="Objective paragraph for task.md.")
+    create_task.add_argument("--context", action="append", default=[], help="Context path, source, or note. Repeat for multiple entries.")
+    create_task.add_argument("--allowed-path", action="append", default=[], help="Additional allowed path in status.json. Repeat as needed.")
+    create_task.add_argument("--data-audit-ref", action="append", default=[], help="DS-* ref required by this task. Repeat as needed.")
+    create_task.add_argument("--catalog-idea-id", help="Optional IDEA-0000 link for promoted tasks.")
+    create_task.add_argument("--priority", type=int, choices=[1, 2, 3, 4, 5], default=3)
+    create_task.add_argument("--review-tier", type=int, choices=[1, 2, 3], default=1)
+    create_task.add_argument("--max-minutes", type=int, default=45)
+    create_task.add_argument("--max-turns", type=int, default=6)
+    create_task.add_argument("--max-revisions", type=int, choices=[0, 1, 2, 3, 4, 5], default=1)
+    create_task.add_argument("--model-tier", default="codex_standard")
+    create_task.add_argument("--max-api-usd", type=float, default=0.0)
+    create_task.add_argument("--max-compute-usd", type=float, default=0.0)
+    create_task.add_argument("--allow-browsing", action="store_true")
+    create_task.add_argument("--allow-network", action="store_true")
+    create_task.add_argument("--transition-reason", default="manual_task_created_from_template")
+    create_task.add_argument("--dry-run", action="store_true", help="Preview without writing; this is the default.")
+    create_task.add_argument("--write", action="store_true", help="Create task.md, status.json, and review/artifact directories.")
+    create_task.set_defaults(func=run_workflow_create_task_command)
     worker_start = add_command(
         workflow_sub,
         "worker-start",

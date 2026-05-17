@@ -3132,6 +3132,31 @@ def promotion_task_proposal(
     }
 
 
+def promoted_task_preparation_actions(ops_dir: Path, idea_id: str, proposal: dict[str, Any], preflight_hash: str) -> list[dict[str, Any]]:
+    task_slug = str(proposal.get("proposed_task_slug") or "")
+    task_dir = ops_dir / "tasks" / task_slug
+    return [
+        {
+            "label": "Write promoted task",
+            "command": f"async-research idea promote {ops_dir} {idea_id} --write --preflight-hash {preflight_hash}",
+            "reason": "create the reserved task folder, queue row, and promoted_task_id atomically",
+            "mutates": True,
+        },
+        {
+            "label": "Check workflow state",
+            "command": f"async-research workflow check {ops_dir}",
+            "reason": "verify the written task validates before worker assignment",
+            "mutates": False,
+        },
+        {
+            "label": "Inspect promoted task",
+            "command": f"async-research workflow status {task_dir}",
+            "reason": "show next legal commands for the promoted task",
+            "mutates": False,
+        },
+    ]
+
+
 def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if args.write:
         return INVALID_REQUEST, {
@@ -3225,12 +3250,18 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         args.allow_duplicate,
         task_identity,
     )
+    preparation_actions = promoted_task_preparation_actions(args.ops_dir, args.idea_id, proposal, preflight_hash)
     return SUCCESS, {
         "ok": True,
         "action": "idea_promotion_planned",
         "policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
         **base,
         "proposal": proposal,
+        "promoted_task_preparation": {
+            "status": "ready",
+            "actions": preparation_actions,
+            "next_step": preparation_actions[0]["command"],
+        },
     }
 
 
@@ -3886,6 +3917,7 @@ def promotion_write(args: argparse.Namespace) -> int:
                     "warning_count": len(validation.get("warnings", [])),
                     "failure_count": len(validation.get("failures", [])),
                 },
+                "next_step": f"run async-research workflow check {args.ops_dir}, then async-research workflow status {task_payload.get('task_dir')}",
             }
         )
         return SUCCESS

@@ -27,6 +27,9 @@ fenced JSON result summary from
 Do not upgrade `claim_strength` after seeing attractive results; the summary
 should request the strongest claim the accepted plan and validation artifacts
 can support, and reviewers/claim gates may cap it further.
+Generic Markdown or prose-only artifacts without a structured result summary
+are capped at `suggestive` claim strength before aggregation writes accepted
+result state.
 
 ## Acceptance Criteria
 

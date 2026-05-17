@@ -152,6 +152,11 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
             catalog_path = ops_dir / "ideas" / "idea_catalog.md"
             write_text(catalog_path, catalog_path.read_text(encoding="utf-8") + "\nManual planner note stays here.\n")
             preflight_hash, dry_run = self.dry_run_hash(ops_dir, "IDEA-7401")
+            preparation = dry_run["promoted_task_preparation"]
+            self.assertEqual("ready", preparation["status"])
+            self.assertIn("idea promote", preparation["actions"][0]["command"])
+            self.assertIn("workflow check", preparation["actions"][1]["command"])
+            self.assertIn("workflow status", preparation["actions"][2]["command"])
 
             code, payload = run_cli_json(
                 ["idea", "promote", ops_dir, "IDEA-7401", "--write", "--preflight-hash", preflight_hash]
@@ -159,6 +164,7 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
 
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual("idea_promotion_task_written", payload["action"])
+            self.assertIn("workflow check", payload["next_step"])
             self.assertFalse(payload["dry_run"])
             self.assertEqual(preflight_hash, payload["promotion_preflight_hash"])
             self.assertEqual(dry_run["idempotency_key"], payload["idempotency_key"])

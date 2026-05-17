@@ -15,6 +15,10 @@ from typing import Any, Iterable, Optional
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 from async_research_workflow.scripts.validate_result_acceptance import (
+    CLAIM_ORDER as RESULT_CLAIM_ORDER,
+    CLAIM_STRENGTH_POLICY as RESULT_CLAIM_STRENGTH_POLICY,
+    cap_claim_strength,
+    load_result_summary,
     validate_result_acceptance_for_task,
 )
 from async_research_workflow.scripts.validate_transition import validate_payload
@@ -324,6 +328,42 @@ def current_claim_strength(reviews: list[dict[str, Any]]) -> str:
     return min(strengths, key=CLAIM_STRENGTH_ORDER.index)
 
 
+def claim_strength_cap_preflight(
+    task_dir: Path,
+    status: dict[str, Any],
+    reviews: list[dict[str, Any]],
+    requested_claim_strength: str,
+    *,
+    route: str,
+) -> dict[str, Any]:
+    summary = load_result_summary(task_dir)
+    cap, reasons = cap_claim_strength(
+        summary,
+        {"reviews": reviews} if reviews else None,
+        str(status.get("type", "")),
+    )
+    applied_claim_strength = requested_claim_strength
+    applied = False
+    if route == "accepted" and RESULT_CLAIM_ORDER.get(requested_claim_strength, 0) > RESULT_CLAIM_ORDER[cap]:
+        applied_claim_strength = cap
+        applied = True
+    warning = route == "accepted" and RESULT_CLAIM_ORDER.get(requested_claim_strength, 0) > RESULT_CLAIM_ORDER[cap]
+    return {
+        "policy": RESULT_CLAIM_STRENGTH_POLICY,
+        "requested_claim_strength": requested_claim_strength,
+        "max_claim_strength": cap,
+        "applied_claim_strength": applied_claim_strength,
+        "applied": applied,
+        "warning": warning,
+        "reasons": reasons,
+        "next_step": (
+            "lower the submitted review claim strength or add structured result evidence before aggregation"
+            if warning
+            else "claim strength is within the current artifact cap"
+        ),
+    }
+
+
 def review_start_status_for_tier(tier: int) -> str:
     return "single_review" if tier <= 1 else "panel_review"
 
@@ -443,6 +483,7 @@ def write_markdown(path: Path, aggregate: dict[str, Any]) -> None:
         "",
         f"Decision: {aggregate['aggregate_decision']}",
         f"Routing reason: {aggregate['routing_reason']}",
+        f"Claim strength: {aggregate.get('aggregate_claim_strength', 'none')}",
         f"Human gate required: {str(aggregate['human_gate_required']).lower()}",
         f"Escalation: {format_escalation(escalation)}",
         "",
@@ -454,6 +495,19 @@ def write_markdown(path: Path, aggregate: dict[str, Any]) -> None:
     lines.extend(f"- {item}" for item in aggregate.get("agreements", []) or ["none"])
     lines.extend(["", "## Disagreements"])
     lines.extend(f"- {item}" for item in aggregate.get("disagreements", []) or ["none"])
+    cap = aggregate.get("claim_strength_cap") if isinstance(aggregate.get("claim_strength_cap"), dict) else {}
+    if cap:
+        lines.extend(
+            [
+                "",
+                "## Claim Strength Cap",
+                f"- Requested: {cap.get('requested_claim_strength')}",
+                f"- Maximum: {cap.get('max_claim_strength')}",
+                f"- Applied: {str(cap.get('applied')).lower()}",
+            ]
+        )
+        reasons = cap.get("reasons") if isinstance(cap.get("reasons"), list) else []
+        lines.extend(f"- Reason: {item}" for item in reasons or ["none"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -515,7 +569,23 @@ def aggregate_reviews(task_dir: Path, dry_run: bool, record_review_start: bool =
     ordered_roles = required + [role for role in sorted(reviews_by_role) if role not in required]
     ordered_reviews = [reviews_by_role[role] for role in ordered_roles]
     route, reason, human_gate_required, agreements, disagreements, trace = compute_route(tier, status, ordered_reviews)
-    aggregate_claim_strength = current_claim_strength(ordered_reviews)
+    requested_aggregate_claim_strength = current_claim_strength(ordered_reviews)
+    claim_cap_preflight = claim_strength_cap_preflight(
+        task_dir,
+        status,
+        ordered_reviews,
+        requested_aggregate_claim_strength,
+        route=route,
+    )
+    aggregate_claim_strength = str(claim_cap_preflight["applied_claim_strength"])
+    if claim_cap_preflight["warning"]:
+        trace.append(
+            f"claim_strength_cap={claim_cap_preflight['requested_claim_strength']}->{claim_cap_preflight['max_claim_strength']}"
+        )
+    if claim_cap_preflight["applied"]:
+        agreements.append(
+            "Aggregate claim strength was capped before result acceptance because artifact evidence did not support the submitted strength."
+        )
 
     base_status = dict(status)
     review_start_transition: Optional[dict[str, Any]] = None
@@ -561,7 +631,9 @@ def aggregate_reviews(task_dir: Path, dry_run: bool, record_review_start: bool =
         "aggregate_decision": route,
         "routing_reason": reason,
         "aggregate_claim_strength": aggregate_claim_strength,
+        "requested_aggregate_claim_strength": requested_aggregate_claim_strength,
         "claim_strength_policy": CLAIM_STRENGTH_POLICY,
+        "claim_strength_cap": claim_cap_preflight,
         "human_gate_required": human_gate_required or route == "needs_human",
         "revision_limit_hit": revision_limit_hit,
         "agreements": agreements,
@@ -632,6 +704,9 @@ def aggregate_reviews(task_dir: Path, dry_run: bool, record_review_start: bool =
             "task_dir": str(task_dir),
             "aggregate_decision": route,
             "routing_reason": reason,
+            "aggregate_claim_strength": aggregate_claim_strength,
+            "requested_aggregate_claim_strength": requested_aggregate_claim_strength,
+            "claim_strength_cap": claim_cap_preflight,
             "human_gate_required": aggregate["human_gate_required"],
             "revision_limit_hit": revision_limit_hit,
             "review_start_transition": review_start_transition,

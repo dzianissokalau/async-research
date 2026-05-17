@@ -470,7 +470,19 @@ approaches, known failure modes, and do-not-repeat warnings.
 
 ## `status.json`
 
-Recommended fields:
+Recommended fields. For manual or LLM-authored tasks, prefer the public helper:
+
+```bash
+async-research workflow create-task research_ops \
+  --title "Land Registry PPD data readiness" \
+  --task-id TASK-0001 \
+  --task-type data_readiness \
+  --write
+```
+
+The helper writes a `status.json` with non-null placeholders and a `task.md`
+that states the generic-artifact claim cap. If you hand-author the file, do not
+set `result` or `last_transition_reason` to `null`.
 
 ```json
 {
@@ -530,7 +542,12 @@ Recommended fields:
   },
   "result": {
     "recommendation": null,
-    "claim_strength": null,
+    "claim_strength": "none",
+    "claim_strength_stale": false,
+    "claim_strength_revalidation_required": false,
+    "claim_strength_revalidation_reason": null,
+    "claim_strength_revalidated_at": null,
+    "claim_strength_policy": "result_acceptance_v1.0_claim_caps",
     "followup_count": 0
   }
 }
@@ -746,6 +763,10 @@ check being unable to support claims. `validate-results` compares the result
 summary substance and `claim_gates.json` to the structured run artifacts and
 fails stale or unrelated gate reports. Result acceptance consumes the gate
 report and records analysis provenance in durable empirical evidence records.
+Generic Markdown or prose-only outputs without a structured result summary are
+capped at `suggestive` claim strength before aggregation writes accepted result
+state; reviewers should submit a lower claim or add the required structured
+artifacts instead of discovering the cap only after aggregation.
 
 Reviewer checklist for `run_analysis` and `evaluate_results`:
 

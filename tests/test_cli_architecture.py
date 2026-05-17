@@ -202,6 +202,56 @@ class CliArchitectureTests(unittest.TestCase):
             code = cli.main(
                 [
                     "workflow",
+                    "create-task",
+                    "research_ops",
+                    "--title",
+                    "Manual data readiness",
+                    "--task-id",
+                    "TASK-9000",
+                    "--task-type",
+                    "data_readiness",
+                    "--write",
+                ]
+            )
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "task_authoring",
+            [
+                "create",
+                "research_ops",
+                "--title",
+                "Manual data readiness",
+                "--task-id",
+                "TASK-9000",
+                "--task-type",
+                "data_readiness",
+                "--priority",
+                "3",
+                "--review-tier",
+                "1",
+                "--max-minutes",
+                "45",
+                "--max-turns",
+                "6",
+                "--max-revisions",
+                "1",
+                "--model-tier",
+                "codex_standard",
+                "--max-api-usd",
+                "0.0",
+                "--max-compute-usd",
+                "0.0",
+                "--transition-reason",
+                "manual_task_created_from_template",
+                "--write",
+            ],
+        )
+
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(
+                [
+                    "workflow",
                     "advance",
                     "research_ops/tasks/TASK-0001",
                     "--ops-dir",
@@ -289,7 +339,7 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["discovery-gate", "list"], list(queue_choices))
         self.assertEqual(["init", "list", "validate", "draft", "activate", "diff"], list(prompt_choices))
         self.assertEqual(["init", "list", "validate", "upsert", "set-status", "trigger-dry-run", "trigger-now"], list(schedule_choices))
-        self.assertEqual(["check", "status", "next", "worker-start", "worker-complete", "advance"], list(workflow_choices))
+        self.assertEqual(["check", "status", "next", "create-task", "worker-start", "worker-complete", "advance"], list(workflow_choices))
         self.assertEqual(["append", "check", "resolve-task", "summarize"], list(decision_choices))
         self.assertEqual(["list", "scan-needs-human", "evaluate"], list(escalation_choices))
         self.assertEqual(["init", "upsert", "validate", "freshness", "check-experiment", "check-claim", "explain"], list(source_choices))

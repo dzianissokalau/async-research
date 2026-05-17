@@ -12,6 +12,7 @@ import shutil
 from typing import Any
 
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts.schema_diagnostics import status_schema_diagnostics
 from async_research_workflow.scripts.validate_json_artifact import load_json
 from async_research_workflow.scripts.validate_json_artifact import validate
 from async_research_workflow.scripts.validate_transition import SUCCESS as TRANSITION_SUCCESS
@@ -253,7 +254,14 @@ def validate_task_folder(ops_dir: Path, task_dir: Path) -> list[dict[str, Any]]:
     schema = load_json(STATUS_SCHEMA)
     schema_errors = [error.to_dict() for error in validate(status, schema)]
     if schema_errors:
-        failures.append({"reason": "status_schema_invalid", "path": str(status_path), "errors": schema_errors})
+        failures.append(
+            {
+                "reason": "status_schema_invalid",
+                "path": str(status_path),
+                "errors": schema_errors,
+                "diagnostics": status_schema_diagnostics(status, schema_errors),
+            }
+        )
 
     transition_code, transition = validate_payload(status, decisions_path=ops_dir / "decisions.md")
     if transition_code != TRANSITION_SUCCESS:

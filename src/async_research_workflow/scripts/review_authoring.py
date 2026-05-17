@@ -15,10 +15,18 @@ from typing import Any, Iterable
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts import review_template
 from async_research_workflow.scripts.aggregate_reviews import (
+    ACCEPTING,
     CLAIM_STRENGTHS,
     DECISIONS,
     REVIEWER_ROLES,
     validate_review,
+)
+from async_research_workflow.scripts.schema_diagnostics import status_schema_diagnostics
+from async_research_workflow.scripts.validate_result_acceptance import (
+    CLAIM_ORDER as RESULT_CLAIM_ORDER,
+    CLAIM_STRENGTH_POLICY as RESULT_CLAIM_STRENGTH_POLICY,
+    cap_claim_strength,
+    load_result_summary,
 )
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
@@ -68,10 +76,12 @@ def load_task_status(task_dir: Path) -> tuple[dict[str, Any] | None, dict[str, A
         return None, {"reason": "status_schema_malformed", "status_path": str(status_path)}
     errors = validate(payload, schema)
     if errors:
+        error_dicts = [error.to_dict() for error in errors]
         return None, {
             "reason": "status_schema_validation_failed",
             "status_path": str(status_path),
-            "errors": [error.to_dict() for error in errors],
+            "errors": error_dicts,
+            "diagnostics": status_schema_diagnostics(payload, error_dicts),
         }
     return payload, None
 
@@ -226,6 +236,7 @@ def success_payload(
     written: bool,
     would_write: bool,
     include_markdown: bool,
+    claim_strength_preflight: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "ok": True,
@@ -243,7 +254,38 @@ def success_payload(
     }
     if include_markdown:
         result["review_markdown"] = fenced_json(payload)
+    if claim_strength_preflight is not None:
+        result["claim_strength_cap"] = claim_strength_preflight
+        if claim_strength_preflight.get("warning"):
+            result["warnings"] = [
+                {
+                    "warning": "claim_strength_exceeds_cap",
+                    "message": (
+                        f"submitted claim strength {claim_strength_preflight.get('requested_claim_strength')} "
+                        f"exceeds current artifact cap {claim_strength_preflight.get('max_claim_strength')}"
+                    ),
+                    "reasons": claim_strength_preflight.get("reasons", []),
+                }
+            ]
     return result
+
+
+def review_claim_strength_preflight(task_dir: Path, status: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    requested = str(payload.get("claim_strength") or "none")
+    cap, reasons = cap_claim_strength(load_result_summary(task_dir), None, str(status.get("type", "")))
+    warning = payload.get("decision") in ACCEPTING and RESULT_CLAIM_ORDER.get(requested, 0) > RESULT_CLAIM_ORDER[cap]
+    return {
+        "policy": RESULT_CLAIM_STRENGTH_POLICY,
+        "requested_claim_strength": requested,
+        "max_claim_strength": cap,
+        "warning": warning,
+        "reasons": reasons,
+        "next_step": (
+            "submit a lower --claim-strength or add structured result artifacts before aggregation"
+            if warning
+            else "claim strength is within the current artifact cap"
+        ),
+    }
 
 
 def draft_review(args: argparse.Namespace) -> int:
@@ -372,6 +414,7 @@ def submit_review(args: argparse.Namespace) -> int:
         print_json({"ok": False, "reason": "review_validation_failed", "errors": validation_errors, "review_path": str(path)})
         return VALIDATION_FAILED
 
+    claim_preflight = review_claim_strength_preflight(args.task_dir, status or {}, payload)
     markdown = fenced_json(payload)
     if args.dry_run:
         print_json(
@@ -383,6 +426,7 @@ def submit_review(args: argparse.Namespace) -> int:
                 written=False,
                 would_write=True,
                 include_markdown=True,
+                claim_strength_preflight=claim_preflight,
             )
         )
         return SUCCESS
@@ -400,6 +444,7 @@ def submit_review(args: argparse.Namespace) -> int:
             written=True,
             would_write=False,
             include_markdown=False,
+            claim_strength_preflight=claim_preflight,
         )
     )
     return SUCCESS
