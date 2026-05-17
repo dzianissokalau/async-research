@@ -1,8 +1,8 @@
 {
   "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
   "roadmap_slug": "real-research-product-readiness",
-  "current_phase": "3",
-  "branch": "codex/real-research-product-readiness-phase-3",
+  "current_phase": "4",
+  "branch": "codex/real-research-product-readiness-phase-4",
   "status": "ready_for_next_run",
   "review_iterations": 1,
   "max_review_iterations": 3,
@@ -15,7 +15,7 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "622 tests"
+        "details": "626 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -28,25 +28,25 @@
         "details": "74 targeted dashboard server/action/snapshot/static checks"
       },
       {
-        "command": "browser smoke http://127.0.0.1:8767",
+        "command": "browser smoke http://127.0.0.1:8768",
         "status": "passed",
-        "details": "task detail rendered Task Explanation and Review And QA panels with zero console errors"
+        "details": "source attention rendered blocked source and action guidance with zero console errors"
       }
     ],
-    "completed_at": "2026-05-17T11:28:18Z"
+    "completed_at": "2026-05-17T12:34:31Z"
   },
   "last_review": {
-    "phase": "2",
-    "file": "roadmaps/reviews/real-research-product-readiness-phase-2-review-iteration-1.md",
+    "phase": "3",
+    "file": "roadmaps/reviews/real-research-product-readiness-phase-3-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-17T11:28:18Z"
+    "completed_at": "2026-05-17T12:34:31Z"
   },
-  "last_delivered_phase": "2",
+  "last_delivered_phase": "3",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-17T11:28:18Z"
+  "updated_at": "2026-05-17T12:34:31Z"
 }

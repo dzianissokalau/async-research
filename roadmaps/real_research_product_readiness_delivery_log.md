@@ -1,6 +1,6 @@
 # Real Research Product Readiness Delivery Log
 
-Status: Phase 2 delivered; ready for Phase 3
+Status: Phase 3 delivered; ready for Phase 4
 Roadmap: `roadmaps/in_progress_real_research_product_readiness_roadmap.md`
 Automation template: `roadmaps/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/real_research_product_readiness_delivery_state.json`
@@ -175,3 +175,46 @@ Branch: `codex/real-research-product-readiness-phase-2`
 ### Next Action
 
 - Next automation run should start Phase 3 on `codex/real-research-product-readiness-phase-3`.
+
+## Phase 3 - 2026-05-17 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/real-research-product-readiness-phase-3`
+
+### Scope
+
+- Register-level locking for `source upsert`.
+- Source-use intent semantics for claim checks.
+- `source check-claim` path normalization and diagnostics.
+- LIT-only artifact behavior.
+- Source-blocker action guidance in CLI and dashboard surfaces.
+
+### Changes
+
+- Added a `data_source_audit.md.LOCK` transaction guard around source upsert read-modify-write operations with retry guidance for concurrent writers.
+- Added source-use intent parsing for explicit Markdown tables and inline hints, gating only `used_as_evidence` refs while surfacing context/rejected/optional refs as non-evidence decisions.
+- Normalized `source check-claim` artifact paths for absolute, ops-relative, and project-root-relative inputs with resolved-path diagnostics.
+- Returned non-blocking LIT-only guidance that points operators to `library validate`.
+- Added source blocker action metadata and rendered the actions in dashboard source attention and human-decision guidance.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 626 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 14 checks
+- `.venv/bin/python -m unittest tests.test_console_server tests.test_console_actions tests.test_console_snapshot tests.test_console_outcomes tests.test_packaged_resources`: passed, 74 tests
+- Browser smoke at `http://127.0.0.1:8768`: passed, source attention rendered blocked source action guidance with zero console errors
+
+### Review
+
+- Review file: `roadmaps/reviews/real-research-product-readiness-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly requested.
+- Ambiguous prose without explicit source-use intent still defaults `DS-*` mentions to `used_as_evidence`.
+
+### Next Action
+
+- Next automation run should start Phase 4 on `codex/real-research-product-readiness-phase-4`.

@@ -8,8 +8,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
 
@@ -23,6 +24,37 @@ SCHEMA_VERSION = "1.0"
 SOURCE_ID_PATTERN = re.compile(r"^DS-[0-9]{4}$")
 DATE_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 SOURCE_REF_PATTERN = re.compile(r"\bDS-[0-9]{4}\b")
+LIT_REF_PATTERN = re.compile(r"\bLIT-[0-9]{4}\b")
+SOURCE_LOCK_TTL_SECONDS = 300
+SOURCE_USE_INTENTS = {
+    "used_as_evidence",
+    "context_only",
+    "rejected_source",
+    "restricted_optional",
+}
+SOURCE_INTENT_ALIASES = {
+    "accepted_evidence": "used_as_evidence",
+    "evidence": "used_as_evidence",
+    "used_as_evidence": "used_as_evidence",
+    "context": "context_only",
+    "context_only": "context_only",
+    "contextual": "context_only",
+    "planning_context": "context_only",
+    "rejected": "rejected_source",
+    "rejected_source": "rejected_source",
+    "not_used": "rejected_source",
+    "not_evidence": "rejected_source",
+    "restricted_optional": "restricted_optional",
+    "optional_restricted": "restricted_optional",
+}
+SOURCE_INTENT_PRIORITY = {
+    "rejected_source": 0,
+    "restricted_optional": 1,
+    "context_only": 2,
+    "used_as_evidence": 3,
+}
+SOURCE_ID_COLUMNS = {"source_id", "source_ids", "data_source_id", "data_source_ids", "source", "sources"}
+SOURCE_INTENT_COLUMNS = {"source_use_intent", "use_intent", "intent", "source_intent", "role", "source_role"}
 SOURCE_TIERS = {
     "tier_1_official",
     "tier_2_institutional",
@@ -99,6 +131,125 @@ def atomic_write_text(path: Path, text: str) -> None:
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
+
+
+class SourceRegisterLockError(RuntimeError):
+    def __init__(self, payload: dict[str, Any]):
+        super().__init__(str(payload.get("reason", "source_register_lock_error")))
+        self.payload = payload
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def utc_timestamp(now: datetime | None = None) -> str:
+    return (now or utc_now()).astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def filename_timestamp(now: datetime | None = None) -> str:
+    return utc_timestamp(now).replace("-", "").replace(":", "").replace("Z", "")
+
+
+def parse_utc_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def register_lock_dir(ops_dir: Path) -> Path:
+    return audit_path(ops_dir).with_name(f"{REGISTER_NAME}.LOCK")
+
+
+def read_lock_owner(lock_dir: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads((lock_dir / "owner.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def source_lock_retry_guidance(ops_dir: Path) -> str:
+    return f"retry source upsert for {ops_dir} after the current data_source_audit.md write finishes"
+
+
+def acquire_source_register_lock(ops_dir: Path, command: str) -> dict[str, Any]:
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    lock_dir = register_lock_dir(ops_dir)
+    now = utc_now()
+    try:
+        lock_dir.mkdir()
+    except FileExistsError as exc:
+        owner = read_lock_owner(lock_dir)
+        expires_at = parse_utc_timestamp(owner.get("lock_expires_at"))
+        if expires_at is None or expires_at > now:
+            raise SourceRegisterLockError(
+                {
+                    "ok": False,
+                    "reason": "source_register_locked",
+                    "message": "another source audit register write is in progress",
+                    "lock_dir": str(lock_dir),
+                    "owner": owner,
+                    "next_step": source_lock_retry_guidance(ops_dir),
+                }
+            ) from exc
+        stale_target = lock_dir.with_name(f"{lock_dir.name}.stale.{filename_timestamp(now)}.{os.getpid()}")
+        try:
+            lock_dir.rename(stale_target)
+            lock_dir.mkdir()
+        except OSError as rename_exc:
+            raise SourceRegisterLockError(
+                {
+                    "ok": False,
+                    "reason": "source_register_lock_stale_rotation_failed",
+                    "message": "stale source audit lock could not be moved before retry",
+                    "lock_dir": str(lock_dir),
+                    "stale_target": str(stale_target),
+                    "error": str(rename_exc),
+                    "next_step": source_lock_retry_guidance(ops_dir),
+                }
+            ) from rename_exc
+    except OSError as exc:
+        raise SourceRegisterLockError(
+            {
+                "ok": False,
+                "reason": "source_register_lock_create_failed",
+                "message": "could not acquire data_source_audit.md register lock",
+                "lock_dir": str(lock_dir),
+                "error": str(exc),
+            }
+        ) from exc
+
+    owner = {
+        "command": command,
+        "pid": os.getpid(),
+        "started_at": utc_timestamp(now),
+        "lock_expires_at": utc_timestamp(now + timedelta(seconds=SOURCE_LOCK_TTL_SECONDS)),
+        "register": str(audit_path(ops_dir)),
+    }
+    try:
+        (lock_dir / "owner.json").write_text(json.dumps(owner, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as exc:
+        shutil.rmtree(lock_dir, ignore_errors=True)
+        raise SourceRegisterLockError(
+            {
+                "ok": False,
+                "reason": "source_register_lock_owner_write_failed",
+                "message": "source audit lock was acquired but owner.json could not be written",
+                "lock_dir": str(lock_dir),
+                "error": str(exc),
+            }
+        ) from exc
+    return {"lock_dir": str(lock_dir), "owner": owner}
+
+
+def release_source_register_lock(lock: dict[str, Any] | None) -> None:
+    if not lock:
+        return
+    shutil.rmtree(Path(str(lock["lock_dir"])), ignore_errors=True)
 
 
 def clean_cell(value: Any) -> str:
@@ -321,6 +472,155 @@ def extract_source_refs(path: Path) -> list[str]:
     return refs
 
 
+def artifact_resolution_candidates(ops_dir: Path, artifact: Path) -> list[tuple[str, Path]]:
+    if artifact.is_absolute():
+        return [("absolute", artifact)]
+    parts = artifact.parts
+    if parts and parts[0] == ops_dir.name:
+        candidates: list[tuple[str, Path]] = [
+            ("project_relative", ops_dir.parent / artifact),
+            ("cwd_relative", Path.cwd() / artifact),
+            ("ops_relative", ops_dir / artifact),
+        ]
+    else:
+        candidates = [
+            ("ops_relative", ops_dir / artifact),
+            ("cwd_relative", Path.cwd() / artifact),
+            ("project_relative", ops_dir.parent / artifact),
+        ]
+    seen: set[str] = set()
+    unique: list[tuple[str, Path]] = []
+    for label, path in candidates:
+        key = str(path)
+        if key not in seen:
+            unique.append((label, path))
+            seen.add(key)
+    return unique
+
+
+def resolve_artifact_path(ops_dir: Path, artifact: Path) -> tuple[Path, dict[str, Any]]:
+    candidates = artifact_resolution_candidates(ops_dir, artifact)
+    diagnostics = {
+        "requested": str(artifact),
+        "ops_dir": str(ops_dir),
+        "candidate_paths": [str(path) for _, path in candidates],
+    }
+    for label, path in candidates:
+        if path.exists():
+            resolved = path.resolve()
+            diagnostics.update({"resolution": label, "resolved_path": str(resolved), "exists": True})
+            return resolved, diagnostics
+    fallback = candidates[0][1]
+    diagnostics.update({"resolution": "missing", "resolved_path": str(fallback), "exists": False})
+    return fallback, diagnostics
+
+
+def read_artifact_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ValueError(f"artifact not found: {path}") from exc
+    except IsADirectoryError as exc:
+        raise ValueError(f"artifact is a directory, expected a file: {path}") from exc
+    except OSError as exc:
+        raise ValueError(f"cannot read artifact {path}: {exc}") from exc
+
+
+def normalize_source_intent(value: Any) -> str | None:
+    text = re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+    if not text:
+        return None
+    return SOURCE_INTENT_ALIASES.get(text)
+
+
+def source_intent_from_line(line: str) -> str | None:
+    normalized = re.sub(r"[^a-z0-9]+", "_", line.lower()).strip("_")
+    for preferred in ("rejected_source", "restricted_optional", "context_only", "used_as_evidence"):
+        for token, intent in SOURCE_INTENT_ALIASES.items():
+            if intent == preferred and re.search(rf"(?:^|_){re.escape(token)}(?:_|$)", normalized):
+                return intent
+    return None
+
+
+def prefer_source_intent(current: str | None, candidate: str | None) -> str:
+    if candidate is None:
+        candidate = "used_as_evidence"
+    if current is None:
+        return candidate
+    if SOURCE_INTENT_PRIORITY[candidate] > SOURCE_INTENT_PRIORITY[current]:
+        return candidate
+    return current
+
+
+def table_source_intents(lines: list[str]) -> dict[str, str]:
+    intents: dict[str, str] = {}
+    header: list[str] | None = None
+    source_indexes: list[int] = []
+    intent_index: int | None = None
+    for line in lines:
+        cells = split_table_row(line)
+        if not cells:
+            header = None
+            source_indexes = []
+            intent_index = None
+            continue
+        normalized = [re.sub(r"[^a-z0-9]+", "_", cell.lower()).strip("_") for cell in cells]
+        if header is None and any(cell in SOURCE_ID_COLUMNS for cell in normalized) and any(cell in SOURCE_INTENT_COLUMNS for cell in normalized):
+            header = normalized
+            source_indexes = [index for index, cell in enumerate(normalized) if cell in SOURCE_ID_COLUMNS]
+            intent_index = next((index for index, cell in enumerate(normalized) if cell in SOURCE_INTENT_COLUMNS), None)
+            continue
+        if header is not None and all(set(cell) <= {"-", ":", " "} for cell in cells):
+            continue
+        if header is not None and intent_index is not None and len(cells) == len(header):
+            intent = normalize_source_intent(cells[intent_index])
+            if intent is None:
+                continue
+            for index in source_indexes:
+                for ref in SOURCE_REF_PATTERN.findall(cells[index]):
+                    intents[ref] = prefer_source_intent(intents.get(ref), intent)
+    return intents
+
+
+def extract_source_refs_with_intent(path: Path) -> dict[str, Any]:
+    text = read_artifact_text(path)
+    lines = text.splitlines()
+    intents = table_source_intents(lines)
+    for line in lines:
+        refs = SOURCE_REF_PATTERN.findall(line)
+        if not refs:
+            continue
+        intent = source_intent_from_line(line)
+        for ref in refs:
+            if ref in intents:
+                continue
+            intents[ref] = prefer_source_intent(intents.get(ref), intent)
+    for ref in SOURCE_REF_PATTERN.findall(text):
+        intents.setdefault(ref, "used_as_evidence")
+    by_intent = {
+        intent: sorted(ref for ref, ref_intent in intents.items() if ref_intent == intent)
+        for intent in sorted(SOURCE_USE_INTENTS)
+    }
+    return {
+        "source_refs": sorted(intents),
+        "source_use_intents": [
+            {
+                "source_id": ref,
+                "intent": intents[ref],
+                "gated_as_evidence": intents[ref] == "used_as_evidence",
+            }
+            for ref in sorted(intents)
+        ],
+        "source_refs_by_intent": by_intent,
+        "evidence_refs": by_intent.get("used_as_evidence", []),
+        "non_evidence_refs": sorted(
+            ref for ref, intent in intents.items()
+            if intent != "used_as_evidence"
+        ),
+        "library_refs": sorted(set(LIT_REF_PATTERN.findall(text))),
+    }
+
+
 def parse_date(value: str) -> Optional[datetime]:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -357,6 +657,48 @@ def use_case_tokens(value: str) -> set[str]:
         if token.strip()
     }
     return set() if tokens == {"none"} else tokens
+
+
+def source_blocker_actions(ops_dir: Path | None, use_case: str, item: dict[str, Any]) -> list[dict[str, str]]:
+    source_id = str(item.get("source_id") or "").strip()
+    ops_value = str(ops_dir) if ops_dir is not None else "<research_ops>"
+    upsert_target = source_id if SOURCE_ID_PATTERN.match(source_id) else "<DS-0000>"
+    return [
+        {
+            "action": "approve_source",
+            "label": "Approve source",
+            "description": f"After human review, approve or caveat the source for {use_case}.",
+            "command": (
+                f"async-research source upsert {ops_value} --source-id {upsert_target} "
+                f"--approval-status approved_with_caveats --approved-use-cases \"{use_case}\" "
+                "--approved-by <reviewer> --review-notes <why this use is allowed>"
+            ),
+        },
+        {
+            "action": "planning_only",
+            "label": "Accept for planning only",
+            "description": "Keep the source out of accepted-evidence gates by marking the artifact reference context_only or restricted_optional.",
+            "command": "mark the artifact source-use intent as context_only or restricted_optional before rerunning source check-claim",
+        },
+        {
+            "action": "continue_with_caveats",
+            "label": "Continue with caveats",
+            "description": "Refresh the source review, cite limitations, and keep claim strength conservative.",
+            "command": f"async-research source freshness {ops_value}",
+        },
+        {
+            "action": "revise_source_audit",
+            "label": "Revise source audit",
+            "description": "Update blocked use cases, limitations, citation requirements, or replace the source.",
+            "command": f"async-research source validate {ops_value}",
+        },
+    ]
+
+
+def source_governance_next_step(blocked: list[dict[str, Any]]) -> str:
+    if not blocked:
+        return "cite source IDs and limitations in accepted evidence"
+    return "resolve blocked source decisions, mark non-evidence mentions with source-use intent, or revise the artifact before acceptance"
 
 
 def decision(
@@ -413,16 +755,18 @@ def source_governance_report(ops_dir: Path, now: Optional[datetime] = None) -> d
         tier_counts[row["source_tier"]] = tier_counts.get(row["source_tier"], 0) + 1
         approval_counts[row["approval_status"]] = approval_counts.get(row["approval_status"], 0) + 1
         if row["approval_status"] in BLOCKED_GOVERNANCE_STATUSES:
+            blocked_item = {
+                "source_id": row["source_id"],
+                "source_name": row["source_name"],
+                "source_tier": row["source_tier"],
+                "approval_status": row["approval_status"],
+                "blocked_use_cases": row["blocked_use_cases"],
+                "known_limitations": row["known_limitations"],
+                "last_reviewed": row["last_reviewed"],
+            }
+            blocked_item["available_actions"] = source_blocker_actions(ops_dir, "accepted_evidence", blocked_item)
             blocked_sources.append(
-                {
-                    "source_id": row["source_id"],
-                    "source_name": row["source_name"],
-                    "source_tier": row["source_tier"],
-                    "approval_status": row["approval_status"],
-                    "blocked_use_cases": row["blocked_use_cases"],
-                    "known_limitations": row["known_limitations"],
-                    "last_reviewed": row["last_reviewed"],
-                }
+                blocked_item
             )
         if source_stale(row, current):
             stale_sources.append(
@@ -586,6 +930,9 @@ def assess_source_refs(
             blocked.append(item)
             decisions.append(item)
 
+    for item in blocked:
+        item.setdefault("available_actions", source_blocker_actions(ops_dir, use_case, item))
+
     return {
         "ok": not blocked,
         "reason": "sources_allowed" if not blocked else "source_governance_blocked",
@@ -596,6 +943,7 @@ def assess_source_refs(
         "blocked": blocked,
         "warnings": warnings,
         "source_decisions": decisions,
+        "next_step": source_governance_next_step(blocked),
     }
 
 
@@ -611,92 +959,109 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def cmd_upsert(args: argparse.Namespace) -> int:
     path = audit_path(args.ops_dir)
-    if not path.exists():
-        atomic_write_text(path, empty_register_text())
-
+    lock: dict[str, Any] | None = None
     try:
-        schema_version, rows = parse_register(path)
-    except ValueError as exc:
-        print_json({"ok": False, "reason": "malformed_register", "error": str(exc), "path": str(path)})
-        return MALFORMED
+        lock = acquire_source_register_lock(args.ops_dir, "source upsert")
+        if not path.exists():
+            atomic_write_text(path, empty_register_text())
 
-    existing_errors = validate_rows(schema_version, rows)
-    if existing_errors:
-        print_json({"ok": False, "reason": "audit_validation_failed", "errors": existing_errors, "path": str(path)})
+        try:
+            schema_version, rows = parse_register(path)
+        except ValueError as exc:
+            print_json({"ok": False, "reason": "malformed_register", "error": str(exc), "path": str(path)})
+            return MALFORMED
+
+        existing_errors = validate_rows(schema_version, rows)
+        if existing_errors:
+            print_json({"ok": False, "reason": "audit_validation_failed", "errors": existing_errors, "path": str(path)})
+            return VALIDATION_FAILED
+
+        optional_fields = declared_optional_fields(path)
+        current = row_map(rows)
+        source_id = args.source_id
+        new_source = source_id not in current
+        row = current.get(
+            source_id,
+            {
+                "source_id": source_id,
+                "source_name": "",
+                "url_or_domain": "",
+                "publisher_owner": "",
+                "source_tier": "tier_4_untrusted",
+                "approval_status": "unknown",
+                "approved_use_cases": "none",
+                "blocked_use_cases": "none",
+                "freshness_window_days": "90",
+                "known_limitations": "none recorded",
+                "citation_requirements": "cite source id and source URL/domain",
+                "last_reviewed": iso_date(),
+                "approved_by": "none",
+                "review_notes": "none",
+            },
+        )
+        updates = {
+            "source_name": args.source_name,
+            "url_or_domain": args.url_or_domain,
+            "publisher_owner": args.publisher_owner,
+            "source_tier": args.source_tier,
+            "approval_status": args.approval_status or args.status,
+            "approved_use_cases": args.approved_use_cases,
+            "blocked_use_cases": args.blocked_use_cases,
+            "freshness_window_days": args.freshness_window_days,
+            "known_limitations": args.known_limitations,
+            "citation_requirements": args.citation_requirements,
+            "last_reviewed": args.last_reviewed,
+            "approved_by": args.approved_by,
+            "review_notes": args.review_notes,
+        }
+        for key, value in updates.items():
+            if value is not None:
+                row[key] = clean_cell(value)
+        for field in optional_fields:
+            row.setdefault(field, "")
+        row = canonical_row(row)
+        if not row.get("last_reviewed"):
+            row["last_reviewed"] = iso_date()
+        current[source_id] = row
+        next_rows = list(current.values())
+
+        errors = validate_rows(schema_version, next_rows)
+        if errors:
+            payload = {"ok": False, "reason": "audit_validation_failed", "errors": errors, "path": str(path)}
+            if new_source:
+                missing_new_source_fields = [
+                    flag for field, flag in NEW_SOURCE_REQUIRED_FIELDS.items() if not str(row.get(field, "")).strip()
+                ]
+                if missing_new_source_fields:
+                    payload.update(
+                        {
+                            "required_for_new_source": missing_new_source_fields,
+                            "next_step": (
+                                "rerun source upsert with --source-name, --url-or-domain, and --publisher-owner; "
+                                "omitted governance fields use conservative defaults"
+                            ),
+                        }
+                    )
+            print_json(payload)
+            return VALIDATION_FAILED
+
+        atomic_write_text(path, format_rows(next_rows))
+        print_json(
+            {
+                "ok": True,
+                "action": "upserted",
+                "source_id": source_id,
+                "approval_status": row["approval_status"],
+                "path": str(path),
+                "lock": lock,
+            }
+        )
+        return SUCCESS
+    except SourceRegisterLockError as exc:
+        print_json(exc.payload)
         return VALIDATION_FAILED
-
-    optional_fields = declared_optional_fields(path)
-    current = row_map(rows)
-    source_id = args.source_id
-    new_source = source_id not in current
-    row = current.get(
-        source_id,
-        {
-            "source_id": source_id,
-            "source_name": "",
-            "url_or_domain": "",
-            "publisher_owner": "",
-            "source_tier": "tier_4_untrusted",
-            "approval_status": "unknown",
-            "approved_use_cases": "none",
-            "blocked_use_cases": "none",
-            "freshness_window_days": "90",
-            "known_limitations": "none recorded",
-            "citation_requirements": "cite source id and source URL/domain",
-            "last_reviewed": iso_date(),
-            "approved_by": "none",
-            "review_notes": "none",
-        },
-    )
-    updates = {
-        "source_name": args.source_name,
-        "url_or_domain": args.url_or_domain,
-        "publisher_owner": args.publisher_owner,
-        "source_tier": args.source_tier,
-        "approval_status": args.approval_status or args.status,
-        "approved_use_cases": args.approved_use_cases,
-        "blocked_use_cases": args.blocked_use_cases,
-        "freshness_window_days": args.freshness_window_days,
-        "known_limitations": args.known_limitations,
-        "citation_requirements": args.citation_requirements,
-        "last_reviewed": args.last_reviewed,
-        "approved_by": args.approved_by,
-        "review_notes": args.review_notes,
-    }
-    for key, value in updates.items():
-        if value is not None:
-            row[key] = clean_cell(value)
-    for field in optional_fields:
-        row.setdefault(field, "")
-    row = canonical_row(row)
-    if not row.get("last_reviewed"):
-        row["last_reviewed"] = iso_date()
-    current[source_id] = row
-    next_rows = list(current.values())
-
-    errors = validate_rows(schema_version, next_rows)
-    if errors:
-        payload = {"ok": False, "reason": "audit_validation_failed", "errors": errors, "path": str(path)}
-        if new_source:
-            missing_new_source_fields = [
-                flag for field, flag in NEW_SOURCE_REQUIRED_FIELDS.items() if not str(row.get(field, "")).strip()
-            ]
-            if missing_new_source_fields:
-                payload.update(
-                    {
-                        "required_for_new_source": missing_new_source_fields,
-                        "next_step": (
-                            "rerun source upsert with --source-name, --url-or-domain, and --publisher-owner; "
-                            "omitted governance fields use conservative defaults"
-                        ),
-                    }
-                )
-        print_json(payload)
-        return VALIDATION_FAILED
-
-    atomic_write_text(path, format_rows(next_rows))
-    print_json({"ok": True, "action": "upserted", "source_id": source_id, "approval_status": row["approval_status"], "path": str(path)})
-    return SUCCESS
+    finally:
+        release_source_register_lock(lock)
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -763,13 +1128,65 @@ def cmd_check_experiment(args: argparse.Namespace) -> int:
 
 
 def cmd_check_claim(args: argparse.Namespace) -> int:
+    artifact, resolution = resolve_artifact_path(args.ops_dir, args.artifact)
     try:
-        refs = extract_source_refs(args.artifact)
+        source_metadata = extract_source_refs_with_intent(artifact)
     except ValueError as exc:
-        print_json({"ok": False, "reason": "artifact_check_failed", "error": str(exc)})
+        print_json(
+            {
+                "ok": False,
+                "reason": "artifact_check_failed",
+                "error": str(exc),
+                "artifact": str(args.artifact),
+                "artifact_resolution": resolution,
+                "next_step": "pass an absolute path, a project-root-relative path, or a path relative to research_ops",
+            }
+        )
         return MALFORMED
+    refs = source_metadata["evidence_refs"]
     if not refs:
-        print_json({"ok": False, "reason": "missing_data_audit_refs", "artifact": str(args.artifact)})
+        payload = {
+            "ok": True,
+            "reason": "source_governance_not_applicable" if source_metadata["library_refs"] else "no_evidence_source_refs",
+            "artifact": str(artifact),
+            "artifact_resolution": resolution,
+            "source_refs": source_metadata["source_refs"],
+            "source_use_intents": source_metadata["source_use_intents"],
+            "source_refs_by_intent": source_metadata["source_refs_by_intent"],
+            "library_refs": source_metadata["library_refs"],
+            "gated_source_refs": [],
+            "blocked": [],
+            "warnings": [],
+            "source_decisions": [],
+        }
+        if source_metadata["library_refs"]:
+            payload.update(
+                {
+                    "applicable": False,
+                    "message": "artifact cites LIT-* library references but no DS-* data-source evidence references; data source governance is not applicable",
+                    "next_step": f"run async-research library validate {args.ops_dir} or review library/source rows for the LIT references",
+                }
+            )
+            print_json(payload)
+            return SUCCESS
+        if source_metadata["source_refs"]:
+            payload.update(
+                {
+                    "message": "artifact mentions DS-* sources only as context, rejected, or optional sources; they are not gated as accepted evidence",
+                    "next_step": "mark any source that supports an accepted claim as used_as_evidence before rerunning source check-claim",
+                }
+            )
+            print_json(payload)
+            return SUCCESS
+        print_json(
+            {
+                **payload,
+                "ok": False,
+                "reason": "missing_data_audit_refs",
+                "message": "artifact does not cite DS-* source references",
+                "next_step": "cite DS-* audited sources for source-dependent claims, or use library validate for LIT-only artifacts",
+            }
+        )
         return VALIDATION_FAILED
     assessed = assess_source_refs(
         args.ops_dir,
@@ -778,7 +1195,31 @@ def cmd_check_claim(args: argparse.Namespace) -> int:
         claim_impact=args.claim_impact,
         allow_tier4_explicit=args.allow_tier4_explicit,
     )
-    print_json({"ok": assessed["ok"], "artifact": str(args.artifact), **assessed})
+    non_evidence_decisions = [
+        {
+            "source_id": item["source_id"],
+            "intent": item["intent"],
+            "allowed": True,
+            "severity": "info",
+            "reason": f"source mention is {item['intent']} and is not gated as accepted evidence",
+            "action": "change intent to used_as_evidence if this source supports an accepted claim",
+        }
+        for item in source_metadata["source_use_intents"]
+        if item["intent"] != "used_as_evidence"
+    ]
+    print_json(
+        {
+            "ok": assessed["ok"],
+            "artifact": str(artifact),
+            "artifact_resolution": resolution,
+            "source_use_intents": source_metadata["source_use_intents"],
+            "source_refs_by_intent": source_metadata["source_refs_by_intent"],
+            "gated_source_refs": refs,
+            "non_evidence_source_decisions": non_evidence_decisions,
+            "library_refs": source_metadata["library_refs"],
+            **assessed,
+        }
+    )
     return SUCCESS if assessed["ok"] else VALIDATION_FAILED
 
 

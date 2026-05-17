@@ -1394,6 +1394,24 @@ def source_snapshot(ops_dir: Path, now: datetime, data_dashboard: dict[str, Any]
     usable_today = sections.get("usable_today_sources", []) if isinstance(sections.get("usable_today_sources"), list) else []
     blocked_sources = sections.get("blocked_sources", []) if isinstance(sections.get("blocked_sources"), list) else governance.get("blocked_sources", [])
     stale_sources = sections.get("stale_source_reviews", []) if isinstance(sections.get("stale_source_reviews"), list) else governance.get("stale_sources", [])
+    governance_blocked_by_id = {
+        str(item.get("source_id")): item
+        for item in governance.get("blocked_sources", [])
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    enriched_blocked_sources: list[dict[str, Any]] = []
+    for row in blocked_sources if isinstance(blocked_sources, list) else []:
+        if not isinstance(row, dict):
+            continue
+        source_id = str(row.get("source_id") or "").strip()
+        merged = dict(row)
+        governance_row = governance_blocked_by_id.get(source_id, {})
+        if "available_actions" not in merged and isinstance(governance_row.get("available_actions"), list):
+            merged["available_actions"] = governance_row["available_actions"]
+        if "available_actions" not in merged:
+            merged["available_actions"] = data_source_audit.source_blocker_actions(ops_dir, "accepted_evidence", merged)
+        enriched_blocked_sources.append(merged)
+    blocked_sources = enriched_blocked_sources
     attention_by_id: dict[str, dict[str, Any]] = {}
     for reason, rows in (
         ("blocked", blocked_sources),

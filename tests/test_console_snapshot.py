@@ -704,6 +704,10 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(1, source_summary["stale_source_count"])
             attention_ids = {row["source_id"] for row in payload["sources"]["attention_sources"]}
             self.assertEqual({"DS-0001", "DS-0002"}, attention_ids)
+            blocked_source = payload["sources"]["blocked_sources"][0]
+            action_labels = {action["label"] for action in blocked_source["available_actions"]}
+            self.assertIn("Approve source", action_labels)
+            self.assertIn("Revise source audit", action_labels)
             self.assertTrue(any("source validate" in item["command"] for item in payload["sources"]["recovery_commands"]))
             self.assertEqual(1, payload["accepted_outputs"]["memory_decay"]["stale_count"])
             self.assertEqual("TASK-5001", payload["accepted_outputs"]["stale_rows"][0]["task_id"])

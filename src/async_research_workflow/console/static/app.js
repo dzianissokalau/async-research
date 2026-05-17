@@ -211,6 +211,19 @@ function record(title, meta, extra) {
   return row;
 }
 
+function actionLabel(action) {
+  if (!action || typeof action !== "object") {
+    return "";
+  }
+  return action.label || action.action || action.description || "";
+}
+
+function sourceActionSummary(source) {
+  const actions = Array.isArray(source.available_actions) ? source.available_actions : [];
+  const labels = actions.map(actionLabel).filter(Boolean).slice(0, 4);
+  return labels.length > 0 ? `Actions: ${labels.join(" / ")}` : "";
+}
+
 function empty(label) {
   const node = document.createElement("div");
   node.className = "empty";
@@ -649,7 +662,13 @@ function sourceBlockerGuidance(task) {
     : valueOrUnavailable(gate.required_human_decision || gate.reason || task.human_gate_reason);
   const actions = document.createElement("div");
   actions.className = "record-meta";
-  actions.textContent = "Available routes: approve source, accept for planning only, continue with caveats, revise source audit, pause, or reject.";
+  const dynamicActions = blocked.flatMap((source) => Array.isArray(source.available_actions) ? source.available_actions : [])
+    .map(actionLabel)
+    .filter(Boolean)
+    .slice(0, 5);
+  actions.textContent = dynamicActions.length > 0
+    ? `Available routes: ${dynamicActions.join(", ")}.`
+    : "Available routes: approve source, accept for planning only, continue with caveats, revise source audit, pause, or reject.";
   panel.append(title, rows, actions);
   return panel;
 }
@@ -1595,7 +1614,9 @@ function renderOperations(snapshot) {
     record(
       sourceTitle(source),
       `${statusLabel(source.approval_status)} / ${valueOrUnavailable(source.source_tier)} / ${valueOrUnavailable((source.attention_reasons || []).join(", "))}`,
-      `${valueOrUnavailable(source.last_reviewed)} / ${valueOrUnavailable(source.known_limitations || source.usability_reason || source.review_notes)}`
+      [valueOrUnavailable(source.last_reviewed), valueOrUnavailable(source.known_limitations || source.usability_reason || source.review_notes), sourceActionSummary(source)]
+        .filter(Boolean)
+        .join(" / ")
     )
   );
   renderList("source-recovery-commands", sources.recovery_commands, "No source commands.", commandRow);

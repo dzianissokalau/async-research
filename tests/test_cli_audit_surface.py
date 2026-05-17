@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import data_source_audit
 from async_research_workflow.scripts import decision_log
 from async_research_workflow.scripts import human_decision_log
 
@@ -64,6 +65,24 @@ def write_source_audit(ops_dir: Path) -> None:
                 "| source_id | source_name | url_or_domain | publisher_owner | source_tier | approval_status | approved_use_cases | blocked_use_cases | freshness_window_days | known_limitations | citation_requirements | last_reviewed | approved_by | review_notes |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
                 "| DS-0001 | Test Source | https://example.test | Test Publisher | tier_1_official | approved | experiment_planning; accepted_evidence | none | 365 | none | cite DS-0001 | 2026-05-05 | tests | ready fixture |",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_source_audit_rows(ops_dir: Path, rows: list[str]) -> None:
+    (ops_dir / "data_source_audit.md").write_text(
+        "\n".join(
+            [
+                "# Data Source Audit Register",
+                "",
+                "Schema version: 1.0",
+                "",
+                "| source_id | source_name | url_or_domain | publisher_owner | source_tier | approval_status | approved_use_cases | blocked_use_cases | freshness_window_days | known_limitations | citation_requirements | last_reviewed | approved_by | review_notes |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                *rows,
             ]
         )
         + "\n",
@@ -323,6 +342,76 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, claim)
             self.assertTrue(claim["ok"])
             self.assertEqual([], claim["blocked"])
+
+    def test_source_check_claim_resolves_ops_and_project_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            artifact = ops_dir / "tasks" / "TASK-3005-claim" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("Accepted evidence uses DS-0001.\n", encoding="utf-8")
+
+            code, ops_relative = run_cli_json(["source", "check-claim", ops_dir, "tasks/TASK-3005-claim/worker_output.md"])
+            self.assertEqual(cli.SUCCESS, code, ops_relative)
+            self.assertTrue(ops_relative["ok"])
+            self.assertEqual("ops_relative", ops_relative["artifact_resolution"]["resolution"])
+
+            code, project_relative = run_cli_json(["source", "check-claim", ops_dir, "research_ops/tasks/TASK-3005-claim/worker_output.md"])
+            self.assertEqual(cli.SUCCESS, code, project_relative)
+            self.assertTrue(project_relative["ok"])
+            self.assertEqual("project_relative", project_relative["artifact_resolution"]["resolution"])
+
+    def test_source_check_claim_lit_only_recommends_library_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            artifact = ops_dir / "tasks" / "TASK-3006-lit-only" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("The literature synthesis cites LIT-0001 and LIT-0002.\n", encoding="utf-8")
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["applicable"])
+            self.assertEqual("source_governance_not_applicable", payload["reason"])
+            self.assertEqual(["LIT-0001", "LIT-0002"], payload["library_refs"])
+            self.assertIn("library validate", payload["next_step"])
+
+    def test_source_check_claim_respects_rejected_source_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit_rows(
+                ops_dir,
+                [
+                    "| DS-0001 | Coffee country concentration source | https://example.test/approved | Fixture Publisher | tier_1_official | approved | accepted_evidence; context | none | 365 | none | cite DS-0001 | 2026-05-05 | tests | approved fixture |",
+                    "| DS-0002 | Coffee restricted vendor extract | https://example.test/restricted | Vendor | tier_4_untrusted | restricted | none | accepted_evidence | 365 | license prohibits accepted evidence | do not cite as evidence | 2026-05-05 | tests | rejected in coffee pilot |",
+                ],
+            )
+            artifact = ops_dir / "tasks" / "TASK-3007-coffee-source-semantics" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\n".join(
+                    [
+                        "# Coffee source semantics",
+                        "",
+                        "| source_id | source_use_intent | note |",
+                        "| --- | --- | --- |",
+                        "| DS-0001 | used_as_evidence | supports the accepted country concentration claim |",
+                        "| DS-0002 | rejected_source | rejected because licensing prevents accepted evidence use |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(["DS-0001"], payload["gated_source_refs"])
+            self.assertEqual([], payload["blocked"])
+            self.assertEqual(["DS-0002"], payload["source_refs_by_intent"]["rejected_source"])
+            self.assertEqual("rejected_source", payload["non_evidence_source_decisions"][0]["intent"])
 
     def test_metrics_summarize_outputs_json_and_optional_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -867,6 +956,38 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual("audit_validation_failed", payload["reason"])
             self.assertEqual(["--source-name", "--url-or-domain", "--publisher-owner"], payload["required_for_new_source"])
             self.assertIn("--publisher-owner", payload["next_step"])
+
+    def test_source_upsert_reports_fresh_register_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            ops_dir.mkdir()
+            code, initialized = run_cli_json(["source", "init", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, initialized)
+            lock = data_source_audit.acquire_source_register_lock(ops_dir, "test hold source register")
+            try:
+                code, payload = run_cli_json(
+                    [
+                        "source",
+                        "upsert",
+                        ops_dir,
+                        "--source-id",
+                        "DS-0603",
+                        "--approval-status",
+                        "approved",
+                        "--source-name",
+                        "Locked Fixture Source",
+                        "--url-or-domain",
+                        "https://example.test/locked",
+                        "--publisher-owner",
+                        "Fixture Publisher",
+                    ]
+                )
+            finally:
+                data_source_audit.release_source_register_lock(lock)
+
+            self.assertEqual(2, code, payload)
+            self.assertEqual("source_register_locked", payload["reason"])
+            self.assertIn("retry source upsert", payload["next_step"])
 
     def test_batch_lifecycle_commands_use_public_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

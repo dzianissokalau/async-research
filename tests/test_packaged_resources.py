@@ -187,6 +187,7 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn("snapshot.lifecycle", app)
         self.assertIn('renderList("rejected-ledger"', app)
         self.assertIn('renderList("source-attention"', app)
+        self.assertIn("function sourceActionSummary", app)
         self.assertIn("cost.top_spend_rows.length > 0", app)
         self.assertIn('value.join(", ")', app)
 
