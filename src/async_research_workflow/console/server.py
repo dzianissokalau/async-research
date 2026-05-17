@@ -13,6 +13,12 @@ from urllib.parse import parse_qs, urlparse
 
 from async_research_workflow.console.actions import action_catalog
 from async_research_workflow.console.actions import run_action
+from async_research_workflow.console.artifacts import ARTIFACT_ROUTE_PREFIX
+from async_research_workflow.console.artifacts import artifact_error_html
+from async_research_workflow.console.artifacts import artifact_view_html
+from async_research_workflow.console.artifacts import canonical_ops_dir
+from async_research_workflow.console.artifacts import is_markdown_path
+from async_research_workflow.console.artifacts import resolve_artifact_request
 from async_research_workflow.console.snapshot import parse_now
 from async_research_workflow.console.snapshot import snapshot
 from async_research_workflow.resources import console_static_path
@@ -35,7 +41,7 @@ class ConsoleServer(ThreadingHTTPServer):
 
     def __init__(self, server_address: tuple[str, int], handler, ops_dir: Path):
         super().__init__(server_address, handler)
-        self.ops_dir = ops_dir
+        self.ops_dir = canonical_ops_dir(ops_dir)
 
 
 def json_bytes(payload: dict[str, Any]) -> bytes:
@@ -53,8 +59,40 @@ def content_type(name: str) -> str:
     return "application/octet-stream"
 
 
+def response_for_artifact(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
+    parsed = urlparse(path)
+    route_path = parsed.path.removeprefix(ARTIFACT_ROUTE_PREFIX)
+    artifact_path, error = resolve_artifact_request(ops_dir, route_path)
+    if error is not None or artifact_path is None:
+        status = HTTPStatus.NOT_FOUND if error and error.get("reason") == "artifact_missing" else HTTPStatus.FORBIDDEN
+        if error and error.get("reason") == "artifact_path_missing":
+            status = HTTPStatus.BAD_REQUEST
+        return status, "text/html; charset=utf-8", artifact_error_html(status.value, error or {}).encode("utf-8")
+
+    query = parse_qs(parsed.query)
+    download = "download" in query
+    raw = "raw" in query or download
+    try:
+        if raw:
+            media_type = "application/octet-stream" if download else content_type(artifact_path.name)
+            return HTTPStatus.OK, media_type, artifact_path.read_bytes()
+        if is_markdown_path(artifact_path):
+            return HTTPStatus.OK, "text/html; charset=utf-8", artifact_view_html(artifact_path, ops_dir).encode("utf-8")
+        return HTTPStatus.OK, content_type(artifact_path.name), artifact_path.read_bytes()
+    except OSError as exc:
+        payload = {
+            "reason": "artifact_unreadable",
+            "message": str(exc),
+            "read_only": True,
+            "changed": False,
+        }
+        return HTTPStatus.INTERNAL_SERVER_ERROR, "text/html; charset=utf-8", artifact_error_html(500, payload).encode("utf-8")
+
+
 def response_for_get(path: str, ops_dir: Path) -> tuple[HTTPStatus, str, bytes]:
     parsed = urlparse(path)
+    if parsed.path.startswith(ARTIFACT_ROUTE_PREFIX):
+        return response_for_artifact(path, ops_dir)
     if parsed.path == "/api/actions":
         try:
             body = json_bytes(action_catalog(ops_dir))
@@ -333,16 +371,17 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
 
 
 def create_server(ops_dir: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> ConsoleServer:
-    return ConsoleServer((host, port), make_handler(), ops_dir)
+    return ConsoleServer((host, port), make_handler(), canonical_ops_dir(ops_dir))
 
 
 def serve(ops_dir: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     if host not in LOCAL_ONLY_HOSTS:
         print(f"Warning: binding to {host} may expose the dashboard beyond localhost.", flush=True)
-    server = create_server(ops_dir, host, port)
+    canonical_ops = canonical_ops_dir(ops_dir)
+    server = create_server(canonical_ops, host, port)
     actual_host, actual_port = server.server_address[:2]
     print(f"Serving async research console at http://{actual_host}:{actual_port}", flush=True)
-    print(f"Using workspace: {ops_dir}", flush=True)
+    print(f"Using workspace: {canonical_ops}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

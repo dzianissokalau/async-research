@@ -146,8 +146,9 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn('id="health-alerts"', html)
         self.assertIn("asyncResearchAutoRefreshEnabled", app)
         self.assertIn("function scheduleAutoRefresh", app)
-        self.assertIn("function pathToFileHref", app)
-        self.assertIn("encodeURIComponent", app)
+        self.assertIn("function artifactHref", app)
+        self.assertIn("viewer_url", app)
+        self.assertNotIn("file://", app)
         self.assertIn('document.createElement("span")', app)
         self.assertIn(".auto-refresh-control", styles)
         self.assertIn(".auto-refresh-interval", styles)
@@ -174,18 +175,17 @@ class PackagedResourceTests(unittest.TestCase):
         self.assertIn("cost.top_spend_rows.length > 0", app)
         self.assertIn('value.join(", ")', app)
 
-    def test_console_file_href_helper_encodes_local_and_unc_paths(self) -> None:
+    def test_console_artifact_href_helper_prefers_viewer_routes(self) -> None:
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is not available")
 
         app_js = PACKAGE_ROOT / "console" / "static" / "app.js"
         cases = [
-            [r"\\server\share\folder name\file.md", "file://server/share/folder%20name/file.md"],
-            ["/tmp/folder name/file.md", "file:///tmp/folder%20name/file.md"],
-            [r"C:\Users\Ada Lovelace\task.md", "file:///C:/Users/Ada%20Lovelace/task.md"],
-            ["relative/path with space.md", "file:///relative/path%20with%20space.md"],
-            ["file:///already%20encoded.md", "file:///already%20encoded.md"],
+            [{"viewer_url": "/artifacts/tasks/TASK-1/worker_output.md", "raw_url": "/artifacts/tasks/TASK-1/worker_output.md?raw=1", "download_url": "/artifacts/tasks/TASK-1/worker_output.md?download=1"}, "view", "/artifacts/tasks/TASK-1/worker_output.md"],
+            [{"viewer_url": "/artifacts/tasks/TASK-1/worker_output.md", "raw_url": "/artifacts/tasks/TASK-1/worker_output.md?raw=1"}, "raw", "/artifacts/tasks/TASK-1/worker_output.md?raw=1"],
+            [{"viewer_url": "/artifacts/tasks/TASK-1/worker_output.md", "download_url": "/artifacts/tasks/TASK-1/worker_output.md?download=1"}, "download", "/artifacts/tasks/TASK-1/worker_output.md?download=1"],
+            [{"path": "/tmp/worker_output.md"}, "view", ""],
         ]
         script = """
 const fs = require("fs");
@@ -206,11 +206,11 @@ const context = {
     getElementById() { return null; },
   },
 };
-vm.runInNewContext(`${source}\\nthis.__pathToFileHref = pathToFileHref;`, context);
-for (const [input, expected] of cases) {
-  const actual = context.__pathToFileHref(input);
+vm.runInNewContext(`${source}\\nthis.__artifactHref = artifactHref;`, context);
+for (const [input, mode, expected] of cases) {
+  const actual = context.__artifactHref(input, mode);
   if (actual !== expected) {
-    console.error(`${input}: expected ${expected}, got ${actual}`);
+    console.error(`${JSON.stringify(input)}: expected ${expected}, got ${actual}`);
     process.exit(1);
   }
 }

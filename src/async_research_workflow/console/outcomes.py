@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from async_research_workflow.console.artifacts import artifact_link
 from async_research_workflow.scripts import update_accepted_outputs_index as accepted_index
 
 
@@ -104,12 +105,10 @@ def relative_path(ops_dir: Path, path: Path) -> str:
 
 
 def maybe_file_link(ops_dir: Path, label: str, path: Path) -> dict[str, Any]:
-    return {
-        "label": label,
-        "path": str(path),
-        "relative_path": relative_path(ops_dir, path),
-        "exists": path.exists(),
-    }
+    link = artifact_link(ops_dir, label, path)
+    if not link.get("relative_path"):
+        link["relative_path"] = relative_path(ops_dir, path)
+    return link
 
 
 def status_entries(ops_dir: Path) -> dict[str, dict[str, Any]]:

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from async_research_workflow.console.artifacts import artifact_link
 from async_research_workflow.console import outcomes
 from async_research_workflow.idea_catalog import catalog_dashboard_report
 from async_research_workflow.scripts import analysis_surface
@@ -206,22 +207,29 @@ def task_id(payload: dict[str, Any], fallback: Path) -> str:
     return str(payload.get("id") or fallback.name)
 
 
-def task_file_links(task_dir: Path, status_path: Path) -> list[dict[str, Any]]:
-    files = [
+def task_file_links(ops_dir: Path, task_dir: Path, status_path: Path) -> list[dict[str, Any]]:
+    files: list[tuple[str, Path]] = [
         ("Task brief", task_dir / "task.md"),
         ("Status JSON", status_path),
         ("Worker output", task_dir / "worker_output.md"),
         ("Review aggregate", task_dir / "review_panel" / "aggregate.md"),
         ("Review aggregate JSON", task_dir / "review_panel" / "aggregate.json"),
+        ("Result acceptance", task_dir / "review_panel" / "result_acceptance.json"),
     ]
-    return [
-        {
-            "label": label,
-            "path": str(path),
-            "exists": path.exists(),
-        }
-        for label, path in files
-    ]
+    seen = {path for _, path in files}
+    for reviews_dir in (task_dir / "reviews", task_dir / "review_panel"):
+        if reviews_dir.is_dir():
+            for path in sorted([*reviews_dir.glob("*.md"), *reviews_dir.glob("*.json")]):
+                if path not in seen:
+                    files.append((path.name, path))
+                    seen.add(path)
+    artifacts_dir = task_dir / "artifacts"
+    if artifacts_dir.is_dir():
+        for path in sorted(item for item in artifacts_dir.rglob("*") if item.is_file())[:20]:
+            if path not in seen:
+                files.append((path.relative_to(task_dir).as_posix(), path))
+                seen.add(path)
+    return [artifact_link(ops_dir, label, path) for label, path in files]
 
 
 def task_lock_state(task_dir: Path, now: datetime) -> dict[str, Any]:
@@ -277,7 +285,7 @@ def status_validation_entry(status_path: Path, malformed_by_path: dict[str, dict
     }
 
 
-def task_row(item: dict[str, Any], now: datetime, malformed_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
     task_dir = item["task_dir"]
     status_path = item["status_path"]
     payload = item["payload"]
@@ -303,13 +311,13 @@ def task_row(item: dict[str, Any], now: datetime, malformed_by_path: dict[str, d
         "status_validation": status_validation_entry(status_path, malformed_by_path),
         "transition_validation": transition,
         "lock_state": task_lock_state(task_dir, now),
-        "files": task_file_links(task_dir, status_path),
+        "files": task_file_links(ops_dir, task_dir, status_path),
         "task_dir": str(task_dir),
         "status_path": str(status_path),
     }
 
 
-def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
+def malformed_task_row(item: dict[str, Any], now: datetime, ops_dir: Path | None = None) -> dict[str, Any]:
     raw_task_dir = item.get("task_dir")
     task_dir = Path(str(raw_task_dir)) if raw_task_dir else None
     raw_status_path = item.get("status_path")
@@ -320,6 +328,9 @@ def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
     else:
         status_path = None
     task_id_value = str(item.get("task_id") or (task_dir.name if task_dir is not None else "") or "unavailable")
+    workspace_dir = ops_dir
+    if workspace_dir is None and task_dir is not None and task_dir.parent.name == "tasks":
+        workspace_dir = task_dir.parent.parent
     return {
         "task_id": task_id_value,
         "title": "Invalid status.json",
@@ -352,7 +363,7 @@ def malformed_task_row(item: dict[str, Any], now: datetime) -> dict[str, Any]:
         "lock_state": task_lock_state(task_dir, now)
         if task_dir is not None
         else {"locked": False, "stale": False, "lock_dir": "", "age_minutes": None, "owner": None},
-        "files": task_file_links(task_dir, status_path) if task_dir is not None and status_path is not None else [],
+        "files": task_file_links(workspace_dir, task_dir, status_path) if workspace_dir is not None and task_dir is not None and status_path is not None else [],
         "task_dir": str(task_dir) if task_dir is not None else "",
         "status_path": str(status_path) if status_path is not None else "",
     }
@@ -365,11 +376,11 @@ def task_snapshot(ops_dir: Path, now: datetime, warnings: list[dict[str, Any]]) 
     counts = health_check.status_counts(statuses)
     stale_locks = autonomy_readiness_gate.scan_stale_locks_at(tasks_dir, 60.0, now)
     malformed_by_path = {str(item.get("status_path")): item for item in malformed}
-    rows = [task_row(item, now, malformed_by_path) for item in statuses]
+    rows = [task_row(ops_dir, item, now, malformed_by_path) for item in statuses]
     row_by_path = {str(item["status_path"]): row for item, row in zip(statuses, rows, strict=True)}
     status_paths = {str(status["status_path"]) for status in statuses}
     malformed_rows = [
-        malformed_task_row(item, now)
+        malformed_task_row(item, now, ops_dir)
         for item in malformed
         if str(item.get("status_path")) not in status_paths
     ]

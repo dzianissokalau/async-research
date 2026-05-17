@@ -392,6 +392,34 @@ h3 {
   background: #fbfcfd;
 }
 
+.decision-evidence,
+.decision-options {
+  display: grid;
+  gap: 6px;
+}
+
+.decision-option,
+.source-blocker-guidance {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.decision-option-title {
+  font-size: 13px;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+
+.decision-command-inline {
+  display: block;
+  max-height: 72px;
+  overflow: auto;
+}
+
 .decision-actions {
   display: flex;
   flex-wrap: wrap;
@@ -508,6 +536,25 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+}
+
+.file-link-set {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.file-link-action {
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.file-link-action:hover {
+  color: var(--accent-dark);
+  text-decoration: underline;
 }
 
 .prompt-detail {

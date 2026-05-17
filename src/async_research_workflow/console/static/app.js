@@ -322,24 +322,17 @@ function detailField(label, value) {
   return node;
 }
 
-function pathToFileHref(path) {
-  const raw = String(path || "").trim();
-  if (!raw) {
+function artifactHref(file, mode = "view") {
+  if (!file) {
     return "";
   }
-  if (/^file:\/\//i.test(raw)) {
-    return raw;
+  if (mode === "raw") {
+    return String(file.raw_url || file.viewer_url || "").trim();
   }
-  const normalized = raw.replaceAll("\\", "/");
-  if (/^[A-Za-z]:\//.test(normalized)) {
-    return `file:///${normalized[0]}:${normalized.slice(2).split("/").map(encodeURIComponent).join("/")}`;
+  if (mode === "download") {
+    return String(file.download_url || file.raw_url || file.viewer_url || "").trim();
   }
-  if (normalized.startsWith("//") && !normalized.startsWith("///")) {
-    const encodedUnc = normalized.slice(2).split("/").map((part) => encodeURIComponent(part)).join("/");
-    return `file://${encodedUnc}`;
-  }
-  const encoded = normalized.split("/").map((part) => encodeURIComponent(part)).join("/");
-  return normalized.startsWith("/") ? `file://${encoded}` : `file:///${encoded}`;
+  return String(file.viewer_url || file.raw_url || "").trim();
 }
 
 function detailPathLink(file) {
@@ -347,7 +340,8 @@ function detailPathLink(file) {
   const label = file && file.label ? file.label : "File";
   const displayPath = file && file.relative_path ? file.relative_path : valueOrUnavailable(path);
   const text = `${label}: ${displayPath}${file && file.exists ? "" : " (missing)"}`;
-  if (!path || !file || !file.exists) {
+  const href = artifactHref(file);
+  if (!path || !file || !file.exists || !href) {
     const node = document.createElement("span");
     node.className = "file-link missing";
     node.textContent = text;
@@ -356,15 +350,37 @@ function detailPathLink(file) {
     }
     return node;
   }
+  const wrap = document.createElement("span");
+  wrap.className = "file-link-set";
   const link = document.createElement("a");
   link.className = "file-link";
-  link.href = pathToFileHref(path);
+  link.href = href;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.title = path;
   link.dataset.filePath = path;
   link.textContent = text;
-  return link;
+  wrap.append(link);
+  const rawHref = artifactHref(file, "raw");
+  if (rawHref && rawHref !== href) {
+    const raw = document.createElement("a");
+    raw.className = "file-link-action";
+    raw.href = rawHref;
+    raw.target = "_blank";
+    raw.rel = "noopener noreferrer";
+    raw.textContent = "Raw";
+    wrap.append(raw);
+  }
+  const downloadHref = artifactHref(file, "download");
+  if (downloadHref) {
+    const download = document.createElement("a");
+    download.className = "file-link-action";
+    download.href = downloadHref;
+    download.setAttribute("download", "");
+    download.textContent = "Download";
+    wrap.append(download);
+  }
+  return wrap;
 }
 
 function projectStatusClass(project) {
@@ -419,6 +435,110 @@ function decisionActionButton(action, task) {
   return button;
 }
 
+function taskFilesByLabel(task) {
+  return (task.files || []).reduce((acc, file) => {
+    if (file && file.label) {
+      acc[file.label] = file;
+    }
+    return acc;
+  }, {});
+}
+
+function decisionEvidenceLinks(task) {
+  const byLabel = taskFilesByLabel(task);
+  const preferred = [
+    "Worker output",
+    "Review aggregate",
+    "Result acceptance",
+    "Status JSON",
+    "Task brief",
+  ];
+  const links = preferred
+    .map((label) => byLabel[label])
+    .filter((file) => file && file.exists && artifactHref(file));
+  if (!links.length) {
+    const missing = document.createElement("div");
+    missing.className = "decision-evidence missing";
+    missing.textContent = "Evidence artifacts unavailable";
+    return missing;
+  }
+  const list = document.createElement("div");
+  list.className = "decision-evidence";
+  list.replaceChildren(...links.map(detailPathLink));
+  return list;
+}
+
+function decisionConsequence(action, task) {
+  if (action.append_only) {
+    return `records ${action.decision}; task remains ${statusLabel(task.status)}`;
+  }
+  const target = action.target_status ? statusLabel(action.target_status) : "unchanged";
+  if (action.decision === "reject") {
+    return `sets task to ${target}; stops this result path`;
+  }
+  if (action.decision === "pause") {
+    return `sets task to ${target}; waits for more human input`;
+  }
+  return `sets task to ${target}; allows the workflow to continue`;
+}
+
+function decisionOptionList(task) {
+  const actions = decisionActions().filter((action) => isDecisionActionAvailable(action, task));
+  const list = document.createElement("div");
+  list.className = "decision-options";
+  if (!actions.length) {
+    list.append(empty("No available decision actions."));
+    return list;
+  }
+  for (const action of actions) {
+    const row = document.createElement("div");
+    row.className = "decision-option";
+    const title = document.createElement("div");
+    title.className = "decision-option-title";
+    title.textContent = `${action.label} -> ${action.target_status ? statusLabel(action.target_status) : "log only"}`;
+    const consequence = document.createElement("div");
+    consequence.className = "record-meta";
+    consequence.textContent = decisionConsequence(action, task);
+    const command = document.createElement("code");
+    command.className = "action-command decision-command-inline";
+    command.textContent = decisionCommandPreview(action, task);
+    row.append(title, consequence, command);
+    list.append(row);
+  }
+  return list;
+}
+
+function sourceBlockerGuidance(task) {
+  const gate = task.human_gate || {};
+  const text = [
+    gate.trigger,
+    gate.reason,
+    gate.required_human_decision,
+    task.human_gate_reason,
+    task.last_transition_reason,
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+  if (!/(source|data|library|evidence|governance)/.test(text)) {
+    return null;
+  }
+  const sources = ((state.snapshot || {}).sources || {});
+  const blocked = Array.isArray(sources.blocked_sources) ? sources.blocked_sources.slice(0, 4) : [];
+  const panel = document.createElement("div");
+  panel.className = "source-blocker-guidance";
+  const title = document.createElement("div");
+  title.className = "decision-option-title";
+  title.textContent = "Source blocker guidance";
+  const rows = document.createElement("div");
+  rows.className = "record-meta";
+  rows.textContent = blocked.length
+    ? blocked.map((source) => `${valueOrUnavailable(source.source_id)}: ${valueOrUnavailable(source.reason || source.status || source.approval_status)}`).join(" / ")
+    : valueOrUnavailable(gate.required_human_decision || gate.reason || task.human_gate_reason);
+  const actions = document.createElement("div");
+  actions.className = "record-meta";
+  actions.textContent = "Available routes: approve source, accept for planning only, continue with caveats, revise source audit, pause, or reject.";
+  panel.append(title, rows, actions);
+  return panel;
+}
+
 function decisionTaskCard(task) {
   const card = document.createElement("article");
   card.className = "decision-card";
@@ -441,7 +561,13 @@ function decisionTaskCard(task) {
       .filter((action) => isDecisionActionAvailable(action, task))
       .map((action) => decisionActionButton(action, task))
   );
-  card.append(title, reason, options, controls);
+  const guidance = sourceBlockerGuidance(task);
+  const children = [title, reason, decisionEvidenceLinks(task), options, decisionOptionList(task)];
+  if (guidance) {
+    children.push(guidance);
+  }
+  children.push(controls);
+  card.append(...children);
   return card;
 }
 

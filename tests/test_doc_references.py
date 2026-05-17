@@ -104,6 +104,11 @@ ROADMAP_STATUS_PREFIXES = {
     "paused_": "Paused",
     "superseded_": "Superseded",
 }
+ROADMAP_OPERATIONAL_FILES = {
+    "codex_phase_gated_delivery_automation_template.md",
+    "real_research_product_readiness_codex_automation_guide.md",
+    "real_research_product_readiness_delivery_log.md",
+}
 
 
 def iter_documentation_files() -> list[Path]:
@@ -391,7 +396,7 @@ class DocumentationReferenceTests(unittest.TestCase):
         roadmaps_dir = ROOT / "roadmaps"
         index_text = (roadmaps_dir / "README.md").read_text(encoding="utf-8")
         for path in sorted(roadmaps_dir.glob("*.md")):
-            if path.name == "README.md":
+            if path.name == "README.md" or path.name in ROADMAP_OPERATIONAL_FILES:
                 continue
             matched_status = None
             for prefix, status in ROADMAP_STATUS_PREFIXES.items():

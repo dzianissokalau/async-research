@@ -654,6 +654,51 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
     }
 
 
+def normalized_task_candidate_paths(ops_dir: Path, ref: str) -> list[Path]:
+    resolved_ops = ops_dir.resolve()
+    tasks_root = resolved_ops / "tasks"
+    raw = Path(ref)
+    candidates: list[Path] = []
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        parts = raw.parts
+        if parts and parts[0] == resolved_ops.name:
+            candidates.append(resolved_ops.parent.joinpath(*parts))
+        if parts and parts[0] == "tasks":
+            candidates.append(resolved_ops.joinpath(*parts))
+        if parts and parts[0] not in {resolved_ops.name, "tasks"}:
+            candidates.append(tasks_root / raw)
+            candidates.append(resolved_ops / raw)
+        if not parts:
+            candidates.append(tasks_root / raw)
+    normalized: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate.name == "status.json":
+            candidate = candidate.parent
+        resolved = candidate.resolve()
+        marker = str(resolved)
+        if marker not in seen:
+            normalized.append(resolved)
+            seen.add(marker)
+    return normalized
+
+
+def task_ref_matches_existing(ref: str, task_dir: Path, status_path: Path, payload: dict[str, Any]) -> bool:
+    task_id = str(payload.get("id") or "").strip()
+    candidates = {
+        task_dir.name,
+        str(task_dir),
+        str(status_path),
+        str(task_dir.resolve()),
+        str(status_path.resolve()),
+    }
+    if task_id:
+        candidates.add(task_id)
+    return ref in candidates
+
+
 def resolve_task_dir(ops_dir: Path, request: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
     if not ops_dir.is_dir():
         return None, {
@@ -672,31 +717,37 @@ def resolve_task_dir(ops_dir: Path, request: dict[str, Any]) -> tuple[Path | Non
             "read_only": True,
             "changed": False,
         }
-    tasks_root = (ops_dir / "tasks").resolve()
+    resolved_ops = ops_dir.resolve()
+    tasks_root = (resolved_ops / "tasks").resolve()
     ref = task_ref.strip()
+    if "\x00" in ref or ".." in Path(ref).parts:
+        return None, {
+            "ok": False,
+            "reason": "task_outside_workspace",
+            "message": "Task paths must not escape or traverse outside research_ops/tasks.",
+            "read_only": True,
+            "changed": False,
+        }
 
-    for status_path in sorted((ops_dir / "tasks").glob("*/status.json")):
+    for status_path in sorted((resolved_ops / "tasks").glob("*/status.json")):
         task_dir = status_path.parent
         try:
             resolved_task_dir = task_dir.resolve()
             resolved_task_dir.relative_to(tasks_root)
         except (OSError, ValueError):
             continue
-        if ref in {task_dir.name, str(task_dir), str(status_path)}:
-            return resolved_task_dir, None
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             payload = None
-        if isinstance(payload, dict) and ref == str(payload.get("id") or ""):
+        payload = payload if isinstance(payload, dict) else {}
+        if task_ref_matches_existing(ref, task_dir, status_path, payload):
             return resolved_task_dir, None
 
-    candidate = Path(ref)
-    if not candidate.is_absolute():
-        candidate = ops_dir / "tasks" / ref
-    candidate = candidate.resolve()
-    if candidate.name == "status.json":
-        candidate = candidate.parent
+    candidates = normalized_task_candidate_paths(resolved_ops, ref)
+    candidate = candidates[0] if candidates else (tasks_root / ref).resolve()
+    matching_existing = next((path for path in candidates if path.is_dir()), candidate)
+    candidate = matching_existing
     try:
         candidate.relative_to(tasks_root)
     except ValueError:

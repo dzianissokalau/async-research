@@ -749,6 +749,107 @@ class ConsoleActionTests(unittest.TestCase):
             self.assertEqual("ready_for_worker", status_payload["status"])
             self.assertFalse(status_payload["requires_human"])
 
+    def test_decision_actions_normalize_task_paths_without_double_prefixing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = root / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(
+                ops_dir,
+                task_id="TASK-0001",
+                status="needs_human",
+                available_decisions=["approve_data_use", "pause", "reject"],
+            )
+            coffee_name = "TASK-0001-data-readiness"
+            coffee_dir = task_dir.with_name(coffee_name)
+            task_dir.rename(coffee_dir)
+
+            refs = [
+                str(coffee_dir.resolve()),
+                f"research_ops/tasks/{coffee_name}",
+                f"tasks/{coffee_name}",
+                coffee_name,
+            ]
+            for index, task_ref in enumerate(refs, start=1):
+                with self.subTest(task_ref=task_ref):
+                    status, result = actions.run_action(
+                        "decision_add_note",
+                        ops_dir,
+                        {
+                            "task_dir": task_ref,
+                            "reason": f"Coffee pilot path normalization check {index}",
+                            "approver": "test-owner",
+                            "date": "2026-05-12T00:00:00Z",
+                            "confirm": actions.decision_confirmation_token("decision_add_note"),
+                        },
+                    )
+
+                    self.assertEqual(200, status, result)
+                    self.assertTrue(result["ok"], result)
+                    self.assertEqual(str(coffee_dir.resolve()), result["task_dir"])
+                    self.assertNotIn("research_ops/tasks/research_ops/tasks", result["command"])
+                    self.assertTrue(result["decision_audit"]["validated"])
+
+            decisions = (ops_dir / "decisions.md").read_text(encoding="utf-8")
+            self.assertEqual(4, decisions.count("Coffee pilot path normalization check"))
+
+            status, result = actions.run_action(
+                "decision_add_note",
+                ops_dir,
+                {
+                    "task_dir": "tasks/../tasks/TASK-0001-data-readiness",
+                    "reason": "Escaping paths fail closed",
+                    "approver": "test-owner",
+                    "confirm": actions.decision_confirmation_token("decision_add_note"),
+                },
+            )
+            self.assertEqual(400, status)
+            self.assertEqual("task_outside_workspace", result["reason"])
+            self.assertNotIn("Escaping paths fail closed", (ops_dir / "decisions.md").read_text(encoding="utf-8"))
+
+    def test_coffee_project_relative_resume_path_resolves_human_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+            task_dir = write_task_status(ops_dir, task_id="TASK-0001", status="needs_human")
+            coffee_dir = task_dir.with_name("TASK-0001-data-readiness")
+            task_dir.rename(coffee_dir)
+
+            status, result = actions.run_action(
+                "decision_resume",
+                ops_dir,
+                {
+                    "task_dir": "research_ops/tasks/TASK-0001-data-readiness",
+                    "reason": "Coffee pilot dashboard resume path",
+                    "approver": "test-owner",
+                    "date": "2026-05-12T00:00:00Z",
+                    "confirm": actions.decision_confirmation_token("decision_resume"),
+                },
+            )
+
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertNotIn("research_ops/tasks/research_ops/tasks", result["command"])
+            self.assertEqual(str(coffee_dir.resolve()), result["task_dir"])
+            status_payload = json.loads((coffee_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status_payload["status"])
+
     def test_decision_add_note_appends_without_changing_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = Path(tmp) / "research_ops"

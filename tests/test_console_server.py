@@ -8,6 +8,7 @@ import json
 import tempfile
 import threading
 import unittest
+import urllib.parse
 import urllib.request
 from http import HTTPStatus
 from pathlib import Path
@@ -71,6 +72,9 @@ class ConsoleServerTests(unittest.TestCase):
     def test_http_server_smoke_serves_static_assets_and_apis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))
+            task_dir = ops_dir / "tasks" / "TASK-0001-data-readiness"
+            task_dir.mkdir(parents=True)
+            (task_dir / "worker_output.md").write_text("# Data readiness\n\n- DS-0001 checked\n", encoding="utf-8")
             try:
                 httpd = server.create_server(ops_dir, "127.0.0.1", 0)
             except PermissionError as exc:
@@ -103,6 +107,13 @@ class ConsoleServerTests(unittest.TestCase):
                     payload = json.loads(response.read().decode("utf-8"))
                     self.assertEqual(HTTPStatus.OK, response.status)
                     self.assertEqual("console_actions_catalog", payload["action"])
+
+                artifact_url = f"{base_url}/artifacts/tasks/TASK-0001-data-readiness/worker_output.md"
+                with urllib.request.urlopen(artifact_url, timeout=5) as response:
+                    body = response.read()
+                    self.assertEqual(HTTPStatus.OK, response.status)
+                    self.assertIn("text/html", response.headers["Content-Type"])
+                    self.assertIn(b"<h1>Data readiness</h1>", body)
             finally:
                 httpd.shutdown()
                 httpd.server_close()
@@ -148,6 +159,62 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertIn("surface_update", action_ids)
 
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_artifact_viewer_renders_markdown_and_serves_raw_download_fallbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            task_dir = ops_dir / "tasks" / "TASK-0001-data-readiness"
+            task_dir.mkdir(parents=True)
+            output = task_dir / "worker_output.md"
+            output.write_text("# Coffee source check\n\n| source | status |\n| --- | --- |\n| DS-0001 | usable |\n", encoding="utf-8")
+
+            path = "/artifacts/tasks/TASK-0001-data-readiness/worker_output.md"
+            status, media_type, body = server.response_for_get(path, ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIn("text/html", media_type)
+            html = body.decode("utf-8")
+            self.assertIn("<h1>Coffee source check</h1>", html)
+            self.assertIn("<table>", html)
+            self.assertIn("?raw=1", html)
+            self.assertIn("?download=1", html)
+
+            status, media_type, body = server.response_for_get(f"{path}?raw=1", ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIn("Coffee source check", body.decode("utf-8"))
+            self.assertNotIn("<html", body.decode("utf-8").lower())
+
+            status, media_type, body = server.response_for_get(f"{path}?download=1", ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual("application/octet-stream", media_type)
+            self.assertEqual(output.read_bytes(), body)
+
+    def test_artifact_viewer_handles_spaces_missing_files_and_rejects_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = init_ops(Path(tmp))
+            ideas_dir = ops_dir / "ideas"
+            ideas_dir.mkdir(exist_ok=True)
+            note = ideas_dir / "coffee climate note.md"
+            note.write_text("# Idea note\n", encoding="utf-8")
+
+            encoded = urllib.parse.quote("ideas/coffee climate note.md", safe="/")
+            status, media_type, body = server.response_for_get(f"/artifacts/{encoded}", ops_dir)
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertIn("text/html", media_type)
+            self.assertIn(b"<h1>Idea note</h1>", body)
+
+            status, _media_type, body = server.response_for_get("/artifacts/ideas/missing.md", ops_dir)
+            self.assertEqual(HTTPStatus.NOT_FOUND, status)
+            self.assertIn(b"artifact_missing", body)
+
+            for route in (
+                "/artifacts/../secrets.md",
+                "/artifacts/tasks/../decisions.md",
+                "/artifacts/run_artifacts/run-001/run.json",
+            ):
+                with self.subTest(route=route):
+                    status, _media_type, body = server.response_for_get(route, ops_dir)
+                    self.assertEqual(HTTPStatus.FORBIDDEN, status)
+                    self.assertIn(b"artifact_path_not_allowed", body)
 
     def test_server_rejects_unknown_api_and_mutation_methods(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -310,7 +377,7 @@ class ConsoleServerTests(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 server.serve(Path("research_ops"), host="0.0.0.0", port=8765)
 
-        create_server.assert_called_once_with(Path("research_ops"), "0.0.0.0", 8765)
+        create_server.assert_called_once_with(server.canonical_ops_dir(Path("research_ops")), "0.0.0.0", 8765)
         self.assertTrue(fake_server.served)
         self.assertTrue(fake_server.closed)
         self.assertIn("Warning: binding to 0.0.0.0 may expose the dashboard beyond localhost.", output.getvalue())

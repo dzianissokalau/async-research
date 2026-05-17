@@ -216,7 +216,11 @@ class ConsoleSnapshotTests(unittest.TestCase):
     def test_snapshot_uses_consistent_task_shape_for_human_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
-            write_task_status(ops_dir, "TASK-1001", "needs_human", requires_human=True)
+            task_dir = write_task_status(ops_dir, "TASK-1001", "needs_human", requires_human=True)
+            (task_dir / "task.md").write_text("# Human task\n", encoding="utf-8")
+            (task_dir / "worker_output.md").write_text("# Evidence\n", encoding="utf-8")
+            (task_dir / "review_panel").mkdir(exist_ok=True)
+            (task_dir / "review_panel" / "result_acceptance.json").write_text('{"ok": true}\n', encoding="utf-8")
 
             code, payload = self.snapshot(ops_dir)
 
@@ -245,6 +249,11 @@ class ConsoleSnapshotTests(unittest.TestCase):
                 self.assertIn(key, human)
             self.assertEqual("TASK-1001", human["task_id"])
             self.assertEqual(human, payload["human_decisions"]["blocked_task_refs"][0])
+            links = {item["label"]: item for item in human["files"]}
+            self.assertEqual("/artifacts/tasks/TASK-1001-fixture/worker_output.md", links["Worker output"]["viewer_url"])
+            self.assertEqual("/artifacts/tasks/TASK-1001-fixture/worker_output.md?raw=1", links["Worker output"]["raw_url"])
+            self.assertEqual("/artifacts/tasks/TASK-1001-fixture/review_panel/result_acceptance.json", links["Result acceptance"]["viewer_url"])
+            self.assertTrue(links["Task brief"]["viewer_allowed"])
 
     def test_snapshot_reads_public_decision_rows_from_legacy_template_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -327,7 +336,7 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertTrue(valid["transition_validation"]["valid"])
             self.assertIn("in_progress", valid["allowed_next_statuses"])
             self.assertEqual({"locked": False, "stale": False}, {key: valid["lock_state"][key] for key in ("locked", "stale")})
-            self.assertIn(str(task_dir / "status.json"), [item["path"] for item in valid["files"]])
+            self.assertIn(str((task_dir / "status.json").resolve()), [item["path"] for item in valid["files"]])
             invalid = by_id["TASK-1004-malformed"]
             self.assertEqual("invalid", invalid["status"])
             self.assertFalse(invalid["status_validation"]["valid"])
