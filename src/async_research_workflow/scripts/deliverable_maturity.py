@@ -290,6 +290,13 @@ INDEPENDENCE_CEILING = {
     "human": "submission_ready_manuscript",
     "external": "submission_ready_manuscript",
 }
+READY_LABELS = {
+    "research_note": "research note ready",
+    "internal_draft": "internal draft accepted",
+    "shareable_memo": "shareable memo ready",
+    "working_paper": "working paper ready",
+    "submission_ready_manuscript": "submission-ready manuscript",
+}
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -1408,6 +1415,29 @@ def min_maturity(*values: str) -> str:
     return min(values, key=lambda value: MATURITY_ORDER.get(value, 0))
 
 
+def maturity_label(maturity: str) -> str:
+    for item in MATURITY_LEVELS:
+        if item["id"] == maturity:
+            return str(item["label"])
+    return maturity.replace("_", " ")
+
+
+def readiness_label(current_maturity: str, target_maturity: str, target_ready: bool) -> str:
+    if target_ready:
+        return READY_LABELS.get(target_maturity, f"{maturity_label(target_maturity).lower()} ready")
+    current = READY_LABELS.get(current_maturity, f"{maturity_label(current_maturity).lower()} accepted")
+    target = maturity_label(target_maturity).lower()
+    return f"{current}; {target} not ready"
+
+
+def checklist_status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("status") or "unavailable")
+        counts[status] = counts.get(status, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def checklist(deliverable: dict[str, Any], target_maturity: str) -> list[dict[str, Any]]:
     completed = set(deliverable.get("completed_gates", []))
     manuscript_rows = {row["gate_id"]: row for row in normalized_manuscript_gates(deliverable, target_maturity)}
@@ -1626,12 +1656,37 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                 "verified_maturity_ceiling": verified_ceiling,
             }
         )
+    satisfied_gate_count = sum(1 for row in rows if row.get("satisfied"))
+    task_acceptance = {
+        "source_task_count": len(source_tasks),
+        "accepted_source_task_count": sum(1 for task in source_tasks if task.get("accepted")),
+        "accepted_source_tasks_do_not_imply_readiness": True,
+        "label": "accepted source tasks are evidence only",
+    }
+    editorial_qa = {
+        "honest_status": readiness_label(current_maturity, target_maturity, target_ready),
+        "required_gate_count": len(rows),
+        "satisfied_gate_count": satisfied_gate_count,
+        "missing_gate_count": len(rows) - satisfied_gate_count,
+        "checklist_status_counts": checklist_status_counts(rows),
+        "critic_status": critic["status"],
+        "critic_recommended_maturity_ceiling": critic["recommended_maturity_ceiling"],
+        "response_matrix_status": response_matrix["status"],
+        "response_matrix_row_count": response_matrix["row_count"],
+        "open_critical_major_response_count": response_matrix["unresolved_critical_major_count"],
+        "open_gap_count": len(unresolved_gaps),
+        "review_independence_status": "passed"
+        if INDEPENDENCE_ORDER.get(achieved, 0) >= INDEPENDENCE_ORDER[required_independence]
+        else "below_required",
+        "same_agent_review": achieved == "same_agent_visible",
+    }
 
     return {
         "deliverable_id": deliverable.get("deliverable_id"),
         "manifest_path": str(manifest_path(ops_dir)),
         "read_only": True,
         "target_ready": target_ready,
+        "readiness_label": editorial_qa["honest_status"],
         "maturity": {
             "current": current_maturity,
             "target": target_maturity,
@@ -1663,6 +1718,8 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
             "stored_achieved": stored_achieved,
             "achieved": achieved,
         },
+        "task_acceptance": task_acceptance,
+        "editorial_qa": editorial_qa,
         "source_tasks": source_tasks,
         "open_gaps": gaps,
         "blockers": blockers,

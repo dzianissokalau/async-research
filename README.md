@@ -194,6 +194,9 @@ a deliverable shareable or submission-ready. Working papers and submission-ready
 manuscripts also need a distinct critic review with sufficient independence and
 a maturity-ceiling recommendation, and critical or major critique rows must be
 closed or explicitly human-waived in the response matrix.
+The local console snapshot includes a deliverable maturity panel that labels
+accepted source tasks as evidence only and shows whether each deliverable is an
+internal draft, shareable memo, working-paper-ready, or submission-ready.
 
 ## Worked Task Loop
 
@@ -294,7 +297,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research readiness research_ops --dry-run` | Decide whether another autonomous loop is safe. | Queue, task status, locks, source audit, data foundations, knowledge-library validator output, accepted memory, cost, metrics, health state. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research health research_ops --dry-run` | Produce operational health status. | Queue, task status, locks, review state, cost, metrics, accepted memory, source audit, data foundations, knowledge-library validator output. | With `--dry-run`, stdout only. Without it, `health_report.json` and `daily_status.md`. |
 | `async-research console research_ops` | Serve the local dashboard shell on `127.0.0.1:8765`. | Packaged console assets, the read-only snapshot API, setup action catalog, guarded setup/health actions, task-board inspection actions, delivered-project outcomes, human-decision inbox actions, prompt-library actions, schedule intent actions, trigger previews, and run history. | Serves static assets, `GET /api/snapshot`, `GET /api/actions`, and `POST /api/actions/run`; dashboard mutations are limited to explicit `init`, `surface update`, `outcomes refresh`, confirmed human-decision actions, prompt draft/activation actions, schedule intent edits, and confirmed trigger-now runs. Schedule trigger previews are read-only and never launch Codex. |
-| `async-research console snapshot research_ops --json` | Render the read-only dashboard snapshot. | Workspace files, readiness and health read models, task status, decisions, prompts, schedules, accepted/rejected ledgers, delivered-project outcomes, costs, foundation dashboards, and run artifacts. | JSON to stdout only; read-only and never mutates `research_ops/`. |
+| `async-research console snapshot research_ops --json` | Render the read-only dashboard snapshot. | Workspace files, readiness and health read models, task status, decisions, prompts, schedules, accepted/rejected ledgers, delivered-project outcomes, deliverable maturity, costs, foundation dashboards, and run artifacts. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research workflow check research_ops` | Run read-only schema, readiness, surface, and health checks as one JSON report. | Workspace state and rendered surfaces. | JSON to stdout only. |
 | `async-research workflow status <task-dir>` | Report one task's status, lock state, worker output, reviews, human gate, revision counters, result state, and next legal commands. | Task `status.json`, task-local lock and worker/review artifacts, and matching workspace path. | JSON to stdout only; read-only. |
 | `async-research workflow next research_ops` | Recommend the next safe workspace command, with lower-priority alternatives. | Console snapshot read model, schema-version scan, task status, locks, review state, accepted-memory decay, and source/data/library warnings. | JSON to stdout only; read-only. |

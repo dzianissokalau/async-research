@@ -26,6 +26,7 @@ from async_research_workflow.scripts import analysis_surface
 from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts import data_source_audit
 from async_research_workflow.scripts import data_foundations
+from async_research_workflow.scripts import deliverable_maturity
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
@@ -61,7 +62,7 @@ LIFECYCLE_STATIONS = [
     {
         "id": "topic",
         "label": "Topic / Research Objective",
-        "objective": "Anchor the project topic, scope, and intended final deliverable.",
+        "objective": "Anchor the project topic, scope, and intended target deliverable.",
         "task_types": set(),
         "keywords": ("topic", "objective", "scope", "roadmap"),
         "artifacts": (("Workspace README", "README.md"), ("Research roadmap", "research_roadmap.md")),
@@ -167,17 +168,17 @@ LIFECYCLE_STATIONS = [
     },
     {
         "id": "final_review",
-        "label": "Final Review And Polish",
-        "objective": "Complete final review, resolve caveats, and decide whether the deliverable is ready to share.",
+        "label": "External Readiness Review",
+        "objective": "Complete maturity review, resolve caveats, and decide whether the deliverable is ready to share.",
         "task_types": {"critic_review"},
-        "keywords": ("review", "polish", "final", "qa", "acceptance"),
+        "keywords": ("review", "polish", "maturity", "qa", "acceptance"),
         "artifacts": (
             ("Human review queue", "human_review_queue.md"),
             ("Result acceptance policy", "result_acceptance_policy.md"),
             ("Rejected results", "rejected_results.md"),
         ),
         "owner": "reviewer",
-        "next_task": "run final review and resolve remaining caveats",
+        "next_task": "run maturity review and resolve remaining caveats",
         "command": ("Inspect workflow next", ["async-research", "workflow", "next", "<ops_dir>"]),
     },
 ]
@@ -1232,6 +1233,123 @@ def delivered_projects_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
     }
 
 
+def count_values(rows: Iterable[dict[str, Any]], getter: Callable[[dict[str, Any]], Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(getter(row) or "unavailable")
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def compact_deliverable(model: dict[str, Any]) -> dict[str, Any]:
+    deliverable = model.get("deliverable") if isinstance(model.get("deliverable"), dict) else {}
+    editorial_qa = model.get("editorial_qa") if isinstance(model.get("editorial_qa"), dict) else {}
+    return {
+        "deliverable_id": model.get("deliverable_id"),
+        "title": deliverable.get("title", "unavailable"),
+        "output_type": deliverable.get("output_type", "unavailable"),
+        "target_audience": deliverable.get("target_audience", ""),
+        "target_venue": deliverable.get("target_venue", ""),
+        "primary_artifact": deliverable.get("primary_artifact", ""),
+        "source_task_ids": deliverable.get("source_task_ids", []),
+        "target_ready": model.get("target_ready") is True,
+        "readiness_label": model.get("readiness_label") or editorial_qa.get("honest_status", "unavailable"),
+        "maturity": model.get("maturity", {}),
+        "task_acceptance": model.get("task_acceptance", {}),
+        "editorial_qa": editorial_qa,
+        "checklist": model.get("checklist", []),
+        "manuscript_checklist": model.get("manuscript_checklist", []),
+        "critic_review": model.get("critic_review", {}),
+        "response_matrix": model.get("response_matrix", {}),
+        "review_independence": model.get("review_independence", {}),
+        "open_gaps": model.get("open_gaps", []),
+        "blockers": model.get("blockers", []),
+        "warnings": model.get("warnings", []),
+    }
+
+
+def deliverables_snapshot(ops_dir: Path) -> dict[str, Any]:
+    if not ops_dir.is_dir():
+        return unavailable("ops_dir_missing", "deliverables are unavailable until research_ops exists", ops_dir)
+    manifest_path = deliverable_maturity.manifest_path(ops_dir)
+    projection_path = deliverable_maturity.projection_path(ops_dir)
+    links = [
+        artifact_link(ops_dir, "Deliverable manifest", manifest_path),
+        artifact_link(ops_dir, "Deliverable projection", projection_path),
+    ]
+    manifest, errors = deliverable_maturity.load_manifest(ops_dir)
+    warnings = [
+        issue("warning", str(error.get("reason", "deliverable_manifest_invalid")), str(error.get("message", "deliverable manifest issue")), error.get("path"), error)
+        for error in errors
+    ]
+    if errors:
+        return {
+            "available": True,
+            "status": "malformed",
+            "ok": False,
+            "path": str(manifest_path),
+            "exists": manifest_path.exists(),
+            "count": 0,
+            "summary": {
+                "deliverable_count": 0,
+                "target_ready_count": 0,
+                "blocked_count": 0,
+                "warning_count": len(warnings),
+            },
+            "rows": [],
+            "attention_rows": [],
+            "links": links,
+            "warnings": warnings,
+            "errors": errors,
+        }
+
+    rows: list[dict[str, Any]] = []
+    for item in manifest.get("deliverables", []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            rows.append(compact_deliverable(deliverable_maturity.read_model(ops_dir, item)))
+        except Exception as exc:
+            warnings.append(
+                issue(
+                    "warning",
+                    "deliverable_read_model_unavailable",
+                    "deliverable read model could not be rendered",
+                    manifest_path,
+                    {"deliverable_id": item.get("deliverable_id"), "error": str(exc)},
+                )
+            )
+
+    attention_rows = [row for row in rows if not row.get("target_ready") or row.get("warnings")]
+    summary = {
+        "deliverable_count": len(rows),
+        "target_ready_count": sum(1 for row in rows if row.get("target_ready")),
+        "blocked_count": sum(1 for row in rows if row.get("blockers")),
+        "warning_count": len(warnings) + sum(len(row.get("warnings", [])) for row in rows),
+        "open_gap_count": sum(int((row.get("editorial_qa") or {}).get("open_gap_count") or 0) for row in rows),
+        "open_critical_major_response_count": sum(
+            int((row.get("editorial_qa") or {}).get("open_critical_major_response_count") or 0) for row in rows
+        ),
+        "same_agent_review_count": sum(1 for row in rows if (row.get("review_independence") or {}).get("same_agent_review") is True),
+        "maturity_targets": count_values(rows, lambda row: (row.get("maturity") or {}).get("target")),
+        "maturity_current": count_values(rows, lambda row: (row.get("maturity") or {}).get("current")),
+        "readiness_labels": count_values(rows, lambda row: row.get("readiness_label")),
+    }
+    return {
+        "available": True,
+        "status": "available",
+        "ok": summary["blocked_count"] == 0,
+        "path": str(manifest_path),
+        "exists": manifest_path.exists(),
+        "count": len(rows),
+        "summary": summary,
+        "rows": rows,
+        "attention_rows": attention_rows[:RECENT_LIMIT],
+        "links": links,
+        "warnings": warnings,
+    }
+
+
 def prompts_snapshot(ops_dir: Path) -> dict[str, Any]:
     try:
         return prompt_library.library_snapshot(ops_dir)
@@ -2110,6 +2228,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     human_decisions, human_decision_warnings = human_decisions_snapshot(ops_dir, tasks["human"])
     accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir, current)
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
+    deliverables = deliverables_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "deliverables are unavailable until research_ops exists", ops_dir)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current, tasks.get("all", []))
     prompts = prompts_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "prompts are unavailable until research_ops exists", ops_dir)
@@ -2134,7 +2253,9 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     warnings.extend(cost.get("warnings", []))
     if sources.get("available") is not False:
         warnings.extend(sources.get("warnings", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, lifecycle, *dashboards.values()]))
+    if deliverables.get("available") is not False:
+        warnings.extend(deliverables.get("warnings", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, lifecycle, deliverables, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2151,6 +2272,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "human_decisions": human_decisions,
         "accepted_outputs": accepted_outputs,
         "delivered_projects": delivered_projects,
+        "deliverables": deliverables,
         "rejected_results": rejected_results,
         "cost": cost,
         "sources": sources,

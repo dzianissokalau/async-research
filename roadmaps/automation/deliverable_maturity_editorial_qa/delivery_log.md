@@ -172,3 +172,47 @@ Branch: `codex/deliverable-maturity-editorial-qa`
 ### Next Action
 
 - Deliver Phase 4: surface maturity/editorial QA status in dashboard/read models and avoid misleading final-output labels.
+
+## Phase 4 - 2026-05-18
+
+Status: delivered
+Branch: `codex/deliverable-maturity-editorial-qa`
+
+### Scope
+
+- Surface deliverable maturity and editorial QA status in dashboard/read models.
+- Show current/target maturity, verified maturity ceiling, checklist completion, critic status, response-matrix status, unresolved gaps, and independence status.
+- Keep accepted task output visibly separate from deliverable readiness.
+- Rename dashboard lifecycle labels that implied final readiness before maturity gates pass.
+
+### Changes
+
+- Added honest readiness labels and editorial QA summaries to the deliverable maturity read model.
+- Added a read-only console `deliverables` snapshot group with manifest links, row summaries, attention rows, and maturity/status counts.
+- Added a browser dashboard section for deliverable maturity and top-level metrics for ready vs blocked deliverables.
+- Renamed the dashboard lifecycle review station from final-review wording to external readiness review.
+- Updated README dashboard documentation and targeted tests.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 656 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_console_snapshot`: passed, 26 tests
+- `.venv/bin/python -m unittest tests.test_packaged_resources`: passed, 7 tests
+- `git diff --check`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/deliverable_maturity_editorial_qa/reviews/deliverable-maturity-editorial-qa-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Browser UI shows compact deliverable rows; full gate, critic, response matrix, blocker, warning, and independence details are exposed in the JSON snapshot.
+- Phase 5 still owns templates, prompts, fixtures, and the coffee-pilot regression.
+
+### Next Action
+
+- Deliver Phase 5: templates, prompts, fixtures, and the coffee-pilot regression proving accepted internal draft does not equal working-paper readiness.

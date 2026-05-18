@@ -24,6 +24,7 @@ SNAPSHOT_GROUPS = {
     "human_decisions",
     "accepted_outputs",
     "delivered_projects",
+    "deliverables",
     "rejected_results",
     "cost",
     "sources",
@@ -523,6 +524,83 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertTrue(any(link["label"] == "Accepted memory evidence" and link["viewer_url"].endswith("/worker_output.md") for link in evidence_links))
             source_links = {link["label"]: link for link in by_station["source_data"]["artifact_links"]}
             self.assertTrue(source_links["Source audit"]["viewer_allowed"])
+
+    def test_snapshot_surfaces_deliverable_maturity_without_final_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task_status(
+                ops_dir,
+                "TASK-0015",
+                "accepted",
+                task_type="status_update",
+                title="Accepted internal draft assembly",
+            )
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0015",
+                    "--title",
+                    "Coffee and climate paper draft",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "internal_draft",
+                    "--target-audience",
+                    "research collaborators",
+                    "--source-task",
+                    "TASK-0015",
+                    "--complete-gate",
+                    "source_caveat_checks",
+                    "--complete-gate",
+                    "claim_strength_review",
+                    "--complete-gate",
+                    "task_review",
+                    "--complete-gate",
+                    "accepted_evidence_linkage",
+                    "--complete-gate",
+                    "caveat_audit",
+                    "--complete-gate",
+                    "internal_workflow_disclosure",
+                    "--complete-gate",
+                    "draft_completeness_check",
+                    "--review-independence",
+                    "same_agent_visible",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            deliverables = payload["deliverables"]
+            self.assertEqual("available", deliverables["status"])
+            self.assertEqual(1, deliverables["count"])
+            self.assertEqual(0, deliverables["summary"]["target_ready_count"])
+            self.assertEqual(1, deliverables["summary"]["blocked_count"])
+            row = deliverables["rows"][0]
+            self.assertFalse(row["target_ready"])
+            self.assertEqual("internal draft accepted; working paper not ready", row["readiness_label"])
+            self.assertNotIn("final", row["readiness_label"].lower())
+            self.assertEqual("internal_draft", row["maturity"]["current"])
+            self.assertEqual("working_paper", row["maturity"]["target"])
+            self.assertEqual(1, row["task_acceptance"]["accepted_source_task_count"])
+            self.assertTrue(row["task_acceptance"]["accepted_source_tasks_do_not_imply_readiness"])
+            self.assertGreater(row["editorial_qa"]["missing_gate_count"], 0)
+            self.assertEqual("missing", row["critic_review"]["status"])
+            self.assertEqual("not_required", row["response_matrix"]["status"])
+            self.assertTrue(row["review_independence"]["same_agent_review"])
+            reasons = {item["reason"] for item in row["blockers"]}
+            self.assertIn("current_maturity_below_target", reasons)
+            self.assertIn("gate_missing", reasons)
+            self.assertIn("critic_review_missing", reasons)
+            self.assertEqual("DELIV-0015", deliverables["attention_rows"][0]["deliverable_id"])
 
     def test_task_detail_surfaces_coffee_style_explainability_and_qa(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

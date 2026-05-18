@@ -174,6 +174,8 @@ function renderMetrics(snapshot) {
   const decisions = snapshot.human_decisions || {};
   const accepted = snapshot.accepted_outputs || {};
   const delivered = snapshot.delivered_projects || {};
+  const deliverables = snapshot.deliverables || {};
+  const deliverableSummary = deliverables.summary || {};
   const rejected = snapshot.rejected_results || {};
   const cost = snapshot.cost || {};
   const readiness = snapshot.readiness || {};
@@ -186,6 +188,7 @@ function renderMetrics(snapshot) {
     metric("Active tasks", (tasks.active || []).length, `${asNumber(tasks.total)} total tasks`),
     metric("Blocked tasks", (tasks.blocked || []).length, `${asNumber(decisions.open_count)} human decisions`),
     metric("Delivered projects", asNumber((delivered.summary || {}).project_count || accepted.count), `${asNumber((delivered.summary || {}).accepted_count)} accepted outputs`),
+    metric("Deliverables", asNumber(deliverables.count), `${asNumber(deliverableSummary.target_ready_count)} ready / ${asNumber(deliverableSummary.blocked_count)} blocked`),
     metric("Rejected results", asNumber(rejected.count), "recent rejected ledger rows"),
     metric("Cost this month", money(cost.month_spend_usd), `this week ${money(cost.week_spend_usd)}`),
     metric("Warnings", warnings.length, `${(tasks.stale_locks || []).length} stale locks`)
@@ -1525,6 +1528,91 @@ function renderLifecycle(snapshot) {
   );
 }
 
+function deliverableReadinessClass(row) {
+  if (!row) {
+    return "badge neutral";
+  }
+  if (row.target_ready) {
+    return "badge good";
+  }
+  if ((row.blockers || []).length > 0) {
+    return "badge bad";
+  }
+  if ((row.warnings || []).length > 0) {
+    return "badge warn";
+  }
+  return "badge neutral";
+}
+
+function deliverableMaturityText(row) {
+  const maturity = row.maturity || {};
+  return `current ${statusLabel(maturity.current)} / target ${statusLabel(maturity.target)} / ceiling ${statusLabel(maturity.verified_ceiling)}`;
+}
+
+function deliverableQaText(row) {
+  const qa = row.editorial_qa || {};
+  const acceptance = row.task_acceptance || {};
+  return [
+    `checklist ${asNumber(qa.satisfied_gate_count)}/${asNumber(qa.required_gate_count)}`,
+    `critic ${statusLabel(qa.critic_status)}`,
+    `response ${statusLabel(qa.response_matrix_status)}`,
+    `accepted source tasks ${asNumber(acceptance.accepted_source_task_count)}/${asNumber(acceptance.source_task_count)} evidence only`,
+  ].join(" / ");
+}
+
+function deliverableRecord(row) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "record-row";
+  const heading = document.createElement("div");
+  heading.className = "lifecycle-heading";
+  const title = document.createElement("div");
+  title.className = "record-title";
+  title.textContent = `${valueOrUnavailable(row.deliverable_id)} - ${valueOrUnavailable(row.title)}`;
+  const badge = document.createElement("span");
+  badge.className = deliverableReadinessClass(row);
+  badge.textContent = valueOrUnavailable(row.readiness_label);
+  heading.append(title, badge);
+  const meta = document.createElement("div");
+  meta.className = "record-meta";
+  meta.textContent = deliverableMaturityText(row);
+  const qa = document.createElement("div");
+  qa.className = "record-meta";
+  qa.textContent = deliverableQaText(row);
+  const audience = document.createElement("div");
+  audience.className = "record-meta";
+  audience.textContent = `audience ${valueOrUnavailable(row.target_audience)} / venue ${valueOrUnavailable(row.target_venue)} / independence ${statusLabel((row.review_independence || {}).achieved)}`;
+  wrapper.append(heading, meta, qa, audience);
+  return wrapper;
+}
+
+function deliverableAttentionRecord(row) {
+  const blockers = (row.blockers || []).slice(0, 3).map((item) => `${valueOrUnavailable(item.reason)}: ${valueOrUnavailable(item.message)}`);
+  const warnings = (row.warnings || []).slice(0, 2).map((item) => `${valueOrUnavailable(item.reason)}: ${valueOrUnavailable(item.message)}`);
+  const details = [...blockers, ...warnings];
+  return record(
+    `${valueOrUnavailable(row.deliverable_id)} - ${valueOrUnavailable(row.readiness_label)}`,
+    `${asNumber((row.blockers || []).length)} blocker(s) / ${asNumber((row.warnings || []).length)} warning(s)`,
+    details.length ? details.join(" / ") : deliverableQaText(row)
+  );
+}
+
+function renderDeliverables(snapshot) {
+  const deliverables = snapshot.deliverables || {};
+  const summary = deliverables.summary || {};
+  const rows = deliverables.rows || [];
+  const attention = deliverables.attention_rows || [];
+  el("deliverable-total").textContent = asNumber(deliverables.count || rows.length);
+  el("deliverable-summary").replaceChildren(
+    metric("Ready", asNumber(summary.target_ready_count), `${asNumber(summary.deliverable_count)} tracked`),
+    metric("Blocked", asNumber(summary.blocked_count), `${asNumber(summary.warning_count)} warning signals`),
+    metric("Open Gaps", asNumber(summary.open_gap_count), `${asNumber(summary.open_critical_major_response_count)} critical or major responses`),
+    metric("Same-Agent Reviews", asNumber(summary.same_agent_review_count), "visible below independence requirement")
+  );
+  renderList("deliverable-list", rows, "No deliverables declared yet.", deliverableRecord);
+  renderFoundationLinks("deliverable-links", deliverables.links);
+  renderList("deliverable-attention", attention, "No deliverable maturity attention needed.", deliverableAttentionRecord);
+}
+
 function foundationCard(name, group, countKeys) {
   const card = document.createElement("article");
   card.className = "foundation-card";
@@ -1921,6 +2009,7 @@ function render(snapshot, actionsCatalog) {
   setBadge(snapshot.readiness);
   renderMetrics(snapshot);
   renderLifecycle(snapshot);
+  renderDeliverables(snapshot);
   renderSetup(snapshot, actionsCatalog);
   renderTasks(snapshot);
   renderDecisions(snapshot);

@@ -153,6 +153,12 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertIn("gate_missing", reasons)
             self.assertIn("review_independence_below_required", reasons)
             self.assertEqual("internal_draft", checked["maturity"]["verified_ceiling"])
+            self.assertEqual("internal draft accepted; working paper not ready", checked["readiness_label"])
+            self.assertEqual(1, checked["task_acceptance"]["accepted_source_task_count"])
+            self.assertTrue(checked["task_acceptance"]["accepted_source_tasks_do_not_imply_readiness"])
+            self.assertEqual("missing", checked["editorial_qa"]["critic_status"])
+            self.assertGreater(checked["editorial_qa"]["checklist_status_counts"]["missing"], 0)
+            self.assertNotIn("final", checked["editorial_qa"]["honest_status"].lower())
 
     def test_internal_draft_can_pass_only_when_declared_gates_are_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -188,6 +194,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, checked)
             self.assertTrue(checked["ok"])
             self.assertEqual("internal_draft", checked["maturity"]["verified_ceiling"])
+            self.assertEqual("internal draft accepted", checked["readiness_label"])
             self.assertTrue(all(item["status"] == "passed" for item in checked["checklist"]))
 
     def test_submission_ready_check_requires_manifest_metadata_and_editorial_gates(self) -> None:
