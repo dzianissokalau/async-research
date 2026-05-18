@@ -1,9 +1,9 @@
 # Deliverable Maturity And Editorial QA Roadmap
 
-Status: Not Started
-Current phase: Phase 5 - Templates, prompts, and fixtures
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-18
-Next action: Add templates, prompts, fixtures, and the coffee-pilot regression
+Next action: Final branch push and automation pause
 Blocked by: None
 
 Created: 2026-05-17
@@ -104,7 +104,7 @@ between internal acceptance and external readiness.
 | P2 | 1 | Reproducibility and data/code availability gate | Require methods detail, data availability, code availability, source manifests, and reproducibility limits for higher maturity levels. | Makes methods stronger before working-paper or submission-ready claims. | Complete |
 | P2 | 2 | Review independence policy | Track whether critic review was same-agent, separate-agent, different model, human, panel, or external. Set minimum independence for each maturity level. | Makes review quality legible and prevents hidden same-agent self-approval. | Complete |
 | P2 | 3 | Revision promotion blocker | Block maturity promotion when severe or critical response-matrix rows remain open unless a human explicitly accepts the risk. | Keeps adversarial review from becoming ceremonial. | Complete |
-| P2 | 5 | Coffee-pilot regression fixture | Add a fixture where a task is accepted as an internal draft but fails working-paper readiness until related-work, citation, figure, and critic gates are completed. | Locks in the lesson from the coffee pilot. | Open |
+| P2 | 5 | Coffee-pilot regression fixture | Add a fixture where a task is accepted as an internal draft but fails working-paper readiness until related-work, citation, figure, and critic gates are completed. | Locks in the lesson from the coffee pilot. | Complete |
 | P3 | 5 | Citation-style adapters | Add optional adapters for common citation styles or external bibliography tools. | Improves publication polish, but should wait until the core maturity model exists. | Backlog |
 | P3 | 5 | Venue profile library | Add reusable profiles for internal memo, consulting-style report, working paper, journal manuscript, and investor note. | Speeds setup for common deliverable types without blocking the core feature. | Backlog |
 

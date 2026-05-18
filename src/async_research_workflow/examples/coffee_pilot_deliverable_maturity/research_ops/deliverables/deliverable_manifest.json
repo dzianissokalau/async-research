@@ -1,0 +1,361 @@
+{
+  "deliverables": [
+    {
+      "completed_gates": [
+        "source_caveat_checks",
+        "claim_strength_review",
+        "task_review",
+        "accepted_evidence_linkage",
+        "caveat_audit",
+        "internal_workflow_disclosure",
+        "draft_completeness_check",
+        "target_audience_declared",
+        "clean_prose_pass",
+        "reader_trust_citations",
+        "unresolved_gaps_disclosed",
+        "internal_workflow_source_label_cleanup",
+        "final_prose_pass",
+        "contribution_statement",
+        "methods_detail",
+        "reproducibility_notes",
+        "formal_limitations"
+      ],
+      "created_at": "2026-05-18T00:00:00Z",
+      "critic_reviews": [],
+      "current_maturity": "internal_draft",
+      "deliverable_id": "DELIV-0015",
+      "framework_version": "deliverable_maturity_v1.0",
+      "last_reviewed_at": null,
+      "manuscript_gates": [
+        {
+          "category": "target",
+          "evidence": [
+            "worker_output.md audience note"
+          ],
+          "gate_id": "target_audience_declared",
+          "label": "Target audience declared",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Research collaborators are the declared internal audience.",
+          "required": true,
+          "status": "passed",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "prose",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "clean_prose_pass",
+          "label": "Clean prose pass",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Readable enough for internal collaborators.",
+          "required": true,
+          "status": "passed",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "figures_tables",
+          "evidence": [],
+          "gate_id": "figures_tables_embedded_and_narrated",
+          "label": "Figures and tables embedded, captioned, numbered, referenced, and narrated",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Coffee pilot figures and tables exist as loose artifacts but are not fully narrated in prose.",
+          "required": true,
+          "status": "partial",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "citations",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "reader_trust_citations",
+          "label": "Reader-trust citations",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Internal citations are sufficient for collaborator trust, but not publication-ready.",
+          "required": true,
+          "status": "passed_with_caveats",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "limitations",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "unresolved_gaps_disclosed",
+          "label": "Unresolved gaps disclosed",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Known manuscript gaps are disclosed in the accepted task output.",
+          "required": true,
+          "status": "passed",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "prose",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "internal_workflow_source_label_cleanup",
+          "label": "Internal workflow and source labels cleaned up",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Internal labels remain acceptable for this internal draft but must be removed before external release.",
+          "required": true,
+          "status": "passed_with_caveats",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "prose",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "final_prose_pass",
+          "label": "Final prose pass",
+          "minimum_maturity": "shareable_memo",
+          "rationale": "Internal prose pass is complete, but this is not a publication pass.",
+          "required": true,
+          "status": "passed_with_caveats",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "related_work",
+          "evidence": [],
+          "gate_id": "related_work_synthesis",
+          "label": "Related-work completeness",
+          "minimum_maturity": "working_paper",
+          "rationale": "External review found incomplete adjacent literature coverage.",
+          "required": true,
+          "status": "partial",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "argument",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "contribution_statement",
+          "label": "Contribution statement",
+          "minimum_maturity": "working_paper",
+          "rationale": "Draft contribution is visible for internal review.",
+          "required": true,
+          "status": "passed",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "methods",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "methods_detail",
+          "label": "Methods specification",
+          "minimum_maturity": "working_paper",
+          "rationale": "Methods are sufficient for an internal draft but still need critic review.",
+          "required": true,
+          "status": "passed_with_caveats",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "reproducibility",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "reproducibility_notes",
+          "label": "Reproducibility notes",
+          "minimum_maturity": "working_paper",
+          "rationale": "Draft notes identify reproducibility limits.",
+          "required": true,
+          "status": "passed_with_caveats",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "limitations",
+          "evidence": [
+            "tasks/TASK-0015-internal-draft-assembly/worker_output.md"
+          ],
+          "gate_id": "formal_limitations",
+          "label": "Limitations and caveats",
+          "minimum_maturity": "working_paper",
+          "rationale": "Limitations are explicit enough for working-paper review.",
+          "required": true,
+          "status": "passed",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "citations",
+          "evidence": [],
+          "gate_id": "formal_citations",
+          "label": "Formal citations",
+          "minimum_maturity": "working_paper",
+          "rationale": "Internal source labels are not yet formal citations.",
+          "required": true,
+          "status": "missing",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "citations",
+          "evidence": [],
+          "gate_id": "complete_bibliography",
+          "label": "Complete bibliography",
+          "minimum_maturity": "working_paper",
+          "rationale": "Bibliography is incomplete for a public working paper.",
+          "required": true,
+          "status": "missing",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "target",
+          "evidence": [],
+          "gate_id": "target_venue_declared",
+          "label": "Target venue declared",
+          "minimum_maturity": "submission_ready_manuscript",
+          "rationale": "",
+          "required": false,
+          "status": "not_required",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "target",
+          "evidence": [],
+          "gate_id": "venue_style_compliance",
+          "label": "Venue style compliance",
+          "minimum_maturity": "submission_ready_manuscript",
+          "rationale": "",
+          "required": false,
+          "status": "not_required",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "citations",
+          "evidence": [],
+          "gate_id": "formal_references",
+          "label": "Formal references",
+          "minimum_maturity": "submission_ready_manuscript",
+          "rationale": "",
+          "required": false,
+          "status": "not_required",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "reproducibility",
+          "evidence": [],
+          "gate_id": "data_code_availability",
+          "label": "Data and code availability",
+          "minimum_maturity": "submission_ready_manuscript",
+          "rationale": "",
+          "required": false,
+          "status": "not_required",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        },
+        {
+          "category": "figures_tables",
+          "evidence": [],
+          "gate_id": "figure_table_requirements",
+          "label": "Venue figure and table requirements",
+          "minimum_maturity": "submission_ready_manuscript",
+          "rationale": "",
+          "required": false,
+          "status": "not_required",
+          "updated_at": "2026-05-18T00:00:00Z",
+          "waiver_rationale": ""
+        }
+      ],
+      "open_gaps": [],
+      "output_type": "working_paper",
+      "owner": "coffee pilot manuscript owner",
+      "primary_artifact": "deliverables/DELIV-0015/coffee-and-climate-draft.md",
+      "required_gates": [
+        "source_caveat_checks",
+        "claim_strength_review",
+        "task_review",
+        "accepted_evidence_linkage",
+        "caveat_audit",
+        "internal_workflow_disclosure",
+        "draft_completeness_check",
+        "target_audience_declared",
+        "clean_prose_pass",
+        "figures_tables_embedded_and_narrated",
+        "reader_trust_citations",
+        "unresolved_gaps_disclosed",
+        "internal_workflow_source_label_cleanup",
+        "final_prose_pass",
+        "related_work_synthesis",
+        "contribution_statement",
+        "methods_detail",
+        "reproducibility_notes",
+        "formal_limitations",
+        "formal_citations",
+        "complete_bibliography",
+        "adversarial_review"
+      ],
+      "review_independence": {
+        "achieved": "same_agent_visible",
+        "minimum_required": "separate_agent",
+        "notes": "Same-agent review is visible but insufficient for working-paper readiness.",
+        "reviewer": "same-agent draft reviewer",
+        "same_agent_review": true
+      },
+      "review_response_matrix": [],
+      "schema_version": "1.0",
+      "source_task_ids": [
+        "TASK-0015"
+      ],
+      "target_audience": "research collaborators",
+      "target_maturity": "working_paper",
+      "target_venue": "",
+      "title": "Coffee and climate manuscript draft",
+      "updated_at": "2026-05-18T00:00:00Z",
+      "venue_style_profile": ""
+    }
+  ],
+  "framework_version": "deliverable_maturity_v1.0",
+  "maturity_taxonomy": [
+    {
+      "id": "research_note",
+      "label": "Research note",
+      "level": 0,
+      "meaning": "Bounded finding or evidence note for internal use."
+    },
+    {
+      "id": "internal_draft",
+      "label": "Internal draft",
+      "level": 1,
+      "meaning": "Coherent internal synthesis assembled from accepted task outputs."
+    },
+    {
+      "id": "shareable_memo",
+      "label": "Shareable memo",
+      "level": 2,
+      "meaning": "Polished memo for a known non-academic audience."
+    },
+    {
+      "id": "working_paper",
+      "label": "Working paper",
+      "level": 3,
+      "meaning": "Public working paper or preprint-quality research artifact."
+    },
+    {
+      "id": "submission_ready_manuscript",
+      "label": "Submission-ready manuscript",
+      "level": 4,
+      "meaning": "Venue-targeted manuscript ready for journal or conference submission workflow."
+    }
+  ],
+  "schema_version": "1.0"
+}

@@ -766,6 +766,7 @@ def run_deliverable_critic_command(args: argparse.Namespace) -> int:
         if value is not None:
             command_args.extend([flag, str(value)])
     command_args.extend(repeated_option("--required-revision-row", getattr(args, "required_revision_row", None)))
+    command_args.extend(repeated_option("--response-matrix-row", getattr(args, "response_matrix_row", None)))
     return module_main("deliverable_maturity", command_args)
 
 
@@ -2503,6 +2504,13 @@ def register_deliverable_commands(subparsers) -> None:
     critic.add_argument("--minor", type=int, default=0, dest="minor_findings", help="Number of minor critic findings.")
     critic.add_argument("--note", type=int, default=0, dest="note_findings", help="Number of note-level critic findings.")
     critic.add_argument("--required-revision-row", action="append", default=[], help="Required revision or future response-matrix row. Repeatable.")
+    critic.add_argument(
+        "--response-matrix-row",
+        action="append",
+        default=[],
+        metavar="FIELD=VALUE;...",
+        help="Seed an open response-matrix row from critic output. Required fields: critique_id, severity, target_section, issue, required_change, owner.",
+    )
     critic.add_argument("--review-task-id", help="Optional critic_review task id that produced the review.")
     critic.add_argument("--artifact-path", help="Optional critic review artifact path relative to research_ops.")
     critic.add_argument("--status", choices=CRITIC_REVIEW_STATUS_CHOICES, default="completed", help="Lifecycle status for the critic review.")

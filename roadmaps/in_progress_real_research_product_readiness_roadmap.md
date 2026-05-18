@@ -311,7 +311,7 @@ Acceptance:
 - [Dashboard Delivery Roadmap](./delivered_dashboard_delivery_roadmap.md)
   delivered the initial local console. This roadmap hardens it into a primary
   human control plane.
-- [Deliverable Maturity And Editorial QA Roadmap](./not_started_deliverable_maturity_editorial_qa_roadmap.md)
+- [Deliverable Maturity And Editorial QA Roadmap](./delivered_deliverable_maturity_editorial_qa_roadmap.md)
   owns the semantic distinction between task acceptance, internal draft
   acceptance, shareable readiness, working-paper readiness, and
   submission-ready manuscript quality.

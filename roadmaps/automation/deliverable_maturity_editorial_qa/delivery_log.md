@@ -1,6 +1,6 @@
 # Deliverable Maturity Editorial QA Delivery Log
 
-Roadmap: `roadmaps/not_started_deliverable_maturity_editorial_qa_roadmap.md`
+Roadmap: `roadmaps/delivered_deliverable_maturity_editorial_qa_roadmap.md`
 Branch: `codex/deliverable-maturity-editorial-qa`
 
 ## Phase 0 - 2026-05-18
@@ -216,3 +216,47 @@ Branch: `codex/deliverable-maturity-editorial-qa`
 ### Next Action
 
 - Deliver Phase 5: templates, prompts, fixtures, and the coffee-pilot regression proving accepted internal draft does not equal working-paper readiness.
+
+## Phase 5 - 2026-05-18
+
+Status: delivered
+Branch: `codex/deliverable-maturity-editorial-qa`
+
+### Scope
+
+- Templates for deliverable manifests, manuscript readiness checklists, critic prompts, response matrices, and maturity-specific drafting/revision tasks.
+- Coffee-pilot regression proving accepted internal draft output does not imply working-paper readiness.
+- Critic review output that can seed open response-matrix rows for material findings.
+
+### Changes
+
+- Added packaged deliverable maturity artifact templates and starter-workspace deliverable templates.
+- Added a coffee-pilot deliverable maturity fixture with an accepted internal draft task and a manifest that remains below working-paper readiness.
+- Added `--response-matrix-row` support to `deliverable critic` so critic artifacts can create open response rows that must later be closed or human-waived.
+- Updated docs, CLI help, prompt-library guidance, packaged-resource coverage, acceptance-suite coverage, and targeted regressions.
+- Marked the roadmap delivered after all roadmap phases passed verification and review.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 661 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 19 tests
+- `.venv/bin/python -m unittest tests.test_prompt_library`: passed, 9 tests
+- `.venv/bin/python -m unittest tests.test_packaged_resources`: passed, 8 tests
+- `.venv/bin/python -m unittest tests.test_cli_help`: passed, 7 tests
+- `git diff --check`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/deliverable_maturity_editorial_qa/reviews/deliverable-maturity-editorial-qa-phase-5-review-iteration-2.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Citation-style adapters and reusable venue profile libraries remain backlog items.
+- Final branch push and automation pause are completion steps after the local Phase 5 commit.
+
+### Next Action
+
+- Commit Phase 5 locally, create the final delivery branch, push it to GitHub, write the deep-review prompt, and pause automation.

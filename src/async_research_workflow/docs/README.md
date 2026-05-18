@@ -83,6 +83,7 @@ Packaged resources:
 - [Generic starter template](../templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example template](../templates/research_ops_starter/research_ops/README.md)
 - [Runnable experiment and analysis example](../examples/runnable_experiment_analysis/README.md)
+- [Coffee pilot deliverable maturity fixture](../examples/coffee_pilot_deliverable_maturity/README.md)
 - [GitHub worker example](../examples/github_actions_codex_worker.yml)
 - [Benchmark cases](../benchmarks/autonomy_benchmark_cases.json)
 - [Default mission policy](../mission_policy.json)

@@ -532,6 +532,8 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
                 "1",
                 "--required-revision-row",
                 "RRM-ACCEPT-001: address critic finding in response matrix",
+                "--response-matrix-row",
+                "critique_id=RRM-ACCEPT-001;severity=major;target_section=Related work;issue=Address critic finding in response matrix.;required_change=Close the critic-required revision row.;owner=acceptance owner",
                 "--now",
                 "2026-05-18T00:00:00Z",
             ]
@@ -549,9 +551,10 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
         code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9903"])
         reasons = {item.get("reason") for item in checked.get("blockers", [])}
         record_step(
-            "critic_rows_require_response_matrix",
+            "critic_review_seeds_open_response_matrix_rows",
             code == 2
-            and "response_matrix_missing_required_rows" in reasons
+            and checked.get("response_matrix", {}).get("row_count") == 1
+            and "response_matrix_open_critical_major" in reasons
             and checked.get("maturity", {}).get("response_matrix_ceiling") == "shareable_memo",
             checked,
             code,

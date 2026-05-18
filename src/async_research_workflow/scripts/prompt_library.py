@@ -278,6 +278,24 @@ maturity promotion.
 Record reviewer role, independence type, model or human reviewer when available,
 confidence, severity distribution, recommended maturity ceiling, and required
 revision rows before any maturity promotion.
+
+## Response Matrix Expectations
+
+Use `async_research_workflow/templates/artifact_templates/critic_review_prompt_template.md`
+for the full critic shape and
+`async_research_workflow/templates/artifact_templates/review_response_matrix_template.md`
+for required response rows. Each critical or major finding should name a
+response-matrix row id such as `RRM-0001`, target section, required change, and
+recommended owner. Use `async-research deliverable critic --response-matrix-row`
+to seed open rows when the critic finding is recorded. Do not close rows
+yourself unless the job explicitly includes revision evidence.
+
+## Readiness Boundary
+
+State plainly when accepted source tasks support an internal draft but do not
+support the requested external maturity. Never label the deliverable final,
+working-paper ready, or submission-ready unless `async-research deliverable
+check` passes for that target maturity.
 """
     return render_front_matter(
         {

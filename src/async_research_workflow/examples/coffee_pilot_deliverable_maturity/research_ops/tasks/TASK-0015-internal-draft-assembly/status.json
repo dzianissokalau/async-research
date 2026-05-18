@@ -1,0 +1,25 @@
+{
+  "allowed_paths": [
+    "research_ops/tasks/TASK-0015-internal-draft-assembly/**",
+    "research_ops/deliverables/**"
+  ],
+  "budget": {
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0
+  },
+  "human_gate_reason": null,
+  "id": "TASK-0015",
+  "last_transition_reason": "accepted as internal draft assembly only",
+  "max_minutes": 10,
+  "max_revisions": 1,
+  "previous_status": "panel_review",
+  "priority": 3,
+  "requires_human": false,
+  "revision_count": 0,
+  "revision_limit_hit": false,
+  "schema_version": "1.0",
+  "status": "accepted",
+  "title": "Coffee and climate internal draft assembly",
+  "type": "status_update",
+  "updated_at": "2026-05-18T00:00:00Z"
+}

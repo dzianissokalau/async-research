@@ -5,17 +5,23 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
+from importlib.resources import as_file
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.resources import examples_path
 from async_research_workflow.resources import schema_path
+from async_research_workflow.resources import template_path
 from async_research_workflow.scripts import deliverable_maturity
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 
 
+ROOT = Path(__file__).resolve().parents[1]
 NOW = "2026-05-18T08:00:00Z"
+COFFEE_FIXTURE = ROOT / "tests" / "fixtures" / "deliverable_maturity" / "coffee_pilot_internal_draft.md"
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -98,6 +104,15 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual([], record["deliverables"][0]["review_response_matrix"])
             self.assertTrue(all(row["status"] == "not_required" for row in record["deliverables"][0]["manuscript_gates"]))
 
+    def test_packaged_deliverable_manifest_template_is_schema_valid(self) -> None:
+        manifest = load_json(schema_path("deliverable_manifest.schema.json"))
+        template = load_json(template_path("artifact_templates", "deliverable_manifest_template.json"))
+
+        self.assertEqual([], [error.to_dict() for error in validate(template, manifest)])
+        self.assertEqual("internal_draft", template["deliverables"][0]["current_maturity"])
+        self.assertEqual("working_paper", template["deliverables"][0]["target_maturity"])
+        self.assertIn("Accepted source tasks are evidence only", template["deliverables"][0]["review_independence"]["notes"])
+
     def test_accepted_source_task_does_not_imply_working_paper_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -159,6 +174,160 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual("missing", checked["editorial_qa"]["critic_status"])
             self.assertGreater(checked["editorial_qa"]["checklist_status_counts"]["missing"], 0)
             self.assertNotIn("final", checked["editorial_qa"]["honest_status"].lower())
+
+    def test_coffee_pilot_fixture_requires_gates_critic_and_closed_response_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            with as_file(examples_path("coffee_pilot_deliverable_maturity", "research_ops")) as fixture:
+                shutil.copytree(fixture, ops_dir)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0015"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertFalse(checked["ok"])
+            self.assertEqual("internal_draft", checked["maturity"]["current"])
+            self.assertEqual("working_paper", checked["maturity"]["target"])
+            self.assertTrue(checked["source_tasks"][0]["accepted"])
+            missing_gates = {item["gate"] for item in checked["blockers"] if item["reason"] == "gate_missing"}
+            for gate in {
+                "related_work_synthesis",
+                "figures_tables_embedded_and_narrated",
+                "formal_citations",
+                "complete_bibliography",
+                "adversarial_review",
+            }:
+                self.assertIn(gate, missing_gates)
+            reasons = {item["reason"] for item in checked["blockers"]}
+            self.assertIn("critic_review_missing", reasons)
+            self.assertIn("review_independence_below_required", reasons)
+            self.assertEqual("internal draft accepted; working paper not ready", checked["readiness_label"])
+            self.assertTrue(checked["task_acceptance"]["accepted_source_tasks_do_not_imply_readiness"])
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0015",
+                    "--independence-type",
+                    "separate_agent",
+                    "--reviewer",
+                    "coffee fixture adversarial critic",
+                    "--model-or-reviewer",
+                    "separate reviewer fixture",
+                    "--confidence",
+                    "0.86",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--major",
+                    "2",
+                    "--required-revision-row",
+                    "RRM-COFFEE-001: expand related-work synthesis",
+                    "--required-revision-row",
+                    "RRM-COFFEE-002: narrate figures and complete citations",
+                    "--review-task-id",
+                    "TASK-0016",
+                    "--artifact-path",
+                    "deliverables/critic_reviews/DELIV-0015-CRITIC-0001.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+            self.assertEqual("passed", critic["critic_review"]["status"])
+            self.assertEqual(2, len(critic["critic_review"]["required_revision_rows"]))
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0015"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertIn("response_matrix_missing_required_rows", {item["reason"] for item in checked["blockers"]})
+
+            code, updated = run_cli_json(
+                [
+                    "deliverable",
+                    "target",
+                    ops_dir,
+                    "DELIV-0015",
+                    "--current-maturity",
+                    "working_paper",
+                    "--complete-gate",
+                    "all",
+                    "--clear-open-gaps",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, updated)
+
+            for critique_id, section, issue in (
+                ("RRM-COFFEE-001", "Related work", "Adjacent literature is missing."),
+                ("RRM-COFFEE-002", "Figures and citations", "Exhibits and citations are not publication-ready."),
+            ):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0015",
+                        "--critique-id",
+                        critique_id,
+                        "--source-review",
+                        "CRITIC-0001",
+                        "--severity",
+                        "major",
+                        "--target-section",
+                        section,
+                        "--issue",
+                        issue,
+                        "--decision",
+                        "accepted",
+                        "--required-change",
+                        "Revise the manuscript and cite the closure artifact.",
+                        "--owner",
+                        "paper owner",
+                        "--status",
+                        "open",
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0015"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            reasons = {item["reason"] for item in checked["blockers"]}
+            self.assertIn("response_matrix_missing_required_rows", reasons)
+            self.assertIn("response_matrix_open_critical_major", reasons)
+            self.assertEqual(2, checked["response_matrix"]["unresolved_critical_major_count"])
+
+            for critique_id, artifact in (
+                ("RRM-COFFEE-001", "deliverables/revisions/RRM-COFFEE-001-related-work.md"),
+                ("RRM-COFFEE-002", "deliverables/revisions/RRM-COFFEE-002-figures-citations.md"),
+            ):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0015",
+                        "--critique-id",
+                        critique_id,
+                        "--status",
+                        "closed",
+                        "--closure-artifact",
+                        artifact,
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0015"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertTrue(checked["ok"])
+            self.assertEqual("working paper ready", checked["readiness_label"])
+            self.assertEqual("working_paper", checked["maturity"]["verified_ceiling"])
+            self.assertEqual("passed", checked["response_matrix"]["status"])
 
     def test_internal_draft_can_pass_only_when_declared_gates_are_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -756,6 +925,95 @@ class DeliverableMaturityTests(unittest.TestCase):
             reasons = {item["reason"] for item in checked["blockers"]}
             self.assertIn("critic_review_independence_below_required", reasons)
 
+    def test_critic_seeded_response_rows_fail_closed_on_duplicate_or_unsafe_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0110", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0110",
+                    "--title",
+                    "Seed validation paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0110",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            duplicate_row = (
+                "critique_id=RRM-DUP-001;severity=major;target_section=Methods;"
+                "issue=Duplicate row.;required_change=Clarify methods.;owner=paper owner"
+            )
+            code, duplicate = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0110",
+                    "--independence-type",
+                    "separate_agent",
+                    "--confidence",
+                    "0.82",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--response-matrix-row",
+                    duplicate_row,
+                    "--response-matrix-row",
+                    duplicate_row,
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, duplicate)
+            self.assertIn("response_matrix_row_exists", {item["reason"] for item in duplicate["errors"]})
+
+            unsafe_row = (
+                "critique_id=RRM-UNSAFE-001;severity=major;target_section=Methods;"
+                "issue=Unsafe closure artifact.;required_change=Clarify methods.;owner=paper owner;"
+                "closure_artifact=../outside.md"
+            )
+            code, unsafe = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0110",
+                    "--independence-type",
+                    "separate_agent",
+                    "--confidence",
+                    "0.82",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--response-matrix-row",
+                    unsafe_row,
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, unsafe)
+            self.assertIn("unsafe_response_matrix_closure_artifact", {item["reason"] for item in unsafe["errors"]})
+
+            manifest = load_json(ops_dir / "deliverables" / "deliverable_manifest.json")
+            deliverable = manifest["deliverables"][0]
+            self.assertEqual([], deliverable["critic_reviews"])
+            self.assertEqual([], deliverable["review_response_matrix"])
+
     def test_critic_recommended_ceiling_blocks_until_newer_review_raises_ceiling(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -837,6 +1095,179 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, checked)
             self.assertEqual("CRITIC-0002", checked["critic_review"]["eligible_review_id"])
             self.assertEqual("working_paper", checked["maturity"]["critic_ceiling"])
+
+    def test_coffee_pilot_fixture_blocks_until_gates_critic_and_response_rows_close(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task(ops_dir, "TASK-0015", "accepted")
+            fixture_text = COFFEE_FIXTURE.read_text(encoding="utf-8")
+            (task_dir / "worker_output.md").write_text(fixture_text, encoding="utf-8")
+
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0150",
+                    "--title",
+                    "Coffee and climate internal draft",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "internal_draft",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0015",
+                    "--primary-artifact",
+                    "tasks/TASK-0015-fixture/worker_output.md",
+                    "--complete-gate",
+                    "source_caveat_checks",
+                    "--complete-gate",
+                    "claim_strength_review",
+                    "--complete-gate",
+                    "task_review",
+                    "--complete-gate",
+                    "accepted_evidence_linkage",
+                    "--complete-gate",
+                    "caveat_audit",
+                    "--complete-gate",
+                    "internal_workflow_disclosure",
+                    "--complete-gate",
+                    "draft_completeness_check",
+                    "--review-independence",
+                    "same_agent_visible",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0150"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual("internal_draft", checked["maturity"]["current"])
+            self.assertEqual("internal_draft", checked["maturity"]["verified_ceiling"])
+            self.assertEqual("internal draft accepted; working paper not ready", checked["readiness_label"])
+            self.assertTrue(checked["source_tasks"][0]["accepted"])
+            missing_gates = {item["gate"] for item in checked["blockers"] if item.get("reason") == "gate_missing"}
+            for gate in {
+                "related_work_synthesis",
+                "formal_citations",
+                "complete_bibliography",
+                "figures_tables_embedded_and_narrated",
+                "adversarial_review",
+            }:
+                self.assertIn(gate, missing_gates)
+            self.assertIn("critic_review_missing", {item["reason"] for item in checked["blockers"]})
+            self.assertTrue(checked["task_acceptance"]["accepted_source_tasks_do_not_imply_readiness"])
+
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "target",
+                    ops_dir,
+                    "DELIV-0150",
+                    "--current-maturity",
+                    "working_paper",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0150",
+                    "--review-id",
+                    "CRITIC-0001",
+                    "--independence-type",
+                    "separate_agent",
+                    "--reviewer",
+                    "independent coffee manuscript critic",
+                    "--model-or-reviewer",
+                    "separate reviewer fixture",
+                    "--confidence",
+                    "0.86",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--major",
+                    "2",
+                    "--required-revision-row",
+                    "RRM-COFFEE-001: complete related-work synthesis",
+                    "--required-revision-row",
+                    "RRM-COFFEE-002: embed figures and complete citations",
+                    "--response-matrix-row",
+                    "critique_id=RRM-COFFEE-001;severity=major;target_section=Related work;issue=Related work lacks competing hypotheses;required_change=Add related-work synthesis;owner=paper owner",
+                    "--response-matrix-row",
+                    "critique_id=RRM-COFFEE-002;severity=major;target_section=Figures and citations;issue=Figures and citations are not narrated or bibliography-complete;required_change=Embed figures and complete citation artifacts;owner=paper owner",
+                    "--artifact-path",
+                    "deliverables/critic_reviews/DELIV-0150-CRITIC-0001.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+            self.assertEqual(2, critic["response_matrix"]["row_count"])
+            self.assertEqual("partial", critic["response_matrix"]["status"])
+            self.assertEqual(2, critic["response_matrix"]["unresolved_critical_major_count"])
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0150"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            reasons = {item["reason"] for item in checked["blockers"]}
+            self.assertIn("response_matrix_open_critical_major", reasons)
+            self.assertEqual(2, checked["response_matrix"]["row_count"])
+
+            for critique_id, section, artifact in (
+                ("RRM-COFFEE-001", "Related work", "deliverables/revisions/coffee-related-work.md"),
+                ("RRM-COFFEE-002", "Figures and citations", "deliverables/revisions/coffee-figures-citations.md"),
+            ):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0150",
+                        "--critique-id",
+                        critique_id,
+                        "--source-review",
+                        "CRITIC-0001",
+                        "--severity",
+                        "major",
+                        "--target-section",
+                        section,
+                        "--decision",
+                        "accepted",
+                        "--required-change",
+                        "Close the coffee-pilot editorial gap.",
+                        "--owner",
+                        "paper owner",
+                        "--status",
+                        "closed",
+                        "--closure-artifact",
+                        artifact,
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0150"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertTrue(checked["target_ready"])
+            self.assertEqual("working paper ready", checked["readiness_label"])
+            self.assertEqual("working_paper", checked["maturity"]["verified_ceiling"])
+            self.assertEqual(0, checked["response_matrix"]["unresolved_critical_major_count"])
 
     def test_partial_manuscript_gate_blocks_working_paper_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

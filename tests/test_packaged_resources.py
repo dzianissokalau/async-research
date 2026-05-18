@@ -22,6 +22,17 @@ LIBRARY_STARTER_FILES = [
     "open_questions.md",
     "library_update_log.md",
 ]
+DELIVERABLE_TEMPLATE_FILES = [
+    "README.md",
+    "deliverable_manifest_template.json",
+    "manuscript_readiness_checklist.md",
+    "critic_review_prompt.md",
+    "review_response_matrix.md",
+    "internal_draft_assembly_task.md",
+    "shareable_memo_polish_task.md",
+    "working_paper_revision_task.md",
+    "submission_ready_manuscript_cleanup_task.md",
+]
 
 
 def text_files(root: Path) -> list[Path]:
@@ -81,11 +92,21 @@ class PackagedResourceTests(unittest.TestCase):
             ("templates", "artifact_templates", "analysis_diagnostics_template.md"),
             ("templates", "artifact_templates", "analysis_robustness_checks_template.md"),
             ("templates", "artifact_templates", "analysis_claim_gates_template.md"),
+            ("templates", "artifact_templates", "deliverable_manifest_template.json"),
+            ("templates", "artifact_templates", "deliverable_manifest_template.md"),
+            ("templates", "artifact_templates", "manuscript_readiness_checklist_template.md"),
+            ("templates", "artifact_templates", "critic_review_prompt_template.md"),
+            ("templates", "artifact_templates", "review_response_matrix_template.md"),
+            ("templates", "artifact_templates", "internal_draft_assembly_task_template.md"),
+            ("templates", "artifact_templates", "shareable_memo_polish_task_template.md"),
+            ("templates", "artifact_templates", "working_paper_revision_task_template.md"),
+            ("templates", "artifact_templates", "submission_ready_manuscript_cleanup_task_template.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "README.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "ideas", "idea_catalog.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "ideas", "prioritization.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "data", "data_catalog.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "data", "profiles", "README.md"),
+            ("templates", "generic_research_ops_starter", "research_ops", "deliverables", "templates", "README.md"),
             ("templates", "generic_research_ops_starter", "research_ops", "tasks", ".gitkeep"),
             ("templates", "research_ops_starter", "research_ops", "README.md"),
             ("templates", "research_ops_starter", "research_ops", "ideas", "idea_catalog.md"),
@@ -93,6 +114,7 @@ class PackagedResourceTests(unittest.TestCase):
             ("templates", "research_ops_starter", "research_ops", "data", "data_catalog.md"),
             ("templates", "research_ops_starter", "research_ops", "data", "profiles", "README.md"),
             ("templates", "research_ops_starter", "research_ops", "data", "profiles", "DS-0001.md"),
+            ("templates", "research_ops_starter", "research_ops", "deliverables", "templates", "README.md"),
             ("templates", "research_ops_starter", "research_ops", "tasks", "TASK-0001-data-readiness", "status.json"),
             ("docs", "idea_catalog_contract.md"),
             ("docs", "knowledge_library_contract.md"),
@@ -111,12 +133,33 @@ class PackagedResourceTests(unittest.TestCase):
                 "analysis_run",
                 "run_manifest.json",
             ),
+            ("examples", "coffee_pilot_deliverable_maturity", "README.md"),
+            (
+                "examples",
+                "coffee_pilot_deliverable_maturity",
+                "research_ops",
+                "deliverables",
+                "deliverable_manifest.json",
+            ),
+            (
+                "examples",
+                "coffee_pilot_deliverable_maturity",
+                "research_ops",
+                "tasks",
+                "TASK-0015-internal-draft-assembly",
+                "status.json",
+            ),
             ("mission_policy.json",),
         ]
         required.extend(
             ("templates", template, "research_ops", "library", filename)
             for template in ("generic_research_ops_starter", "research_ops_starter")
             for filename in LIBRARY_STARTER_FILES
+        )
+        required.extend(
+            ("templates", template, "research_ops", "deliverables", "templates", filename)
+            for template in ("generic_research_ops_starter", "research_ops_starter")
+            for filename in DELIVERABLE_TEMPLATE_FILES
         )
 
         missing = [
@@ -125,6 +168,17 @@ class PackagedResourceTests(unittest.TestCase):
             if not package.joinpath(*parts).is_file()
         ]
         self.assertEqual([], missing)
+
+    def test_deliverable_templates_explain_maturity_boundary(self) -> None:
+        starter = PACKAGE_ROOT / "templates" / "generic_research_ops_starter" / "research_ops" / "deliverables" / "templates"
+        critic = (starter / "critic_review_prompt.md").read_text(encoding="utf-8")
+        draft = (starter / "internal_draft_assembly_task.md").read_text(encoding="utf-8")
+        matrix = (starter / "review_response_matrix.md").read_text(encoding="utf-8")
+
+        self.assertIn("Do not treat accepted source tasks as evidence of external readiness.", critic)
+        self.assertIn("--response-matrix-row", critic)
+        self.assertIn("accepted internal draft; external readiness requires deliverable gates", draft)
+        self.assertIn("Critical and major rows must be closed", matrix)
 
     def test_console_static_outcomes_preserves_rejected_ledger_visibility(self) -> None:
         static_dir = PACKAGE_ROOT / "console" / "static"

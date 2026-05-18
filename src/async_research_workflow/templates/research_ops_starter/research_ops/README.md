@@ -90,6 +90,8 @@ memo, or report shareable or submission-ready. Working papers and
 submission-ready manuscripts need a distinct critic review with sufficient
 independence, and critical or major critique rows must be closed or explicitly
 human-waived in the response matrix.
+Use `deliverables/templates/` for the manifest, manuscript checklist, critic
+prompt, response matrix, and maturity-specific task templates.
 
 ```bash
 async-research deliverable init research_ops --title "Draft title" --output-type working_paper --target-maturity internal_draft
@@ -97,6 +99,10 @@ async-research deliverable critic research_ops DELIV-0001 --independence-type se
 async-research deliverable response research_ops DELIV-0001 --source-review CRITIC-0001 --severity major --target-section Methods --issue "Clarify method" --decision accepted --required-change "Add method detail" --owner "paper owner"
 async-research deliverable check research_ops DELIV-0001
 ```
+
+Packaged templates for manifests, manuscript checklists, critic prompts,
+response matrices, and maturity-specific drafting/revision tasks are listed in
+`deliverables/templates/README.md`.
 
 ## Data Foundations
 

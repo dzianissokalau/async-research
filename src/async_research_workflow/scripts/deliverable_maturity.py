@@ -56,6 +56,19 @@ RESPONSE_MATRIX_DECISION_CHOICES = (
 )
 RESPONSE_MATRIX_STATUS_CHOICES = ("open", "in_progress", "closed")
 DERIVED_GATE_IDS = {"adversarial_review", "response_matrix_closed"}
+SEEDED_RESPONSE_MATRIX_FIELDS = {
+    "critique_id",
+    "source_review",
+    "severity",
+    "target_section",
+    "issue",
+    "decision",
+    "required_change",
+    "response_rationale",
+    "owner",
+    "status",
+    "closure_artifact",
+}
 
 MATURITY_LEVELS: tuple[dict[str, Any], ...] = (
     {
@@ -1246,13 +1259,111 @@ def build_critic_review(args: argparse.Namespace, deliverable: dict[str, Any], n
     }, []
 
 
+def parse_seeded_response_matrix_row(raw: str, review_id: str, now: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    fields: dict[str, str] = {}
+    errors: list[dict[str, Any]] = []
+    for part in str(raw or "").split(";"):
+        text = part.strip()
+        if not text:
+            continue
+        if "=" not in text:
+            errors.append(
+                {
+                    "reason": "invalid_response_matrix_row_option",
+                    "message": "--response-matrix-row must use semicolon-separated key=value pairs",
+                    "value": raw,
+                }
+            )
+            continue
+        key, value = text.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key not in SEEDED_RESPONSE_MATRIX_FIELDS:
+            errors.append(
+                {
+                    "reason": "unknown_response_matrix_row_field",
+                    "message": "--response-matrix-row contains an unknown field",
+                    "field": key,
+                    "allowed_fields": sorted(SEEDED_RESPONSE_MATRIX_FIELDS),
+                }
+            )
+            continue
+        fields[key] = value
+    required = ("critique_id", "severity", "target_section", "issue", "required_change", "owner")
+    for field in required:
+        if not field_has_value(fields.get(field)):
+            errors.append(
+                {
+                    "reason": "response_matrix_seed_field_required",
+                    "message": f"--response-matrix-row requires {field}",
+                    "field": field,
+                }
+            )
+    row = {
+        "critique_id": fields.get("critique_id", ""),
+        "source_review": fields.get("source_review") or review_id,
+        "severity": fields.get("severity", "major"),
+        "target_section": fields.get("target_section", ""),
+        "issue": fields.get("issue", ""),
+        "decision": fields.get("decision", "deferred"),
+        "required_change": fields.get("required_change", ""),
+        "response_rationale": fields.get("response_rationale", ""),
+        "owner": fields.get("owner", ""),
+        "status": fields.get("status", "open"),
+        "closure_artifact": fields.get("closure_artifact", ""),
+        "created_at": now,
+        "updated_at": now,
+    }
+    if row["closure_artifact"] and not safe_relative_path(row["closure_artifact"]):
+        errors.append(
+            {
+                "reason": "unsafe_response_matrix_closure_artifact",
+                "message": "closure_artifact must be relative to research_ops and cannot contain ..",
+                "closure_artifact": row["closure_artifact"],
+            }
+        )
+    shape_errors = response_matrix_shape_errors([row], "deliverable")
+    errors.extend({key: value for key, value in error.items() if key != "path"} for error in shape_errors)
+    return (None if errors else row), errors
+
+
+def seeded_response_matrix_rows(args: argparse.Namespace, deliverable: dict[str, Any], review_id: str, now: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    existing_ids = {str(row.get("critique_id") or "") for row in response_matrix_rows(deliverable)}
+    seen_ids: set[str] = set()
+    for raw in args.response_matrix_row or []:
+        row, row_errors = parse_seeded_response_matrix_row(raw, review_id, now)
+        if row_errors or row is None:
+            errors.extend(row_errors)
+            continue
+        critique_id = str(row.get("critique_id") or "")
+        if critique_id in existing_ids or critique_id in seen_ids:
+            errors.append(
+                {
+                    "reason": "response_matrix_row_exists",
+                    "message": f"{critique_id} already exists",
+                    "critique_id": critique_id,
+                }
+            )
+            continue
+        seen_ids.add(critique_id)
+        rows.append(row)
+    return rows, errors
+
+
 def apply_critic_review(args: argparse.Namespace, deliverable: dict[str, Any], now: str) -> list[dict[str, Any]]:
     critic, errors = build_critic_review(args, deliverable, now)
     if errors or critic is None:
         return errors
+    seeded_rows, seed_errors = seeded_response_matrix_rows(args, deliverable, str(critic["review_id"]), now)
+    if seed_errors:
+        return seed_errors
     reviews = critic_review_rows(deliverable)
     reviews.append(critic)
     deliverable["critic_reviews"] = reviews
+    if seeded_rows:
+        deliverable["review_response_matrix"] = response_matrix_rows(deliverable) + seeded_rows
     target_maturity = str(deliverable.get("target_maturity") or "research_note")
     deliverable["required_gates"] = normalized_unique(list(deliverable.get("required_gates", [])) + required_gates_for(target_maturity))
     if critic.get("status") == "completed" and critic_review_required(target_maturity) and critic_review_gate_satisfied(deliverable, target_maturity):
@@ -1957,6 +2068,13 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     critic.add_argument("--minor", type=int, default=0, dest="minor_findings", help="Number of minor critic findings.")
     critic.add_argument("--note", type=int, default=0, dest="note_findings", help="Number of note-level critic findings.")
     critic.add_argument("--required-revision-row", action="append", default=[], help="Required revision or future response-matrix row. Repeatable.")
+    critic.add_argument(
+        "--response-matrix-row",
+        action="append",
+        default=[],
+        metavar="FIELD=VALUE;...",
+        help="Seed an open response-matrix row from critic output. Required fields: critique_id, severity, target_section, issue, required_change, owner.",
+    )
     critic.add_argument("--review-task-id", help="Optional critic_review task id that produced the review.")
     critic.add_argument("--artifact-path", help="Optional critic review artifact path relative to research_ops.")
     critic.add_argument("--status", choices=CRITIC_REVIEW_STATUS_CHOICES, default="completed", help="Lifecycle status for the critic review.")

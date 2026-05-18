@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "framework_version": "deliverable_maturity_v1.0",
+  "maturity_taxonomy": [
+    {
+      "level": 0,
+      "id": "research_note",
+      "label": "Research note",
+      "meaning": "Bounded finding or evidence note for internal use."
+    },
+    {
+      "level": 1,
+      "id": "internal_draft",
+      "label": "Internal draft",
+      "meaning": "Coherent internal synthesis assembled from accepted task outputs."
+    },
+    {
+      "level": 2,
+      "id": "shareable_memo",
+      "label": "Shareable memo",
+      "meaning": "Polished memo for a known non-academic audience."
+    },
+    {
+      "level": 3,
+      "id": "working_paper",
+      "label": "Working paper",
+      "meaning": "Public working paper or preprint-quality research artifact."
+    },
+    {
+      "level": 4,
+      "id": "submission_ready_manuscript",
+      "label": "Submission-ready manuscript",
+      "meaning": "Venue-targeted manuscript ready for journal or conference submission workflow."
+    }
+  ],
+  "deliverables": [
+    {
+      "schema_version": "1.0",
+      "framework_version": "deliverable_maturity_v1.0",
+      "deliverable_id": "DELIV-0001",
+      "title": "Example deliverable",
+      "output_type": "working_paper",
+      "target_audience": "public research readers",
+      "target_venue": "",
+      "venue_style_profile": "",
+      "target_maturity": "working_paper",
+      "current_maturity": "internal_draft",
+      "source_task_ids": [
+        "TASK-0001"
+      ],
+      "primary_artifact": "deliverables/DELIV-0001/draft.md",
+      "owner": "deliverable owner",
+      "required_gates": [
+        "source_caveat_checks",
+        "claim_strength_review",
+        "task_review",
+        "accepted_evidence_linkage",
+        "caveat_audit",
+        "internal_workflow_disclosure",
+        "draft_completeness_check",
+        "target_audience_declared",
+        "clean_prose_pass",
+        "figures_tables_embedded_and_narrated",
+        "reader_trust_citations",
+        "unresolved_gaps_disclosed",
+        "internal_workflow_source_label_cleanup",
+        "final_prose_pass",
+        "related_work_synthesis",
+        "contribution_statement",
+        "methods_detail",
+        "reproducibility_notes",
+        "formal_limitations",
+        "formal_citations",
+        "complete_bibliography",
+        "adversarial_review"
+      ],
+      "completed_gates": [],
+      "manuscript_gates": [],
+      "critic_reviews": [],
+      "review_response_matrix": [],
+      "review_independence": {
+        "minimum_required": "separate_agent",
+        "achieved": "none",
+        "same_agent_review": false,
+        "reviewer": "",
+        "notes": "Accepted source tasks are evidence only; they do not make this deliverable working-paper ready."
+      },
+      "open_gaps": [
+        {
+          "gap_id": "GAP-0001",
+          "severity": "major",
+          "description": "Replace this with any known maturity gap.",
+          "status": "open",
+          "source": "deliverable_template"
+        }
+      ],
+      "last_reviewed_at": null,
+      "created_at": "2026-05-18T00:00:00Z",
+      "updated_at": "2026-05-18T00:00:00Z"
+    }
+  ]
+}

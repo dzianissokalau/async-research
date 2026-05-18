@@ -160,6 +160,12 @@ class PromptLibraryTests(unittest.TestCase):
             self.assertTrue(validation["ok"], validation)
             self.assertIn("deliverable_critic", manifest["prompts"])
 
+            critic_prompt = (ops_dir / "prompts" / "deliverable_critic.md").read_text(encoding="utf-8")
+            self.assertIn("critic_review_prompt_template.md", critic_prompt)
+            self.assertIn("review_response_matrix_template.md", critic_prompt)
+            self.assertIn("accepted source tasks support an internal draft", critic_prompt)
+            self.assertIn("async-research deliverable", critic_prompt)
+
     def test_invalid_draft_cannot_activate_without_explicit_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))

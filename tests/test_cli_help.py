@@ -192,7 +192,7 @@ class CliHelpTests(unittest.TestCase):
             (["deliverable"], ["deliverable maturity", "Accepted task outputs are source evidence", "init", "target", "critic", "response", "check"]),
             (["deliverable", "init"], ["deliverable_manifest.json", "--title", "--output-type", "--target-maturity"]),
             (["deliverable", "target"], ["target audience", "source task links", "--complete-gate", "--manuscript-gate", "--waiver-rationale", "--review-independence"]),
-            (["deliverable", "critic"], ["adversarial critic review", "--independence-type", "--recommended-maturity-ceiling", "--required-revision-row"]),
+            (["deliverable", "critic"], ["adversarial critic review", "--independence-type", "--recommended-maturity-ceiling", "--required-revision-row", "--response-matrix-row"]),
             (["deliverable", "response"], ["review-response matrix", "--critique-id", "--severity", "--decision", "--closure-artifact"]),
             (["deliverable", "check"], ["target maturity", "accepted source tasks alone are insufficient", "--target-maturity"]),
             (["exploration"], ["exploration-cycle tasks", "validate"]),

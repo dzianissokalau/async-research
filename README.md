@@ -197,6 +197,13 @@ closed or explicitly human-waived in the response matrix.
 The local console snapshot includes a deliverable maturity panel that labels
 accepted source tasks as evidence only and shows whether each deliverable is an
 internal draft, shareable memo, working-paper-ready, or submission-ready.
+Packaged artifact templates cover deliverable manifests, manuscript
+checklists, critic prompts, response matrices, internal draft assembly,
+shareable memo polish, working-paper revision, and submission-ready cleanup.
+The coffee-pilot fixture under
+`async_research_workflow/examples/coffee_pilot_deliverable_maturity/` proves
+that an accepted internal draft remains below working-paper readiness until the
+missing gates, critic review, and response matrix are closed.
 
 ## Worked Task Loop
 
@@ -373,9 +380,10 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research analysis validate-results <task-dir> --ops-dir research_ops` | Validate result summary and claim gates before result acceptance. | Result summary, claim gates, manifest, metrics, diagnostics, robustness checks, and accepted experiment plan. | JSON to stdout only; read-only. |
 | `async-research deliverable init research_ops --title "<title>" --output-type working_paper --target-maturity internal_draft` | Create a deliverable maturity manifest entry separate from task acceptance. | Existing `deliverables/deliverable_manifest.json`. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable target research_ops DELIV-0001 --target-audience "<audience>" --target-maturity working_paper` | Update target audience, venue/style profile, maturity, source task links, manuscript gate statuses, review independence, and open gaps. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
-| `async-research deliverable critic research_ops DELIV-0001 --independence-type separate_agent --confidence 0.8 --recommended-maturity-ceiling working_paper` | Record a distinct adversarial critic review with severity counts and required revision rows. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
+| `async-research deliverable critic research_ops DELIV-0001 --independence-type separate_agent --confidence 0.8 --recommended-maturity-ceiling working_paper --response-matrix-row "critique_id=RRM-0001;severity=major;target_section=Methods;issue=<issue>;required_change=<change>;owner=<owner>"` | Record a distinct adversarial critic review with severity counts and optional seeded response rows. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable response research_ops DELIV-0001 --source-review CRITIC-0001 --severity major --target-section Methods --issue "<issue>" --decision accepted --required-change "<change>" --owner "<owner>"` | Record or update a formal review-response matrix row. | Existing deliverable manifest and critic review context. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, manuscript gates, critic review, response matrix, open gaps, and review independence. | JSON to stdout only; read-only. |
+| Packaged deliverable templates | Bootstrap deliverable manifests, manuscript checklists, critic prompts, response matrices, and maturity-specific tasks. | `async_research_workflow/templates/artifact_templates/`. | Markdown or JSON templates only; copy into task or deliverable workspaces as needed. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |

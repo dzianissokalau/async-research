@@ -1,13 +1,13 @@
 {
-  "roadmap": "roadmaps/not_started_deliverable_maturity_editorial_qa_roadmap.md",
+  "roadmap": "roadmaps/delivered_deliverable_maturity_editorial_qa_roadmap.md",
   "roadmap_slug": "deliverable-maturity-editorial-qa",
   "current_phase": 5,
   "branch": "codex/deliverable-maturity-editorial-qa",
-  "status": "not_started",
-  "review_iterations": 0,
+  "status": "delivered",
+  "review_iterations": 2,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 4,
+    "phase": 5,
     "commands": [
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
@@ -17,7 +17,7 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "656 tests"
+        "details": "661 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -27,15 +27,20 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_deliverable_maturity",
         "status": "passed",
-        "details": "15 tests"
+        "details": "19 tests"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_console_snapshot",
+        "command": ".venv/bin/python -m unittest tests.test_prompt_library",
         "status": "passed",
-        "details": "26 tests"
+        "details": "9 tests"
       },
       {
         "command": ".venv/bin/python -m unittest tests.test_packaged_resources",
+        "status": "passed",
+        "details": "8 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_cli_help",
         "status": "passed",
         "details": "7 tests"
       },
@@ -46,6 +51,8 @@
     ],
     "review_verdict": "delivered"
   },
+  "all_phases_complete": true,
+  "final_branch": "codex/deliverable-maturity-editorial-qa-delivered",
   "blocked_reason": null,
-  "updated_at": "2026-05-18T13:19:39Z"
+  "updated_at": "2026-05-18T16:32:36Z"
 }
