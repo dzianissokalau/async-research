@@ -47,6 +47,9 @@
         "skeptic_reviewer": {
           "type": "string"
         },
+        "deliverable_critic": {
+          "type": "string"
+        },
         "review_aggregator": {
           "type": "string"
         },

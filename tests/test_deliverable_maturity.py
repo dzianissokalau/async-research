@@ -278,6 +278,267 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual("internal_draft", checked["maturity"]["independence_ceiling"])
             self.assertIn("review_independence_below_required", {item["reason"] for item in checked["blockers"]})
 
+    def test_working_paper_requires_distinct_critic_review_even_when_gate_marked_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0100", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0100",
+                    "--title",
+                    "Gate-complete draft without critic",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0100",
+                    "--complete-gate",
+                    "all",
+                    "--review-independence",
+                    "separate_agent",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0100"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            reasons = {item["reason"] for item in checked["blockers"]}
+            self.assertIn("critic_review_missing", reasons)
+            adversarial = next(row for row in checked["checklist"] if row["gate"] == "adversarial_review")
+            self.assertEqual("missing", adversarial["status"])
+            self.assertFalse(adversarial["satisfied"])
+            self.assertEqual("shareable_memo", checked["maturity"]["critic_ceiling"])
+
+    def test_independent_critic_review_satisfies_adversarial_gate_and_exposes_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0101", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0101",
+                    "--title",
+                    "Critic-reviewed working paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0101",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0101",
+                    "--independence-type",
+                    "separate_agent",
+                    "--reviewer",
+                    "adversarial manuscript critic",
+                    "--model-or-reviewer",
+                    "separate reviewer fixture",
+                    "--confidence",
+                    "0.84",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--major",
+                    "1",
+                    "--required-revision-row",
+                    "RRM-001: tighten related-work positioning",
+                    "--review-task-id",
+                    "TASK-0102",
+                    "--artifact-path",
+                    "deliverables/critic_reviews/DELIV-0101-CRITIC-0001.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, critic)
+            self.assertTrue(critic["critic_review"]["satisfied"])
+            self.assertEqual("CRITIC-0001", critic["critic_review"]["eligible_review_id"])
+            self.assertEqual(1, critic["critic_review"]["severity_distribution"]["major"])
+            self.assertEqual(["RRM-001: tighten related-work positioning"], critic["critic_review"]["required_revision_rows"])
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            adversarial = next(row for row in checked["checklist"] if row["gate"] == "adversarial_review")
+            self.assertEqual("passed", adversarial["status"])
+            self.assertTrue(adversarial["satisfied"])
+            self.assertEqual("separate_agent", checked["review_independence"]["achieved"])
+            self.assertEqual("working_paper", checked["maturity"]["critic_ceiling"])
+            self.assertIn("critic_required_revision_rows_present", {item["reason"] for item in checked["warnings"]})
+
+    def test_same_agent_critic_review_is_visible_but_below_required_independence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0103", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0103",
+                    "--title",
+                    "Self-critic draft",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0103",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0103",
+                    "--independence-type",
+                    "same_agent_visible",
+                    "--reviewer",
+                    "same agent critic",
+                    "--confidence",
+                    "0.7",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0103"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual("partial", checked["critic_review"]["status"])
+            self.assertEqual("same_agent_visible", checked["critic_review"]["latest_completed_review"]["independence_type"])
+            self.assertEqual("internal_draft", checked["maturity"]["independence_ceiling"])
+            reasons = {item["reason"] for item in checked["blockers"]}
+            self.assertIn("critic_review_independence_below_required", reasons)
+
+    def test_critic_recommended_ceiling_blocks_until_newer_review_raises_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0104", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0104",
+                    "--title",
+                    "Critic-capped working paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0104",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0104",
+                    "--independence-type",
+                    "separate_agent",
+                    "--confidence",
+                    "0.8",
+                    "--recommended-maturity-ceiling",
+                    "shareable_memo",
+                    "--critical",
+                    "1",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0104"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual("shareable_memo", checked["maturity"]["critic_ceiling"])
+            self.assertIn("critic_recommended_ceiling_below_target", {item["reason"] for item in checked["blockers"]})
+            self.assertTrue(checked["critic_review"]["satisfied"])
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0104",
+                    "--independence-type",
+                    "separate_agent",
+                    "--confidence",
+                    "0.9",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0104"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertEqual("CRITIC-0002", checked["critic_review"]["eligible_review_id"])
+            self.assertEqual("working_paper", checked["maturity"]["critic_ceiling"])
+
     def test_partial_manuscript_gate_blocks_working_paper_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

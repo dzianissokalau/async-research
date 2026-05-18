@@ -17,6 +17,8 @@ from async_research_workflow import __version__
 from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
+from async_research_workflow.scripts.deliverable_maturity import CRITIC_REVIEW_STATUS_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import CRITIC_REVIEWER_ROLE_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import INDEPENDENCE_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import MATURITY_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import OUTPUT_TYPE_CHOICES
@@ -735,6 +737,33 @@ def run_deliverable_target_command(args: argparse.Namespace) -> int:
         "deliverable_maturity",
         ["target", str(args.ops_dir), args.deliverable_id] + deliverable_update_options(args),
     )
+
+
+def run_deliverable_critic_command(args: argparse.Namespace) -> int:
+    command_args = ["critic", str(args.ops_dir), args.deliverable_id]
+    for flag, attr in (
+        ("--review-id", "review_id"),
+        ("--reviewer-role", "reviewer_role"),
+        ("--independence-type", "independence_type"),
+        ("--reviewer", "reviewer"),
+        ("--model-or-reviewer", "model_or_reviewer"),
+        ("--confidence", "confidence"),
+        ("--recommended-maturity-ceiling", "recommended_maturity_ceiling"),
+        ("--critical", "critical_findings"),
+        ("--major", "major_findings"),
+        ("--minor", "minor_findings"),
+        ("--note", "note_findings"),
+        ("--review-task-id", "review_task_id"),
+        ("--artifact-path", "artifact_path"),
+        ("--status", "status"),
+        ("--notes", "notes"),
+        ("--now", "now"),
+    ):
+        value = getattr(args, attr, None)
+        if value is not None:
+            command_args.extend([flag, str(value)])
+    command_args.extend(repeated_option("--required-revision-row", getattr(args, "required_revision_row", None)))
+    return module_main("deliverable_maturity", command_args)
 
 
 def run_deliverable_check_command(args: argparse.Namespace) -> int:
@@ -2425,6 +2454,36 @@ def register_deliverable_commands(subparsers) -> None:
     target.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
     add_deliverable_update_arguments(target, init=False)
     target.set_defaults(func=run_deliverable_target_command)
+
+    critic = add_command(
+        deliverable_sub,
+        "critic",
+        help="Record a deliverable-level adversarial critic review.",
+        description=(
+            "Record an adversarial critic review with critic-specific metadata, independence, severity distribution, "
+            "recommended maturity ceiling, and required revision rows for one deliverable."
+        ),
+    )
+    add_required_ops(critic)
+    critic.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    critic.add_argument("--review-id", help="Explicit critic review id such as CRITIC-0001.")
+    critic.add_argument("--reviewer-role", choices=CRITIC_REVIEWER_ROLE_CHOICES, default="adversarial_critic", help="Critic role used for this deliverable-level review.")
+    critic.add_argument("--independence-type", choices=INDEPENDENCE_CHOICES, required=True, help="Independence level achieved by this critic review.")
+    critic.add_argument("--reviewer", help="Reviewer identity or role label.")
+    critic.add_argument("--model-or-reviewer", help="Model name, human reviewer, or external reviewer identity when available.")
+    critic.add_argument("--confidence", type=float, required=True, help="Reviewer confidence from 0 to 1.")
+    critic.add_argument("--recommended-maturity-ceiling", choices=MATURITY_CHOICES, required=True, help="Highest maturity this critic review recommends before further revision.")
+    critic.add_argument("--critical", type=int, default=0, dest="critical_findings", help="Number of critical critic findings.")
+    critic.add_argument("--major", type=int, default=0, dest="major_findings", help="Number of major critic findings.")
+    critic.add_argument("--minor", type=int, default=0, dest="minor_findings", help="Number of minor critic findings.")
+    critic.add_argument("--note", type=int, default=0, dest="note_findings", help="Number of note-level critic findings.")
+    critic.add_argument("--required-revision-row", action="append", default=[], help="Required revision or future response-matrix row. Repeatable.")
+    critic.add_argument("--review-task-id", help="Optional critic_review task id that produced the review.")
+    critic.add_argument("--artifact-path", help="Optional critic review artifact path relative to research_ops.")
+    critic.add_argument("--status", choices=CRITIC_REVIEW_STATUS_CHOICES, default="completed", help="Lifecycle status for the critic review.")
+    critic.add_argument("--notes", help="Short critic-stage notes.")
+    critic.add_argument("--now", help="Override current timestamp for deterministic tests.")
+    critic.set_defaults(func=run_deliverable_critic_command)
 
     check = add_command(
         deliverable_sub,

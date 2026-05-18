@@ -84,3 +84,47 @@ Branch: `codex/deliverable-maturity-editorial-qa`
 ### Next Action
 
 - Deliver Phase 2: add the distinct adversarial critic stage with independence metadata and maturity-ceiling recommendations.
+
+## Phase 2 - 2026-05-18
+
+Status: delivered
+Branch: `codex/deliverable-maturity-editorial-qa`
+
+### Scope
+
+- Distinct adversarial critic stage for deliverable maturity.
+- Critic metadata for reviewer role, independence type, reviewer/model identity, confidence, severity distribution, recommended maturity ceiling, and required revision rows.
+- Maturity gating that requires an independent critic review before working-paper or submission-ready promotion.
+- Role prompt support for deliverable critics.
+
+### Changes
+
+- Added `async-research deliverable critic` to record critic reviews in `deliverable_manifest.json`.
+- Added `critic_reviews` schema/read-model/projection support and derived `adversarial_review` gate behavior.
+- Added critic maturity ceiling, explicit missing/insufficient critic blockers, same-agent visibility, and latest-completed-critic ceiling handling.
+- Added default `deliverable_critic` prompt-library support.
+- Updated README/starter docs and acceptance-suite regressions.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 653 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 13 tests
+- `.venv/bin/python -m unittest tests.test_prompt_library`: passed, 9 tests
+- `.venv/bin/python -m unittest tests.test_cli_help`: passed, 7 tests
+- `git diff --check`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/deliverable_maturity_editorial_qa/reviews/deliverable-maturity-editorial-qa-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Phase 3 still owns formal response-matrix rows, closure evidence, and critical/major promotion blockers.
+- Phase 4 still owns dashboard surfacing beyond the JSON read model and manifest projection.
+
+### Next Action
+
+- Deliver Phase 3: add the formal review-response matrix and block maturity promotion when severe rows remain open without human waiver.

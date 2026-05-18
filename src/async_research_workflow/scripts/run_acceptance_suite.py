@@ -442,6 +442,7 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
             and "current_maturity_below_target" in reasons
             and "gate_missing" in reasons
             and "review_independence_below_required" in reasons
+            and "critic_review_missing" in reasons
         )
         record_step("accepted_task_not_deliverable_ready", ok, checked, code)
 
@@ -470,6 +471,79 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
             waiver_payload,
             code,
         )
+
+    if not failures:
+        code, payload = run_cli(
+            [
+                "deliverable",
+                "init",
+                str(ops_dir),
+                "--deliverable-id",
+                "DELIV-9903",
+                "--title",
+                "Acceptance critic-reviewed working paper",
+                "--output-type",
+                "working_paper",
+                "--target-maturity",
+                "working_paper",
+                "--current-maturity",
+                "working_paper",
+                "--target-audience",
+                "research collaborators",
+                "--source-task",
+                "TASK-9902",
+                "--complete-gate",
+                "all",
+                "--now",
+                "2026-05-18T00:00:00Z",
+            ]
+        )
+        record_step("critic_review_fixture_manifest_write", code == SUCCESS and payload.get("ok") is True, payload, code)
+
+    if not failures:
+        code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9903"])
+        reasons = {item.get("reason") for item in checked.get("blockers", [])}
+        adversarial = next((row for row in checked.get("checklist", []) if row.get("gate") == "adversarial_review"), {})
+        record_step(
+            "critic_review_required_for_working_paper",
+            code == 2 and "critic_review_missing" in reasons and adversarial.get("satisfied") is False,
+            checked,
+            code,
+        )
+
+    if not failures:
+        code, critic = run_cli(
+            [
+                "deliverable",
+                "critic",
+                str(ops_dir),
+                "DELIV-9903",
+                "--independence-type",
+                "separate_agent",
+                "--reviewer",
+                "acceptance adversarial critic",
+                "--model-or-reviewer",
+                "acceptance fixture",
+                "--confidence",
+                "0.82",
+                "--recommended-maturity-ceiling",
+                "working_paper",
+                "--major",
+                "1",
+                "--required-revision-row",
+                "RRM-ACCEPT-001: address critic finding in response matrix",
+                "--now",
+                "2026-05-18T00:00:00Z",
+            ]
+        )
+        critic_ok = (
+            code == SUCCESS
+            and critic.get("ok") is True
+            and critic.get("critic_review", {}).get("satisfied") is True
+            and critic.get("critic_review", {}).get("severity_distribution", {}).get("major") == 1
+            and critic.get("maturity", {}).get("critic_ceiling") == "working_paper"
+        )
+        record_step("independent_critic_review_allows_working_paper_ceiling", critic_ok, critic, code)
 
     if failures:
         return FAILED, {

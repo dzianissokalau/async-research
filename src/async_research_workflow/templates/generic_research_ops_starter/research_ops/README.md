@@ -81,14 +81,17 @@ row. A reviewer applies accepted updates and reruns
 
 `research_ops/deliverables/` tracks final-output maturity separately from task
 acceptance. `deliverable_manifest.json` stores output type, target audience,
-target venue, source task links, manuscript gate statuses, review independence,
-and open gaps. Gate statuses are `not_required`, `missing`, `partial`,
-`passed_with_caveats`, `passed`, or `waived_by_human`; waivers require human
-rationale. An accepted task can be linked as source evidence, but it does not by
-itself make a paper, memo, or report shareable or submission-ready.
+target venue, source task links, manuscript gate statuses, critic review
+metadata, review independence, and open gaps. Gate statuses are `not_required`,
+`missing`, `partial`, `passed_with_caveats`, `passed`, or `waived_by_human`;
+waivers require human rationale. An accepted task can be linked as source
+evidence, but it does not by itself make a paper, memo, or report shareable or
+submission-ready. Working papers and submission-ready manuscripts need a
+distinct critic review with sufficient independence.
 
 ```bash
 async-research deliverable init research_ops --title "Draft title" --output-type working_paper --target-maturity internal_draft
+async-research deliverable critic research_ops DELIV-0001 --independence-type separate_agent --confidence 0.8 --recommended-maturity-ceiling working_paper
 async-research deliverable check research_ops DELIV-0001
 ```
 

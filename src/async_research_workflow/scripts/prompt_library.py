@@ -90,6 +90,14 @@ DEFAULT_PROMPTS = (
         status_transition="Write an isolated specialist review; do not update task status directly.",
     ),
     PromptSpec(
+        prompt_id="deliverable_critic",
+        role="deliverable_critic",
+        version="deliverable_critic_v1.0",
+        title="Deliverable Critic Prompt",
+        output_file="research_ops/deliverables/critic_reviews/<deliverable-id>-<review-id>.md",
+        status_transition="Write the critic artifact and record it with `async-research deliverable critic`; do not treat task acceptance as deliverable readiness.",
+    ),
+    PromptSpec(
         prompt_id="synthesizer",
         role="synthesizer",
         version="synthesizer_v1.0",
@@ -254,6 +262,22 @@ fresh, when the task needs a human decision, or when source/cost gates block.
 
 Respect task budgets, source governance, and the deterministic escalation policy
 in `{ESCALATION_POLICY_REF}` before doing expensive or risky work.
+"""
+    if spec.prompt_id == "deliverable_critic":
+        body += """
+## Critic Review Rubric
+
+Assess target audience and maturity fit, novelty and contribution clarity,
+related-work gaps, methods and reproducibility weaknesses, unsupported causal
+language, figure/table integration, citation and bibliography quality, prose
+clarity, external-reader readiness, and unresolved caveats that should block
+maturity promotion.
+
+## Critic Metadata
+
+Record reviewer role, independence type, model or human reviewer when available,
+confidence, severity distribution, recommended maturity ceiling, and required
+revision rows before any maturity promotion.
 """
     return render_front_matter(
         {

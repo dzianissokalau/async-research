@@ -48,6 +48,7 @@ class PromptLibraryTests(unittest.TestCase):
             self.assertFalse((ops_dir / "prompts").exists())
             would_create = {item["relative_path"] for item in payload["would_create"]}
             self.assertIn("prompts/worker.md", would_create)
+            self.assertIn("prompts/deliverable_critic.md", would_create)
             self.assertIn("prompts/drafts/worker.md", would_create)
             self.assertIn("prompts/versions/worker/worker_v1.0.md", would_create)
             self.assertEqual("prompts/versions.json", payload["would_write_manifest"]["relative_path"])
@@ -157,6 +158,7 @@ class PromptLibraryTests(unittest.TestCase):
 
             self.assertEqual(prompt_library.SUCCESS, code, validation)
             self.assertTrue(validation["ok"], validation)
+            self.assertIn("deliverable_critic", manifest["prompts"])
 
     def test_invalid_draft_cannot_activate_without_explicit_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

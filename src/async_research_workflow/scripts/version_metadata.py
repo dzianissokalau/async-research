@@ -12,6 +12,7 @@ DEFAULT_PROMPT_VERSIONS = {
     "primary_reviewer": "primary_reviewer_v1.0",
     "methodology_reviewer": "methodology_reviewer_v1.0",
     "skeptic_reviewer": "skeptic_reviewer_v1.0",
+    "deliverable_critic": "deliverable_critic_v1.0",
     "review_aggregator": "review_aggregator_v1.0",
     "weekly_synthesizer": "weekly_synthesizer_v1.0",
     "health_monitor": "health_monitor_v1.0",

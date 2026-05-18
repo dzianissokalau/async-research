@@ -36,6 +36,15 @@ GATE_STATUS_CHOICES = (
     "waived_by_human",
 )
 PASSING_GATE_STATUSES = {"passed", "passed_with_caveats", "waived_by_human"}
+CRITIC_REVIEW_ID_RE = re.compile(r"^CRITIC-[0-9]{4}$")
+CRITIC_REVIEW_STATUS_CHOICES = ("draft", "completed", "superseded")
+CRITIC_REVIEWER_ROLE_CHOICES = (
+    "adversarial_critic",
+    "methodology_critic",
+    "external_critic",
+    "human_editorial_critic",
+)
+SEVERITY_LEVELS = ("critical", "major", "minor", "note")
 
 MATURITY_LEVELS: tuple[dict[str, Any], ...] = (
     {
@@ -536,6 +545,55 @@ def manuscript_gate_shape_errors(rows: Any, item_path: str) -> list[dict[str, An
     return errors
 
 
+def critic_review_shape_errors(rows: Any, item_path: str) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    if rows is None:
+        return errors
+    if not isinstance(rows, list):
+        return [{"reason": "critic_reviews_not_array", "path": item_path, "message": "critic_reviews must be an array"}]
+    for index, row in enumerate(rows):
+        row_path = f"{item_path}/critic_reviews/{index}"
+        if not isinstance(row, dict):
+            errors.append({"reason": "critic_review_not_object", "path": row_path, "message": "critic review entries must be objects"})
+            continue
+        review_id = str(row.get("review_id") or "")
+        if not validate_critic_review_id(review_id):
+            errors.append({"reason": "invalid_critic_review_id", "path": row_path, "message": "review_id must match CRITIC-0000", "review_id": review_id})
+        role = str(row.get("reviewer_role") or "")
+        if role not in CRITIC_REVIEWER_ROLE_CHOICES:
+            errors.append({"reason": "invalid_critic_reviewer_role", "path": row_path, "message": "reviewer_role must be a known critic role", "reviewer_role": role})
+        independence = str(row.get("independence_type") or "")
+        if independence not in INDEPENDENCE_ORDER:
+            errors.append({"reason": "invalid_critic_independence", "path": row_path, "message": "independence_type must be a known independence level", "independence_type": independence})
+        status = str(row.get("status") or "")
+        if status not in CRITIC_REVIEW_STATUS_CHOICES:
+            errors.append({"reason": "invalid_critic_review_status", "path": row_path, "message": "status must be a known critic review status", "status": status})
+        ceiling = str(row.get("recommended_maturity_ceiling") or "")
+        if ceiling not in MATURITY_ORDER:
+            errors.append({"reason": "invalid_critic_maturity_ceiling", "path": row_path, "message": "recommended_maturity_ceiling must be a known maturity level", "recommended_maturity_ceiling": ceiling})
+        confidence = row.get("confidence")
+        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= confidence <= 1:
+            errors.append({"reason": "invalid_critic_confidence", "path": row_path, "message": "confidence must be a number between 0 and 1"})
+        distribution = row.get("severity_distribution")
+        if not isinstance(distribution, dict):
+            errors.append({"reason": "critic_severity_distribution_not_object", "path": row_path, "message": "severity_distribution must be an object"})
+        else:
+            for level in SEVERITY_LEVELS:
+                count = distribution.get(level, 0)
+                if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                    errors.append({"reason": "invalid_critic_severity_count", "path": row_path, "message": f"{level} severity count must be a non-negative integer", "severity": level})
+        required_revision_rows = row.get("required_revision_rows", [])
+        if not isinstance(required_revision_rows, list):
+            errors.append({"reason": "critic_required_revision_rows_not_array", "path": row_path, "message": "required_revision_rows must be an array"})
+        review_task_id = str(row.get("review_task_id") or "")
+        if review_task_id and validate_task_ids([review_task_id]):
+            errors.append({"reason": "invalid_critic_review_task_id", "path": row_path, "message": "review_task_id must match TASK-0000", "review_task_id": review_task_id})
+        artifact_path = str(row.get("artifact_path") or "")
+        if artifact_path and not safe_relative_path(artifact_path):
+            errors.append({"reason": "unsafe_critic_artifact_path", "path": row_path, "message": "artifact_path must be relative to research_ops and cannot contain ..", "artifact_path": artifact_path})
+    return errors
+
+
 def manifest_path(ops_dir: Path) -> Path:
     return ops_dir / DELIVERABLES_DIR / MANIFEST_NAME
 
@@ -592,6 +650,7 @@ def manifest_shape_errors(payload: dict[str, Any], path: Path) -> list[dict[str,
             if not isinstance(item.get(field, []), list):
                 errors.append({"reason": f"{field}_not_array", "path": item_path, "message": f"{field} must be an array"})
         errors.extend(manuscript_gate_shape_errors(item.get("manuscript_gates"), item_path))
+        errors.extend(critic_review_shape_errors(item.get("critic_reviews"), item_path))
         review = item.get("review_independence", {})
         if not isinstance(review, dict):
             errors.append({"reason": "review_independence_not_object", "path": item_path, "message": "review_independence must be an object"})
@@ -645,6 +704,10 @@ def validate_task_ids(values: Iterable[str]) -> list[str]:
     return errors
 
 
+def validate_critic_review_id(value: str) -> bool:
+    return CRITIC_REVIEW_ID_RE.fullmatch(value) is not None
+
+
 def next_deliverable_id(deliverables: list[dict[str, Any]]) -> str:
     existing = {
         int(match.group(1))
@@ -657,6 +720,19 @@ def next_deliverable_id(deliverables: list[dict[str, Any]]) -> str:
     while value in existing:
         value += 1
     return f"DELIV-{value:04d}"
+
+
+def next_critic_review_id(deliverable: dict[str, Any]) -> str:
+    existing = {
+        int(match.group(1))
+        for item in critic_review_rows(deliverable)
+        for match in [re.match(r"^CRITIC-([0-9]{4})$", str(item.get("review_id", "")))]
+        if match is not None
+    }
+    value = 1
+    while value in existing:
+        value += 1
+    return f"CRITIC-{value:04d}"
 
 
 def find_deliverable(manifest: dict[str, Any], deliverable_id: str) -> dict[str, Any] | None:
@@ -710,6 +786,106 @@ def normalize_open_gap(index: int, text: str) -> dict[str, Any]:
         "status": "open",
         "source": "deliverable_target",
     }
+
+
+def severity_distribution(args: argparse.Namespace) -> dict[str, int]:
+    return {
+        "critical": args.critical_findings,
+        "major": args.major_findings,
+        "minor": args.minor_findings,
+        "note": args.note_findings,
+    }
+
+
+def normalize_severity_distribution(value: Any) -> dict[str, int]:
+    distribution = {level: 0 for level in SEVERITY_LEVELS}
+    if not isinstance(value, dict):
+        return distribution
+    for level in SEVERITY_LEVELS:
+        raw = value.get(level, 0)
+        if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+            distribution[level] = raw
+    return distribution
+
+
+def critic_review_rows(deliverable: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = deliverable.get("critic_reviews", [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def completed_critic_reviews(deliverable: dict[str, Any]) -> list[dict[str, Any]]:
+    return [row for row in critic_review_rows(deliverable) if row.get("status") == "completed"]
+
+
+def effective_critic_independence(deliverable: dict[str, Any]) -> str:
+    achieved = "none"
+    review = deliverable.get("review_independence")
+    if isinstance(review, dict) and str(review.get("achieved") or "none") in INDEPENDENCE_ORDER:
+        achieved = str(review.get("achieved") or "none")
+    for row in completed_critic_reviews(deliverable):
+        independence = str(row.get("independence_type") or "none")
+        if independence in INDEPENDENCE_ORDER:
+            achieved = higher_independence(achieved, independence)
+    return achieved
+
+
+def critic_review_required(target_maturity: str) -> bool:
+    return MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"]
+
+
+def critic_review_summary(deliverable: dict[str, Any], target_maturity: str) -> dict[str, Any]:
+    rows = critic_review_rows(deliverable)
+    completed = completed_critic_reviews(deliverable)
+    required = critic_review_required(target_maturity)
+    required_independence = minimum_independence_for(target_maturity)
+    eligible = [
+        row
+        for row in completed
+        if INDEPENDENCE_ORDER.get(str(row.get("independence_type") or "none"), 0) >= INDEPENDENCE_ORDER[required_independence]
+    ]
+    latest = rows[-1] if rows else None
+    latest_completed = completed[-1] if completed else None
+    eligible_review = eligible[-1] if eligible else None
+    recommended_ceiling = critic_ceiling(deliverable)
+    satisfied = not required or eligible_review is not None
+    if not required:
+        status = "not_required"
+    elif not rows:
+        status = "missing"
+    elif eligible_review is None:
+        status = "partial"
+    else:
+        status = "passed"
+    return {
+        "required": required,
+        "status": status,
+        "satisfied": satisfied,
+        "required_independence": required_independence,
+        "review_count": len(rows),
+        "completed_count": len(completed),
+        "eligible_review_id": eligible_review.get("review_id") if eligible_review else "",
+        "latest_review": latest or {},
+        "latest_completed_review": latest_completed or {},
+        "severity_distribution": normalize_severity_distribution((latest_completed or latest or {}).get("severity_distribution", {})),
+        "recommended_maturity_ceiling": recommended_ceiling,
+        "required_revision_rows": list((latest_completed or latest or {}).get("required_revision_rows", []))
+        if isinstance((latest_completed or latest or {}).get("required_revision_rows", []), list)
+        else [],
+    }
+
+
+def critic_review_gate_satisfied(deliverable: dict[str, Any], target_maturity: str) -> bool:
+    return bool(critic_review_summary(deliverable, target_maturity)["satisfied"])
+
+
+def critic_ceiling(deliverable: dict[str, Any]) -> str:
+    completed = completed_critic_reviews(deliverable)
+    if not completed:
+        return "shareable_memo"
+    ceiling = str(completed[-1].get("recommended_maturity_ceiling") or "")
+    return ceiling if ceiling in MATURITY_ORDER else "internal_draft"
 
 
 def review_independence_payload(maturity: str, achieved: str = "none", reviewer: str = "", notes: str = "") -> dict[str, Any]:
@@ -771,6 +947,7 @@ def build_deliverable(args: argparse.Namespace, manifest: dict[str, Any], now: s
         "required_gates": required_gates,
         "completed_gates": completed_gates,
         "manuscript_gates": manuscript_gates,
+        "critic_reviews": [],
         "review_independence": review_independence_payload(
             target_maturity,
             args.review_independence,
@@ -855,6 +1032,74 @@ def update_deliverable(args: argparse.Namespace, item: dict[str, Any], now: str)
     return []
 
 
+def build_critic_review(args: argparse.Namespace, deliverable: dict[str, Any], now: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    errors: list[dict[str, Any]] = []
+    review_id = args.review_id or next_critic_review_id(deliverable)
+    if not validate_critic_review_id(review_id):
+        errors.append({"reason": "invalid_critic_review_id", "message": "review_id must match CRITIC-0000", "review_id": review_id})
+    if any(row.get("review_id") == review_id for row in critic_review_rows(deliverable)):
+        errors.append({"reason": "critic_review_exists", "message": f"{review_id} already exists", "review_id": review_id})
+    if args.review_task_id and validate_task_ids([args.review_task_id]):
+        errors.append({"reason": "invalid_critic_review_task_id", "message": "review_task_id must match TASK-0000", "review_task_id": args.review_task_id})
+    if args.artifact_path and not safe_relative_path(args.artifact_path):
+        errors.append({"reason": "unsafe_critic_artifact_path", "message": "artifact path must be relative to research_ops and cannot contain ..", "artifact_path": args.artifact_path})
+    for level, count in severity_distribution(args).items():
+        if count < 0:
+            errors.append({"reason": "invalid_critic_severity_count", "message": "severity counts must be non-negative integers", "severity": level, "count": count})
+    if not 0 <= args.confidence <= 1:
+        errors.append({"reason": "invalid_critic_confidence", "message": "confidence must be a number between 0 and 1", "confidence": args.confidence})
+    if errors:
+        return None, errors
+    return {
+        "review_id": review_id,
+        "reviewer_role": args.reviewer_role,
+        "independence_type": args.independence_type,
+        "reviewer": (args.reviewer or "").strip(),
+        "model_or_reviewer": (args.model_or_reviewer or "").strip(),
+        "confidence": args.confidence,
+        "severity_distribution": severity_distribution(args),
+        "recommended_maturity_ceiling": args.recommended_maturity_ceiling,
+        "required_revision_rows": normalized_unique(args.required_revision_row or []),
+        "review_task_id": (args.review_task_id or "").strip(),
+        "artifact_path": (args.artifact_path or "").strip(),
+        "status": args.status,
+        "notes": (args.notes or "").strip(),
+        "created_at": now,
+        "updated_at": now,
+    }, []
+
+
+def apply_critic_review(args: argparse.Namespace, deliverable: dict[str, Any], now: str) -> list[dict[str, Any]]:
+    critic, errors = build_critic_review(args, deliverable, now)
+    if errors or critic is None:
+        return errors
+    reviews = critic_review_rows(deliverable)
+    reviews.append(critic)
+    deliverable["critic_reviews"] = reviews
+    target_maturity = str(deliverable.get("target_maturity") or "research_note")
+    deliverable["required_gates"] = normalized_unique(list(deliverable.get("required_gates", [])) + required_gates_for(target_maturity))
+    if critic.get("status") == "completed" and critic_review_required(target_maturity) and critic_review_gate_satisfied(deliverable, target_maturity):
+        deliverable["completed_gates"] = normalized_unique(list(deliverable.get("completed_gates", [])) + ["adversarial_review"])
+    review = deliverable.get("review_independence")
+    if not isinstance(review, dict):
+        review = review_independence_payload(target_maturity)
+    achieved = str(review.get("achieved") or "none")
+    independence = str(critic.get("independence_type") or "none")
+    review["achieved"] = higher_independence(achieved, independence)
+    review["same_agent_review"] = review["achieved"] == "same_agent_visible"
+    review["minimum_required"] = higher_independence(
+        str(review.get("minimum_required") or "none"),
+        minimum_independence_for(target_maturity),
+    )
+    if field_has_value(critic.get("reviewer")):
+        review["reviewer"] = critic["reviewer"]
+    review["notes"] = critic.get("notes") or review.get("notes", "")
+    deliverable["review_independence"] = review
+    deliverable["last_reviewed_at"] = now
+    deliverable["updated_at"] = now
+    return []
+
+
 def gate_ceiling(deliverable: dict[str, Any]) -> str:
     completed = set(deliverable.get("completed_gates", []))
     highest = "research_note"
@@ -862,10 +1107,12 @@ def gate_ceiling(deliverable: dict[str, Any]) -> str:
         required = set(required_gates_for(maturity))
         manuscript_rows = {row["gate_id"]: row for row in normalized_manuscript_gates(deliverable, maturity)}
         manuscript_gate_ids = set(manuscript_rows)
-        non_manuscript_required = required - manuscript_gate_ids
+        derived_required = {"adversarial_review"} & required
+        non_manuscript_required = required - manuscript_gate_ids - derived_required
         manuscript_required = required & manuscript_gate_ids
         manuscript_complete = all(gate_status_is_satisfied(manuscript_rows[gate]) for gate in manuscript_required)
-        if non_manuscript_required.issubset(completed) and manuscript_complete:
+        derived_complete = all(critic_review_gate_satisfied(deliverable, maturity) for gate in derived_required)
+        if non_manuscript_required.issubset(completed) and manuscript_complete and derived_complete:
             highest = maturity
     return highest
 
@@ -882,10 +1129,7 @@ def metadata_ceiling(deliverable: dict[str, Any]) -> str:
 
 
 def independence_ceiling(deliverable: dict[str, Any]) -> str:
-    review = deliverable.get("review_independence")
-    achieved = "none"
-    if isinstance(review, dict):
-        achieved = str(review.get("achieved") or "none")
+    achieved = effective_critic_independence(deliverable)
     return INDEPENDENCE_CEILING.get(achieved, "internal_draft")
 
 
@@ -911,6 +1155,18 @@ def checklist(deliverable: dict[str, Any], target_maturity: str) -> list[dict[st
                     "rationale": gate_row.get("rationale", ""),
                     "waiver_rationale": gate_row.get("waiver_rationale", ""),
                     "evidence": gate_row.get("evidence", []),
+                }
+            )
+            continue
+        if gate == "adversarial_review":
+            critic = critic_review_summary(deliverable, target_maturity)
+            rows.append(
+                {
+                    "gate": gate,
+                    "status": critic["status"],
+                    "required": True,
+                    "satisfied": critic["satisfied"],
+                    "critic_review": critic,
                 }
             )
             continue
@@ -1002,7 +1258,8 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         blockers.append({"reason": "target_venue_missing", "message": "submission-ready manuscripts require target_venue"})
 
     review = deliverable.get("review_independence") if isinstance(deliverable.get("review_independence"), dict) else {}
-    achieved = str(review.get("achieved") or "none")
+    stored_achieved = str(review.get("achieved") or "none")
+    achieved = effective_critic_independence(deliverable)
     required_independence = higher_independence(str(review.get("minimum_required") or "none"), minimum_independence_for(target_maturity))
     if INDEPENDENCE_ORDER.get(achieved, 0) < INDEPENDENCE_ORDER[required_independence]:
         blockers.append(
@@ -1013,6 +1270,36 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                 "minimum_required": required_independence,
             }
         )
+    critic = critic_review_summary(deliverable, target_maturity)
+    if critic["required"] and critic["review_count"] == 0:
+        blockers.append({"reason": "critic_review_missing", "message": "working papers and above require a distinct adversarial critic review"})
+    elif critic["required"] and not critic["satisfied"]:
+        blockers.append(
+            {
+                "reason": "critic_review_independence_below_required",
+                "message": f"critic review independence is below required {critic['required_independence']}",
+                "required_independence": critic["required_independence"],
+                "review_count": critic["review_count"],
+                "completed_count": critic["completed_count"],
+            }
+        )
+    if critic["required"] and MATURITY_ORDER[critic["recommended_maturity_ceiling"]] < MATURITY_ORDER[target_maturity]:
+        blockers.append(
+            {
+                "reason": "critic_recommended_ceiling_below_target",
+                "message": f"latest critic ceiling {critic['recommended_maturity_ceiling']} is below target {target_maturity}",
+                "recommended_maturity_ceiling": critic["recommended_maturity_ceiling"],
+                "target_maturity": target_maturity,
+            }
+        )
+    if critic["required_revision_rows"]:
+        warnings.append(
+            {
+                "reason": "critic_required_revision_rows_present",
+                "message": "critic review has required revision rows that should be tracked in the response matrix",
+                "required_revision_count": len(critic["required_revision_rows"]),
+            }
+        )
     gaps = open_gap_rows(deliverable)
     unresolved_gaps = [gap for gap in gaps if str(gap.get("status", "open")).lower() not in {"closed", "resolved", "waived"}]
     if unresolved_gaps and MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"]:
@@ -1020,7 +1307,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
     elif unresolved_gaps:
         warnings.append({"reason": "open_gaps_present", "message": "open gaps must stay visible until closed or waived", "open_gap_count": len(unresolved_gaps)})
 
-    verified_ceiling = min_maturity(current_maturity, gate_ceiling(deliverable), metadata_ceiling(deliverable), independence_ceiling(deliverable))
+    verified_ceiling = min_maturity(current_maturity, gate_ceiling(deliverable), metadata_ceiling(deliverable), independence_ceiling(deliverable), critic_ceiling(deliverable))
     target_ready = not blockers and MATURITY_ORDER[verified_ceiling] >= MATURITY_ORDER[target_maturity]
     if MATURITY_ORDER[current_maturity] > MATURITY_ORDER[verified_ceiling]:
         warnings.append(
@@ -1044,6 +1331,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
             "gate_ceiling": gate_ceiling(deliverable),
             "metadata_ceiling": metadata_ceiling(deliverable),
             "independence_ceiling": independence_ceiling(deliverable),
+            "critic_ceiling": critic_ceiling(deliverable),
             "taxonomy": [dict(item) for item in MATURITY_LEVELS],
         },
         "deliverable": {
@@ -1057,10 +1345,13 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         },
         "checklist": rows,
         "manuscript_checklist": manuscript_rows,
+        "critic_review": critic,
         "review_independence": {
             **review,
             "minimum_required": required_independence,
             "same_agent_review": achieved == "same_agent_visible",
+            "stored_achieved": stored_achieved,
+            "achieved": achieved,
         },
         "source_tasks": source_tasks,
         "open_gaps": gaps,
@@ -1086,6 +1377,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
         "source_task_ids",
         "open_gaps",
         "manuscript_gates",
+        "critic_review",
         "waivers",
     ]
     lines = [
@@ -1102,6 +1394,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
         required_manuscript = [row for row in manuscript_rows if row.get("required")]
         satisfied_manuscript = [row for row in required_manuscript if gate_status_is_satisfied(row)]
         waived_manuscript = [row for row in required_manuscript if row.get("status") == "waived_by_human"]
+        critic = critic_review_summary(item, target_maturity)
         row = {
             "deliverable_id": item.get("deliverable_id"),
             "title": item.get("title"),
@@ -1113,6 +1406,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
             "source_task_ids": ", ".join(item.get("source_task_ids", [])),
             "open_gaps": len(open_gap_rows(item)),
             "manuscript_gates": f"{len(satisfied_manuscript)}/{len(required_manuscript)}",
+            "critic_review": f"{critic['status']} ({critic['recommended_maturity_ceiling']})",
             "waivers": len(waived_manuscript),
         }
         lines.append("| " + " | ".join(markdown_escape(row.get(column)) for column in header) + " |")
@@ -1159,6 +1453,26 @@ def cmd_target(args: argparse.Namespace) -> int:
     write_manifest(args.ops_dir, manifest)
     model = read_model(args.ops_dir, item)
     print_json({"ok": True, "action": "deliverable_target_updated", **model})
+    return SUCCESS
+
+
+def cmd_critic(args: argparse.Namespace) -> int:
+    now = args.now or utc_now()
+    manifest, errors = load_manifest(args.ops_dir)
+    if errors:
+        print_json({"ok": False, "action": "deliverable_critic_failed", "errors": errors})
+        return MALFORMED
+    item = find_deliverable(manifest, args.deliverable_id)
+    if item is None:
+        print_json({"ok": False, "action": "deliverable_critic_failed", "reason": "deliverable_missing", "deliverable_id": args.deliverable_id})
+        return INVALID_REQUEST
+    update_errors = apply_critic_review(args, item, now)
+    if update_errors:
+        print_json({"ok": False, "action": "deliverable_critic_failed", "errors": update_errors})
+        return INVALID_REQUEST
+    write_manifest(args.ops_dir, manifest)
+    model = read_model(args.ops_dir, item)
+    print_json({"ok": True, "action": "deliverable_critic_recorded", **model})
     return SUCCESS
 
 
@@ -1237,6 +1551,28 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     add_common_options(target)
     add_update_options(target, init=False)
     target.set_defaults(func=cmd_target)
+
+    critic = subparsers.add_parser("critic", help="Record an adversarial critic review for one deliverable.")
+    add_common_options(critic)
+    critic.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    critic.add_argument("--review-id", help="Explicit critic review id such as CRITIC-0001; defaults to the next available id.")
+    critic.add_argument("--reviewer-role", choices=CRITIC_REVIEWER_ROLE_CHOICES, default="adversarial_critic", help="Critic role used for this deliverable-level review.")
+    critic.add_argument("--independence-type", choices=INDEPENDENCE_CHOICES, required=True, help="Independence level achieved by this critic review.")
+    critic.add_argument("--reviewer", help="Reviewer identity or role label.")
+    critic.add_argument("--model-or-reviewer", help="Model name, human reviewer, or external reviewer identity when available.")
+    critic.add_argument("--confidence", type=float, required=True, help="Reviewer confidence from 0 to 1.")
+    critic.add_argument("--recommended-maturity-ceiling", choices=MATURITY_CHOICES, required=True, help="Highest maturity this critic review recommends before further revision.")
+    critic.add_argument("--critical", type=int, default=0, dest="critical_findings", help="Number of critical critic findings.")
+    critic.add_argument("--major", type=int, default=0, dest="major_findings", help="Number of major critic findings.")
+    critic.add_argument("--minor", type=int, default=0, dest="minor_findings", help="Number of minor critic findings.")
+    critic.add_argument("--note", type=int, default=0, dest="note_findings", help="Number of note-level critic findings.")
+    critic.add_argument("--required-revision-row", action="append", default=[], help="Required revision or future response-matrix row. Repeatable.")
+    critic.add_argument("--review-task-id", help="Optional critic_review task id that produced the review.")
+    critic.add_argument("--artifact-path", help="Optional critic review artifact path relative to research_ops.")
+    critic.add_argument("--status", choices=CRITIC_REVIEW_STATUS_CHOICES, default="completed", help="Lifecycle status for the critic review.")
+    critic.add_argument("--notes", help="Short critic-stage notes.")
+    critic.add_argument("--now", help="Override current timestamp for deterministic tests.")
+    critic.set_defaults(func=cmd_critic)
 
     check = subparsers.add_parser("check", help="Read-only deliverable readiness check.")
     add_common_options(check)

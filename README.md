@@ -184,13 +184,15 @@ context, but final accepted claims still need source-level citation and review.
 
 The canonical deliverable maturity path is `research_ops/deliverables/`.
 `deliverable_manifest.json` declares output type, target audience, target venue,
-source task links, manuscript gate statuses, open gaps, and review-independence
-metadata separately from task status. Manuscript gates use explicit statuses:
+source task links, manuscript gate statuses, critic review metadata, open gaps,
+and review-independence metadata separately from task status. Manuscript gates use explicit statuses:
 `not_required`, `missing`, `partial`, `passed_with_caveats`, `passed`, or
 `waived_by_human`; waivers require human rationale. Use
 `async-research deliverable check` to verify whether a paper, memo, or report is
 actually ready for its target maturity; accepted source tasks alone do not make
-a deliverable shareable or submission-ready.
+a deliverable shareable or submission-ready. Working papers and submission-ready
+manuscripts also need a distinct critic review with sufficient independence and
+a maturity-ceiling recommendation.
 
 ## Worked Task Loop
 
@@ -367,6 +369,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research analysis validate-results <task-dir> --ops-dir research_ops` | Validate result summary and claim gates before result acceptance. | Result summary, claim gates, manifest, metrics, diagnostics, robustness checks, and accepted experiment plan. | JSON to stdout only; read-only. |
 | `async-research deliverable init research_ops --title "<title>" --output-type working_paper --target-maturity internal_draft` | Create a deliverable maturity manifest entry separate from task acceptance. | Existing `deliverables/deliverable_manifest.json`. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable target research_ops DELIV-0001 --target-audience "<audience>" --target-maturity working_paper` | Update target audience, venue/style profile, maturity, source task links, manuscript gate statuses, review independence, and open gaps. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
+| `async-research deliverable critic research_ops DELIV-0001 --independence-type separate_agent --confidence 0.8 --recommended-maturity-ceiling working_paper` | Record a distinct adversarial critic review with severity counts and required revision rows. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, manuscript gates, open gaps, and review independence. | JSON to stdout only; read-only. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |
