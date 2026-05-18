@@ -545,6 +545,68 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
         )
         record_step("independent_critic_review_allows_working_paper_ceiling", critic_ok, critic, code)
 
+    if not failures:
+        code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9903"])
+        reasons = {item.get("reason") for item in checked.get("blockers", [])}
+        record_step(
+            "critic_rows_require_response_matrix",
+            code == 2
+            and "response_matrix_missing_required_rows" in reasons
+            and checked.get("maturity", {}).get("response_matrix_ceiling") == "shareable_memo",
+            checked,
+            code,
+        )
+
+    if not failures:
+        code, response = run_cli(
+            [
+                "deliverable",
+                "response",
+                str(ops_dir),
+                "DELIV-9903",
+                "--critique-id",
+                "RRM-ACCEPT-001",
+                "--source-review",
+                "CRITIC-0001",
+                "--severity",
+                "major",
+                "--target-section",
+                "Related work",
+                "--issue",
+                "Address critic finding in response matrix.",
+                "--decision",
+                "accepted",
+                "--required-change",
+                "Close the critic-required revision row.",
+                "--owner",
+                "acceptance owner",
+                "--status",
+                "closed",
+                "--closure-artifact",
+                "deliverables/revisions/RRM-ACCEPT-001.md",
+                "--now",
+                "2026-05-18T00:00:00Z",
+            ]
+        )
+        response_ok = (
+            code == SUCCESS
+            and response.get("ok") is True
+            and response.get("response_matrix", {}).get("status") == "passed"
+            and response.get("response_matrix", {}).get("unresolved_critical_major_count") == 0
+        )
+        record_step("response_matrix_closure_unblocks_promotion", response_ok, response, code)
+
+    if not failures:
+        code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9903"])
+        record_step(
+            "closed_response_matrix_allows_working_paper",
+            code == SUCCESS
+            and checked.get("ok") is True
+            and checked.get("response_matrix", {}).get("status") == "passed",
+            checked,
+            code,
+        )
+
     if failures:
         return FAILED, {
             "ok": False,

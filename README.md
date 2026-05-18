@@ -184,15 +184,16 @@ context, but final accepted claims still need source-level citation and review.
 
 The canonical deliverable maturity path is `research_ops/deliverables/`.
 `deliverable_manifest.json` declares output type, target audience, target venue,
-source task links, manuscript gate statuses, critic review metadata, open gaps,
-and review-independence metadata separately from task status. Manuscript gates use explicit statuses:
+source task links, manuscript gate statuses, critic review metadata,
+review-response matrix rows, open gaps, and review-independence metadata separately from task status. Manuscript gates use explicit statuses:
 `not_required`, `missing`, `partial`, `passed_with_caveats`, `passed`, or
 `waived_by_human`; waivers require human rationale. Use
 `async-research deliverable check` to verify whether a paper, memo, or report is
 actually ready for its target maturity; accepted source tasks alone do not make
 a deliverable shareable or submission-ready. Working papers and submission-ready
 manuscripts also need a distinct critic review with sufficient independence and
-a maturity-ceiling recommendation.
+a maturity-ceiling recommendation, and critical or major critique rows must be
+closed or explicitly human-waived in the response matrix.
 
 ## Worked Task Loop
 
@@ -370,7 +371,8 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research deliverable init research_ops --title "<title>" --output-type working_paper --target-maturity internal_draft` | Create a deliverable maturity manifest entry separate from task acceptance. | Existing `deliverables/deliverable_manifest.json`. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable target research_ops DELIV-0001 --target-audience "<audience>" --target-maturity working_paper` | Update target audience, venue/style profile, maturity, source task links, manuscript gate statuses, review independence, and open gaps. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
 | `async-research deliverable critic research_ops DELIV-0001 --independence-type separate_agent --confidence 0.8 --recommended-maturity-ceiling working_paper` | Record a distinct adversarial critic review with severity counts and required revision rows. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
-| `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, manuscript gates, open gaps, and review independence. | JSON to stdout only; read-only. |
+| `async-research deliverable response research_ops DELIV-0001 --source-review CRITIC-0001 --severity major --target-section Methods --issue "<issue>" --decision accepted --required-change "<change>" --owner "<owner>"` | Record or update a formal review-response matrix row. | Existing deliverable manifest and critic review context. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
+| `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, manuscript gates, critic review, response matrix, open gaps, and review independence. | JSON to stdout only; read-only. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |
@@ -526,7 +528,7 @@ specific diagnostic.
 | `analysis dashboard` | `0` dashboard rendered and analysis surface state is clean. | `2` dashboard rendered with analysis blockers, warnings, revalidation needs, or claim caps; `4` dashboard rendered with malformed analysis surface inputs. |
 | `analysis run-adapter` | `0` adapter plan or execution succeeded. | `2` preflight findings or adapter command failure; `3` unsupported adapter or invalid request; `4` malformed task state. |
 | `analysis preflight`, `analysis validate-run`, and `analysis validate-results` | `0` clean preflight or validation. | `2` blockers or reviewable warnings; `3` invalid request; `4` malformed task, manifest, output, or plan state. |
-| `deliverable init` and `deliverable target` | `0` manifest write succeeded. | `3` invalid request; `4` malformed manifest. |
+| `deliverable init`, `deliverable target`, and `deliverable response` | `0` manifest write succeeded. | `3` invalid request; `4` malformed manifest. |
 | `deliverable check` | `0` target maturity is ready. | `2` target maturity is not ready; `3` invalid request; `4` malformed manifest. |
 | `exploration validate` | `0` artifact passed. | `2` validation failed; `3` invalid request; `4` malformed artifact or task state. |
 | `idea catalog init` | `0` missing catalog files reported or created. | `2` catalog lock or concurrent creation blocked writes; `3` invalid flags; `4` malformed workspace path or write failure. |

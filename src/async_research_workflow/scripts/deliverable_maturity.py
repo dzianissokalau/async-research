@@ -45,6 +45,17 @@ CRITIC_REVIEWER_ROLE_CHOICES = (
     "human_editorial_critic",
 )
 SEVERITY_LEVELS = ("critical", "major", "minor", "note")
+MATERIAL_RESPONSE_SEVERITIES = {"critical", "major"}
+RESPONSE_MATRIX_ID_RE = re.compile(r"^RRM-[A-Za-z0-9][A-Za-z0-9-]*$")
+RESPONSE_MATRIX_DECISION_CHOICES = (
+    "accepted",
+    "modified",
+    "rejected_with_rationale",
+    "deferred",
+    "human_waived",
+)
+RESPONSE_MATRIX_STATUS_CHOICES = ("open", "in_progress", "closed")
+DERIVED_GATE_IDS = {"adversarial_review", "response_matrix_closed"}
 
 MATURITY_LEVELS: tuple[dict[str, Any], ...] = (
     {
@@ -594,6 +605,51 @@ def critic_review_shape_errors(rows: Any, item_path: str) -> list[dict[str, Any]
     return errors
 
 
+def response_matrix_shape_errors(rows: Any, item_path: str) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    if rows is None:
+        return errors
+    if not isinstance(rows, list):
+        return [{"reason": "response_matrix_not_array", "path": item_path, "message": "review_response_matrix must be an array"}]
+    for index, row in enumerate(rows):
+        row_path = f"{item_path}/review_response_matrix/{index}"
+        if not isinstance(row, dict):
+            errors.append({"reason": "response_matrix_row_not_object", "path": row_path, "message": "response matrix entries must be objects"})
+            continue
+        critique_id = str(row.get("critique_id") or "")
+        if not validate_response_matrix_id(critique_id):
+            errors.append({"reason": "invalid_response_matrix_id", "path": row_path, "message": "critique_id must start with RRM-", "critique_id": critique_id})
+        severity = str(row.get("severity") or "")
+        if severity not in SEVERITY_LEVELS:
+            errors.append({"reason": "invalid_response_matrix_severity", "path": row_path, "message": "severity must be critical, major, minor, or note", "severity": severity})
+        decision = str(row.get("decision") or "")
+        if decision not in RESPONSE_MATRIX_DECISION_CHOICES:
+            errors.append({"reason": "invalid_response_matrix_decision", "path": row_path, "message": "decision must be a known response-matrix decision", "decision": decision})
+        status = str(row.get("status") or "")
+        if status not in RESPONSE_MATRIX_STATUS_CHOICES:
+            errors.append({"reason": "invalid_response_matrix_status", "path": row_path, "message": "status must be a known response-matrix status", "status": status})
+        if decision in {"human_waived", "rejected_with_rationale"} and not field_has_value(row.get("response_rationale")):
+            errors.append(
+                {
+                    "reason": "response_rationale_required",
+                    "path": row_path,
+                    "message": f"{decision} response-matrix rows require response_rationale",
+                    "critique_id": critique_id,
+                }
+            )
+        closure_artifact = str(row.get("closure_artifact") or "")
+        if closure_artifact and not safe_relative_path(closure_artifact):
+            errors.append(
+                {
+                    "reason": "unsafe_response_matrix_closure_artifact",
+                    "path": row_path,
+                    "message": "closure_artifact must be relative to research_ops and cannot contain ..",
+                    "closure_artifact": closure_artifact,
+                }
+            )
+    return errors
+
+
 def manifest_path(ops_dir: Path) -> Path:
     return ops_dir / DELIVERABLES_DIR / MANIFEST_NAME
 
@@ -651,6 +707,7 @@ def manifest_shape_errors(payload: dict[str, Any], path: Path) -> list[dict[str,
                 errors.append({"reason": f"{field}_not_array", "path": item_path, "message": f"{field} must be an array"})
         errors.extend(manuscript_gate_shape_errors(item.get("manuscript_gates"), item_path))
         errors.extend(critic_review_shape_errors(item.get("critic_reviews"), item_path))
+        errors.extend(response_matrix_shape_errors(item.get("review_response_matrix"), item_path))
         review = item.get("review_independence", {})
         if not isinstance(review, dict):
             errors.append({"reason": "review_independence_not_object", "path": item_path, "message": "review_independence must be an object"})
@@ -708,6 +765,10 @@ def validate_critic_review_id(value: str) -> bool:
     return CRITIC_REVIEW_ID_RE.fullmatch(value) is not None
 
 
+def validate_response_matrix_id(value: str) -> bool:
+    return RESPONSE_MATRIX_ID_RE.fullmatch(value) is not None
+
+
 def next_deliverable_id(deliverables: list[dict[str, Any]]) -> str:
     existing = {
         int(match.group(1))
@@ -733,6 +794,19 @@ def next_critic_review_id(deliverable: dict[str, Any]) -> str:
     while value in existing:
         value += 1
     return f"CRITIC-{value:04d}"
+
+
+def next_response_matrix_id(deliverable: dict[str, Any]) -> str:
+    existing = {
+        int(match.group(1))
+        for item in response_matrix_rows(deliverable)
+        for match in [re.match(r"^RRM-([0-9]{4})$", str(item.get("critique_id", "")))]
+        if match is not None
+    }
+    value = 1
+    while value in existing:
+        value += 1
+    return f"RRM-{value:04d}"
 
 
 def find_deliverable(manifest: dict[str, Any], deliverable_id: str) -> dict[str, Any] | None:
@@ -880,6 +954,101 @@ def critic_review_gate_satisfied(deliverable: dict[str, Any], target_maturity: s
     return bool(critic_review_summary(deliverable, target_maturity)["satisfied"])
 
 
+def response_matrix_rows(deliverable: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = deliverable.get("review_response_matrix", [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def latest_critic_required_revision_rows(deliverable: dict[str, Any]) -> list[str]:
+    completed = completed_critic_reviews(deliverable)
+    latest_completed = completed[-1] if completed else None
+    rows = (latest_completed or {}).get("required_revision_rows", [])
+    if not isinstance(rows, list):
+        return []
+    return [str(item) for item in rows if str(item or "").strip()]
+
+
+def latest_critic_response_sources(deliverable: dict[str, Any]) -> set[str]:
+    completed = completed_critic_reviews(deliverable)
+    latest_completed = completed[-1] if completed else None
+    if latest_completed is None:
+        return set()
+    return {
+        source
+        for source in (
+            str(latest_completed.get("review_id") or "").strip(),
+            str(latest_completed.get("artifact_path") or "").strip(),
+        )
+        if source
+    }
+
+
+def response_matrix_row_resolved(row: dict[str, Any]) -> bool:
+    decision = str(row.get("decision") or "")
+    status = str(row.get("status") or "")
+    if decision == "human_waived":
+        return status == "closed" and field_has_value(row.get("response_rationale")) and field_has_value(row.get("owner"))
+    if decision == "rejected_with_rationale":
+        return status == "closed" and field_has_value(row.get("response_rationale"))
+    if decision in {"accepted", "modified"}:
+        return status == "closed" and field_has_value(row.get("closure_artifact"))
+    return False
+
+
+def response_matrix_summary(deliverable: dict[str, Any], target_maturity: str) -> dict[str, Any]:
+    rows = response_matrix_rows(deliverable)
+    required_revision_rows = latest_critic_required_revision_rows(deliverable)
+    required_revision_sources = latest_critic_response_sources(deliverable)
+    material_rows = [row for row in rows if str(row.get("severity") or "") in MATERIAL_RESPONSE_SEVERITIES]
+    unresolved_material = [row for row in material_rows if not response_matrix_row_resolved(row)]
+    closed_or_waived = [row for row in rows if response_matrix_row_resolved(row)]
+    required = MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["submission_ready_manuscript"] or (
+        MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"] and bool(required_revision_rows or material_rows)
+    )
+    resolved_tracked_required_rows = [
+        row
+        for row in rows
+        if not required_revision_sources or str(row.get("source_review") or "").strip() in required_revision_sources
+        if response_matrix_row_resolved(row)
+    ]
+    untracked_required_count = max(0, len(required_revision_rows) - len(resolved_tracked_required_rows))
+    satisfied = (not required or bool(rows)) and not unresolved_material and untracked_required_count == 0
+    if not required:
+        status = "not_required"
+    elif not rows:
+        status = "missing"
+    elif satisfied:
+        status = "passed"
+    else:
+        status = "partial"
+    return {
+        "required": required,
+        "status": status,
+        "satisfied": satisfied,
+        "row_count": len(rows),
+        "material_row_count": len(material_rows),
+        "closed_or_waived_count": len(closed_or_waived),
+        "unresolved_critical_major_count": len(unresolved_material),
+        "untracked_required_revision_count": untracked_required_count,
+        "required_revision_rows": required_revision_rows,
+        "required_revision_sources": sorted(required_revision_sources),
+        "rows": rows,
+    }
+
+
+def response_matrix_gate_satisfied(deliverable: dict[str, Any], target_maturity: str) -> bool:
+    return bool(response_matrix_summary(deliverable, target_maturity)["satisfied"])
+
+
+def response_matrix_ceiling(deliverable: dict[str, Any]) -> str:
+    summary = response_matrix_summary(deliverable, "working_paper")
+    if summary["unresolved_critical_major_count"] or summary["untracked_required_revision_count"]:
+        return "shareable_memo"
+    return "submission_ready_manuscript"
+
+
 def critic_ceiling(deliverable: dict[str, Any]) -> str:
     completed = completed_critic_reviews(deliverable)
     if not completed:
@@ -948,6 +1117,7 @@ def build_deliverable(args: argparse.Namespace, manifest: dict[str, Any], now: s
         "completed_gates": completed_gates,
         "manuscript_gates": manuscript_gates,
         "critic_reviews": [],
+        "review_response_matrix": [],
         "review_independence": review_independence_payload(
             target_maturity,
             args.review_independence,
@@ -1100,6 +1270,102 @@ def apply_critic_review(args: argparse.Namespace, deliverable: dict[str, Any], n
     return []
 
 
+def find_response_matrix_row(deliverable: dict[str, Any], critique_id: str) -> dict[str, Any] | None:
+    for row in response_matrix_rows(deliverable):
+        if row.get("critique_id") == critique_id:
+            return row
+    return None
+
+
+def build_response_matrix_row(args: argparse.Namespace, deliverable: dict[str, Any], now: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], bool]:
+    errors: list[dict[str, Any]] = []
+    critique_id = args.critique_id or next_response_matrix_id(deliverable)
+    if not validate_response_matrix_id(critique_id):
+        errors.append({"reason": "invalid_response_matrix_id", "message": "critique_id must start with RRM-", "critique_id": critique_id})
+    existing = find_response_matrix_row(deliverable, critique_id)
+    is_new = existing is None
+    if is_new:
+        for attr, field in (
+            ("source_review", "source_review"),
+            ("target_section", "target_section"),
+            ("issue", "issue"),
+            ("required_change", "required_change"),
+            ("owner", "owner"),
+        ):
+            if not field_has_value(getattr(args, attr, "")):
+                errors.append({"reason": "response_matrix_field_required", "message": f"new response-matrix rows require {field}", "field": field})
+    if args.closure_artifact and not safe_relative_path(args.closure_artifact):
+        errors.append(
+            {
+                "reason": "unsafe_response_matrix_closure_artifact",
+                "message": "closure artifact must be relative to research_ops and cannot contain ..",
+                "closure_artifact": args.closure_artifact,
+            }
+        )
+    if errors:
+        return None, errors, is_new
+
+    row = dict(existing) if existing is not None else {
+        "critique_id": critique_id,
+        "source_review": "",
+        "severity": "major",
+        "target_section": "",
+        "issue": "",
+        "decision": "accepted",
+        "required_change": "",
+        "response_rationale": "",
+        "owner": "",
+        "status": "open",
+        "closure_artifact": "",
+        "created_at": now,
+        "updated_at": now,
+    }
+    for field in (
+        "source_review",
+        "target_section",
+        "issue",
+        "required_change",
+        "response_rationale",
+        "owner",
+        "closure_artifact",
+    ):
+        value = getattr(args, field, None)
+        if value is not None:
+            row[field] = value.strip()
+    for field in ("severity", "decision", "status"):
+        value = getattr(args, field, None)
+        if value is not None:
+            row[field] = value
+    if row.get("decision") == "human_waived" and args.status is None:
+        row["status"] = "closed"
+    row["updated_at"] = now
+    shape_errors = response_matrix_shape_errors([row], "deliverable")
+    if shape_errors:
+        errors.extend({key: value for key, value in error.items() if key != "path"} for error in shape_errors)
+    return (None if errors else row), errors, is_new
+
+
+def apply_response_matrix_row(args: argparse.Namespace, deliverable: dict[str, Any], now: str) -> list[dict[str, Any]]:
+    row, errors, is_new = build_response_matrix_row(args, deliverable, now)
+    if errors or row is None:
+        return errors
+    rows = response_matrix_rows(deliverable)
+    if is_new:
+        rows.append(row)
+    else:
+        for index, current in enumerate(rows):
+            if current.get("critique_id") == row.get("critique_id"):
+                rows[index] = row
+                break
+    deliverable["review_response_matrix"] = rows
+    target_maturity = str(deliverable.get("target_maturity") or "research_note")
+    deliverable["required_gates"] = normalized_unique(list(deliverable.get("required_gates", [])) + required_gates_for(target_maturity))
+    if response_matrix_gate_satisfied(deliverable, target_maturity):
+        deliverable["completed_gates"] = normalized_unique(list(deliverable.get("completed_gates", [])) + ["response_matrix_closed"])
+    deliverable["updated_at"] = now
+    return []
+
+
 def gate_ceiling(deliverable: dict[str, Any]) -> str:
     completed = set(deliverable.get("completed_gates", []))
     highest = "research_note"
@@ -1107,11 +1373,16 @@ def gate_ceiling(deliverable: dict[str, Any]) -> str:
         required = set(required_gates_for(maturity))
         manuscript_rows = {row["gate_id"]: row for row in normalized_manuscript_gates(deliverable, maturity)}
         manuscript_gate_ids = set(manuscript_rows)
-        derived_required = {"adversarial_review"} & required
+        derived_required = DERIVED_GATE_IDS & required
         non_manuscript_required = required - manuscript_gate_ids - derived_required
         manuscript_required = required & manuscript_gate_ids
         manuscript_complete = all(gate_status_is_satisfied(manuscript_rows[gate]) for gate in manuscript_required)
-        derived_complete = all(critic_review_gate_satisfied(deliverable, maturity) for gate in derived_required)
+        derived_complete = all(
+            critic_review_gate_satisfied(deliverable, maturity)
+            if gate == "adversarial_review"
+            else response_matrix_gate_satisfied(deliverable, maturity)
+            for gate in derived_required
+        )
         if non_manuscript_required.issubset(completed) and manuscript_complete and derived_complete:
             highest = maturity
     return highest
@@ -1167,6 +1438,18 @@ def checklist(deliverable: dict[str, Any], target_maturity: str) -> list[dict[st
                     "required": True,
                     "satisfied": critic["satisfied"],
                     "critic_review": critic,
+                }
+            )
+            continue
+        if gate == "response_matrix_closed":
+            matrix = response_matrix_summary(deliverable, target_maturity)
+            rows.append(
+                {
+                    "gate": gate,
+                    "status": matrix["status"],
+                    "required": True,
+                    "satisfied": matrix["satisfied"],
+                    "response_matrix": matrix,
                 }
             )
             continue
@@ -1300,6 +1583,24 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                 "required_revision_count": len(critic["required_revision_rows"]),
             }
         )
+    response_matrix = response_matrix_summary(deliverable, target_maturity)
+    if MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"]:
+        if response_matrix["untracked_required_revision_count"]:
+            blockers.append(
+                {
+                    "reason": "response_matrix_missing_required_rows",
+                    "message": "critic-required revision rows must be tracked in the response matrix",
+                    "untracked_required_revision_count": response_matrix["untracked_required_revision_count"],
+                }
+            )
+        if response_matrix["unresolved_critical_major_count"]:
+            blockers.append(
+                {
+                    "reason": "response_matrix_open_critical_major",
+                    "message": "critical and major response-matrix rows must be closed or human-waived",
+                    "open_critical_major_count": response_matrix["unresolved_critical_major_count"],
+                }
+            )
     gaps = open_gap_rows(deliverable)
     unresolved_gaps = [gap for gap in gaps if str(gap.get("status", "open")).lower() not in {"closed", "resolved", "waived"}]
     if unresolved_gaps and MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"]:
@@ -1307,7 +1608,14 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
     elif unresolved_gaps:
         warnings.append({"reason": "open_gaps_present", "message": "open gaps must stay visible until closed or waived", "open_gap_count": len(unresolved_gaps)})
 
-    verified_ceiling = min_maturity(current_maturity, gate_ceiling(deliverable), metadata_ceiling(deliverable), independence_ceiling(deliverable), critic_ceiling(deliverable))
+    verified_ceiling = min_maturity(
+        current_maturity,
+        gate_ceiling(deliverable),
+        metadata_ceiling(deliverable),
+        independence_ceiling(deliverable),
+        critic_ceiling(deliverable),
+        response_matrix_ceiling(deliverable),
+    )
     target_ready = not blockers and MATURITY_ORDER[verified_ceiling] >= MATURITY_ORDER[target_maturity]
     if MATURITY_ORDER[current_maturity] > MATURITY_ORDER[verified_ceiling]:
         warnings.append(
@@ -1332,6 +1640,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
             "metadata_ceiling": metadata_ceiling(deliverable),
             "independence_ceiling": independence_ceiling(deliverable),
             "critic_ceiling": critic_ceiling(deliverable),
+            "response_matrix_ceiling": response_matrix_ceiling(deliverable),
             "taxonomy": [dict(item) for item in MATURITY_LEVELS],
         },
         "deliverable": {
@@ -1346,6 +1655,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         "checklist": rows,
         "manuscript_checklist": manuscript_rows,
         "critic_review": critic,
+        "response_matrix": response_matrix,
         "review_independence": {
             **review,
             "minimum_required": required_independence,
@@ -1378,6 +1688,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
         "open_gaps",
         "manuscript_gates",
         "critic_review",
+        "response_matrix",
         "waivers",
     ]
     lines = [
@@ -1395,6 +1706,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
         satisfied_manuscript = [row for row in required_manuscript if gate_status_is_satisfied(row)]
         waived_manuscript = [row for row in required_manuscript if row.get("status") == "waived_by_human"]
         critic = critic_review_summary(item, target_maturity)
+        matrix = response_matrix_summary(item, target_maturity)
         row = {
             "deliverable_id": item.get("deliverable_id"),
             "title": item.get("title"),
@@ -1407,6 +1719,7 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
             "open_gaps": len(open_gap_rows(item)),
             "manuscript_gates": f"{len(satisfied_manuscript)}/{len(required_manuscript)}",
             "critic_review": f"{critic['status']} ({critic['recommended_maturity_ceiling']})",
+            "response_matrix": f"{matrix['status']} ({matrix['closed_or_waived_count']}/{matrix['row_count']})",
             "waivers": len(waived_manuscript),
         }
         lines.append("| " + " | ".join(markdown_escape(row.get(column)) for column in header) + " |")
@@ -1473,6 +1786,26 @@ def cmd_critic(args: argparse.Namespace) -> int:
     write_manifest(args.ops_dir, manifest)
     model = read_model(args.ops_dir, item)
     print_json({"ok": True, "action": "deliverable_critic_recorded", **model})
+    return SUCCESS
+
+
+def cmd_response(args: argparse.Namespace) -> int:
+    now = args.now or utc_now()
+    manifest, errors = load_manifest(args.ops_dir)
+    if errors:
+        print_json({"ok": False, "action": "deliverable_response_failed", "errors": errors})
+        return MALFORMED
+    item = find_deliverable(manifest, args.deliverable_id)
+    if item is None:
+        print_json({"ok": False, "action": "deliverable_response_failed", "reason": "deliverable_missing", "deliverable_id": args.deliverable_id})
+        return INVALID_REQUEST
+    update_errors = apply_response_matrix_row(args, item, now)
+    if update_errors:
+        print_json({"ok": False, "action": "deliverable_response_failed", "errors": update_errors})
+        return INVALID_REQUEST
+    write_manifest(args.ops_dir, manifest)
+    model = read_model(args.ops_dir, item)
+    print_json({"ok": True, "action": "deliverable_response_recorded", **model})
     return SUCCESS
 
 
@@ -1573,6 +1906,23 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     critic.add_argument("--notes", help="Short critic-stage notes.")
     critic.add_argument("--now", help="Override current timestamp for deterministic tests.")
     critic.set_defaults(func=cmd_critic)
+
+    response = subparsers.add_parser("response", help="Record or update a review-response matrix row for one deliverable.")
+    add_common_options(response)
+    response.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    response.add_argument("--critique-id", help="Explicit response row id such as RRM-0001; defaults to the next available id.")
+    response.add_argument("--source-review", help="Source critic review id or artifact that raised the issue.")
+    response.add_argument("--severity", choices=SEVERITY_LEVELS, help="Critique severity.")
+    response.add_argument("--target-section", help="Deliverable section affected by the critique.")
+    response.add_argument("--issue", help="Critique issue being tracked.")
+    response.add_argument("--decision", choices=RESPONSE_MATRIX_DECISION_CHOICES, help="Response decision for this critique.")
+    response.add_argument("--required-change", help="Required change, rejected rationale target, or waiver scope.")
+    response.add_argument("--response-rationale", help="Rationale for modified, rejected, deferred, or human-waived decisions.")
+    response.add_argument("--owner", help="Human or agent owner responsible for closure.")
+    response.add_argument("--status", choices=RESPONSE_MATRIX_STATUS_CHOICES, help="Closure status for this response row.")
+    response.add_argument("--closure-artifact", help="Evidence artifact path relative to research_ops for closed accepted/modified rows.")
+    response.add_argument("--now", help="Override current timestamp for deterministic tests.")
+    response.set_defaults(func=cmd_response)
 
     check = subparsers.add_parser("check", help="Read-only deliverable readiness check.")
     add_common_options(check)

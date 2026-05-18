@@ -22,6 +22,9 @@ from async_research_workflow.scripts.deliverable_maturity import CRITIC_REVIEWER
 from async_research_workflow.scripts.deliverable_maturity import INDEPENDENCE_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import MATURITY_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import OUTPUT_TYPE_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_DECISION_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_STATUS_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import SEVERITY_LEVELS
 from async_research_workflow.scripts.task_authoring import TASK_TYPES
 
 
@@ -763,6 +766,28 @@ def run_deliverable_critic_command(args: argparse.Namespace) -> int:
         if value is not None:
             command_args.extend([flag, str(value)])
     command_args.extend(repeated_option("--required-revision-row", getattr(args, "required_revision_row", None)))
+    return module_main("deliverable_maturity", command_args)
+
+
+def run_deliverable_response_command(args: argparse.Namespace) -> int:
+    command_args = ["response", str(args.ops_dir), args.deliverable_id]
+    for flag, attr in (
+        ("--critique-id", "critique_id"),
+        ("--source-review", "source_review"),
+        ("--severity", "severity"),
+        ("--target-section", "target_section"),
+        ("--issue", "issue"),
+        ("--decision", "decision"),
+        ("--required-change", "required_change"),
+        ("--response-rationale", "response_rationale"),
+        ("--owner", "owner"),
+        ("--status", "status"),
+        ("--closure-artifact", "closure_artifact"),
+        ("--now", "now"),
+    ):
+        value = getattr(args, attr, None)
+        if value is not None:
+            command_args.extend([flag, str(value)])
     return module_main("deliverable_maturity", command_args)
 
 
@@ -2484,6 +2509,31 @@ def register_deliverable_commands(subparsers) -> None:
     critic.add_argument("--notes", help="Short critic-stage notes.")
     critic.add_argument("--now", help="Override current timestamp for deterministic tests.")
     critic.set_defaults(func=run_deliverable_critic_command)
+
+    response = add_command(
+        deliverable_sub,
+        "response",
+        help="Record a deliverable review-response row.",
+        description=(
+            "Add or update a formal review-response matrix row with critique id, severity, section, decision, "
+            "required change, owner, closure status, and closure artifact."
+        ),
+    )
+    add_required_ops(response)
+    response.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    response.add_argument("--critique-id", help="Explicit response row id such as RRM-0001.")
+    response.add_argument("--source-review", help="Source critic review id or artifact that raised the issue.")
+    response.add_argument("--severity", choices=SEVERITY_LEVELS, help="Critique severity.")
+    response.add_argument("--target-section", help="Deliverable section affected by the critique.")
+    response.add_argument("--issue", help="Critique issue being tracked.")
+    response.add_argument("--decision", choices=RESPONSE_MATRIX_DECISION_CHOICES, help="Response decision for this critique.")
+    response.add_argument("--required-change", help="Required change, rejected rationale target, or waiver scope.")
+    response.add_argument("--response-rationale", help="Rationale for modified, rejected, deferred, or human-waived decisions.")
+    response.add_argument("--owner", help="Human or agent owner responsible for closure.")
+    response.add_argument("--status", choices=RESPONSE_MATRIX_STATUS_CHOICES, help="Closure status for this response row.")
+    response.add_argument("--closure-artifact", help="Evidence artifact path relative to research_ops for closed accepted/modified rows.")
+    response.add_argument("--now", help="Override current timestamp for deterministic tests.")
+    response.set_defaults(func=run_deliverable_response_command)
 
     check = add_command(
         deliverable_sub,

@@ -379,6 +379,87 @@
               }
             }
           },
+          "review_response_matrix": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "critique_id",
+                "source_review",
+                "severity",
+                "target_section",
+                "issue",
+                "decision",
+                "required_change",
+                "response_rationale",
+                "owner",
+                "status",
+                "closure_artifact",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "critique_id": {
+                  "type": "string",
+                  "pattern": "^RRM-[A-Za-z0-9][A-Za-z0-9-]*$"
+                },
+                "source_review": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "major",
+                    "minor",
+                    "note"
+                  ]
+                },
+                "target_section": {
+                  "type": "string"
+                },
+                "issue": {
+                  "type": "string"
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "accepted",
+                    "modified",
+                    "rejected_with_rationale",
+                    "deferred",
+                    "human_waived"
+                  ]
+                },
+                "required_change": {
+                  "type": "string"
+                },
+                "response_rationale": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "in_progress",
+                    "closed"
+                  ]
+                },
+                "closure_artifact": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "review_independence": {
             "type": "object",
             "required": [

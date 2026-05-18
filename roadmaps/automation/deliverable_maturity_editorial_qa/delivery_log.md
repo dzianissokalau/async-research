@@ -128,3 +128,47 @@ Branch: `codex/deliverable-maturity-editorial-qa`
 ### Next Action
 
 - Deliver Phase 3: add the formal review-response matrix and block maturity promotion when severe rows remain open without human waiver.
+
+## Phase 3 - 2026-05-18
+
+Status: delivered
+Branch: `codex/deliverable-maturity-editorial-qa`
+
+### Scope
+
+- Formal review-response matrix rows for critic findings.
+- Machine-checkable severity, decision, owner, closure status, closure artifact, and human-waiver rationale.
+- Promotion blockers when critic-required rows are untracked/unresolved or critical/major rows remain open.
+- Read-model and manifest projection status for downstream dashboard work.
+
+### Changes
+
+- Added `async-research deliverable response` to append or update response-matrix rows in `deliverable_manifest.json`.
+- Added response-matrix schema validation, safe relative closure-artifact checks, Markdown projection summary, and read-model output.
+- Derived `response_matrix_closed` instead of trusting `--complete-gate all` for that gate.
+- Blocked working-paper and submission-ready checks when latest critic-required revision rows are not linked to closed/waived response rows.
+- Blocked critical/major response rows until closed or explicitly human-waived with rationale and owner.
+- Updated README/starter docs, CLI help coverage, targeted regressions, and acceptance-suite coverage.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 655 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_cli_help`: passed, 7 tests
+- `git diff --check`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/deliverable_maturity_editorial_qa/reviews/deliverable-maturity-editorial-qa-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Dashboard rendering and honest final-output labels remain deferred to Phase 4.
+- Phase 5 can add templates that encourage one response row per critic finding; Phase 3 enforces linkage and closure at the read-model/check gate.
+
+### Next Action
+
+- Deliver Phase 4: surface maturity/editorial QA status in dashboard/read models and avoid misleading final-output labels.

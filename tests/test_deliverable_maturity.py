@@ -95,6 +95,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual([], [error.to_dict() for error in validate(record, manifest)])
             self.assertEqual("DELIV-0001", record["deliverables"][0]["deliverable_id"])
             self.assertTrue(record["deliverables"][0]["manuscript_gates"])
+            self.assertEqual([], record["deliverables"][0]["review_response_matrix"])
             self.assertTrue(all(row["status"] == "not_required" for row in record["deliverables"][0]["manuscript_gates"]))
 
     def test_accepted_source_task_does_not_imply_working_paper_readiness(self) -> None:
@@ -389,13 +390,304 @@ class DeliverableMaturityTests(unittest.TestCase):
 
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
 
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertIn("response_matrix_missing_required_rows", {item["reason"] for item in checked["blockers"]})
+            self.assertEqual("shareable_memo", checked["maturity"]["response_matrix_ceiling"])
+
+            code, unrelated = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0101",
+                    "--critique-id",
+                    "RRM-UNRELATED-001",
+                    "--source-review",
+                    "CRITIC-9999",
+                    "--severity",
+                    "major",
+                    "--target-section",
+                    "Methods",
+                    "--issue",
+                    "A different review row is already closed.",
+                    "--decision",
+                    "accepted",
+                    "--required-change",
+                    "No-op fixture change.",
+                    "--owner",
+                    "paper owner",
+                    "--status",
+                    "closed",
+                    "--closure-artifact",
+                    "deliverables/revisions/unrelated.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, unrelated)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual(1, checked["response_matrix"]["untracked_required_revision_count"])
+
+            code, unresolved = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0101",
+                    "--critique-id",
+                    "RRM-0001",
+                    "--source-review",
+                    "CRITIC-0001",
+                    "--severity",
+                    "minor",
+                    "--target-section",
+                    "Related work",
+                    "--issue",
+                    "Related-work positioning needs tightening.",
+                    "--decision",
+                    "accepted",
+                    "--required-change",
+                    "Tighten related-work positioning.",
+                    "--owner",
+                    "paper owner",
+                    "--status",
+                    "open",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, unresolved)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual(1, checked["response_matrix"]["untracked_required_revision_count"])
+
+            code, response = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0101",
+                    "--critique-id",
+                    "RRM-0001",
+                    "--source-review",
+                    "CRITIC-0001",
+                    "--severity",
+                    "major",
+                    "--target-section",
+                    "Related work",
+                    "--issue",
+                    "Related-work positioning needs tightening.",
+                    "--decision",
+                    "accepted",
+                    "--required-change",
+                    "Tighten related-work positioning.",
+                    "--owner",
+                    "paper owner",
+                    "--status",
+                    "closed",
+                    "--closure-artifact",
+                    "deliverables/revisions/DELIV-0101-related-work.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, response)
+            self.assertEqual("passed", response["response_matrix"]["status"])
+            self.assertEqual(2, response["response_matrix"]["closed_or_waived_count"])
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
+
             self.assertEqual(cli.SUCCESS, code, checked)
             adversarial = next(row for row in checked["checklist"] if row["gate"] == "adversarial_review")
             self.assertEqual("passed", adversarial["status"])
             self.assertTrue(adversarial["satisfied"])
             self.assertEqual("separate_agent", checked["review_independence"]["achieved"])
             self.assertEqual("working_paper", checked["maturity"]["critic_ceiling"])
-            self.assertIn("critic_required_revision_rows_present", {item["reason"] for item in checked["warnings"]})
+            self.assertEqual("submission_ready_manuscript", checked["maturity"]["response_matrix_ceiling"])
+
+    def test_open_material_response_matrix_rows_block_until_closed_or_human_waived(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0105", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0105",
+                    "--title",
+                    "Response-matrix gated working paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0105",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0105",
+                    "--independence-type",
+                    "separate_agent",
+                    "--confidence",
+                    "0.84",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+
+            code, response = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0105",
+                    "--critique-id",
+                    "RRM-0001",
+                    "--source-review",
+                    "CRITIC-0001",
+                    "--severity",
+                    "critical",
+                    "--target-section",
+                    "Methods",
+                    "--issue",
+                    "Methods evidence is not yet reproducible.",
+                    "--decision",
+                    "accepted",
+                    "--required-change",
+                    "Add reproducibility notes and artifacts.",
+                    "--owner",
+                    "paper owner",
+                    "--status",
+                    "open",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0105"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertIn("response_matrix_open_critical_major", {item["reason"] for item in checked["blockers"]})
+            self.assertEqual(1, checked["response_matrix"]["unresolved_critical_major_count"])
+
+            code, invalid = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0105",
+                    "--critique-id",
+                    "RRM-0001",
+                    "--decision",
+                    "human_waived",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, invalid)
+            self.assertIn("response_rationale_required", {item["reason"] for item in invalid["errors"]})
+
+            code, waived = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0105",
+                    "--critique-id",
+                    "RRM-0001",
+                    "--decision",
+                    "human_waived",
+                    "--response-rationale",
+                    "Human owner accepts the reproducibility risk for this public working paper.",
+                    "--owner",
+                    "human paper owner",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, waived)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0105"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertEqual(0, checked["response_matrix"]["unresolved_critical_major_count"])
+            self.assertEqual("human_waived", checked["response_matrix"]["rows"][0]["decision"])
+
+    def test_response_matrix_closure_artifact_must_be_safe_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0106",
+                    "--title",
+                    "Unsafe closure path fixture",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, response = run_cli_json(
+                [
+                    "deliverable",
+                    "response",
+                    ops_dir,
+                    "DELIV-0106",
+                    "--source-review",
+                    "CRITIC-0001",
+                    "--severity",
+                    "major",
+                    "--target-section",
+                    "References",
+                    "--issue",
+                    "Bibliography update needs proof.",
+                    "--decision",
+                    "accepted",
+                    "--required-change",
+                    "Add the missing bibliography proof.",
+                    "--owner",
+                    "paper owner",
+                    "--status",
+                    "closed",
+                    "--closure-artifact",
+                    "../outside.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, response)
+            self.assertIn("unsafe_response_matrix_closure_artifact", {item["reason"] for item in response["errors"]})
 
     def test_same_agent_critic_review_is_visible_but_below_required_independence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
