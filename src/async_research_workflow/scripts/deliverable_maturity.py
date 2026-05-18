@@ -765,6 +765,9 @@ def load_manifest(ops_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 def safe_relative_path(value: str) -> bool:
     if not value:
         return True
+    text = str(value)
+    if "\x00" in text or "\\" in text or text.startswith("~") or re.match(r"^[A-Za-z]:", text):
+        return False
     path = Path(value)
     return not path.is_absolute() and ".." not in path.parts
 
@@ -990,6 +993,18 @@ def latest_critic_required_revision_rows(deliverable: dict[str, Any]) -> list[st
     return [str(item) for item in rows if str(item or "").strip()]
 
 
+def required_revision_row_id(value: str) -> str:
+    match = re.match(r"^(RRM-[A-Za-z0-9][A-Za-z0-9-]*)\b", str(value or "").strip())
+    return match.group(1) if match else ""
+
+
+def latest_critic_material_finding_count(deliverable: dict[str, Any]) -> int:
+    completed = completed_critic_reviews(deliverable)
+    latest_completed = completed[-1] if completed else None
+    distribution = normalize_severity_distribution((latest_completed or {}).get("severity_distribution", {}))
+    return sum(distribution[level] for level in MATERIAL_RESPONSE_SEVERITIES)
+
+
 def latest_critic_response_sources(deliverable: dict[str, Any]) -> set[str]:
     completed = completed_critic_reviews(deliverable)
     latest_completed = completed[-1] if completed else None
@@ -1020,21 +1035,41 @@ def response_matrix_row_resolved(row: dict[str, Any]) -> bool:
 def response_matrix_summary(deliverable: dict[str, Any], target_maturity: str) -> dict[str, Any]:
     rows = response_matrix_rows(deliverable)
     required_revision_rows = latest_critic_required_revision_rows(deliverable)
+    explicit_required_ids = [row_id for row_id in (required_revision_row_id(row) for row in required_revision_rows) if row_id]
+    free_text_required_count = len(required_revision_rows) - len(explicit_required_ids)
     required_revision_sources = latest_critic_response_sources(deliverable)
+    critic_material_finding_count = latest_critic_material_finding_count(deliverable)
     material_rows = [row for row in rows if str(row.get("severity") or "") in MATERIAL_RESPONSE_SEVERITIES]
     unresolved_material = [row for row in material_rows if not response_matrix_row_resolved(row)]
     closed_or_waived = [row for row in rows if response_matrix_row_resolved(row)]
     required = MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["submission_ready_manuscript"] or (
-        MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"] and bool(required_revision_rows or material_rows)
+        MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["working_paper"]
+        and bool(required_revision_rows or material_rows or critic_material_finding_count)
     )
-    resolved_tracked_required_rows = [
+    resolved_tracked_rows = [
         row
         for row in rows
         if not required_revision_sources or str(row.get("source_review") or "").strip() in required_revision_sources
         if response_matrix_row_resolved(row)
     ]
-    untracked_required_count = max(0, len(required_revision_rows) - len(resolved_tracked_required_rows))
-    satisfied = (not required or bool(rows)) and not unresolved_material and untracked_required_count == 0
+    explicit_required_id_set = set(explicit_required_ids)
+    resolved_tracked_ids = {str(row.get("critique_id") or "") for row in resolved_tracked_rows}
+    unresolved_explicit_ids = [row_id for row_id in explicit_required_ids if row_id not in resolved_tracked_ids]
+    remaining_resolved_required_rows = [
+        row for row in resolved_tracked_rows if str(row.get("critique_id") or "") not in explicit_required_id_set
+    ]
+    free_text_untracked_count = max(0, free_text_required_count - len(remaining_resolved_required_rows))
+    untracked_required_count = len(unresolved_explicit_ids) + free_text_untracked_count
+    resolved_tracked_material_rows = [
+        row for row in resolved_tracked_rows if str(row.get("severity") or "") in MATERIAL_RESPONSE_SEVERITIES
+    ]
+    untracked_material_count = max(0, critic_material_finding_count - len(resolved_tracked_material_rows))
+    satisfied = (
+        (not required or bool(rows))
+        and not unresolved_material
+        and untracked_required_count == 0
+        and untracked_material_count == 0
+    )
     if not required:
         status = "not_required"
     elif not rows:
@@ -1052,6 +1087,10 @@ def response_matrix_summary(deliverable: dict[str, Any], target_maturity: str) -
         "closed_or_waived_count": len(closed_or_waived),
         "unresolved_critical_major_count": len(unresolved_material),
         "untracked_required_revision_count": untracked_required_count,
+        "untracked_material_finding_count": untracked_material_count,
+        "critic_material_finding_count": critic_material_finding_count,
+        "explicit_required_revision_ids": explicit_required_ids,
+        "unresolved_required_revision_ids": unresolved_explicit_ids,
         "required_revision_rows": required_revision_rows,
         "required_revision_sources": sorted(required_revision_sources),
         "rows": rows,
@@ -1064,7 +1103,11 @@ def response_matrix_gate_satisfied(deliverable: dict[str, Any], target_maturity:
 
 def response_matrix_ceiling(deliverable: dict[str, Any]) -> str:
     summary = response_matrix_summary(deliverable, "working_paper")
-    if summary["unresolved_critical_major_count"] or summary["untracked_required_revision_count"]:
+    if (
+        summary["unresolved_critical_major_count"]
+        or summary["untracked_required_revision_count"]
+        or summary["untracked_material_finding_count"]
+    ):
         return "shareable_memo"
     return "submission_ready_manuscript"
 
@@ -1707,7 +1750,11 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                 "completed_count": critic["completed_count"],
             }
         )
-    if critic["required"] and MATURITY_ORDER[critic["recommended_maturity_ceiling"]] < MATURITY_ORDER[target_maturity]:
+    if (
+        critic["required"]
+        and critic["completed_count"]
+        and MATURITY_ORDER[critic["recommended_maturity_ceiling"]] < MATURITY_ORDER[target_maturity]
+    ):
         blockers.append(
             {
                 "reason": "critic_recommended_ceiling_below_target",
@@ -1732,6 +1779,16 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                     "reason": "response_matrix_missing_required_rows",
                     "message": "critic-required revision rows must be tracked in the response matrix",
                     "untracked_required_revision_count": response_matrix["untracked_required_revision_count"],
+                    "unresolved_required_revision_ids": response_matrix["unresolved_required_revision_ids"],
+                }
+            )
+        if response_matrix["untracked_material_finding_count"]:
+            blockers.append(
+                {
+                    "reason": "response_matrix_missing_material_findings",
+                    "message": "critic critical and major findings must be tracked in the response matrix",
+                    "untracked_material_finding_count": response_matrix["untracked_material_finding_count"],
+                    "critic_material_finding_count": response_matrix["critic_material_finding_count"],
                 }
             )
         if response_matrix["unresolved_critical_major_count"]:

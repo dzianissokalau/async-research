@@ -493,6 +493,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
             reasons = {item["reason"] for item in checked["blockers"]}
             self.assertIn("critic_review_missing", reasons)
+            self.assertNotIn("critic_recommended_ceiling_below_target", reasons)
             adversarial = next(row for row in checked["checklist"] if row["gate"] == "adversarial_review")
             self.assertEqual("missing", adversarial["status"])
             self.assertFalse(adversarial["satisfied"])
@@ -548,7 +549,7 @@ class DeliverableMaturityTests(unittest.TestCase):
                     "--major",
                     "1",
                     "--required-revision-row",
-                    "RRM-001: tighten related-work positioning",
+                    "RRM-0001: tighten related-work positioning",
                     "--review-task-id",
                     "TASK-0102",
                     "--artifact-path",
@@ -562,7 +563,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertTrue(critic["critic_review"]["satisfied"])
             self.assertEqual("CRITIC-0001", critic["critic_review"]["eligible_review_id"])
             self.assertEqual(1, critic["critic_review"]["severity_distribution"]["major"])
-            self.assertEqual(["RRM-001: tighten related-work positioning"], critic["critic_review"]["required_revision_rows"])
+            self.assertEqual(["RRM-0001: tighten related-work positioning"], critic["critic_review"]["required_revision_rows"])
 
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
 
@@ -683,6 +684,252 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual("separate_agent", checked["review_independence"]["achieved"])
             self.assertEqual("working_paper", checked["maturity"]["critic_ceiling"])
             self.assertEqual("submission_ready_manuscript", checked["maturity"]["response_matrix_ceiling"])
+
+    def test_critic_material_severity_counts_require_response_matrix_tracking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0110", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0110",
+                    "--title",
+                    "Critic severity count working paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0110",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0110",
+                    "--independence-type",
+                    "separate_agent",
+                    "--reviewer",
+                    "adversarial manuscript critic",
+                    "--model-or-reviewer",
+                    "separate reviewer fixture",
+                    "--confidence",
+                    "0.84",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--critical",
+                    "1",
+                    "--major",
+                    "1",
+                    "--review-task-id",
+                    "TASK-0111",
+                    "--artifact-path",
+                    "deliverables/critic_reviews/DELIV-0110-CRITIC-0001.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+            self.assertEqual([], critic["critic_review"]["required_revision_rows"])
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0110"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual("missing", checked["response_matrix"]["status"])
+            self.assertEqual(2, checked["response_matrix"]["critic_material_finding_count"])
+            self.assertEqual(2, checked["response_matrix"]["untracked_material_finding_count"])
+            self.assertIn("response_matrix_missing_material_findings", {item["reason"] for item in checked["blockers"]})
+            self.assertEqual("shareable_memo", checked["maturity"]["response_matrix_ceiling"])
+
+            for critique_id, severity in (("RRM-0001", "critical"), ("RRM-0002", "major")):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0110",
+                        "--critique-id",
+                        critique_id,
+                        "--source-review",
+                        "CRITIC-0001",
+                        "--severity",
+                        severity,
+                        "--target-section",
+                        "Argument",
+                        "--issue",
+                        f"{critique_id} material critic finding.",
+                        "--decision",
+                        "accepted",
+                        "--required-change",
+                        "Address the material critic finding.",
+                        "--owner",
+                        "paper owner",
+                        "--status",
+                        "closed",
+                        "--closure-artifact",
+                        f"deliverables/revisions/{critique_id}.md",
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0110"])
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertEqual("passed", checked["response_matrix"]["status"])
+            self.assertEqual(0, checked["response_matrix"]["untracked_material_finding_count"])
+
+    def test_explicit_required_revision_row_ids_must_match_response_matrix_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0112", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0112",
+                    "--title",
+                    "Explicit required row identity working paper",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0112",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, critic = run_cli_json(
+                [
+                    "deliverable",
+                    "critic",
+                    ops_dir,
+                    "DELIV-0112",
+                    "--independence-type",
+                    "separate_agent",
+                    "--reviewer",
+                    "adversarial manuscript critic",
+                    "--model-or-reviewer",
+                    "separate reviewer fixture",
+                    "--confidence",
+                    "0.84",
+                    "--recommended-maturity-ceiling",
+                    "working_paper",
+                    "--required-revision-row",
+                    "RRM-NEEDED-001: revise methods",
+                    "--required-revision-row",
+                    "RRM-NEEDED-002: revise citations",
+                    "--review-task-id",
+                    "TASK-0113",
+                    "--artifact-path",
+                    "deliverables/critic_reviews/DELIV-0112-CRITIC-0001.md",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, critic)
+
+            for critique_id in ("RRM-OTHER-001", "RRM-OTHER-002"):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0112",
+                        "--critique-id",
+                        critique_id,
+                        "--source-review",
+                        "CRITIC-0001",
+                        "--severity",
+                        "major",
+                        "--target-section",
+                        "Methods",
+                        "--issue",
+                        f"{critique_id} unrelated row.",
+                        "--decision",
+                        "accepted",
+                        "--required-change",
+                        "Close a different row.",
+                        "--owner",
+                        "paper owner",
+                        "--status",
+                        "closed",
+                        "--closure-artifact",
+                        f"deliverables/revisions/{critique_id}.md",
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0112"])
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            self.assertEqual(2, checked["response_matrix"]["untracked_required_revision_count"])
+            self.assertEqual(["RRM-NEEDED-001", "RRM-NEEDED-002"], checked["response_matrix"]["unresolved_required_revision_ids"])
+            self.assertIn("response_matrix_missing_required_rows", {item["reason"] for item in checked["blockers"]})
+
+            for critique_id in ("RRM-NEEDED-001", "RRM-NEEDED-002"):
+                code, response = run_cli_json(
+                    [
+                        "deliverable",
+                        "response",
+                        ops_dir,
+                        "DELIV-0112",
+                        "--critique-id",
+                        critique_id,
+                        "--source-review",
+                        "CRITIC-0001",
+                        "--severity",
+                        "major",
+                        "--target-section",
+                        "Methods",
+                        "--issue",
+                        f"{critique_id} required row.",
+                        "--decision",
+                        "accepted",
+                        "--required-change",
+                        "Close the required row.",
+                        "--owner",
+                        "paper owner",
+                        "--status",
+                        "closed",
+                        "--closure-artifact",
+                        f"deliverables/revisions/{critique_id}.md",
+                        "--now",
+                        NOW,
+                    ]
+                )
+                self.assertEqual(cli.SUCCESS, code, response)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0112"])
+            self.assertEqual(cli.SUCCESS, code, checked)
+            self.assertEqual(0, checked["response_matrix"]["untracked_required_revision_count"])
+            self.assertEqual([], checked["response_matrix"]["unresolved_required_revision_ids"])
 
     def test_open_material_response_matrix_rows_block_until_closed_or_human_waived(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -833,37 +1080,47 @@ class DeliverableMaturityTests(unittest.TestCase):
             )
             self.assertEqual(cli.SUCCESS, code, payload)
 
-            code, response = run_cli_json(
-                [
-                    "deliverable",
-                    "response",
-                    ops_dir,
-                    "DELIV-0106",
-                    "--source-review",
-                    "CRITIC-0001",
-                    "--severity",
-                    "major",
-                    "--target-section",
-                    "References",
-                    "--issue",
-                    "Bibliography update needs proof.",
-                    "--decision",
-                    "accepted",
-                    "--required-change",
-                    "Add the missing bibliography proof.",
-                    "--owner",
-                    "paper owner",
-                    "--status",
-                    "closed",
-                    "--closure-artifact",
-                    "../outside.md",
-                    "--now",
-                    NOW,
-                ]
-            )
+            unsafe_paths = [
+                "../outside.md",
+                "C:/Windows/system32",
+                "C:\\Windows\\system32",
+                "foo\\..\\bar",
+                "~/secret.md",
+                "foo\x00bar.md",
+            ]
+            for unsafe_path in unsafe_paths:
+                with self.subTest(unsafe_path=unsafe_path):
+                    code, response = run_cli_json(
+                        [
+                            "deliverable",
+                            "response",
+                            ops_dir,
+                            "DELIV-0106",
+                            "--source-review",
+                            "CRITIC-0001",
+                            "--severity",
+                            "major",
+                            "--target-section",
+                            "References",
+                            "--issue",
+                            "Bibliography update needs proof.",
+                            "--decision",
+                            "accepted",
+                            "--required-change",
+                            "Add the missing bibliography proof.",
+                            "--owner",
+                            "paper owner",
+                            "--status",
+                            "closed",
+                            "--closure-artifact",
+                            unsafe_path,
+                            "--now",
+                            NOW,
+                        ]
+                    )
 
-            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, response)
-            self.assertIn("unsafe_response_matrix_closure_artifact", {item["reason"] for item in response["errors"]})
+                    self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, response)
+                    self.assertIn("unsafe_response_matrix_closure_artifact", {item["reason"] for item in response["errors"]})
 
     def test_same_agent_critic_review_is_visible_but_below_required_independence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
