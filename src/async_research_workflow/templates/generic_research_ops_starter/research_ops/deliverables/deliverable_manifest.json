@@ -1,0 +1,37 @@
+{
+  "deliverables": [],
+  "framework_version": "deliverable_maturity_v1.0",
+  "maturity_taxonomy": [
+    {
+      "id": "research_note",
+      "label": "Research note",
+      "level": 0,
+      "meaning": "Bounded finding or evidence note for internal use."
+    },
+    {
+      "id": "internal_draft",
+      "label": "Internal draft",
+      "level": 1,
+      "meaning": "Coherent internal synthesis assembled from accepted task outputs."
+    },
+    {
+      "id": "shareable_memo",
+      "label": "Shareable memo",
+      "level": 2,
+      "meaning": "Polished memo for a known non-academic audience."
+    },
+    {
+      "id": "working_paper",
+      "label": "Working paper",
+      "level": 3,
+      "meaning": "Public working paper or preprint-quality research artifact."
+    },
+    {
+      "id": "submission_ready_manuscript",
+      "label": "Submission-ready manuscript",
+      "level": 4,
+      "meaning": "Venue-targeted manuscript ready for journal or conference submission workflow."
+    }
+  ],
+  "schema_version": "1.0"
+}

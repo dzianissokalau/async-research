@@ -42,6 +42,10 @@ def artifact_paths(ops_dir: Path) -> list[tuple[Path, str]]:
     if health_report.exists():
         paths.append((health_report, "health_report"))
 
+    deliverable_manifest = ops_dir / "deliverables" / "deliverable_manifest.json"
+    if deliverable_manifest.exists():
+        paths.append((deliverable_manifest, "deliverable_manifest"))
+
     return paths
 
 

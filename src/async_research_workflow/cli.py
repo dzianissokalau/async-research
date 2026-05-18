@@ -17,6 +17,9 @@ from async_research_workflow import __version__
 from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
+from async_research_workflow.scripts.deliverable_maturity import INDEPENDENCE_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import MATURITY_CHOICES
+from async_research_workflow.scripts.deliverable_maturity import OUTPUT_TYPE_CHOICES
 from async_research_workflow.scripts.task_authoring import TASK_TYPES
 
 
@@ -679,6 +682,62 @@ def run_outcomes_command(args: argparse.Namespace) -> int:
     if args.outcomes_command == "list":
         command_args.extend(["--status", args.status])
     return outcomes.main(command_args)
+
+
+def deliverable_update_options(args: argparse.Namespace, *, include_id: bool = False) -> list[str]:
+    command_args: list[str] = []
+    if include_id and getattr(args, "deliverable_id", None):
+        command_args.extend(["--deliverable-id", args.deliverable_id])
+    for flag, attr in (
+        ("--title", "title"),
+        ("--output-type", "output_type"),
+        ("--target-maturity", "target_maturity"),
+        ("--current-maturity", "current_maturity"),
+        ("--target-audience", "target_audience"),
+        ("--target-venue", "target_venue"),
+        ("--primary-artifact", "primary_artifact"),
+        ("--owner", "owner"),
+        ("--review-independence", "review_independence"),
+        ("--reviewer", "reviewer"),
+        ("--review-notes", "review_notes"),
+        ("--last-reviewed-at", "last_reviewed_at"),
+        ("--now", "now"),
+    ):
+        value = getattr(args, attr, None)
+        if value is not None:
+            command_args.extend([flag, str(value)])
+    for flag, attr in (
+        ("--source-task", "source_task"),
+        ("--required-gate", "required_gate"),
+        ("--complete-gate", "complete_gate"),
+        ("--open-gap", "open_gap"),
+    ):
+        command_args.extend(repeated_option(flag, getattr(args, attr, None)))
+    if getattr(args, "clear_open_gaps", False):
+        command_args.append("--clear-open-gaps")
+    return command_args
+
+
+def run_deliverable_init_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "deliverable_maturity",
+        ["init", str(args.ops_dir)] + deliverable_update_options(args, include_id=True),
+    )
+
+
+def run_deliverable_target_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "deliverable_maturity",
+        ["target", str(args.ops_dir), args.deliverable_id] + deliverable_update_options(args),
+    )
+
+
+def run_deliverable_check_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "deliverable_maturity",
+        ["check", str(args.ops_dir), args.deliverable_id]
+        + optional_text("--target-maturity", args.target_maturity),
+    )
 
 
 def run_queue_discovery_gate_command(args: argparse.Namespace) -> int:
@@ -2296,6 +2355,82 @@ def register_outcomes_commands(subparsers) -> None:
     summary.set_defaults(func=run_outcomes_command)
 
 
+def add_deliverable_update_arguments(parser: argparse.ArgumentParser, *, init: bool) -> None:
+    if init:
+        parser.add_argument("--deliverable-id", help="Explicit deliverable id such as DELIV-0001.")
+        parser.add_argument("--title", required=True, help="Human-readable deliverable title.")
+        parser.add_argument("--output-type", choices=OUTPUT_TYPE_CHOICES, required=True, help="Declared deliverable output type.")
+        parser.add_argument("--target-maturity", choices=MATURITY_CHOICES, default="internal_draft", help="Intended deliverable maturity level.")
+        parser.add_argument("--current-maturity", choices=MATURITY_CHOICES, default="research_note", help="Current declared maturity level.")
+    else:
+        parser.add_argument("--title", help="Human-readable deliverable title.")
+        parser.add_argument("--output-type", choices=OUTPUT_TYPE_CHOICES, help="Declared deliverable output type.")
+        parser.add_argument("--target-maturity", choices=MATURITY_CHOICES, help="Intended deliverable maturity level.")
+        parser.add_argument("--current-maturity", choices=MATURITY_CHOICES, help="Current declared maturity level.")
+    parser.add_argument("--target-audience", help="Known reader or audience for shareable and external deliverables.")
+    parser.add_argument("--target-venue", help="Venue, publication, client, or submission target.")
+    parser.add_argument("--source-task", action="append", default=[], help="Accepted source task id to link, such as TASK-0001. Repeatable.")
+    parser.add_argument("--primary-artifact", help="Primary artifact path relative to research_ops.")
+    parser.add_argument("--owner", help="Human or agent owner for maturity follow-through.")
+    parser.add_argument("--required-gate", action="append", default=[], help="Additional gate id to require. Repeatable.")
+    parser.add_argument("--complete-gate", action="append", default=[], help="Completed gate id to mark; use `all` to mark all required gates.")
+    parser.add_argument("--review-independence", choices=INDEPENDENCE_CHOICES, help="Achieved deliverable-review independence.")
+    parser.add_argument("--reviewer", help="Reviewer identity or role for the latest maturity review.")
+    parser.add_argument("--review-notes", help="Short review-independence note.")
+    parser.add_argument("--open-gap", action="append", default=[], help="Open deliverable gap that must remain visible. Repeatable.")
+    parser.add_argument("--last-reviewed-at", help="ISO-8601 timestamp for the latest deliverable-level review.")
+    parser.add_argument("--now", help="Override current timestamp for deterministic tests.")
+    if not init:
+        parser.add_argument("--clear-open-gaps", action="store_true", help="Clear open gaps after they are resolved or waived elsewhere.")
+
+
+def register_deliverable_commands(subparsers) -> None:
+    deliverable = add_command(
+        subparsers,
+        "deliverable",
+        help="Manage deliverable maturity separate from task acceptance.",
+        description=(
+            "Create target manifests and run read-only readiness checks for papers, memos, and reports. "
+            "Accepted task outputs are source evidence, not deliverable readiness."
+        ),
+    )
+    deliverable_sub = deliverable.add_subparsers(dest="deliverable_command", required=True)
+    init = add_command(
+        deliverable_sub,
+        "init",
+        help="Create a deliverable maturity manifest entry.",
+        description="Create or append research_ops/deliverables/deliverable_manifest.json and its human-readable projection.",
+    )
+    add_required_ops(init)
+    add_deliverable_update_arguments(init, init=True)
+    init.set_defaults(func=run_deliverable_init_command)
+
+    target = add_command(
+        deliverable_sub,
+        "target",
+        help="Update target metadata and maturity gates.",
+        description="Update target audience, venue, maturity, source task links, completed gates, review independence, and open gaps.",
+    )
+    add_required_ops(target)
+    target.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    add_deliverable_update_arguments(target, init=False)
+    target.set_defaults(func=run_deliverable_target_command)
+
+    check = add_command(
+        deliverable_sub,
+        "check",
+        help="Check deliverable readiness without mutating files.",
+        description=(
+            "Return maturity, checklist, source-task, review-independence, and open-gap status. "
+            "Exits 0 only when the target maturity is actually ready; accepted source tasks alone are insufficient."
+        ),
+    )
+    add_required_ops(check)
+    check.add_argument("deliverable_id", help="Deliverable id such as DELIV-0001.")
+    check.add_argument("--target-maturity", choices=MATURITY_CHOICES, help="Override the target maturity for this check only.")
+    check.set_defaults(func=run_deliverable_check_command)
+
+
 def register_anti_context_commands(subparsers) -> None:
     anti_context = add_command(
         subparsers,
@@ -2838,6 +2973,7 @@ COMMAND_REGISTRARS = (
     register_metrics_commands,
     register_accepted_commands,
     register_outcomes_commands,
+    register_deliverable_commands,
     register_anti_context_commands,
     register_review_commands,
     register_revision_commands,

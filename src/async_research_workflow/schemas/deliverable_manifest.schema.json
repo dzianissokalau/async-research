@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Deliverable Maturity Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "maturity_taxonomy",
+    "deliverables"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "deliverable_maturity_v1.0"
+      ]
+    },
+    "maturity_taxonomy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "level",
+          "id",
+          "label",
+          "meaning"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "id": {
+            "type": "string",
+            "enum": [
+              "research_note",
+              "internal_draft",
+              "shareable_memo",
+              "working_paper",
+              "submission_ready_manuscript"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "meaning": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "framework_version",
+          "deliverable_id",
+          "title",
+          "output_type",
+          "target_audience",
+          "target_venue",
+          "target_maturity",
+          "current_maturity",
+          "source_task_ids",
+          "primary_artifact",
+          "owner",
+          "required_gates",
+          "completed_gates",
+          "review_independence",
+          "open_gaps",
+          "last_reviewed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "framework_version": {
+            "type": "string",
+            "enum": [
+              "deliverable_maturity_v1.0"
+            ]
+          },
+          "deliverable_id": {
+            "type": "string",
+            "pattern": "^DELIV-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "output_type": {
+            "type": "string",
+            "enum": [
+              "research_note",
+              "internal_draft",
+              "memo",
+              "report",
+              "paper",
+              "working_paper",
+              "manuscript",
+              "presentation",
+              "other"
+            ]
+          },
+          "target_audience": {
+            "type": "string"
+          },
+          "target_venue": {
+            "type": "string"
+          },
+          "target_maturity": {
+            "type": "string",
+            "enum": [
+              "research_note",
+              "internal_draft",
+              "shareable_memo",
+              "working_paper",
+              "submission_ready_manuscript"
+            ]
+          },
+          "current_maturity": {
+            "type": "string",
+            "enum": [
+              "research_note",
+              "internal_draft",
+              "shareable_memo",
+              "working_paper",
+              "submission_ready_manuscript"
+            ]
+          },
+          "source_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^TASK-[0-9]{4}$"
+            }
+          },
+          "primary_artifact": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "required_gates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "completed_gates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_independence": {
+            "type": "object",
+            "required": [
+              "minimum_required",
+              "achieved",
+              "same_agent_review",
+              "reviewer",
+              "notes"
+            ],
+            "properties": {
+              "minimum_required": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "same_agent_visible",
+                  "separate_agent",
+                  "different_model",
+                  "human",
+                  "external"
+                ]
+              },
+              "achieved": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "same_agent_visible",
+                  "separate_agent",
+                  "different_model",
+                  "human",
+                  "external"
+                ]
+              },
+              "same_agent_review": {
+                "type": "boolean"
+              },
+              "reviewer": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          },
+          "open_gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "gap_id",
+                "severity",
+                "description",
+                "status",
+                "source"
+              ],
+              "properties": {
+                "gap_id": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "last_reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

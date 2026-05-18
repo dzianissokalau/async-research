@@ -69,6 +69,7 @@ class CliHelpTests(unittest.TestCase):
                 "anti-context",
                 "revision",
                 "analysis",
+                "deliverable",
                 "simulate-week",
                 "Exit codes:",
                 "See README.md for the command-specific contract.",
@@ -188,6 +189,10 @@ class CliHelpTests(unittest.TestCase):
             (["analysis", "preflight"], ["Read-only", "accepted experiment plan", "--ops-dir", "--now", "stale accepted memory"]),
             (["analysis", "validate-run"], ["completed run_analysis", "metrics", "robustness", "--ops-dir", "--now"]),
             (["analysis", "validate-results"], ["result summary", "claim_gates.json", "accepted experiment plan", "--ops-dir", "--now"]),
+            (["deliverable"], ["deliverable maturity", "Accepted task outputs are source evidence", "init", "target", "check"]),
+            (["deliverable", "init"], ["deliverable_manifest.json", "--title", "--output-type", "--target-maturity"]),
+            (["deliverable", "target"], ["target audience", "source task links", "--complete-gate", "--review-independence"]),
+            (["deliverable", "check"], ["target maturity", "accepted source tasks alone are insufficient", "--target-maturity"]),
             (["exploration"], ["exploration-cycle tasks", "validate"]),
             (["exploration", "validate"], ["worker output", "--task-dir"]),
             (["idea"], ["idea-evaluation JSON artifacts", "score", "validate", "capture", "promote", "resolve", "park", "reject", "catalog"]),
@@ -288,6 +293,8 @@ class CliHelpTests(unittest.TestCase):
             "| `analysis dashboard` | `0` dashboard rendered and analysis surface state is clean.",
             "| `analysis run-adapter` | `0` adapter plan or execution succeeded.",
             "| `analysis preflight`, `analysis validate-run`, and `analysis validate-results` | `0` clean preflight or validation.",
+            "| `deliverable init` and `deliverable target` | `0` manifest write succeeded.",
+            "| `deliverable check` | `0` target maturity is ready.",
             "| `simulate-week` | `0` simulated week passed.",
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)

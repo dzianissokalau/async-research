@@ -355,6 +355,112 @@ def run_console_hardening_acceptance(ops_dir: Path) -> tuple[int, dict]:
     }
 
 
+def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
+    steps: list[dict] = []
+    failures: list[dict] = []
+
+    def record_step(name: str, ok: bool, payload: dict | None = None, exit_code: int = SUCCESS) -> None:
+        steps.append({"name": name, "ok": ok, "exit_code": exit_code})
+        if not ok:
+            failures.append({"name": name, "payload": payload or {}, "exit_code": exit_code})
+
+    code, payload = run_cli(["init", str(ops_dir), "--force"])
+    record_step("deliverable_init_workspace", code == SUCCESS and payload.get("ok", True) is not False, payload, code)
+
+    if not failures:
+        task_dir = ops_dir / "tasks" / "TASK-9902-internal-draft"
+        write_json(
+            task_dir / "status.json",
+            {
+                "schema_version": "1.0",
+                "id": "TASK-9902",
+                "title": "Accepted internal draft assembly",
+                "type": "status_update",
+                "status": "accepted",
+                "previous_status": "panel_review",
+                "last_transition_reason": "acceptance_deliverable_fixture",
+                "priority": 3,
+                "revision_count": 0,
+                "max_revisions": 1,
+                "revision_limit_hit": False,
+                "allowed_paths": ["research_ops/tasks/TASK-9902-internal-draft/**"],
+                "max_minutes": 10,
+                "requires_human": False,
+                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                "human_gate_reason": None,
+                "updated_at": "2026-05-18T00:00:00Z",
+            },
+        )
+        code, payload = run_cli(
+            [
+                "deliverable",
+                "init",
+                str(ops_dir),
+                "--deliverable-id",
+                "DELIV-9902",
+                "--title",
+                "Acceptance internal draft",
+                "--output-type",
+                "working_paper",
+                "--target-maturity",
+                "working_paper",
+                "--current-maturity",
+                "internal_draft",
+                "--target-audience",
+                "research collaborators",
+                "--source-task",
+                "TASK-9902",
+                "--complete-gate",
+                "source_caveat_checks",
+                "--complete-gate",
+                "claim_strength_review",
+                "--complete-gate",
+                "task_review",
+                "--complete-gate",
+                "accepted_evidence_linkage",
+                "--complete-gate",
+                "caveat_audit",
+                "--complete-gate",
+                "internal_workflow_disclosure",
+                "--complete-gate",
+                "draft_completeness_check",
+                "--review-independence",
+                "same_agent_visible",
+                "--now",
+                "2026-05-18T00:00:00Z",
+            ]
+        )
+        record_step("deliverable_manifest_write", code == SUCCESS and payload.get("ok") is True, payload, code)
+
+    if not failures:
+        code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9902"])
+        reasons = {item.get("reason") for item in checked.get("blockers", [])}
+        ok = (
+            code == 2
+            and checked.get("ok") is False
+            and checked.get("source_tasks", [{}])[0].get("accepted") is True
+            and "current_maturity_below_target" in reasons
+            and "gate_missing" in reasons
+            and "review_independence_below_required" in reasons
+        )
+        record_step("accepted_task_not_deliverable_ready", ok, checked, code)
+
+    if failures:
+        return FAILED, {
+            "ok": False,
+            "action": "deliverable_maturity_acceptance_failed",
+            "ops_dir": str(ops_dir),
+            "steps": steps,
+            "failures": failures,
+        }
+    return SUCCESS, {
+        "ok": True,
+        "action": "deliverable_maturity_acceptance_passed",
+        "ops_dir": str(ops_dir),
+        "steps": steps,
+    }
+
+
 def check(name: str, code: int, payload: dict, failures: list[dict], checks: list[dict]) -> None:
     ok = code == SUCCESS and payload.get("ok", True) is not False
     checks.append({"name": name, "ok": ok})
@@ -411,6 +517,9 @@ def main(argv: Iterable[str]) -> int:
 
     code, payload = run_promotion_write_acceptance(args.work_dir / "promotion-write" / "research_ops")
     check("Promotion write end-to-end", code, payload, failures, checks)
+
+    code, payload = run_deliverable_maturity_acceptance(args.work_dir / "deliverable-maturity" / "research_ops")
+    check("Deliverable maturity separates acceptance from readiness", code, payload, failures, checks)
 
     code, payload = run_module("run_autonomy_benchmark", [])
     check("Autonomy benchmark", code, payload, failures, checks)

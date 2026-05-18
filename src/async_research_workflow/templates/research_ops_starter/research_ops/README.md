@@ -77,6 +77,19 @@ notes for weak or disputed sources, and the `library_update_log.md` provenance
 row. A reviewer applies accepted updates and reruns
 `async-research library validate research_ops`.
 
+## Deliverable Maturity
+
+`research_ops/deliverables/` tracks final-output maturity separately from task
+acceptance. `deliverable_manifest.json` stores output type, target audience,
+target venue, source task links, required/completed gates, review independence,
+and open gaps. An accepted task can be linked as source evidence, but it does
+not by itself make a paper, memo, or report shareable or submission-ready.
+
+```bash
+async-research deliverable init research_ops --title "Draft title" --output-type working_paper --target-maturity internal_draft
+async-research deliverable check research_ops DELIV-0001
+```
+
 ## Data Foundations
 
 `data_source_audit.md` remains the source-governance register. The `data/`
