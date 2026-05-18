@@ -184,11 +184,13 @@ context, but final accepted claims still need source-level citation and review.
 
 The canonical deliverable maturity path is `research_ops/deliverables/`.
 `deliverable_manifest.json` declares output type, target audience, target venue,
-source task links, required/completed gates, open gaps, and review-independence
-metadata separately from task status. Use `async-research deliverable check` to
-verify whether a paper, memo, or report is actually ready for its target
-maturity; accepted source tasks alone do not make a deliverable shareable or
-submission-ready.
+source task links, manuscript gate statuses, open gaps, and review-independence
+metadata separately from task status. Manuscript gates use explicit statuses:
+`not_required`, `missing`, `partial`, `passed_with_caveats`, `passed`, or
+`waived_by_human`; waivers require human rationale. Use
+`async-research deliverable check` to verify whether a paper, memo, or report is
+actually ready for its target maturity; accepted source tasks alone do not make
+a deliverable shareable or submission-ready.
 
 ## Worked Task Loop
 
@@ -364,8 +366,8 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research analysis validate-run <task-dir> --ops-dir research_ops` | Validate completed analysis run artifacts before result review. | Completed run manifest, metrics, diagnostics, robustness checks, accepted experiment plan, required outputs, baselines, and semantic robustness gates. | JSON to stdout only; read-only. |
 | `async-research analysis validate-results <task-dir> --ops-dir research_ops` | Validate result summary and claim gates before result acceptance. | Result summary, claim gates, manifest, metrics, diagnostics, robustness checks, and accepted experiment plan. | JSON to stdout only; read-only. |
 | `async-research deliverable init research_ops --title "<title>" --output-type working_paper --target-maturity internal_draft` | Create a deliverable maturity manifest entry separate from task acceptance. | Existing `deliverables/deliverable_manifest.json`. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
-| `async-research deliverable target research_ops DELIV-0001 --target-audience "<audience>" --target-maturity working_paper` | Update target audience, venue, maturity, source task links, gates, review independence, and open gaps. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
-| `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, gates, open gaps, and review independence. | JSON to stdout only; read-only. |
+| `async-research deliverable target research_ops DELIV-0001 --target-audience "<audience>" --target-maturity working_paper` | Update target audience, venue/style profile, maturity, source task links, manuscript gate statuses, review independence, and open gaps. | Existing deliverable manifest. | `deliverables/deliverable_manifest.json` and `deliverable_manifest.md`. |
+| `async-research deliverable check research_ops DELIV-0001` | Check whether the declared deliverable target is ready. | Manifest, linked source task statuses, manuscript gates, open gaps, and review independence. | JSON to stdout only; read-only. |
 | `async-research accepted update research_ops` | Refresh reusable accepted-memory index rows. | Accepted task records and evidence ledger. | `accepted_outputs_index.md`. |
 | `async-research accepted check-duplicate research_ops --title "<candidate title>"` | Report duplicate risk before promoting a candidate. | `accepted_outputs_index.md`. | JSON to stdout only; advisory even when duplicate risk is true. |
 | `async-research accepted revalidation research_ops --write-schedule` | Surface due or stale accepted memory; alias: `accepted revalidate`. | `accepted_outputs_index.md`. | `revalidation_schedule.md` when `--write-schedule` is set. |

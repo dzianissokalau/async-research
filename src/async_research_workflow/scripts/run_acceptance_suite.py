@@ -445,6 +445,32 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
         )
         record_step("accepted_task_not_deliverable_ready", ok, checked, code)
 
+        related_work = next((row for row in checked.get("checklist", []) if row.get("gate") == "related_work_synthesis"), {})
+        manuscript_ok = (
+            checked.get("manuscript_checklist")
+            and related_work.get("status") == "missing"
+            and related_work.get("satisfied") is False
+        )
+        record_step("manuscript_quality_gate_blocks_promotion", bool(manuscript_ok), checked, code)
+
+        code, waiver_payload = run_cli(
+            [
+                "deliverable",
+                "target",
+                str(ops_dir),
+                "DELIV-9902",
+                "--manuscript-gate",
+                "complete_bibliography=waived_by_human",
+            ]
+        )
+        waiver_reasons = {item.get("reason") for item in waiver_payload.get("errors", [])}
+        record_step(
+            "manuscript_waiver_requires_rationale",
+            code == 3 and "waiver_rationale_required" in waiver_reasons,
+            waiver_payload,
+            code,
+        )
+
     if failures:
         return FAILED, {
             "ok": False,

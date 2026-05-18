@@ -695,6 +695,7 @@ def deliverable_update_options(args: argparse.Namespace, *, include_id: bool = F
         ("--current-maturity", "current_maturity"),
         ("--target-audience", "target_audience"),
         ("--target-venue", "target_venue"),
+        ("--venue-style-profile", "venue_style_profile"),
         ("--primary-artifact", "primary_artifact"),
         ("--owner", "owner"),
         ("--review-independence", "review_independence"),
@@ -710,6 +711,10 @@ def deliverable_update_options(args: argparse.Namespace, *, include_id: bool = F
         ("--source-task", "source_task"),
         ("--required-gate", "required_gate"),
         ("--complete-gate", "complete_gate"),
+        ("--manuscript-gate", "manuscript_gate"),
+        ("--gate-rationale", "gate_rationale"),
+        ("--waiver-rationale", "waiver_rationale"),
+        ("--gate-evidence", "gate_evidence"),
         ("--open-gap", "open_gap"),
     ):
         command_args.extend(repeated_option(flag, getattr(args, attr, None)))
@@ -2369,11 +2374,16 @@ def add_deliverable_update_arguments(parser: argparse.ArgumentParser, *, init: b
         parser.add_argument("--current-maturity", choices=MATURITY_CHOICES, help="Current declared maturity level.")
     parser.add_argument("--target-audience", help="Known reader or audience for shareable and external deliverables.")
     parser.add_argument("--target-venue", help="Venue, publication, client, or submission target.")
+    parser.add_argument("--venue-style-profile", help="Optional venue or style profile used for submission-readiness checks.")
     parser.add_argument("--source-task", action="append", default=[], help="Accepted source task id to link, such as TASK-0001. Repeatable.")
     parser.add_argument("--primary-artifact", help="Primary artifact path relative to research_ops.")
     parser.add_argument("--owner", help="Human or agent owner for maturity follow-through.")
     parser.add_argument("--required-gate", action="append", default=[], help="Additional gate id to require. Repeatable.")
     parser.add_argument("--complete-gate", action="append", default=[], help="Completed gate id to mark; use `all` to mark all required gates.")
+    parser.add_argument("--manuscript-gate", action="append", default=[], metavar="GATE=STATUS", help="Set a manuscript-quality gate status. Repeatable.")
+    parser.add_argument("--gate-rationale", action="append", default=[], metavar="GATE=TEXT", help="Attach rationale or caveat text to a manuscript gate.")
+    parser.add_argument("--waiver-rationale", action="append", default=[], metavar="GATE=TEXT", help="Required human rationale for a waived manuscript gate.")
+    parser.add_argument("--gate-evidence", action="append", default=[], metavar="GATE=TEXT", help="Attach evidence, artifact, or section reference to a manuscript gate.")
     parser.add_argument("--review-independence", choices=INDEPENDENCE_CHOICES, help="Achieved deliverable-review independence.")
     parser.add_argument("--reviewer", help="Reviewer identity or role for the latest maturity review.")
     parser.add_argument("--review-notes", help="Short review-independence note.")

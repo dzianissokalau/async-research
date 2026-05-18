@@ -94,6 +94,8 @@ class DeliverableMaturityTests(unittest.TestCase):
             record = load_json(ops_dir / "deliverables" / "deliverable_manifest.json")
             self.assertEqual([], [error.to_dict() for error in validate(record, manifest)])
             self.assertEqual("DELIV-0001", record["deliverables"][0]["deliverable_id"])
+            self.assertTrue(record["deliverables"][0]["manuscript_gates"])
+            self.assertTrue(all(row["status"] == "not_required" for row in record["deliverables"][0]["manuscript_gates"]))
 
     def test_accepted_source_task_does_not_imply_working_paper_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -275,6 +277,192 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual("same_agent_visible", checked["review_independence"]["achieved"])
             self.assertEqual("internal_draft", checked["maturity"]["independence_ceiling"])
             self.assertIn("review_independence_below_required", {item["reason"] for item in checked["blockers"]})
+
+    def test_partial_manuscript_gate_blocks_working_paper_promotion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0088", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0008",
+                    "--title",
+                    "Partial related-work draft",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--source-task",
+                    "TASK-0088",
+                    "--complete-gate",
+                    "all",
+                    "--manuscript-gate",
+                    "related_work_synthesis=partial",
+                    "--gate-rationale",
+                    "related_work_synthesis=Missing competing hypotheses and recent source coverage.",
+                    "--review-independence",
+                    "separate_agent",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0008"])
+
+            self.assertEqual(deliverable_maturity.VALIDATION_FAILED, code, checked)
+            related_work = next(row for row in checked["checklist"] if row["gate"] == "related_work_synthesis")
+            self.assertEqual("partial", related_work["status"])
+            self.assertFalse(related_work["satisfied"])
+            blockers = [item for item in checked["blockers"] if item.get("gate") == "related_work_synthesis"]
+            self.assertEqual("gate_missing", blockers[0]["reason"])
+            self.assertEqual("partial", blockers[0]["status"])
+            self.assertEqual("shareable_memo", checked["maturity"]["gate_ceiling"])
+
+    def test_raising_target_marks_new_manuscript_gates_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0090", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0090",
+                    "--title",
+                    "Internal draft promoted later",
+                    "--output-type",
+                    "working_paper",
+                    "--target-maturity",
+                    "internal_draft",
+                    "--current-maturity",
+                    "internal_draft",
+                    "--source-task",
+                    "TASK-0090",
+                    "--complete-gate",
+                    "all",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual(
+                "not_required",
+                next(row for row in payload["manuscript_checklist"] if row["gate_id"] == "related_work_synthesis")["status"],
+            )
+
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "target",
+                    ops_dir,
+                    "DELIV-0090",
+                    "--target-maturity",
+                    "working_paper",
+                    "--current-maturity",
+                    "working_paper",
+                    "--target-audience",
+                    "public research readers",
+                    "--review-independence",
+                    "separate_agent",
+                    "--now",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            related_work = next(row for row in payload["manuscript_checklist"] if row["gate_id"] == "related_work_synthesis")
+            self.assertTrue(related_work["required"])
+            self.assertEqual("missing", related_work["status"])
+
+    def test_waived_manuscript_gate_requires_rationale_and_remains_visible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-0091", "accepted")
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0091",
+                    "--title",
+                    "Shareable memo with exhibit waiver",
+                    "--output-type",
+                    "paper",
+                    "--target-maturity",
+                    "shareable_memo",
+                    "--current-maturity",
+                    "shareable_memo",
+                    "--target-audience",
+                    "policy readers",
+                    "--source-task",
+                    "TASK-0091",
+                    "--complete-gate",
+                    "all",
+                    "--manuscript-gate",
+                    "figures_tables_embedded_and_narrated=waived_by_human",
+                    "--review-independence",
+                    "separate_agent",
+                    "--now",
+                    NOW,
+                ]
+            )
+
+            self.assertEqual(deliverable_maturity.INVALID_REQUEST, code, payload)
+            self.assertIn("waiver_rationale_required", {item["reason"] for item in payload["errors"]})
+
+            code, payload = run_cli_json(
+                [
+                    "deliverable",
+                    "init",
+                    ops_dir,
+                    "--deliverable-id",
+                    "DELIV-0091",
+                    "--title",
+                    "Shareable memo with exhibit waiver",
+                    "--output-type",
+                    "paper",
+                    "--target-maturity",
+                    "shareable_memo",
+                    "--current-maturity",
+                    "shareable_memo",
+                    "--target-audience",
+                    "policy readers",
+                    "--source-task",
+                    "TASK-0091",
+                    "--complete-gate",
+                    "all",
+                    "--manuscript-gate",
+                    "figures_tables_embedded_and_narrated=waived_by_human",
+                    "--waiver-rationale",
+                    "figures_tables_embedded_and_narrated=Human owner waived figures because the memo is text-only.",
+                    "--review-independence",
+                    "separate_agent",
+                    "--now",
+                    NOW,
+                ]
+            )
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0091"])
+
+            self.assertEqual(cli.SUCCESS, code, checked)
+            figure_gate = next(
+                row for row in checked["manuscript_checklist"] if row["gate_id"] == "figures_tables_embedded_and_narrated"
+            )
+            self.assertTrue(figure_gate["required"])
+            self.assertEqual("waived_by_human", figure_gate["status"])
+            self.assertIn("Human owner waived", figure_gate["waiver_rationale"])
+            self.assertTrue(next(row for row in checked["checklist"] if row["gate"] == "figures_tables_embedded_and_narrated")["satisfied"])
 
     def test_check_fails_closed_on_invalid_manifest_maturity(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

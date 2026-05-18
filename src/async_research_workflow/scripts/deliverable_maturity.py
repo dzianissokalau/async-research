@@ -27,6 +27,15 @@ PROJECTION_NAME = "deliverable_manifest.md"
 DELIVERABLE_ID_RE = re.compile(r"^DELIV-[0-9]{4}$")
 TASK_ID_RE = re.compile(r"^TASK-[0-9]{4}$")
 NO_VALUE_MARKERS = {"", "none", "n/a", "na", "unknown", "todo", "tbd"}
+GATE_STATUS_CHOICES = (
+    "not_required",
+    "missing",
+    "partial",
+    "passed_with_caveats",
+    "passed",
+    "waived_by_human",
+)
+PASSING_GATE_STATUSES = {"passed", "passed_with_caveats", "waived_by_human"}
 
 MATURITY_LEVELS: tuple[dict[str, Any], ...] = (
     {
@@ -94,6 +103,8 @@ GATES_BY_MATURITY: dict[str, tuple[str, ...]] = {
         "figures_tables_embedded_and_narrated",
         "reader_trust_citations",
         "unresolved_gaps_disclosed",
+        "internal_workflow_source_label_cleanup",
+        "final_prose_pass",
     ),
     "working_paper": (
         "related_work_synthesis",
@@ -101,6 +112,7 @@ GATES_BY_MATURITY: dict[str, tuple[str, ...]] = {
         "methods_detail",
         "reproducibility_notes",
         "formal_limitations",
+        "formal_citations",
         "complete_bibliography",
         "adversarial_review",
     ),
@@ -114,6 +126,125 @@ GATES_BY_MATURITY: dict[str, tuple[str, ...]] = {
         "independent_final_editorial_review",
     ),
 }
+
+MANUSCRIPT_GATES: tuple[dict[str, str], ...] = (
+    {
+        "gate_id": "target_audience_declared",
+        "label": "Target audience declared",
+        "category": "target",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "clean_prose_pass",
+        "label": "Clean prose pass",
+        "category": "prose",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "figures_tables_embedded_and_narrated",
+        "label": "Figures and tables embedded, captioned, numbered, referenced, and narrated",
+        "category": "figures_tables",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "reader_trust_citations",
+        "label": "Reader-trust citations",
+        "category": "citations",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "unresolved_gaps_disclosed",
+        "label": "Unresolved gaps disclosed",
+        "category": "limitations",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "internal_workflow_source_label_cleanup",
+        "label": "Internal workflow and source labels cleaned up",
+        "category": "prose",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "final_prose_pass",
+        "label": "Final prose pass",
+        "category": "prose",
+        "minimum_maturity": "shareable_memo",
+    },
+    {
+        "gate_id": "related_work_synthesis",
+        "label": "Related-work completeness",
+        "category": "related_work",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "contribution_statement",
+        "label": "Contribution statement",
+        "category": "argument",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "methods_detail",
+        "label": "Methods specification",
+        "category": "methods",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "reproducibility_notes",
+        "label": "Reproducibility notes",
+        "category": "reproducibility",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "formal_limitations",
+        "label": "Limitations and caveats",
+        "category": "limitations",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "formal_citations",
+        "label": "Formal citations",
+        "category": "citations",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "complete_bibliography",
+        "label": "Complete bibliography",
+        "category": "citations",
+        "minimum_maturity": "working_paper",
+    },
+    {
+        "gate_id": "target_venue_declared",
+        "label": "Target venue declared",
+        "category": "target",
+        "minimum_maturity": "submission_ready_manuscript",
+    },
+    {
+        "gate_id": "venue_style_compliance",
+        "label": "Venue style compliance",
+        "category": "target",
+        "minimum_maturity": "submission_ready_manuscript",
+    },
+    {
+        "gate_id": "formal_references",
+        "label": "Formal references",
+        "category": "citations",
+        "minimum_maturity": "submission_ready_manuscript",
+    },
+    {
+        "gate_id": "data_code_availability",
+        "label": "Data and code availability",
+        "category": "reproducibility",
+        "minimum_maturity": "submission_ready_manuscript",
+    },
+    {
+        "gate_id": "figure_table_requirements",
+        "label": "Venue figure and table requirements",
+        "category": "figures_tables",
+        "minimum_maturity": "submission_ready_manuscript",
+    },
+)
+MANUSCRIPT_GATE_BY_ID = {item["gate_id"]: item for item in MANUSCRIPT_GATES}
+MANUSCRIPT_GATE_IDS = tuple(MANUSCRIPT_GATE_BY_ID)
 
 INDEPENDENCE_ORDER = {
     "none": 0,
@@ -165,6 +296,45 @@ def normalized_unique(values: Iterable[Any]) -> list[str]:
     return result
 
 
+def parse_key_value_options(values: Iterable[str], option_name: str) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    parsed: dict[str, str] = {}
+    errors: list[dict[str, Any]] = []
+    for raw in values:
+        text = str(raw or "").strip()
+        if "=" not in text:
+            errors.append(
+                {
+                    "reason": "invalid_key_value_option",
+                    "message": f"{option_name} must use gate_id=value syntax",
+                    "value": text,
+                }
+            )
+            continue
+        key, value = text.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key not in MANUSCRIPT_GATE_BY_ID:
+            errors.append(
+                {
+                    "reason": "unknown_manuscript_gate",
+                    "message": f"{option_name} references an unknown manuscript gate",
+                    "gate": key,
+                }
+            )
+            continue
+        if not value:
+            errors.append(
+                {
+                    "reason": "empty_key_value_option",
+                    "message": f"{option_name} requires a non-empty value",
+                    "gate": key,
+                }
+            )
+            continue
+        parsed[key] = value
+    return parsed, errors
+
+
 def required_gates_for(maturity: str) -> list[str]:
     target_level = MATURITY_ORDER[maturity]
     gates: list[str] = []
@@ -180,6 +350,190 @@ def minimum_independence_for(maturity: str) -> str:
 
 def higher_independence(left: str, right: str) -> str:
     return left if INDEPENDENCE_ORDER[left] >= INDEPENDENCE_ORDER[right] else right
+
+
+def manuscript_gate_required(gate_id: str, target_maturity: str) -> bool:
+    definition = MANUSCRIPT_GATE_BY_ID[gate_id]
+    return MATURITY_ORDER[target_maturity] >= MATURITY_ORDER[definition["minimum_maturity"]]
+
+
+def gate_status_is_satisfied(row: dict[str, Any]) -> bool:
+    status = str(row.get("status") or "missing")
+    if status not in PASSING_GATE_STATUSES:
+        return False
+    if status == "waived_by_human" and not field_has_value(row.get("waiver_rationale")):
+        return False
+    return True
+
+
+def default_manuscript_gate_row(gate_id: str, target_maturity: str, completed: set[str], now: str | None = None) -> dict[str, Any]:
+    definition = MANUSCRIPT_GATE_BY_ID[gate_id]
+    required = manuscript_gate_required(gate_id, target_maturity)
+    if gate_id in completed:
+        status = "passed"
+    elif required:
+        status = "missing"
+    else:
+        status = "not_required"
+    return {
+        "gate_id": gate_id,
+        "label": definition["label"],
+        "category": definition["category"],
+        "minimum_maturity": definition["minimum_maturity"],
+        "required": required,
+        "status": status,
+        "rationale": "",
+        "waiver_rationale": "",
+        "evidence": [],
+        "updated_at": now,
+    }
+
+
+def existing_manuscript_gate_map(deliverable: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows = deliverable.get("manuscript_gates", [])
+    if not isinstance(rows, list):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        gate_id = str(row.get("gate_id") or "")
+        if gate_id in MANUSCRIPT_GATE_BY_ID:
+            result[gate_id] = row
+    return result
+
+
+def normalized_manuscript_gates(deliverable: dict[str, Any], target_maturity: str, now: str | None = None) -> list[dict[str, Any]]:
+    completed = set(str(item) for item in deliverable.get("completed_gates", []) if str(item or "").strip())
+    existing = existing_manuscript_gate_map(deliverable)
+    rows: list[dict[str, Any]] = []
+    for gate_id in MANUSCRIPT_GATE_IDS:
+        row = default_manuscript_gate_row(gate_id, target_maturity, completed, now)
+        current = existing.get(gate_id)
+        if isinstance(current, dict):
+            for field in ("status", "rationale", "waiver_rationale", "updated_at"):
+                if field in current:
+                    row[field] = current[field]
+            evidence = current.get("evidence", [])
+            if isinstance(evidence, list):
+                row["evidence"] = [str(item) for item in evidence if str(item or "").strip()]
+        row["required"] = manuscript_gate_required(gate_id, target_maturity)
+        if row["required"] and row["status"] == "not_required":
+            row["status"] = "passed" if gate_id in completed else "missing"
+        elif not row["required"] and row["status"] == "missing":
+            row["status"] = "not_required"
+        rows.append(row)
+    return rows
+
+
+def sync_completed_gates(required_gates: list[str], completed_gates: list[str], manuscript_gates: list[dict[str, Any]]) -> list[str]:
+    manuscript_ids = set(MANUSCRIPT_GATE_IDS)
+    synced = [gate for gate in completed_gates if gate not in manuscript_ids]
+    for gate in required_gates:
+        if gate not in manuscript_ids:
+            continue
+        row = next((item for item in manuscript_gates if item.get("gate_id") == gate), None)
+        if row is not None and gate_status_is_satisfied(row):
+            synced.append(gate)
+    return normalized_unique(synced)
+
+
+def apply_manuscript_gate_options(
+    rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+    now: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    status_updates, status_errors = parse_key_value_options(args.manuscript_gate or [], "--manuscript-gate")
+    rationale_updates, rationale_errors = parse_key_value_options(args.gate_rationale or [], "--gate-rationale")
+    waiver_updates, waiver_errors = parse_key_value_options(args.waiver_rationale or [], "--waiver-rationale")
+    evidence_updates, evidence_errors = parse_key_value_options(args.gate_evidence or [], "--gate-evidence")
+    errors = status_errors + rationale_errors + waiver_errors + evidence_errors
+    by_id = {row["gate_id"]: row for row in rows}
+    for gate in args.complete_gate or []:
+        if gate == "all":
+            for row in rows:
+                if row.get("required"):
+                    row["status"] = "passed"
+                    row["updated_at"] = now
+        elif gate in by_id:
+            by_id[gate]["status"] = "passed"
+            by_id[gate]["updated_at"] = now
+    for gate_id, status in status_updates.items():
+        if status not in GATE_STATUS_CHOICES:
+            errors.append(
+                {
+                    "reason": "invalid_manuscript_gate_status",
+                    "message": "manuscript gate status is not supported",
+                    "gate": gate_id,
+                    "status": status,
+                    "allowed_statuses": list(GATE_STATUS_CHOICES),
+                }
+            )
+            continue
+        by_id[gate_id]["status"] = status
+        by_id[gate_id]["updated_at"] = now
+    for gate_id, rationale in rationale_updates.items():
+        by_id[gate_id]["rationale"] = rationale
+        by_id[gate_id]["updated_at"] = now
+    for gate_id, rationale in waiver_updates.items():
+        by_id[gate_id]["waiver_rationale"] = rationale
+        by_id[gate_id]["updated_at"] = now
+    for gate_id, evidence in evidence_updates.items():
+        current = by_id[gate_id].get("evidence")
+        evidence_rows = current if isinstance(current, list) else []
+        evidence_rows.append(evidence)
+        by_id[gate_id]["evidence"] = normalized_unique(evidence_rows)
+        by_id[gate_id]["updated_at"] = now
+    for row in rows:
+        if row.get("status") == "waived_by_human" and not field_has_value(row.get("waiver_rationale")):
+            errors.append(
+                {
+                    "reason": "waiver_rationale_required",
+                    "message": "waived_by_human manuscript gates require waiver_rationale",
+                    "gate": row.get("gate_id"),
+                }
+            )
+    return rows, errors
+
+
+def manuscript_gate_shape_errors(rows: Any, item_path: str) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    if rows is None:
+        return errors
+    if not isinstance(rows, list):
+        return [{"reason": "manuscript_gates_not_array", "path": item_path, "message": "manuscript_gates must be an array"}]
+    for index, row in enumerate(rows):
+        row_path = f"{item_path}/manuscript_gates/{index}"
+        if not isinstance(row, dict):
+            errors.append({"reason": "manuscript_gate_not_object", "path": row_path, "message": "manuscript gate entries must be objects"})
+            continue
+        gate_id = str(row.get("gate_id") or "")
+        if gate_id not in MANUSCRIPT_GATE_BY_ID:
+            errors.append({"reason": "unknown_manuscript_gate", "path": row_path, "message": "gate_id must be a known manuscript gate", "gate": gate_id})
+        status = str(row.get("status") or "")
+        if status not in GATE_STATUS_CHOICES:
+            errors.append(
+                {
+                    "reason": "invalid_manuscript_gate_status",
+                    "path": row_path,
+                    "message": "status must be a known manuscript gate status",
+                    "gate": gate_id,
+                    "status": status,
+                }
+            )
+        if status == "waived_by_human" and not field_has_value(row.get("waiver_rationale")):
+            errors.append(
+                {
+                    "reason": "waiver_rationale_required",
+                    "path": row_path,
+                    "message": "waived_by_human manuscript gates require waiver_rationale",
+                    "gate": gate_id,
+                }
+            )
+        evidence = row.get("evidence", [])
+        if not isinstance(evidence, list):
+            errors.append({"reason": "manuscript_gate_evidence_not_array", "path": row_path, "message": "evidence must be an array"})
+    return errors
 
 
 def manifest_path(ops_dir: Path) -> Path:
@@ -237,6 +591,7 @@ def manifest_shape_errors(payload: dict[str, Any], path: Path) -> list[dict[str,
         for field in ("required_gates", "completed_gates", "open_gaps"):
             if not isinstance(item.get(field, []), list):
                 errors.append({"reason": f"{field}_not_array", "path": item_path, "message": f"{field} must be an array"})
+        errors.extend(manuscript_gate_shape_errors(item.get("manuscript_gates"), item_path))
         review = item.get("review_independence", {})
         if not isinstance(review, dict):
             errors.append({"reason": "review_independence_not_object", "path": item_path, "message": "review_independence must be an object"})
@@ -393,6 +748,12 @@ def build_deliverable(args: argparse.Namespace, manifest: dict[str, Any], now: s
         else:
             completed_gates.append(gate)
     completed_gates = normalized_unique(completed_gates)
+    manuscript_gates = normalized_manuscript_gates({"completed_gates": completed_gates}, target_maturity, now)
+    manuscript_gates, gate_errors = apply_manuscript_gate_options(manuscript_gates, args, now)
+    if gate_errors:
+        errors.extend(gate_errors)
+        return None, errors
+    completed_gates = sync_completed_gates(required_gates, completed_gates, manuscript_gates)
     return {
         "schema_version": SCHEMA_VERSION,
         "framework_version": FRAMEWORK_VERSION,
@@ -401,6 +762,7 @@ def build_deliverable(args: argparse.Namespace, manifest: dict[str, Any], now: s
         "output_type": args.output_type,
         "target_audience": (args.target_audience or "").strip(),
         "target_venue": (args.target_venue or "").strip(),
+        "venue_style_profile": (args.venue_style_profile or "").strip(),
         "target_maturity": target_maturity,
         "current_maturity": current_maturity,
         "source_task_ids": normalized_unique(args.source_task or []),
@@ -408,6 +770,7 @@ def build_deliverable(args: argparse.Namespace, manifest: dict[str, Any], now: s
         "owner": (args.owner or "").strip(),
         "required_gates": required_gates,
         "completed_gates": completed_gates,
+        "manuscript_gates": manuscript_gates,
         "review_independence": review_independence_payload(
             target_maturity,
             args.review_independence,
@@ -433,7 +796,17 @@ def update_deliverable(args: argparse.Namespace, item: dict[str, Any], now: str)
 
     if args.title:
         item["title"] = args.title.strip()
-    for field in ("output_type", "target_audience", "target_venue", "target_maturity", "current_maturity", "primary_artifact", "owner", "last_reviewed_at"):
+    for field in (
+        "output_type",
+        "target_audience",
+        "target_venue",
+        "venue_style_profile",
+        "target_maturity",
+        "current_maturity",
+        "primary_artifact",
+        "owner",
+        "last_reviewed_at",
+    ):
         value = getattr(args, field)
         if value is not None:
             item[field] = value.strip() if isinstance(value, str) else value
@@ -450,6 +823,12 @@ def update_deliverable(args: argparse.Namespace, item: dict[str, Any], now: str)
         else:
             completed.append(gate)
     item["completed_gates"] = normalized_unique(completed)
+    manuscript_gates = normalized_manuscript_gates(item, target_maturity, now)
+    manuscript_gates, gate_errors = apply_manuscript_gate_options(manuscript_gates, args, now)
+    if gate_errors:
+        return gate_errors
+    item["manuscript_gates"] = manuscript_gates
+    item["completed_gates"] = sync_completed_gates(item["required_gates"], item["completed_gates"], manuscript_gates)
     if args.clear_open_gaps:
         item["open_gaps"] = []
     if args.open_gap:
@@ -481,7 +860,12 @@ def gate_ceiling(deliverable: dict[str, Any]) -> str:
     highest = "research_note"
     for maturity in MATURITY_CHOICES:
         required = set(required_gates_for(maturity))
-        if required.issubset(completed):
+        manuscript_rows = {row["gate_id"]: row for row in normalized_manuscript_gates(deliverable, maturity)}
+        manuscript_gate_ids = set(manuscript_rows)
+        non_manuscript_required = required - manuscript_gate_ids
+        manuscript_required = required & manuscript_gate_ids
+        manuscript_complete = all(gate_status_is_satisfied(manuscript_rows[gate]) for gate in manuscript_required)
+        if non_manuscript_required.issubset(completed) and manuscript_complete:
             highest = maturity
     return highest
 
@@ -511,13 +895,31 @@ def min_maturity(*values: str) -> str:
 
 def checklist(deliverable: dict[str, Any], target_maturity: str) -> list[dict[str, Any]]:
     completed = set(deliverable.get("completed_gates", []))
+    manuscript_rows = {row["gate_id"]: row for row in normalized_manuscript_gates(deliverable, target_maturity)}
     rows = []
     for gate in required_gates_for(target_maturity):
+        if gate in manuscript_rows:
+            gate_row = manuscript_rows[gate]
+            rows.append(
+                {
+                    "gate": gate,
+                    "label": gate_row["label"],
+                    "category": gate_row["category"],
+                    "status": gate_row["status"],
+                    "required": True,
+                    "satisfied": gate_status_is_satisfied(gate_row),
+                    "rationale": gate_row.get("rationale", ""),
+                    "waiver_rationale": gate_row.get("waiver_rationale", ""),
+                    "evidence": gate_row.get("evidence", []),
+                }
+            )
+            continue
         rows.append(
             {
                 "gate": gate,
                 "status": "passed" if gate in completed else "missing",
                 "required": True,
+                "satisfied": gate in completed,
             }
         )
     return rows
@@ -538,7 +940,8 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
     current_maturity = str(deliverable.get("current_maturity") or "research_note")
     source_tasks = source_task_statuses(ops_dir, [str(item) for item in deliverable.get("source_task_ids", [])])
     rows = checklist(deliverable, target_maturity)
-    missing_gates = [row["gate"] for row in rows if row["status"] != "passed"]
+    manuscript_rows = normalized_manuscript_gates(deliverable, target_maturity)
+    missing_gates = [row for row in rows if not row.get("satisfied")]
     blockers: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
 
@@ -563,8 +966,36 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
                     "status": task.get("status"),
                 }
             )
-    for gate in missing_gates:
-        blockers.append({"reason": "gate_missing", "message": f"required gate {gate} is not complete", "gate": gate})
+    for row in missing_gates:
+        blockers.append(
+            {
+                "reason": "gate_missing",
+                "message": f"required gate {row['gate']} is not complete",
+                "gate": row["gate"],
+                "status": row.get("status"),
+            }
+        )
+    for row in manuscript_rows:
+        if not row.get("required"):
+            continue
+        status = str(row.get("status") or "missing")
+        if status == "waived_by_human" and not field_has_value(row.get("waiver_rationale")):
+            blockers.append(
+                {
+                    "reason": "waiver_rationale_required",
+                    "message": "waived_by_human manuscript gates require waiver_rationale",
+                    "gate": row.get("gate_id"),
+                }
+            )
+        elif status == "passed_with_caveats":
+            warnings.append(
+                {
+                    "reason": "manuscript_gate_passed_with_caveats",
+                    "message": f"manuscript gate {row['gate_id']} passed with caveats",
+                    "gate": row["gate_id"],
+                    "rationale": row.get("rationale", ""),
+                }
+            )
     if MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["shareable_memo"] and not field_has_value(deliverable.get("target_audience")):
         blockers.append({"reason": "target_audience_missing", "message": "shareable deliverables and above require target_audience"})
     if MATURITY_ORDER[target_maturity] >= MATURITY_ORDER["submission_ready_manuscript"] and not field_has_value(deliverable.get("target_venue")):
@@ -620,10 +1051,12 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
             "output_type": deliverable.get("output_type"),
             "target_audience": deliverable.get("target_audience"),
             "target_venue": deliverable.get("target_venue"),
+            "venue_style_profile": deliverable.get("venue_style_profile", ""),
             "source_task_ids": deliverable.get("source_task_ids", []),
             "primary_artifact": deliverable.get("primary_artifact"),
         },
         "checklist": rows,
+        "manuscript_checklist": manuscript_rows,
         "review_independence": {
             **review,
             "minimum_required": required_independence,
@@ -642,7 +1075,19 @@ def markdown_escape(value: Any) -> str:
 
 
 def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
-    header = ["deliverable_id", "title", "output_type", "target_audience", "target_venue", "current_maturity", "target_maturity", "source_task_ids", "open_gaps"]
+    header = [
+        "deliverable_id",
+        "title",
+        "output_type",
+        "target_audience",
+        "target_venue",
+        "current_maturity",
+        "target_maturity",
+        "source_task_ids",
+        "open_gaps",
+        "manuscript_gates",
+        "waivers",
+    ]
     lines = [
         "# Deliverable Manifest",
         "",
@@ -652,6 +1097,11 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
         "| " + " | ".join("---" for _ in header) + " |",
     ]
     for item in manifest.get("deliverables", []):
+        target_maturity = str(item.get("target_maturity") or "research_note")
+        manuscript_rows = normalized_manuscript_gates(item, target_maturity)
+        required_manuscript = [row for row in manuscript_rows if row.get("required")]
+        satisfied_manuscript = [row for row in required_manuscript if gate_status_is_satisfied(row)]
+        waived_manuscript = [row for row in required_manuscript if row.get("status") == "waived_by_human"]
         row = {
             "deliverable_id": item.get("deliverable_id"),
             "title": item.get("title"),
@@ -662,6 +1112,8 @@ def write_projection(ops_dir: Path, manifest: dict[str, Any]) -> None:
             "target_maturity": item.get("target_maturity"),
             "source_task_ids": ", ".join(item.get("source_task_ids", [])),
             "open_gaps": len(open_gap_rows(item)),
+            "manuscript_gates": f"{len(satisfied_manuscript)}/{len(required_manuscript)}",
+            "waivers": len(waived_manuscript),
         }
         lines.append("| " + " | ".join(markdown_escape(row.get(column)) for column in header) + " |")
     lines.append("")
@@ -744,11 +1196,22 @@ def add_update_options(parser: argparse.ArgumentParser, *, init: bool) -> None:
         parser.add_argument("--current-maturity", choices=MATURITY_CHOICES, help="Current declared maturity level.")
     parser.add_argument("--target-audience", help="Known reader or audience for shareable and external deliverables.")
     parser.add_argument("--target-venue", help="Venue, publication, client, or submission target.")
+    parser.add_argument("--venue-style-profile", help="Optional venue or style profile used for submission-readiness checks.")
     parser.add_argument("--source-task", action="append", default=[], help="Accepted source task id to link, such as TASK-0001. Repeatable.")
     parser.add_argument("--primary-artifact", help="Primary artifact path relative to research_ops.")
     parser.add_argument("--owner", help="Human or agent owner for maturity follow-through.")
     parser.add_argument("--required-gate", action="append", default=[], help="Additional required gate id to track. Repeatable.")
     parser.add_argument("--complete-gate", action="append", default=[], help="Completed gate id to mark; use `all` with target to complete all current required gates.")
+    parser.add_argument(
+        "--manuscript-gate",
+        action="append",
+        default=[],
+        metavar="GATE=STATUS",
+        help="Set a manuscript-quality gate status. Repeatable. Status values: " + ", ".join(GATE_STATUS_CHOICES),
+    )
+    parser.add_argument("--gate-rationale", action="append", default=[], metavar="GATE=TEXT", help="Attach rationale or caveat text to a manuscript gate.")
+    parser.add_argument("--waiver-rationale", action="append", default=[], metavar="GATE=TEXT", help="Required human rationale for a waived manuscript gate.")
+    parser.add_argument("--gate-evidence", action="append", default=[], metavar="GATE=TEXT", help="Attach evidence, artifact, or section reference to a manuscript gate.")
     parser.add_argument("--review-independence", choices=INDEPENDENCE_CHOICES, default="none" if init else None, help="Achieved review independence.")
     parser.add_argument("--reviewer", help="Reviewer identity or role for the latest maturity review.")
     parser.add_argument("--review-notes", help="Short review-independence note.")

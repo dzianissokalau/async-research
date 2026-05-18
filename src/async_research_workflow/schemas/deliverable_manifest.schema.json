@@ -121,6 +121,9 @@
           "target_venue": {
             "type": "string"
           },
+          "venue_style_profile": {
+            "type": "string"
+          },
           "target_maturity": {
             "type": "string",
             "enum": [
@@ -164,6 +167,96 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "manuscript_gates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "gate_id",
+                "label",
+                "category",
+                "minimum_maturity",
+                "required",
+                "status",
+                "rationale",
+                "waiver_rationale",
+                "evidence",
+                "updated_at"
+              ],
+              "properties": {
+                "gate_id": {
+                  "type": "string",
+                  "enum": [
+                    "target_audience_declared",
+                    "clean_prose_pass",
+                    "figures_tables_embedded_and_narrated",
+                    "reader_trust_citations",
+                    "unresolved_gaps_disclosed",
+                    "internal_workflow_source_label_cleanup",
+                    "final_prose_pass",
+                    "related_work_synthesis",
+                    "contribution_statement",
+                    "methods_detail",
+                    "reproducibility_notes",
+                    "formal_limitations",
+                    "formal_citations",
+                    "complete_bibliography",
+                    "target_venue_declared",
+                    "venue_style_compliance",
+                    "formal_references",
+                    "data_code_availability",
+                    "figure_table_requirements"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "minimum_maturity": {
+                  "type": "string",
+                  "enum": [
+                    "shareable_memo",
+                    "working_paper",
+                    "submission_ready_manuscript"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "not_required",
+                    "missing",
+                    "partial",
+                    "passed_with_caveats",
+                    "passed",
+                    "waived_by_human"
+                  ]
+                },
+                "rationale": {
+                  "type": "string"
+                },
+                "waiver_rationale": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "updated_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           },
           "review_independence": {

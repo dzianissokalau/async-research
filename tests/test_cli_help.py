@@ -191,7 +191,7 @@ class CliHelpTests(unittest.TestCase):
             (["analysis", "validate-results"], ["result summary", "claim_gates.json", "accepted experiment plan", "--ops-dir", "--now"]),
             (["deliverable"], ["deliverable maturity", "Accepted task outputs are source evidence", "init", "target", "check"]),
             (["deliverable", "init"], ["deliverable_manifest.json", "--title", "--output-type", "--target-maturity"]),
-            (["deliverable", "target"], ["target audience", "source task links", "--complete-gate", "--review-independence"]),
+            (["deliverable", "target"], ["target audience", "source task links", "--complete-gate", "--manuscript-gate", "--waiver-rationale", "--review-independence"]),
             (["deliverable", "check"], ["target maturity", "accepted source tasks alone are insufficient", "--target-maturity"]),
             (["exploration"], ["exploration-cycle tasks", "validate"]),
             (["exploration", "validate"], ["worker output", "--task-dir"]),

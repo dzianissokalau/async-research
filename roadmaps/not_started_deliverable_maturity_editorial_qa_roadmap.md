@@ -1,9 +1,9 @@
 # Deliverable Maturity And Editorial QA Roadmap
 
 Status: Not Started
-Current phase: Phase 1 - Paper-specific quality gates
+Current phase: Phase 2 - Adversarial reviewer stage
 Last updated: 2026-05-18
-Next action: Add explicit manuscript quality gates and waiver rationale
+Next action: Add distinct adversarial critic stage with independence metadata
 Blocked by: None
 
 Created: 2026-05-17
@@ -93,15 +93,15 @@ between internal acceptance and external readiness.
 | P0 | 0 | Deliverable maturity taxonomy | Add canonical maturity levels and vocabulary for research note, internal draft, shareable memo, working paper, and submission-ready manuscript. | Prevents accepted task outputs from being mistaken for publication-ready deliverables. | Complete |
 | P0 | 0 | Deliverable target manifest | Add a durable manifest, for example `research_ops/deliverables/deliverable_manifest.json`, with output type, target audience, intended venue, maturity target, owner, source task links, and current maturity. | Gives drafting and review tasks a declared target before prose is assembled. | Complete |
 | P0 | 4 | Honest final-output naming | Rename or constrain labels like `final paper production` unless deliverable gates prove external readiness. Prefer `internal draft assembly` for TASK-0015-style work. | Removes the most misleading product signal from the coffee pilot. | Open |
-| P1 | 1 | Manuscript-readiness checklist | Add structured checklist gates for related work, contribution, methods, reproducibility, figures/tables, citations, data/code availability, limitations, and final prose cleanup. | Turns editorial/product quality from tacit judgment into inspectable workflow state. | Open |
-| P1 | 1 | Venue and audience gate | Require target audience and optional venue/style profile before promoting a draft beyond internal maturity. | Aligns quality criteria with the intended reader instead of applying one generic paper standard. | Open |
-| P1 | 1 | Formal citation and bibliography requirement | Require complete bibliography artifacts and citation-style checks for working-paper and submission-ready levels. | Prevents internal source labels and informal citations from leaking into external drafts. | Open |
-| P1 | 1 | Figures and tables embedding gate | Require figures/tables to be embedded, captioned, numbered, referenced in prose, and interpreted in the narrative. | Makes exhibits part of the argument rather than loose artifacts. | Open |
+| P1 | 1 | Manuscript-readiness checklist | Add structured checklist gates for related work, contribution, methods, reproducibility, figures/tables, citations, data/code availability, limitations, and final prose cleanup. | Turns editorial/product quality from tacit judgment into inspectable workflow state. | Complete |
+| P1 | 1 | Venue and audience gate | Require target audience and optional venue/style profile before promoting a draft beyond internal maturity. | Aligns quality criteria with the intended reader instead of applying one generic paper standard. | Complete |
+| P1 | 1 | Formal citation and bibliography requirement | Require complete bibliography artifacts and citation-style checks for working-paper and submission-ready levels. | Prevents internal source labels and informal citations from leaking into external drafts. | Complete |
+| P1 | 1 | Figures and tables embedding gate | Require figures/tables to be embedded, captioned, numbered, referenced in prose, and interpreted in the narrative. | Makes exhibits part of the argument rather than loose artifacts. | Complete |
 | P1 | 2 | Adversarial reviewer task type | Add a dedicated critic task with adversarial review prompts, target-output rubric, and required independence metadata. | Forces a separate challenge pass before a deliverable can claim external readiness. | Open |
 | P1 | 3 | Review-response matrix | Add a formal matrix for critique item, severity, target section, decision, required change, response rationale, and closure evidence. | Makes revision auditable and prevents major comments from being hand-waved away. | Open |
 | P1 | 4 | Dashboard maturity and editorial QA panel | Show maturity target/current level, checklist completion, critic result, response matrix status, unresolved gaps, caveats, confidence, and review independence. | Lets humans trust the deliverable status without opening raw review files. | Open |
-| P2 | 1 | Related-work completeness rubric | Define coverage expectations, missing-schools checks, competing hypotheses, and source age/authority warnings by output type. | Improves scholarly positioning and reduces thin literature framing. | Open |
-| P2 | 1 | Reproducibility and data/code availability gate | Require methods detail, data availability, code availability, source manifests, and reproducibility limits for higher maturity levels. | Makes methods stronger before working-paper or submission-ready claims. | Open |
+| P2 | 1 | Related-work completeness rubric | Define coverage expectations, missing-schools checks, competing hypotheses, and source age/authority warnings by output type. | Improves scholarly positioning and reduces thin literature framing. | Complete |
+| P2 | 1 | Reproducibility and data/code availability gate | Require methods detail, data availability, code availability, source manifests, and reproducibility limits for higher maturity levels. | Makes methods stronger before working-paper or submission-ready claims. | Complete |
 | P2 | 2 | Review independence policy | Track whether critic review was same-agent, separate-agent, different model, human, panel, or external. Set minimum independence for each maturity level. | Makes review quality legible and prevents hidden same-agent self-approval. | Open |
 | P2 | 3 | Revision promotion blocker | Block maturity promotion when severe or critical response-matrix rows remain open unless a human explicitly accepts the risk. | Keeps adversarial review from becoming ceremonial. | Open |
 | P2 | 5 | Coffee-pilot regression fixture | Add a fixture where a task is accepted as an internal draft but fails working-paper readiness until related-work, citation, figure, and critic gates are completed. | Locks in the lesson from the coffee pilot. | Open |

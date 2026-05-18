@@ -42,3 +42,45 @@ Branch: `codex/deliverable-maturity-editorial-qa`
 ### Next Action
 
 - Deliver Phase 1: explicit manuscript quality gates and waiver rationale.
+
+## Phase 1 - 2026-05-18
+
+Status: delivered
+Branch: `codex/deliverable-maturity-editorial-qa`
+
+### Scope
+
+- Explicit manuscript quality gates with machine-checkable statuses.
+- Human waiver rationale for waived gates.
+- Promotion blockers above internal draft when manuscript gates remain missing or partial.
+- Venue/audience/style-profile metadata and read-model visibility for gate status.
+
+### Changes
+
+- Added structured `manuscript_gates` rows to deliverable manifests and readiness read models.
+- Added gate statuses: `not_required`, `missing`, `partial`, `passed_with_caveats`, `passed`, and `waived_by_human`.
+- Added CLI support for manuscript gate status, rationale, waiver rationale, evidence, and venue/style profile metadata.
+- Updated schema, starter projections, README guidance, and acceptance-suite coverage.
+- Preserved legacy `--complete-gate` behavior while syncing it through explicit manuscript gate rows.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 649 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 9 tests
+- `git diff --check`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/deliverable_maturity_editorial_qa/reviews/deliverable-maturity-editorial-qa-phase-1-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Critic-review and response-matrix gates remain checklist blockers only until Phase 2 and Phase 3 add dedicated workflows.
+- Dashboard surfacing remains deferred to Phase 4.
+
+### Next Action
+
+- Deliver Phase 2: add the distinct adversarial critic stage with independence metadata and maturity-ceiling recommendations.
