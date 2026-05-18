@@ -269,9 +269,9 @@ Branch: `codex/deliverable-maturity-editorial-qa-delivered`
 ### Final Verification
 
 - `.venv/bin/python -m unittest tests.test_doc_references`: passed, 12 tests
-- `.venv/bin/python -m unittest discover -s tests`: passed, 661 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 660 tests
 - `.venv/bin/async-research acceptance-suite`: passed, 15 checks
-- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 19 tests
+- `.venv/bin/python -m unittest tests.test_deliverable_maturity`: passed, 18 tests
 - `.venv/bin/python -m unittest tests.test_prompt_library`: passed, 9 tests
 - `.venv/bin/python -m unittest tests.test_packaged_resources`: passed, 8 tests
 - `.venv/bin/python -m unittest tests.test_cli_help`: passed, 7 tests
