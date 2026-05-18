@@ -461,6 +461,60 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual([], payload["gated_source_refs"])
             self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["context_only"])
 
+    def test_table_rejected_source_is_not_upgraded_by_casual_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            artifact = ops_dir / "tasks" / "TASK-3012-table-rejected" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\n".join(
+                    [
+                        "| source_id | source_use_intent | note |",
+                        "| --- | --- | --- |",
+                        "| DS-0001 | rejected_source | data quality issues |",
+                        "",
+                        "As noted above, DS-0001 had quality issues so we removed it.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual([], payload["gated_source_refs"])
+            self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["rejected_source"])
+
+    def test_table_rejected_source_can_be_upgraded_by_explicit_evidence_label(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_source_audit(ops_dir)
+            artifact = ops_dir / "tasks" / "TASK-3013-table-rejected-explicit-evidence" / "worker_output.md"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\n".join(
+                    [
+                        "| source_id | source_use_intent | note |",
+                        "| --- | --- | --- |",
+                        "| DS-0001 | rejected_source | initial triage was too conservative |",
+                        "",
+                        "source_use_intent: evidence for DS-0001 after source audit repair.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = run_cli_json(["source", "check-claim", ops_dir, artifact, "--use-case", "accepted_evidence"])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(["DS-0001"], payload["gated_source_refs"])
+            self.assertEqual(["DS-0001"], payload["source_refs_by_intent"]["used_as_evidence"])
+
     def test_later_evidence_reference_upgrades_weaker_prior_source_intent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))

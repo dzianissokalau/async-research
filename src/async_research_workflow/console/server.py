@@ -37,7 +37,8 @@ STATIC_FILES = {
 ARTIFACT_SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": (
-        "sandbox allow-downloads; default-src 'none'; style-src 'unsafe-inline'; "
+        "sandbox allow-downloads allow-popups allow-popups-to-escape-sandbox; "
+        "default-src 'none'; style-src 'unsafe-inline'; "
         "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     ),
     "X-Frame-Options": "DENY",

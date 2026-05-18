@@ -57,8 +57,9 @@ SOURCE_ID_COLUMNS = {"source_id", "source_ids", "data_source_id", "data_source_i
 SOURCE_INTENT_COLUMNS = {"source_use_intent", "use_intent", "intent", "source_intent", "role", "source_role"}
 INLINE_SOURCE_INTENT_LABEL_PATTERN = re.compile(
     r"\b(?:source[\s_-]*use[\s_-]*intent|source[\s_-]*intent|use[\s_-]*intent|source[\s_-]*role)\s*[:=]\s*"
-    r"([a-zA-Z0-9 _-]+)"
+    r"([a-zA-Z0-9_-]+)"
 )
+TABLE_STICKY_NON_EVIDENCE_INTENTS = {"rejected_source", "restricted_optional"}
 SOURCE_TIERS = {
     "tier_1_official",
     "tier_2_institutional",
@@ -596,6 +597,9 @@ def extract_source_refs_with_intent(path: Path) -> dict[str, Any]:
     text = read_artifact_text(path)
     lines = text.splitlines()
     intents = table_source_intents(lines)
+    table_sticky_refs = {
+        ref for ref, intent in intents.items() if intent in TABLE_STICKY_NON_EVIDENCE_INTENTS
+    }
     for line in lines:
         refs = SOURCE_REF_PATTERN.findall(line)
         if not refs:
@@ -604,6 +608,8 @@ def extract_source_refs_with_intent(path: Path) -> dict[str, Any]:
             continue
         intent = source_intent_from_line(line)
         for ref in refs:
+            if intent is None and ref in table_sticky_refs:
+                continue
             intents[ref] = prefer_source_intent(intents.get(ref), intent)
     for ref in SOURCE_REF_PATTERN.findall(text):
         intents.setdefault(ref, "used_as_evidence")

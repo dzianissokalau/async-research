@@ -200,12 +200,18 @@ class ConsoleServerTests(unittest.TestCase):
             html_report.write_text("<script>fetch('/api/actions/run')</script>\n", encoding="utf-8")
             svg_chart = artifacts_dir / "chart.svg"
             svg_chart.write_text("<svg><script>fetch('/api/snapshot')</script></svg>\n", encoding="utf-8")
+            xml_report = artifacts_dir / "report.xhtml"
+            xml_report.write_text("<html><script>fetch('/api/snapshot')</script></html>\n", encoding="utf-8")
+            json_report = artifacts_dir / "report.json"
+            json_report.write_text('{"html": "<script>fetch(\\"/api/snapshot\\")</script>"}\n', encoding="utf-8")
 
             routes = [
                 "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.html",
                 "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.html?raw=1",
                 "/artifacts/tasks/TASK-0002-generated/artifacts/nested/chart.svg",
                 "/artifacts/tasks/TASK-0002-generated/artifacts/nested/chart.svg?raw=1",
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.xhtml",
+                "/artifacts/tasks/TASK-0002-generated/artifacts/nested/report.json",
             ]
             for route in routes:
                 with self.subTest(route=route):
@@ -215,8 +221,10 @@ class ConsoleServerTests(unittest.TestCase):
                     self.assertEqual("application/octet-stream", media_type)
                     self.assertNotIn("text/html", media_type)
                     self.assertNotIn("image/svg+xml", media_type)
+                    self.assertNotIn("application/json", media_type)
                     self.assertEqual("nosniff", headers["X-Content-Type-Options"])
                     self.assertIn("default-src 'none'", headers["Content-Security-Policy"])
+                    self.assertIn("allow-popups-to-escape-sandbox", headers["Content-Security-Policy"])
                     self.assertIn(b"<script>", body)
 
     def test_artifact_viewer_handles_spaces_missing_files_and_rejects_escape(self) -> None:
