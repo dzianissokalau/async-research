@@ -1,9 +1,9 @@
 # Autonomous Delivery Pivot Roadmap
 
 Status: In Progress
-Current phase: Phase 1 - Roadmap and docs guardrails
+Current phase: Phase 2 - Shared foundation proposal contract
 Last updated: 2026-05-19
-Next action: Run Phase 1 through the phase-gated delivery template
+Next action: Run Phase 2 through the phase-gated delivery template
 Blocked by: None
 
 Created: 2026-05-18

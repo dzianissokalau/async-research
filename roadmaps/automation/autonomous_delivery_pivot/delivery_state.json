@@ -1,18 +1,14 @@
 {
   "roadmap": "roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md",
   "roadmap_slug": "autonomous_delivery_pivot",
-  "current_phase": 1,
-  "branch": "codex/autonomous-delivery-pivot-phase-1",
+  "current_phase": 2,
+  "branch": "codex/autonomous-delivery-pivot-phase-2",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 0,
+    "phase": 1,
     "commands": [
-      {
-        "command": "rg -n \"in_progress_.*_roadmap|not_started_.*_roadmap|delivered_.*_roadmap\" roadmaps",
-        "status": "passed"
-      },
       {
         "command": "git diff --check",
         "status": "passed"
@@ -20,24 +16,29 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "details": "12 tests"
+        "details": "15 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_docs_packaging",
+        "status": "passed",
+        "details": "7 tests"
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "663 tests"
+        "details": "667 tests"
       }
     ],
-    "completed_at": "2026-05-19T07:30:19+01:00"
+    "completed_at": "2026-05-19T08:00:06+01:00"
   },
   "last_review": {
-    "phase": 0,
-    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-0-review-iteration-1.md",
+    "phase": 1,
+    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-1-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-19T07:30:19+01:00"
+    "completed_at": "2026-05-19T07:58:44+01:00"
   },
-  "last_delivered_phase": 0,
+  "last_delivered_phase": 1,
   "blocked_reason": null,
   "all_phases_complete": false,
-  "updated_at": "2026-05-19T07:30:19+01:00"
+  "updated_at": "2026-05-19T08:00:06+01:00"
 }

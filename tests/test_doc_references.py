@@ -105,6 +105,25 @@ ROADMAP_STATUS_PREFIXES = {
     "superseded_": "Superseded",
 }
 ROADMAP_OPERATIONAL_FILES: set[str] = set()
+ROADMAP_INDEX_ROW_RE = re.compile(
+    r"^\| \[(?P<name>[^\]]+)\]\((?P<target>\./[^)]+)\) \| "
+    r"(?P<status>[^|]+) \| (?P<current_phase>[^|]+) \| "
+    r"(?P<last_updated>[^|]+) \| (?P<next_action>[^|]+) \| "
+    r"(?P<blocked_by>[^|]+) \|$"
+)
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((?P<target>[^)]+)\)")
+HISTORICAL_ROADMAP_LABELS = (
+    "historical",
+    "history",
+    "stale",
+    "obsolete",
+    "renamed",
+    "previous",
+    "former",
+    "legacy",
+    "old lifecycle",
+    "lifecycle rename",
+)
 
 
 def iter_documentation_files() -> list[Path]:
@@ -127,6 +146,76 @@ def has_internal_helper_label(lines: list[str], index: int) -> bool:
     end = min(len(lines), index + 2)
     context = "\n".join(lines[start:end]).lower()
     return any(label in context for label in INTERNAL_HELPER_LABELS)
+
+
+def roadmap_index_rows() -> list[dict[str, str]]:
+    index = ROOT / "roadmaps" / "README.md"
+    rows: list[dict[str, str]] = []
+    for line in index.read_text(encoding="utf-8").splitlines():
+        match = ROADMAP_INDEX_ROW_RE.match(line)
+        if match:
+            rows.append(match.groupdict())
+    return rows
+
+
+def roadmap_index_path_map() -> dict[str, Path]:
+    return {
+        row["name"]: ROOT / "roadmaps" / row["target"].removeprefix("./")
+        for row in roadmap_index_rows()
+    }
+
+
+def stale_roadmap_filename_replacements() -> dict[str, str]:
+    replacements: dict[str, str] = {}
+    for path in roadmap_index_path_map().values():
+        current_name = path.name
+        matched_prefix = next(
+            (prefix for prefix in ROADMAP_STATUS_PREFIXES if current_name.startswith(prefix)),
+            None,
+        )
+        if matched_prefix is None:
+            continue
+        slug = current_name.removeprefix(matched_prefix)
+        for prefix in ROADMAP_STATUS_PREFIXES:
+            stale_name = f"{prefix}{slug}"
+            if stale_name != current_name:
+                replacements[stale_name] = current_name
+    return replacements
+
+
+def line_number_for_offset(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def line_context_for_offset(text: str, offset: int) -> str:
+    lines = text.splitlines()
+    line_index = line_number_for_offset(text, offset) - 1
+    if line_index < 0 or line_index >= len(lines):
+        return ""
+
+    context_lines = [lines[line_index]]
+    cursor = line_index - 1
+    while cursor >= 0 and lines[cursor].strip():
+        previous = lines[cursor]
+        stripped = previous.lstrip()
+        if (
+            previous.startswith(" ")
+            or stripped.startswith(("- ", "* ", "+ "))
+            or re.match(r"\d+[.)]\s", stripped)
+        ):
+            context_lines.insert(0, previous)
+            if stripped.startswith(("- ", "* ", "+ ")) or re.match(r"\d+[.)]\s", stripped):
+                break
+            cursor -= 1
+            continue
+        break
+
+    return " ".join(context_lines)
+
+
+def has_historical_roadmap_label(context: str) -> bool:
+    normalized = context.lower()
+    return any(label in normalized for label in HISTORICAL_ROADMAP_LABELS)
 
 
 class DocumentationReferenceTests(unittest.TestCase):
@@ -412,6 +501,99 @@ class DocumentationReferenceTests(unittest.TestCase):
                 failures.append(f"roadmaps/README.md missing status table entry for {matched_status}")
 
         self.assertEqual([], failures)
+
+    def test_roadmap_index_maps_display_names_to_current_paths(self) -> None:
+        rows = roadmap_index_rows()
+        failures: list[str] = []
+        seen_names: set[str] = set()
+
+        if not rows:
+            failures.append("roadmaps/README.md has no parseable roadmap index rows")
+
+        for row in rows:
+            name = row["name"]
+            target = row["target"]
+            status = row["status"].strip()
+            path = ROOT / "roadmaps" / target.removeprefix("./")
+
+            if name in seen_names:
+                failures.append(f"roadmaps/README.md has duplicate roadmap display name: {name}")
+            seen_names.add(name)
+
+            if not target.startswith("./"):
+                failures.append(f"{name} uses non-relative roadmap target: {target}")
+            if "/" in target.removeprefix("./"):
+                failures.append(f"{name} points outside the roadmap root: {target}")
+            if not path.is_file():
+                failures.append(f"{name} points to missing roadmap: {target}")
+                continue
+
+            matched_status = None
+            for prefix, expected_status in ROADMAP_STATUS_PREFIXES.items():
+                if path.name.startswith(prefix):
+                    matched_status = expected_status
+                    break
+            if matched_status is None:
+                failures.append(f"{name} target lacks lifecycle prefix: {target}")
+            elif status != matched_status:
+                failures.append(
+                    f"{name} row status {status!r} does not match current path {target} "
+                    f"({matched_status})"
+                )
+
+        self.assertEqual([], failures)
+
+    def test_docs_reject_stale_roadmap_lifecycle_links(self) -> None:
+        replacements = stale_roadmap_filename_replacements()
+        failures: list[str] = []
+
+        for path in iter_documentation_files():
+            text = path.read_text(encoding="utf-8")
+            relative_path = path.relative_to(ROOT)
+            markdown_link_spans = [
+                (link.start(), link.end())
+                for link in MARKDOWN_LINK_RE.finditer(text)
+            ]
+
+            for link in MARKDOWN_LINK_RE.finditer(text):
+                target = clean_reference(link.group("target"))
+                target_name = Path(target.split("#", 1)[0]).name
+                if target_name in replacements:
+                    line = line_number_for_offset(text, link.start("target"))
+                    failures.append(
+                        f"{relative_path}:{line} links to stale roadmap {target_name}; "
+                        f"use {replacements[target_name]}"
+                    )
+
+            for stale_name, replacement in replacements.items():
+                for match in re.finditer(re.escape(stale_name), text):
+                    if any(start <= match.start() < end for start, end in markdown_link_spans):
+                        continue
+                    context = line_context_for_offset(text, match.start())
+                    if not has_historical_roadmap_label(context):
+                        line = line_number_for_offset(text, match.start())
+                        failures.append(
+                            f"{relative_path}:{line} mentions stale roadmap {stale_name} "
+                            f"without a historical/stale label; current path is {replacement}"
+                        )
+
+        self.assertEqual([], failures)
+
+    def test_roadmap_closeout_checklist_covers_lifecycle_hygiene(self) -> None:
+        checklist = ROOT / "roadmaps" / "automation" / "roadmap_closeout_checklist.md"
+        text = checklist.read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+        for snippet in [
+            "Update the roadmap header",
+            "Rename the roadmap file to the lifecycle prefix",
+            "Update `roadmaps/README.md`",
+            "Update inbound links",
+            "Move or repoint automation artifacts under `roadmaps/automation/<roadmap_slug>/`",
+            "Run the stale-link scan",
+            ".venv/bin/python -m unittest tests.test_doc_references",
+            "Record backlog follow-ups",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
 
     def test_dashboard_mvp_coordination_contract_is_locked(self) -> None:
         dashboard_path = ROOT / "roadmaps" / "delivered_dashboard_delivery_roadmap.md"

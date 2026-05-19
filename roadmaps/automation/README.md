@@ -12,6 +12,8 @@ Use the roadmap root for human-facing roadmap documents:
 - `superseded_*_roadmap.md`
 
 Use this folder for automation templates, state, logs, and review outputs.
+Use the [Roadmap Closeout Checklist](./roadmap_closeout_checklist.md) before
+renaming a roadmap lifecycle file or marking a roadmap delivered.
 
 ## Layout
 
