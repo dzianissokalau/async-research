@@ -38,7 +38,10 @@ from async_research_workflow.idea_catalog import catalog_validation_report
 from async_research_workflow.idea_catalog import catalog_validation_report_from_model
 from async_research_workflow.idea_catalog import derived_display_label
 from async_research_workflow.idea_catalog import hard_gate_blocked
+from async_research_workflow.idea_catalog import idea_metrics_report
+from async_research_workflow.idea_catalog import idea_trace_report
 from async_research_workflow.idea_catalog import markdown_cells
+from async_research_workflow.idea_catalog import parse_trace_datetime
 from async_research_workflow.idea_catalog import prioritization_markers
 from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
@@ -3072,11 +3075,22 @@ def promotion_task_proposal(
         },
         "data_audit_refs": refs["data_refs"],
         "catalog_idea_id": idea_id,
+        "origin_idea_id": idea_id,
+        "promotion_score_snapshot": copy.deepcopy(payload.get("score")) if isinstance(payload.get("score"), dict) else {},
+        "promotion_route": task_type,
+        "routing_reason": route_reason,
+        "blocker_snapshot": copy.deepcopy(blockers),
+        "promotion_preflight_hash": TIMESTAMP_PLACEHOLDER,
+        "promotion_transaction_id": TIMESTAMP_PLACEHOLDER,
         "catalog_promotion": {
             "catalog_idea_id": idea_id,
+            "origin_idea_id": idea_id,
             "idempotency_key": task_identity["idempotency_key"],
             "reserved_task_id": task_id,
             "reservation_policy": TASK_ID_RESERVATION_POLICY_VERSION,
+            "promotion_route": task_type,
+            "routing_reason": route_reason,
+            "blocker_snapshot": copy.deepcopy(blockers),
         },
     }
     apply_default_versions(status_json_draft)
@@ -3352,6 +3366,9 @@ def promotion_task_status_json(proposal: dict[str, Any], proposal_ref: dict[str,
         "write_policy_version": PROMOTION_WRITE_POLICY_VERSION,
         "dry_run_policy_version": PROMOTION_DRY_RUN_POLICY_VERSION,
     }
+    status_json["origin_idea_id"] = proposal_ref["idea_id"]
+    status_json["promotion_preflight_hash"] = proposal_ref["promotion_preflight_hash"]
+    status_json["promotion_transaction_id"] = proposal_ref["transaction_id"]
     apply_default_versions(status_json)
     return status_json
 
@@ -4122,6 +4139,47 @@ def run_show(args: argparse.Namespace) -> int:
     return catalog_validation_exit_code(report)
 
 
+def now_from_arg(value: str | None) -> tuple[datetime | None, dict[str, Any] | None]:
+    if not value:
+        return utc_now(), None
+    parsed = parse_trace_datetime(value)
+    if parsed is None:
+        return None, {
+            "ok": False,
+            "action": "idea_lifecycle_report_failed",
+            "reason": "invalid_now",
+            "now": value,
+            "message": "provide --now as an ISO-8601 timestamp",
+            "read_only": True,
+            "changed": False,
+        }
+    return parsed, None
+
+
+def run_metrics(args: argparse.Namespace) -> int:
+    now, error = now_from_arg(args.now)
+    if error is not None or now is None:
+        print_json(error or {})
+        return INVALID_REQUEST
+    report = idea_metrics_report(args.ops_dir, now)
+    print_json(report)
+    return int(report["validation_exit_code"])
+
+
+def run_trace(args: argparse.Namespace) -> int:
+    now, error = now_from_arg(args.now)
+    if error is not None or now is None:
+        print_json(error or {})
+        return INVALID_REQUEST
+    report = idea_trace_report(args.ops_dir, args.idea_id, now)
+    print_json(report)
+    if report["ok"]:
+        return SUCCESS
+    if report.get("reason") == "idea_not_found":
+        return INVALID_REQUEST
+    return int(report.get("validation_exit_code", MALFORMED))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Initialize and maintain idea catalog workspace files.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -4170,6 +4228,31 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     show.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
     show.set_defaults(func=run_show)
+
+    metrics = subparsers.add_parser(
+        "metrics",
+        help="Render read-only idea lifecycle metrics.",
+        description=(
+            "Report idea capture, promotion, task outcome, parked-age, duplicate, blocker, and accepted-promotion "
+            "cost metrics from canonical catalog, queue, task status, accepted output, and cost ledger files without mutating research_ops."
+        ),
+    )
+    metrics.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    metrics.add_argument("--now", help="Override report time as an ISO-8601 timestamp for deterministic parked-age metrics.")
+    metrics.set_defaults(func=run_metrics)
+
+    trace = subparsers.add_parser(
+        "trace",
+        help="Trace one idea to promoted tasks and outputs.",
+        description=(
+            "Explain why a task exists by reading one canonical idea, linked task status metadata, queue/accepted-output "
+            "evidence, and promotion trace fields without mutating research_ops."
+        ),
+    )
+    trace.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
+    trace.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    trace.add_argument("--now", help="Override report time as an ISO-8601 timestamp for deterministic parked-age metrics.")
+    trace.set_defaults(func=run_trace)
 
     maintain = subparsers.add_parser(
         "maintain",

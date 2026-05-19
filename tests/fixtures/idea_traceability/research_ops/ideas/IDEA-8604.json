@@ -1,0 +1,51 @@
+{
+  "id": "IDEA-8604",
+  "kill_reason": "Reject if fixture evidence is unavailable.",
+  "main_risks": [
+    "missing timestamps"
+  ],
+  "minimum_viable_test": "Run a bounded fixture check.",
+  "question": "Can missing timestamps stay explicit?",
+  "recommended_next_task": "data_readiness",
+  "required_data": [
+    "fixture source"
+  ],
+  "schema_version": "1.0",
+  "score": {
+    "budget_mode": "normal",
+    "budget_mode_reason": "fixture",
+    "budget_pressure_threshold": 0.8,
+    "budget_usage": {
+      "monthly_budget_usd": null,
+      "monthly_cost_usd": 0.0,
+      "monthly_usage_ratio": null,
+      "weekly_budget_usd": null,
+      "weekly_cost_usd": 0.0,
+      "weekly_usage_ratio": null
+    },
+    "cost": 2,
+    "data_availability": 4,
+    "decision_impact": 4,
+    "feasibility": 4,
+    "hard_gate_results": [
+      {
+        "gate": "research_question_present",
+        "passed": true,
+        "reason": "fixture"
+      }
+    ],
+    "killability": 4,
+    "max_promotions_per_week": 3,
+    "minimum_killability": 3,
+    "mission_policy_version": "fixture_policy_v1.0",
+    "novelty": 3,
+    "promotion_threshold": 14.0,
+    "reuse_potential": 4,
+    "robustness_risk": 2,
+    "score_explanation": "Fixture missing timestamp score.",
+    "weighted_total": 16.5
+  },
+  "status": "promote",
+  "title": "Missing timestamp traceability fixture",
+  "why_it_might_matter": "It verifies unavailable lifecycle metrics."
+}

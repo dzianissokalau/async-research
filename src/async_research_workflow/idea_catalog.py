@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import csv
 from datetime import datetime
 from datetime import timezone
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from async_research_workflow.resources import schema_path
@@ -97,6 +99,11 @@ SCORE_DIMENSIONS = (
     "cost",
 )
 ACTIVE_DASHBOARD_STATUSES = {"candidate", "promote", "needs_human"}
+TERMINAL_TASK_STATUSES = {"accepted", "rejected"}
+IDEA_ID_RE = re.compile(r"\bIDEA-[0-9]{4}\b")
+TASK_ID_RE = re.compile(r"\bTASK-[0-9]{4}\b")
+COST_AMOUNT_FIELDS = ("amount_usd", "cost_usd", "usd", "total_usd")
+COST_COMPONENT_FIELDS = ("api_usd", "compute_usd")
 
 CATALOG_TEMPLATE = f"""# Idea Catalog
 
@@ -1144,12 +1151,832 @@ def dashboard_idea_task_links(records: list[dict[str, Any]], issues_by_candidate
     return links
 
 
+def parse_trace_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            parsed = datetime.strptime(value[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def trace_timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def rounded_hours(start: datetime | None, end: datetime | None) -> tuple[float | str, str | None]:
+    if start is None or end is None:
+        return UNAVAILABLE, "missing_timestamp"
+    if end < start:
+        return UNAVAILABLE, "backwards_timestamp_range"
+    return round((end - start).total_seconds() / 3600, 2), None
+
+
+def first_payload_datetime(payload: dict[str, Any], fields: tuple[str, ...]) -> tuple[datetime | None, str]:
+    for field in fields:
+        parsed = parse_trace_datetime(payload.get(field))
+        if parsed is not None:
+            return parsed, field
+    return None, UNAVAILABLE
+
+
+def decision_history(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    history = payload.get("decision_history")
+    if not isinstance(history, list):
+        return []
+    return [entry for entry in history if isinstance(entry, dict)]
+
+
+def transition_datetime(payload: dict[str, Any], to_status: str) -> tuple[datetime | None, str]:
+    matches: list[tuple[datetime, str]] = []
+    for index, entry in enumerate(decision_history(payload)):
+        if str(entry.get("to_status") or "") != to_status:
+            continue
+        parsed = parse_trace_datetime(entry.get("at"))
+        if parsed is not None:
+            matches.append((parsed, f"decision_history[{index}].at"))
+    if matches:
+        return sorted(matches, key=lambda item: item[0])[0]
+
+    current_status = str(payload.get("status") or "candidate")
+    if to_status == "candidate" and current_status in {"candidate", "promote", "promoted", "park", "reject", "needs_human"}:
+        created, field = first_payload_datetime(payload, ("created_at",))
+        if created is not None:
+            return created, field
+    if current_status == to_status:
+        return first_payload_datetime(payload, ("updated_at", "created_at"))
+    return None, UNAVAILABLE
+
+
+def promotion_proposal_refs(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    refs = payload.get("promotion_proposal_refs")
+    if not isinstance(refs, list):
+        return []
+    return [ref for ref in refs if isinstance(ref, dict)]
+
+
+def first_promotion_ref_datetime(payload: dict[str, Any]) -> tuple[datetime | None, str]:
+    matches: list[tuple[datetime, str]] = []
+    for index, ref in enumerate(promotion_proposal_refs(payload)):
+        parsed = parse_trace_datetime(ref.get("created_at"))
+        if parsed is not None:
+            matches.append((parsed, f"promotion_proposal_refs[{index}].created_at"))
+    if matches:
+        return sorted(matches, key=lambda item: item[0])[0]
+    return None, UNAVAILABLE
+
+
+def read_task_trace_records(ops_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    tasks_dir = ops_dir / "tasks"
+    if not tasks_dir.exists() or not tasks_dir.is_dir():
+        return [], []
+
+    records: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    for status_path in sorted(tasks_dir.glob("*/status.json")):
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            warnings.append(issue("warning", "task_status_json_malformed", status_path, str(exc)))
+            continue
+        except (OSError, UnicodeDecodeError) as exc:
+            warnings.append(issue("warning", "task_status_read_failed", status_path, str(exc)))
+            continue
+        if not isinstance(payload, dict):
+            warnings.append(issue("warning", "task_status_not_object", status_path, "task status JSON must be an object"))
+            continue
+        task_id = str(payload.get("id") or status_path.parent.name).strip()
+        records.append(
+            {
+                "task_id": task_id,
+                "task_dir": str(status_path.parent),
+                "status_path": str(status_path),
+                "status": str(payload.get("status") or UNAVAILABLE),
+                "payload": payload,
+            }
+        )
+    return records, warnings
+
+
+def task_record_matches_idea(task_record: dict[str, Any], idea_id: str, promoted_task_id: str | None) -> bool:
+    payload = task_record.get("payload", {})
+    if promoted_task_id and task_record.get("task_id") == promoted_task_id:
+        return True
+    for field in ("origin_idea_id", "catalog_idea_id"):
+        if str(payload.get(field) or "").strip() == idea_id:
+            return True
+    promotion = payload.get("catalog_promotion")
+    if isinstance(promotion, dict):
+        for field in ("origin_idea_id", "catalog_idea_id"):
+            if str(promotion.get(field) or "").strip() == idea_id:
+                return True
+    return False
+
+
+def linked_task_records(record: dict[str, Any], task_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    payload = record["payload"]
+    idea_id = str(record.get("idea_id") or payload.get("id") or "").strip()
+    promoted_task_id = str(payload.get("promoted_task_id") or "").strip() or None
+    return [
+        task_record
+        for task_record in task_records
+        if task_record_matches_idea(task_record, idea_id, promoted_task_id)
+    ]
+
+
+def task_created_datetime(task_records: list[dict[str, Any]], payload: dict[str, Any]) -> tuple[datetime | None, str]:
+    matches: list[tuple[datetime, str]] = []
+    for task_record in task_records:
+        task_payload = task_record.get("payload", {})
+        parsed, field = first_payload_datetime(task_payload, ("created_at",))
+        if parsed is not None:
+            matches.append((parsed, f"{task_record['task_id']}.{field}"))
+    if matches:
+        return sorted(matches, key=lambda item: item[0])[0]
+    return first_promotion_ref_datetime(payload)
+
+
+def markdown_table_rows_with_lines(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    warnings: list[dict[str, Any]] = []
+    if not path.exists():
+        return [], warnings
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        return [], [issue("warning", "markdown_table_read_failed", path, str(exc))]
+
+    header: list[str] | None = None
+    rows: list[dict[str, Any]] = []
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip().startswith("|"):
+            continue
+        cells = markdown_cells(line)
+        if is_separator_row(cells):
+            continue
+        if header is None:
+            header = [cell.lower().strip().replace(" ", "_") for cell in cells]
+            continue
+        if len(cells) != len(header):
+            warnings.append(issue(
+                "warning",
+                "malformed_markdown_table_row",
+                path,
+                f"table row has {len(cells)} cells but expected {len(header)}",
+                line_number=line_number,
+                row=line.strip(),
+            ))
+            continue
+        row = dict(zip(header, cells))
+        row["line_number"] = line_number
+        rows.append(row)
+    return rows, warnings
+
+
+def task_id_from_text(value: Any) -> str:
+    match = TASK_ID_RE.search(str(value or ""))
+    return match.group(0) if match else ""
+
+
+def idea_id_from_text(value: Any) -> str:
+    match = IDEA_ID_RE.search(str(value or ""))
+    return match.group(0) if match else ""
+
+
+def read_accepted_output_rows(ops_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    path = ops_dir / "accepted_outputs_index.md"
+    rows, warnings = markdown_table_rows_with_lines(path)
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        task_id = task_id_from_text(row.get("task_id"))
+        if not task_id:
+            continue
+        by_task[task_id].append(
+            {
+                "task_id": task_id,
+                "accepted_date": row.get("accepted_date"),
+                "title": row.get("title"),
+                "evidence_link": row.get("evidence_link"),
+                "line_number": row.get("line_number"),
+                "path": str(path),
+            }
+        )
+    return dict(by_task), warnings
+
+
+def read_queue_trace_rows(ops_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    path = ops_dir / "queue.md"
+    rows, warnings = markdown_table_rows_with_lines(path)
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        task_text = row.get("task_id") or row.get("task") or row.get("task_dir_name") or row.get("notes")
+        task_id = task_id_from_text(task_text)
+        if not task_id:
+            continue
+        by_task[task_id].append(
+            {
+                "task_id": task_id,
+                "task": row.get("task"),
+                "task_dir_name": row.get("task_dir_name"),
+                "priority": row.get("priority"),
+                "status": row.get("status"),
+                "type": row.get("type"),
+                "next_runner": row.get("next_runner"),
+                "notes": row.get("notes"),
+                "origin_idea_id": idea_id_from_text(row.get("notes")),
+                "line_number": row.get("line_number"),
+                "path": str(path),
+            }
+        )
+    return dict(by_task), warnings
+
+
+def terminal_datetime(
+    task_records: list[dict[str, Any]],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+) -> tuple[datetime | None, str, str]:
+    matches: list[tuple[datetime, str, str]] = []
+    for task_record in task_records:
+        task_id = str(task_record.get("task_id") or "")
+        status = str(task_record.get("status") or "")
+        accepted_rows = accepted_rows_by_task.get(task_id, [])
+        if accepted_rows:
+            for row in accepted_rows:
+                parsed = parse_trace_datetime(row.get("accepted_date"))
+                if parsed is not None:
+                    matches.append((parsed, f"accepted_outputs_index.md:{row['line_number']}:accepted_date", "accepted"))
+        if status in TERMINAL_TASK_STATUSES:
+            parsed, field = first_payload_datetime(task_record.get("payload", {}), ("updated_at",))
+            if parsed is not None:
+                matches.append((parsed, f"{task_id}.{field}", status))
+    if not matches:
+        return None, UNAVAILABLE, UNAVAILABLE
+    return sorted(matches, key=lambda item: item[0])[0]
+
+
+def duration_item(
+    idea_id: str,
+    title: str,
+    start: datetime | None,
+    start_field: str,
+    end: datetime | None,
+    end_field: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    hours, reason = rounded_hours(start, end)
+    item = {
+        "idea_id": idea_id,
+        "title": title,
+        "start_field": start_field,
+        "end_field": end_field,
+        "start_at": trace_timestamp(start) if start is not None else UNAVAILABLE,
+        "end_at": trace_timestamp(end) if end is not None else UNAVAILABLE,
+        "duration_hours": hours,
+    }
+    if reason:
+        item["unavailable_reason"] = reason
+    item.update({key: value for key, value in extra.items() if value not in (None, "", [])})
+    return item
+
+
+def duration_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    values = [float(item["duration_hours"]) for item in items if isinstance(item.get("duration_hours"), (int, float))]
+    return {
+        "item_count": len(items),
+        "available_count": len(values),
+        "unavailable_count": len(items) - len(values),
+        "average_hours": round(sum(values) / len(values), 2) if values else UNAVAILABLE,
+        "max_hours": round(max(values), 2) if values else UNAVAILABLE,
+        "items": items,
+    }
+
+
+def idea_duration_items(
+    record: dict[str, Any],
+    task_records: list[dict[str, Any]],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+    now: datetime,
+) -> dict[str, dict[str, Any]]:
+    payload = record["payload"]
+    summary = candidate_summary(record)
+    idea_id = str(summary.get("idea_id") or summary.get("filename_id") or "")
+    title = str(summary.get("title") or "")
+    captured_at, captured_field = first_payload_datetime(payload, ("captured_at", "created_at"))
+    candidate_at, candidate_field = transition_datetime(payload, "candidate")
+    promote_at, promote_field = transition_datetime(payload, "promote")
+    created_at, created_field = task_created_datetime(task_records, payload)
+    terminal_at, terminal_field, terminal_status = terminal_datetime(task_records, accepted_rows_by_task)
+    parked_at, parked_field = transition_datetime(payload, "park")
+
+    items = {
+        "capture_to_candidate": duration_item(
+            idea_id,
+            title,
+            captured_at,
+            captured_field,
+            candidate_at,
+            candidate_field,
+        ),
+        "candidate_to_promote": duration_item(
+            idea_id,
+            title,
+            candidate_at,
+            candidate_field,
+            promote_at,
+            promote_field,
+        ),
+        "promote_to_task_creation": duration_item(
+            idea_id,
+            title,
+            promote_at,
+            promote_field,
+            created_at,
+            created_field,
+        ),
+        "task_creation_to_terminal_output": duration_item(
+            idea_id,
+            title,
+            created_at,
+            created_field,
+            terminal_at,
+            terminal_field,
+            terminal_status=terminal_status,
+        ),
+    }
+    if str(payload.get("status") or "") == "park":
+        items["parked_idea_age"] = duration_item(
+            idea_id,
+            title,
+            parked_at,
+            parked_field,
+            now,
+            "now",
+        )
+    return items
+
+
+def failed_gate_counter(records: list[dict[str, Any]]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for record in records:
+        for gate in blockers_for_payload(record["payload"]):
+            counts[gate] += 1
+        human_gate_reason = str(record["payload"].get("human_gate_reason") or "").strip()
+        if human_gate_reason:
+            counts["human_gate"] += 1
+    return dict(sorted(counts.items()))
+
+
+def amount_from_cost_row(row: dict[str, str]) -> float | None:
+    for field in COST_AMOUNT_FIELDS:
+        raw = row.get(field)
+        if raw is None or str(raw).strip() == "":
+            continue
+        try:
+            return float(str(raw).strip())
+        except ValueError:
+            return None
+    total = 0.0
+    found = False
+    for field in COST_COMPONENT_FIELDS:
+        raw = row.get(field)
+        if raw is None or str(raw).strip() == "":
+            continue
+        try:
+            total += float(str(raw).strip())
+            found = True
+        except ValueError:
+            return None
+    return total if found else None
+
+
+def read_cost_ledger_rows(ops_dir: Path) -> tuple[bool, list[dict[str, Any]], list[dict[str, Any]]]:
+    path = ops_dir / "cost_ledger.csv"
+    if not path.exists():
+        return False, [], []
+    warnings: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for line_number, raw in enumerate(reader, start=2):
+                clean = {str(key): str(value) for key, value in raw.items() if key is not None}
+                item_id = clean.get("item_id", "").strip()
+                amount = amount_from_cost_row(clean)
+                if amount is None and any(str(clean.get(field, "")).strip() for field in (*COST_AMOUNT_FIELDS, *COST_COMPONENT_FIELDS)):
+                    warnings.append(issue(
+                        "warning",
+                        "cost_ledger_amount_unavailable",
+                        path,
+                        "cost ledger row amount could not be parsed",
+                        line_number=line_number,
+                        item_id=item_id,
+                    ))
+                rows.append(
+                    {
+                        "line_number": line_number,
+                        "item_id": item_id,
+                        "item_key": Path(item_id).name if item_id else "",
+                        "amount_usd": amount if amount is not None else UNAVAILABLE,
+                        "amount_available": amount is not None,
+                    }
+                )
+    except (OSError, UnicodeDecodeError) as exc:
+        return True, [], [issue("warning", "cost_ledger_read_failed", path, str(exc))]
+    return True, rows, warnings
+
+
+def cost_rows_for_task(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]]:
+    return [row for row in rows if row.get("item_id") == task_id or row.get("item_key") == task_id]
+
+
+def accepted_promoted_task_ids(
+    records: list[dict[str, Any]],
+    all_task_records: list[dict[str, Any]],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+) -> list[str]:
+    task_ids: set[str] = set()
+    for record in records:
+        payload = record["payload"]
+        promoted_task_id = str(payload.get("promoted_task_id") or "").strip()
+        linked_tasks = linked_task_records(record, all_task_records)
+        for task_record in linked_tasks:
+            task_id = str(task_record.get("task_id") or "")
+            if task_record.get("status") == "accepted" or accepted_rows_by_task.get(task_id):
+                task_ids.add(task_id)
+        if promoted_task_id and accepted_rows_by_task.get(promoted_task_id):
+            task_ids.add(promoted_task_id)
+    return sorted(task_ids)
+
+
+def queue_rows_for_idea(
+    record: dict[str, Any],
+    task_records: list[dict[str, Any]],
+    queue_rows_by_task: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    payload = record["payload"]
+    task_ids = {str(task.get("task_id") or "") for task in task_records}
+    promoted_task_id = str(payload.get("promoted_task_id") or "").strip()
+    if promoted_task_id:
+        task_ids.add(promoted_task_id)
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, int]] = set()
+    for task_id in sorted(task_id for task_id in task_ids if task_id):
+        for row in queue_rows_by_task.get(task_id, []):
+            key = (task_id, str(row.get("path") or ""), int(row.get("line_number") or 0))
+            if key not in seen:
+                rows.append(row)
+                seen.add(key)
+    return rows
+
+
+def cost_per_accepted_promoted_idea(
+    ops_dir: Path,
+    accepted_task_ids: list[str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    ledger_available, cost_rows, warnings = read_cost_ledger_rows(ops_dir)
+    if not ledger_available:
+        return {
+            "status": UNAVAILABLE,
+            "reason": "cost_ledger_missing",
+            "ledger_path": str(ops_dir / "cost_ledger.csv"),
+            "accepted_promoted_idea_count": len(accepted_task_ids),
+            "cost_per_accepted_promoted_idea_usd": UNAVAILABLE,
+            "matched_task_ids": [],
+            "unmatched_task_ids": accepted_task_ids,
+            "malformed_cost_row_count": UNAVAILABLE,
+        }, warnings
+    if not accepted_task_ids:
+        return {
+            "status": UNAVAILABLE,
+            "reason": "no_accepted_promoted_ideas",
+            "ledger_path": str(ops_dir / "cost_ledger.csv"),
+            "accepted_promoted_idea_count": 0,
+            "cost_per_accepted_promoted_idea_usd": UNAVAILABLE,
+            "matched_task_ids": [],
+            "unmatched_task_ids": [],
+            "malformed_cost_row_count": 0,
+        }, warnings
+
+    matched: set[str] = set()
+    unmatched: list[str] = []
+    total = 0.0
+    malformed = 0
+    for task_id in accepted_task_ids:
+        rows = cost_rows_for_task(cost_rows, task_id)
+        if not rows:
+            unmatched.append(task_id)
+            continue
+        matched.add(task_id)
+        for row in rows:
+            if row.get("amount_available") is True:
+                total += float(row["amount_usd"])
+            else:
+                malformed += 1
+    complete = not unmatched and malformed == 0
+    return {
+        "status": "available" if complete else UNAVAILABLE,
+        "reason": None if complete else "incomplete_cost_coverage",
+        "ledger_path": str(ops_dir / "cost_ledger.csv"),
+        "accepted_promoted_idea_count": len(accepted_task_ids),
+        "accepted_promoted_task_ids": accepted_task_ids,
+        "matched_task_ids": sorted(matched),
+        "unmatched_task_ids": unmatched,
+        "malformed_cost_row_count": malformed,
+        "known_cost_usd": round(total, 4),
+        "cost_per_accepted_promoted_idea_usd": round(total / len(accepted_task_ids), 4) if complete else UNAVAILABLE,
+    }, warnings
+
+
+def linked_task_summary(
+    task_record: dict[str, Any],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+    queue_rows_by_task: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    payload = task_record.get("payload", {})
+    task_id = str(task_record.get("task_id") or "")
+    return {
+        "task_id": task_id,
+        "status": task_record.get("status", UNAVAILABLE),
+        "type": dashboard_available(payload.get("type")),
+        "title": dashboard_available(payload.get("title")),
+        "task_dir": task_record.get("task_dir"),
+        "status_path": task_record.get("status_path"),
+        "created_at": dashboard_available(payload.get("created_at")),
+        "updated_at": dashboard_available(payload.get("updated_at")),
+        "origin_idea_id": dashboard_available(payload.get("origin_idea_id") or payload.get("catalog_idea_id")),
+        "promotion_route": dashboard_available(payload.get("promotion_route")),
+        "routing_reason": dashboard_available(payload.get("routing_reason")),
+        "promotion_preflight_hash": dashboard_available(payload.get("promotion_preflight_hash")),
+        "promotion_transaction_id": dashboard_available(payload.get("promotion_transaction_id")),
+        "queue_rows": queue_rows_by_task.get(task_id, []),
+        "accepted_outputs": accepted_rows_by_task.get(task_id, []),
+    }
+
+
+def idea_trace_timeline(
+    payload: dict[str, Any],
+    linked_tasks: list[dict[str, Any]],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for event, fields in (
+        ("captured", ("captured_at", "created_at")),
+        ("candidate", ()),
+        ("promote", ()),
+        ("park", ()),
+        ("reject", ()),
+        ("promoted", ()),
+    ):
+        if event == "captured":
+            at, source = first_payload_datetime(payload, fields)
+        else:
+            at, source = transition_datetime(payload, event)
+        if at is not None:
+            events.append({"event": event, "at": trace_timestamp(at), "source": source})
+
+    for task_record in linked_tasks:
+        task_payload = task_record.get("payload", {})
+        task_id = str(task_record.get("task_id") or "")
+        created, created_field = first_payload_datetime(task_payload, ("created_at",))
+        if created is not None:
+            events.append({"event": "task_created", "at": trace_timestamp(created), "source": f"{task_id}.{created_field}", "task_id": task_id})
+        if task_record.get("status") in TERMINAL_TASK_STATUSES:
+            updated, updated_field = first_payload_datetime(task_payload, ("updated_at",))
+            if updated is not None:
+                events.append(
+                    {
+                        "event": f"task_{task_record['status']}",
+                        "at": trace_timestamp(updated),
+                        "source": f"{task_id}.{updated_field}",
+                        "task_id": task_id,
+                    }
+                )
+        for row in accepted_rows_by_task.get(task_id, []):
+            accepted_at = parse_trace_datetime(row.get("accepted_date"))
+            if accepted_at is not None:
+                events.append(
+                    {
+                        "event": "accepted_output_indexed",
+                        "at": trace_timestamp(accepted_at),
+                        "source": f"accepted_outputs_index.md:{row['line_number']}:accepted_date",
+                        "task_id": task_id,
+                    }
+                )
+    return sorted(events, key=lambda item: (item["at"], item["event"], item.get("task_id", "")))
+
+
+def idea_traceability_summary(
+    records: list[dict[str, Any]],
+    task_records: list[dict[str, Any]],
+    accepted_rows_by_task: dict[str, list[dict[str, Any]]],
+    queue_rows_by_task: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    linked_ideas = 0
+    accepted_promoted_ideas = 0
+    rejected_promoted_ideas = 0
+    linked_task_count = 0
+    queue_link_count = 0
+    for record in records:
+        tasks = linked_task_records(record, task_records)
+        linked_task_count += len(tasks)
+        if queue_rows_by_task is not None:
+            queue_link_count += len(queue_rows_for_idea(record, tasks, queue_rows_by_task))
+        if tasks or str(record["payload"].get("promoted_task_id") or "").strip():
+            linked_ideas += 1
+        if any(task.get("status") == "accepted" or accepted_rows_by_task.get(str(task.get("task_id") or "")) for task in tasks):
+            accepted_promoted_ideas += 1
+        if any(task.get("status") == "rejected" for task in tasks):
+            rejected_promoted_ideas += 1
+    return {
+        "linked_idea_count": linked_ideas,
+        "linked_task_count": linked_task_count,
+        "queue_link_count": queue_link_count,
+        "accepted_promoted_idea_count": accepted_promoted_ideas,
+        "rejected_promoted_idea_count": rejected_promoted_ideas,
+    }
+
+
+def idea_metrics_read_model(ops_dir: Path, now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    model = read_catalog(ops_dir)
+    validation = catalog_validation_report_from_model(ops_dir, model)
+    task_records, task_warnings = read_task_trace_records(ops_dir)
+    accepted_rows_by_task, accepted_warnings = read_accepted_output_rows(ops_dir)
+    queue_rows_by_task, queue_warnings = read_queue_trace_rows(ops_dir)
+    records = model["candidates"]
+    warnings = [*validation["warnings"], *task_warnings, *accepted_warnings, *queue_warnings]
+
+    metric_items: dict[str, list[dict[str, Any]]] = {
+        "capture_to_candidate": [],
+        "candidate_to_promote": [],
+        "promote_to_task_creation": [],
+        "task_creation_to_terminal_output": [],
+        "parked_idea_age": [],
+    }
+    for record in records:
+        tasks = linked_task_records(record, task_records)
+        durations = idea_duration_items(record, tasks, accepted_rows_by_task, now)
+        for key, item in durations.items():
+            metric_items.setdefault(key, []).append(item)
+
+    duplicate_count = sum(
+        1
+        for record in records
+        if str(record["payload"].get("duplicate_status") or "new") in {"duplicate", "near_duplicate"}
+    )
+    accepted_task_ids = accepted_promoted_task_ids(records, task_records, accepted_rows_by_task)
+    cost, cost_warnings = cost_per_accepted_promoted_idea(ops_dir, accepted_task_ids)
+    warnings.extend(cost_warnings)
+
+    candidate_count = len(records)
+    return {
+        "catalog_validation": {
+            "ok": validation["ok"],
+            "validation_exit_code": catalog_validation_exit_code(validation),
+            "warning_count": len(validation["warnings"]),
+            "failure_count": len(validation["failures"]),
+        },
+        "idea_count": candidate_count,
+        "status_counts": complete_status_counts(validation["status_counts"]),
+        "traceability": idea_traceability_summary(records, task_records, accepted_rows_by_task, queue_rows_by_task),
+        "lifecycle_durations": {
+            key: duration_summary(items)
+            for key, items in metric_items.items()
+        },
+        "duplicate_rate": {
+            "status": "available" if candidate_count else UNAVAILABLE,
+            "duplicate_or_near_duplicate_count": duplicate_count,
+            "idea_count": candidate_count,
+            "rate": round(duplicate_count / candidate_count, 4) if candidate_count else UNAVAILABLE,
+        },
+        "blocker_frequency": {
+            "status": "available" if candidate_count else UNAVAILABLE,
+            "idea_count": candidate_count,
+            "blockers": failed_gate_counter(records),
+        },
+        "cost_per_accepted_promoted_idea": cost,
+        "warnings": warnings,
+        "failures": validation["failures"],
+    }, warnings
+
+
+def idea_metrics_report(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    read_model, warnings = idea_metrics_read_model(ops_dir, now)
+    failures = read_model["failures"]
+    exit_code = catalog_validation_exit_code({"failures": failures})
+    return {
+        "ok": not failures,
+        "action": "idea_metrics_reported",
+        "schema_version": "idea_lifecycle_metrics_v1.0",
+        "generated_at": trace_timestamp(now),
+        "ops_dir": str(ops_dir),
+        "read_only": True,
+        "changed": False,
+        "read_model": read_model,
+        "warnings": warnings,
+        "failures": failures,
+        "validation_exit_code": exit_code,
+    }
+
+
+def idea_trace_report(ops_dir: Path, idea_id: str, now: datetime) -> dict[str, Any]:
+    model = read_catalog(ops_dir)
+    validation = catalog_validation_report_from_model(ops_dir, model)
+    if model["failures"]:
+        return {
+            "ok": False,
+            "action": "idea_trace_failed",
+            "reason": "catalog_read_failed",
+            "ops_dir": str(ops_dir),
+            "idea_id": idea_id,
+            "read_only": True,
+            "changed": False,
+            "warnings": model["warnings"],
+            "failures": model["failures"],
+            "validation_exit_code": catalog_validation_exit_code(validation),
+        }
+    matches = [record for record in model["candidates"] if record["idea_id"] == idea_id]
+    if not matches:
+        return {
+            "ok": False,
+            "action": "idea_trace_failed",
+            "reason": "idea_not_found",
+            "ops_dir": str(ops_dir),
+            "idea_id": idea_id,
+            "read_only": True,
+            "changed": False,
+            "warnings": validation["warnings"],
+            "failures": [],
+            "validation_exit_code": 3,
+            "next_step": "run async-research idea catalog list to inspect available ideas",
+        }
+    if len(matches) > 1:
+        failure = issue(
+            "failure",
+            "duplicate_idea_id",
+            Path(matches[0]["path"]),
+            f"idea id {idea_id} appears in multiple canonical JSON files",
+            category="malformed",
+            idea_id=idea_id,
+            paths=[record["path"] for record in matches],
+        )
+        return {
+            "ok": False,
+            "action": "idea_trace_failed",
+            "reason": "duplicate_idea_id",
+            "ops_dir": str(ops_dir),
+            "idea_id": idea_id,
+            "read_only": True,
+            "changed": False,
+            "warnings": validation["warnings"],
+            "failures": [failure],
+            "validation_exit_code": 4,
+        }
+
+    task_records, task_warnings = read_task_trace_records(ops_dir)
+    accepted_rows_by_task, accepted_warnings = read_accepted_output_rows(ops_dir)
+    queue_rows_by_task, queue_warnings = read_queue_trace_rows(ops_dir)
+    record = matches[0]
+    linked_tasks = linked_task_records(record, task_records)
+    durations = idea_duration_items(record, linked_tasks, accepted_rows_by_task, now)
+    return {
+        "ok": not validation["failures"],
+        "action": "idea_trace_reported",
+        "schema_version": "idea_trace_v1.0",
+        "generated_at": trace_timestamp(now),
+        "ops_dir": str(ops_dir),
+        "idea_id": idea_id,
+        "read_only": True,
+        "changed": False,
+        "summary": candidate_summary(record),
+        "candidate": record["payload"],
+        "timeline": idea_trace_timeline(record["payload"], linked_tasks, accepted_rows_by_task),
+        "linked_tasks": [linked_task_summary(task, accepted_rows_by_task, queue_rows_by_task) for task in linked_tasks],
+        "queue_rows": queue_rows_for_idea(record, linked_tasks, queue_rows_by_task),
+        "durations": durations,
+        "warnings": [*validation["warnings"], *task_warnings, *accepted_warnings, *queue_warnings],
+        "failures": validation["failures"],
+        "validation_exit_code": catalog_validation_exit_code(validation),
+    }
+
+
 def catalog_dashboard_report(ops_dir: Path, max_blockers: int = 10) -> dict[str, Any]:
     """Return a read-only portfolio dashboard derived from the catalog read model."""
     model = read_catalog(ops_dir)
     validation = catalog_validation_report_from_model(ops_dir, model)
     validation_exit_code = catalog_validation_exit_code(validation)
     records = model["candidates"]
+    task_records, task_warnings = read_task_trace_records(ops_dir)
+    accepted_rows_by_task, accepted_warnings = read_accepted_output_rows(ops_dir)
+    queue_rows_by_task, queue_warnings = read_queue_trace_rows(ops_dir)
+    traceability = idea_traceability_summary(records, task_records, accepted_rows_by_task, queue_rows_by_task)
     issues = validation["failures"] + validation["warnings"]
     issues_by_candidate = dashboard_issues_by_candidate(issues)
     sorted_records = sorted(records, key=lambda item: str(item.get("idea_id") or item.get("filename_id") or ""))
@@ -1183,6 +2010,7 @@ def catalog_dashboard_report(ops_dir: Path, max_blockers: int = 10) -> dict[str,
             "score_dimension_count": len(records),
             "next_recommended_task_count": len(dashboard_next_tasks(records, issues_by_candidate)),
             "idea_to_task_link_count": len(dashboard_idea_task_links(records, issues_by_candidate)),
+            "traceability": traceability,
             "warning_count": len(validation["warnings"]),
             "failure_count": len(validation["failures"]),
         },
@@ -1214,7 +2042,7 @@ def catalog_dashboard_report(ops_dir: Path, max_blockers: int = 10) -> dict[str,
             "next_recommended_tasks": dashboard_next_tasks(records, issues_by_candidate),
             "idea_to_task_links": dashboard_idea_task_links(records, issues_by_candidate),
         },
-        "warnings": validation["warnings"],
+        "warnings": [*validation["warnings"], *task_warnings, *accepted_warnings, *queue_warnings],
         "failures": validation["failures"],
     }
 

@@ -412,3 +412,63 @@ Branch: `codex/autonomous-delivery-pivot-phase-7`
 
 - Phase 7 is delivered. Next automation run should start Phase 8 on
   `codex/autonomous-delivery-pivot-phase-8`.
+
+## Phase 8 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-8`
+
+### Scope
+
+- Add optional point-in-time trace metadata to idea promotion task creation.
+- Add read-only idea lifecycle metrics and idea trace commands.
+- Report explicit missing data as `unavailable`.
+- Feed traceability counts into the dashboard read model.
+
+### Changes
+
+- Added additive promotion trace fields to created task status JSON:
+  `origin_idea_id`, `promotion_score_snapshot`, `promotion_route`,
+  `routing_reason`, `blocker_snapshot`, `promotion_preflight_hash`, and
+  `promotion_transaction_id`.
+- Added `async-research idea metrics <ops-dir>` and
+  `async-research idea trace <ops-dir> <IDEA-ID>`.
+- Implemented file-backed trace readers for canonical idea JSON, queue rows,
+  task statuses, accepted-output rows, and `cost_ledger.csv`.
+- Added lifecycle duration metrics, parked idea age, duplicate rate, blocker
+  frequency, accepted promoted idea cost, and queue/task/output trace evidence.
+- Added dashboard traceability summary counts and updated README, contract
+  docs, starter templates, help tests, and CLI command architecture tests.
+- Added a static `tests/fixtures/idea_traceability/research_ops` smoke fixture
+  plus regression tests for read-only behavior and promotion trace metadata.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 707 tests
+- `.venv/bin/async-research idea metrics tests/fixtures/idea_traceability/research_ops`: passed, exit 0
+- `.venv/bin/async-research idea trace tests/fixtures/idea_traceability/research_ops IDEA-8601`: passed, exit 0
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+- `.venv/bin/python -m unittest tests.test_idea_traceability_metrics`: passed, 2 tests
+- `.venv/bin/python -m unittest tests.test_cli_help tests.test_cli_architecture`: passed, 17 tests
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-8-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the diff, tests, and
+  command output; a fully independent model review was not available in this
+  run.
+- Metrics intentionally avoid prose inference. Legacy lineage remains
+  unavailable unless idea IDs, promoted task IDs, queue rows, task statuses, or
+  accepted-output rows provide explicit links.
+
+### Next Action
+
+- Phase 8 is delivered. Next automation run should start Phase 9 on
+  `codex/autonomous-delivery-pivot-phase-9`.

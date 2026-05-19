@@ -1268,6 +1268,14 @@ def run_idea_catalog_show_command(args: argparse.Namespace) -> int:
     return module_main("idea_catalog", ["show", str(args.ops_dir), args.idea_id])
 
 
+def run_idea_metrics_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["metrics", str(args.ops_dir)] + optional_text("--now", args.now))
+
+
+def run_idea_trace_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["trace", str(args.ops_dir), args.idea_id] + optional_text("--now", args.now))
+
+
 def run_idea_catalog_maintain_command(args: argparse.Namespace) -> int:
     return module_main(
         "idea_catalog",
@@ -3043,6 +3051,25 @@ def register_artifact_commands(subparsers) -> None:
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
     idea_promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     idea_promote.set_defaults(func=run_idea_promote_command)
+    idea_metrics = add_command(
+        idea_sub,
+        "metrics",
+        help="Render read-only idea lifecycle metrics.",
+        description="Read canonical ideas, queue rows, linked task statuses, accepted outputs, and cost ledger rows to report deterministic idea lifecycle metrics without mutating research_ops.",
+    )
+    add_common_ops(idea_metrics)
+    idea_metrics.add_argument("--now", help="Override report time for deterministic parked-age metrics.")
+    idea_metrics.set_defaults(func=run_idea_metrics_command)
+    idea_trace = add_command(
+        idea_sub,
+        "trace",
+        help="Trace one idea to promoted tasks and outputs.",
+        description="Explain why a promoted task exists by reading one canonical idea, queue evidence, linked task status metadata, promotion trace fields, and accepted-output rows without mutating research_ops.",
+    )
+    add_common_ops(idea_trace)
+    idea_trace.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_trace.add_argument("--now", help="Override report time for deterministic parked-age metrics.")
+    idea_trace.set_defaults(func=run_idea_trace_command)
     idea_resolve = add_command(
         idea_sub,
         "resolve",

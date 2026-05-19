@@ -41,11 +41,15 @@ async-research idea catalog list research_ops --status promote
 async-research idea promote research_ops IDEA-0001 --dry-run
 async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
 async-research idea catalog dashboard research_ops
+async-research idea metrics research_ops
+async-research idea trace research_ops IDEA-0001
 ```
 
 Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
 reference, and idea `promoted_task_id` only after a successful, unblocked
 dry-run. The dashboard should show the promoted idea with `link_status=available`.
+Use `idea trace` to inspect why a task exists, and `idea metrics` to review
+read-only lifecycle timings; missing timestamps render as `unavailable`.
 
 ## Knowledge Library
 

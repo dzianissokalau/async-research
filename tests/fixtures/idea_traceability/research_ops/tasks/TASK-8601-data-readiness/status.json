@@ -1,0 +1,40 @@
+{
+  "allowed_paths": [
+    "research_ops/tasks/TASK-8601-data-readiness/**"
+  ],
+  "budget": {
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0
+  },
+  "catalog_idea_id": "IDEA-8601",
+  "catalog_promotion": {
+    "catalog_idea_id": "IDEA-8601",
+    "idempotency_key": "IDEA-8601:data_readiness:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "origin_idea_id": "IDEA-8601",
+    "reservation_policy": "fixture",
+    "reserved_task_id": "TASK-8601"
+  },
+  "created_at": "2026-05-03T00:00:00Z",
+  "id": "TASK-8601",
+  "last_transition_reason": "fixture accepted",
+  "max_minutes": 10,
+  "max_revisions": 1,
+  "origin_idea_id": "IDEA-8601",
+  "previous_status": "panel_review",
+  "priority": 2,
+  "promotion_preflight_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "promotion_route": "data_readiness",
+  "promotion_score_snapshot": {
+    "weighted_total": 16.5
+  },
+  "promotion_transaction_id": "PROMO-TX-20260503T000000-IDEA-8601-aaaaaaaaaaaa",
+  "requires_human": false,
+  "revision_count": 0,
+  "revision_limit_hit": false,
+  "routing_reason": "catalog_recommended_next_task",
+  "schema_version": "1.0",
+  "status": "accepted",
+  "title": "Accepted traceability fixture: data readiness",
+  "type": "data_readiness",
+  "updated_at": "2026-05-04T00:00:00Z"
+}
