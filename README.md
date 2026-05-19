@@ -31,36 +31,55 @@ before PyPI publication.
 
 The workflow is a durable research conveyor belt. Agents and humans read and
 write files in `research_ops/`; CLI commands validate those files and keep the
-control surfaces current.
+control surfaces current. The core loop accepts or rejects bounded task
+outputs. Deliverable maturity is a separate layer: an accepted task can become
+evidence for a paper or memo, but it does not by itself make that deliverable
+shareable, working-paper-ready, or submission-ready.
 
 ```mermaid
 flowchart LR
-    inbox["inbox.md<br/>discovery_inbox.md"] --> queue["queue.md<br/>ready for planning"]
+    inbox["inbox.md<br/>discovery_inbox.md"] --> ideas["ideas/IDEA-*<br/>capture, score, promote"]
+    ideas --> queue["queue.md<br/>ready for worker"]
     queue --> task["tasks/TASK-*<br/>task.md + status.json"]
-    task --> worker["worker output<br/>bounded artifact"]
+    task --> worker["worker_output.md<br/>bounded artifact"]
     worker --> review["reviews/<br/>independent notes"]
     review --> aggregate["review_panel/aggregate.json"]
-    aggregate --> accepted["accepted<br/>evidence_ledger.md<br/>accepted_outputs_index.md"]
+    aggregate --> accepted["accepted task evidence<br/>evidence_ledger.md<br/>accepted_outputs_index.md"]
     aggregate --> rejected["rejected<br/>rejected_results.md<br/>anti-context"]
     aggregate --> revision["needs_revision<br/>back to worker"]
     aggregate --> human["needs_human<br/>human_review_queue.md<br/>decisions.md"]
+    accepted --> foundations["source/data/library<br/>governance + dashboards"]
+    accepted --> deliverables["deliverables/<br/>manifest + maturity gates"]
+    foundations --> console["console snapshot<br/>roadmap, QA, cost, blockers"]
+    deliverables --> maturity["deliverable check<br/>internal, shareable, working paper, submission-ready"]
     human --> queue
     revision --> worker
+    maturity --> human
 ```
 
 Plain English version:
 
-1. Ideas enter `inbox.md` or `discovery_inbox.md`.
-2. A planner turns the best idea into a bounded task folder under
-   `research_ops/tasks/`.
-3. A worker claims one task, writes one output, and updates task state.
-4. One or more reviewers write isolated reviews.
-5. The review aggregator routes the task to accepted, rejected, needs revision,
-   or needs human.
-6. Accepted results become reusable memory; stale accepted memory is surfaced for
-   revalidation.
-7. Health, readiness, cost, source, and human-review surfaces keep the next loop
-   safe to run.
+1. Ideas enter `inbox.md` or `discovery_inbox.md`, then move through the Idea
+   Catalog as `ideas/IDEA-*` records with scoring, blockers, and promotion
+   metadata.
+2. A promoted idea creates or links to a bounded task folder under
+   `research_ops/tasks/`; `queue list`, `workflow next`, and `workflow status`
+   show what can safely run next.
+3. A worker claims one task through the public workflow wrappers, writes one
+   bounded `worker_output.md`, and moves the task to review.
+4. One or more reviewers write isolated reviews. The review aggregator routes
+   the task to accepted, rejected, needs revision, or needs human.
+5. Accepted task results become reusable but freshness-gated evidence in
+   `evidence_ledger.md` and `accepted_outputs_index.md`. Rejected results become
+   anti-context so future agents do not repeat the same path.
+6. Source, data, library, cost, health, readiness, and dashboard surfaces explain
+   blockers, caveats, available evidence, and the next safe action.
+7. Higher-level deliverables live under `research_ops/deliverables/`. They
+   declare output type, target audience, target maturity, manuscript gates,
+   critic review, and response-matrix state.
+8. `async-research deliverable check` decides whether a paper, memo, or report
+   is ready for its declared maturity. Task-level `accepted` means internally
+   valid evidence, not publication-ready prose.
 
 ## Install
 
