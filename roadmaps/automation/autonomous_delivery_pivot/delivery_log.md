@@ -140,3 +140,52 @@ Branch: `codex/autonomous-delivery-pivot-phase-2`
 
 - Phase 2 is delivered. Next automation run should start Phase 3 on
   `codex/autonomous-delivery-pivot-phase-3`.
+
+## Phase 3 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-3`
+
+### Scope
+
+- Add read-only `async-research data inspect-proposals <ops-dir>
+  <proposal-source>` using the Phase 2 proposal parser.
+- Validate data proposal target paths, row IDs, duplicate proposed rows, and
+  existing-row upsert conflicts without mutating `research_ops`.
+
+### Changes
+
+- Added `data_proposal_inspection` with JSON output for proposal counts,
+  operation diagnostics, warnings, blockers, and next steps.
+- Wired the public `data inspect-proposals` CLI command.
+- Added regression coverage for valid task-directory proposals, no-mutation
+  behavior, existing-row warning upserts, duplicate DS rows, canonical target
+  mismatches, path traversal, and unknown operations.
+- Documented data proposal inspection in the command map, packaged docs, helper
+  boundary, and proposal template.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_data_proposal_inspection`: passed, 6 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 681 tests
+- `.venv/bin/async-research data inspect-proposals <fixture-ops-dir> <fixture-proposal-source>`: passed
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Payload validation remains intentionally bounded to identity, target, and
+  conflict checks. Full apply safety and table-specific write validation remain
+  deferred to later phases.
+
+### Next Action
+
+- Phase 3 is delivered. Next automation run should start Phase 4 on
+  `codex/autonomous-delivery-pivot-phase-4`.

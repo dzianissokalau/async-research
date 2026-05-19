@@ -91,6 +91,23 @@ Invalid proposals produce structured diagnostics with:
 Multiple proposals with the same `proposal_id` are rejected because reviewers
 and future apply tooling need one unambiguous proposal target.
 
+## Data Inspection
+
+Data-readiness workers can hand reviewers a proposal artifact without editing
+source-of-truth files. Inspect it with:
+
+```bash
+async-research data inspect-proposals research_ops <proposal-source>
+```
+
+`<proposal-source>` may be a task directory, `worker_output.md`, a JSON
+proposal artifact, or a directory containing proposal artifacts. The command
+returns JSON with proposal counts, per-operation diagnostics, warning-only
+existing-row upserts, blockers, and next steps. It rejects non-data proposals,
+path traversal, target paths that resolve outside the selected `research_ops/`
+workspace, malformed row IDs, duplicate row operations, and payload row IDs
+that do not match the operation `row_id`.
+
 ## Non-Goals
 
 This contract is read-only. It does not apply proposals, infer proposals from

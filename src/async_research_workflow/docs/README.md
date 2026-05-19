@@ -171,6 +171,11 @@ when you need a read-only view of sources usable for a selected policy use case,
 candidate or blocked sources, stale reviews, data gaps, ideas blocked by data
 readiness, and join caveats.
 
+Run `async-research data inspect-proposals research_ops <proposal-source>` to
+inspect a data-readiness worker's `foundation_update_proposal_v1` artifact
+before any write-capable apply workflow exists. The command is read-only and
+fails closed for unsafe target paths or non-data proposals.
+
 ## Recommended First Setup
 
 Create this operational folder in the working research repo:

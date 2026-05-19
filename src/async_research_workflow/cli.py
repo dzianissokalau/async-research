@@ -547,6 +547,13 @@ def run_data_dashboard_command(args: argparse.Namespace) -> int:
     return module_main("data_foundations", argv)
 
 
+def run_data_inspect_proposals_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_proposal_inspection",
+        [str(args.ops_dir), str(args.proposal_source)],
+    )
+
+
 def run_library_init_command(args: argparse.Namespace) -> int:
     argv = ["init", str(args.ops_dir)]
     if args.dry_run:
@@ -2089,6 +2096,19 @@ def register_data_commands(subparsers) -> None:
     dashboard.add_argument("--now", help="Override current time for deterministic source freshness checks.")
     dashboard.add_argument("--use-case", choices=SOURCE_USE_CASE_CHOICES, default="experiment_planning", help="Source use case for usable-today policy.")
     dashboard.set_defaults(func=run_data_dashboard_command)
+    inspect_proposals = add_command(
+        data_sub,
+        "inspect-proposals",
+        help="Inspect data foundation update proposals.",
+        description=(
+            "Read-only inspection for foundation_update_proposal_v1 data proposals. "
+            "The proposal source may be a task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory."
+        ),
+        epilog="Exits 0 when proposals are inspectable, including warning-only existing-row upserts; exits 4 for malformed proposals, unsafe target paths, non-data proposals, or workspace blockers.",
+    )
+    add_required_ops(inspect_proposals)
+    inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    inspect_proposals.set_defaults(func=run_data_inspect_proposals_command)
 
 
 def register_library_commands(subparsers) -> None:

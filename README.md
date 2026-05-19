@@ -358,6 +358,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research source explain research_ops DS-0001` | Explain whether one source is allowed for a use case. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research data validate research_ops` | Validate data foundation readiness files. | `data_source_audit.md`, `data/` profiles, access notes, joins, gaps, and active idea gap refs. | JSON to stdout only; read-only. |
 | `async-research data dashboard research_ops --use-case experiment_planning` | Render a read-only data readiness dashboard. | Source audit, data foundation validator output, data catalog, access notes, known gaps, join map, profiles, idea gap refs, and selected source use-case policy. | JSON to stdout only; read-only and never mutates data files. |
+| `async-research data inspect-proposals research_ops <proposal-source>` | Inspect `foundation_update_proposal_v1` data proposals before any apply workflow exists. | A task directory, `worker_output.md`, JSON proposal artifact, or proposal artifact directory plus source audit and data foundation files. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research cost summary research_ops` | Summarize spend and budget pressure. | `cost_ledger.csv`. | JSON to stdout only. |
 | `async-research cost ingest-usage research_ops --usage-file <usage-json> --item-id <id> --role worker --model <model>` | Append actual API usage to the cost ledger. | Usage JSON/JSONL artifact. | `cost_ledger.csv`; with `--dry-run`, stdout only. |
 | `async-research cost budget-check research_ops --item-id <id> --action promotion` | Gate proposed spend before promotion or expensive work. | `cost_ledger.csv` and proposed cost flags. | JSON to stdout only. |
@@ -430,6 +431,7 @@ async-research idea score <idea-json> --ops-dir research_ops
 async-research idea validate <idea-json> --ops-dir research_ops
 async-research data validate research_ops
 async-research data dashboard research_ops --use-case experiment_planning
+async-research data inspect-proposals research_ops research_ops/tasks/TASK-0001-data-readiness
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 async-research analysis dashboard research_ops
 async-research analysis run-adapter <task-dir> --ops-dir research_ops
@@ -515,6 +517,7 @@ specific diagnostic.
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |
 | `data validate` | `0` data foundation contracts are ready. | `2` warning-only readiness findings with `ok: true`; `4` malformed tables, invalid audit state, or profile identity errors. |
 | `data dashboard` | `0` dashboard rendered and data foundation plus catalog read-model state are clean. | `2` dashboard rendered with warning-only data findings or catalog read-model findings; `4` dashboard rendered with malformed data foundation state. |
+| `data inspect-proposals` | `0` data proposals are inspectable; existing-row upserts are warning-only. | `4` malformed proposals, unsafe target paths, non-data proposals, or workspace blockers. |
 | `library init` | `0` missing library files reported or created. | `3` invalid flags; `4` malformed workspace path or write failure. |
 | `library validate` | `0` knowledge library contracts are clean. | `2` warning-only findings with `ok: true`; `3` invalid request such as malformed `--now`; `4` malformed generated blocks, duplicate IDs, invalid vocabularies, or unresolved source refs. |
 | `library dashboard` | `0` dashboard rendered and knowledge library state is clean. | `2` dashboard rendered with validator warnings or dashboard read-model warnings; `3` invalid request such as malformed `--now`; `4` dashboard rendered with malformed library state. |

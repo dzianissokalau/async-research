@@ -37,3 +37,9 @@ Set `target` to `data` for data foundation rows and `library` for knowledge
 library rows. Keep `target_path` workspace-relative and use only the canonical
 foundation files. This proposal format is review input only; applying accepted
 proposals is a separate guarded workflow.
+
+For data proposals, reviewers can run:
+
+```bash
+async-research data inspect-proposals research_ops <proposal-source>
+```
