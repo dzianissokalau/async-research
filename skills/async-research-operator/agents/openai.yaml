@@ -1,0 +1,4 @@
+interface:
+  display_name: "Async Research Operator"
+  short_description: "Operate async-research workspaces safely"
+  default_prompt: "Use $async-research-operator to inspect this workspace and report the next safe async-research action."

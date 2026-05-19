@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
 Status: In Progress
-Current phase: Phase 1 - Codex-first skill skeleton and trigger contract
-Last updated: 2026-05-19
-Next action: Create the Codex-first skill skeleton with trigger evals
+Current phase: Phase 2 - Workspace discovery, guided setup, and startup protocol
+Last updated: 2026-05-20
+Next action: Add startup protocol, guided setup docs, and read-only inspection helper
 Blocked by: None
 
 Created: 2026-05-19
@@ -220,7 +220,7 @@ The changes below reflect the strongest review findings:
 | Phase | Status | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- |
 | 0 | Delivered | Contract review gate | Resolve v0.1 target, source root, framework version range, autonomy defaults, stop categories, and source-of-truth rules. | Phase 1 can start without rediscovering product boundaries or provider scope. |
-| 1 | Not Started | Codex-first skill skeleton and trigger contract | Create concise `SKILL.md`, generated Codex UI metadata, reference-file structure, candidate descriptions, and trigger eval set. | Codex can discover the skill reliably and load detailed references only when needed. |
+| 1 | Delivered | Codex-first skill skeleton and trigger contract | Create concise `SKILL.md`, generated Codex UI metadata, reference-file structure, candidate descriptions, and trigger eval set. | Codex can discover the skill reliably and load detailed references only when needed. |
 | 2 | Not Started | Workspace discovery, guided setup, and startup protocol | Add startup recipe, guided framework setup flow, version guardrail, capability probe, privacy-boundary check, and optional read-only helper script. | The skill can safely pick up an existing project, guide first-time setup, and report unsupported CLI drift clearly. |
 | 3 | Not Started | Command recipes for setup and core loop | Document exact dry-run/write command sequences plus a command capability table for setup, planning, workers, review, acceptance, gates, deliverables, and foundation proposals. | Another LLM can set up and operate common workflows without improvising command order or mutation safety. |
 | 4 | Not Started | Role modes and autonomy policy | Define planner, worker, reviewer, critic, synthesizer, status reporter, and maintainer modes with allowed files, independence limits, and stop rules. | The LLM can switch roles deliberately and expose weak review independence. |

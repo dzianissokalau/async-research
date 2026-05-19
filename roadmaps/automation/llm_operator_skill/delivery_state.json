@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_llm_operator_skill_roadmap.md",
   "roadmap_slug": "llm_operator_skill",
-  "current_phase": 1,
-  "branch": "codex/llm-operator-skill-phase-1",
+  "current_phase": 2,
+  "branch": "codex/llm-operator-skill-phase-2",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 0,
+    "phase": 1,
     "commands": [
       {
         "command": "git diff --check",
@@ -19,25 +19,29 @@
         "details": "15 tests"
       },
       {
+        "command": ".venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py",
+        "status": "passed"
+      },
+      {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "713 tests"
+        "details": "718 tests"
       }
     ],
-    "completed_at": "2026-05-19T23:20:52+01:00"
+    "completed_at": "2026-05-20T00:24:45+01:00"
   },
   "last_review": {
-    "phase": 0,
-    "file": "roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-0-review-iteration-1.md",
+    "phase": 1,
+    "file": "roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-1-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-19T23:20:52+01:00"
+    "completed_at": "2026-05-20T00:23:43+01:00"
   },
-  "last_delivered_phase": 0,
+  "last_delivered_phase": 1,
   "blocked_reason": null,
   "all_phases_complete": false,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": "after_all_phases",
   "cadence": "hourly",
-  "updated_at": "2026-05-19T23:20:52+01:00"
+  "updated_at": "2026-05-20T00:24:45+01:00"
 }
