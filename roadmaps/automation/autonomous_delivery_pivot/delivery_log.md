@@ -36,7 +36,7 @@ Branch: `codex/autonomous-delivery-pivot-phase-0`
 
 ### Residual Risks
 
-- Same-context review was used because sub-agent delegation was not explicitly requested.
+- Fresh-context reviewer did not rerun the full unit suite, but reviewed the committed diff and verification summary.
 - Historical review files from earlier automations now point to delivered roadmap filenames, but their original review timestamps remain unchanged.
 
 ### Next Action
