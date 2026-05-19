@@ -205,6 +205,12 @@ class AnalysisValidationTests(unittest.TestCase):
 
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("manifest_exists", gate_names(payload))
+        failure = next(item for item in payload["hard_gate_failures"] if item["gate"] == "manifest_exists")
+        self.assertEqual("Missing run manifest", failure["summary"])
+        self.assertEqual("artifacts/analysis_run/run_manifest.json", failure["failing_field"])
+        self.assertIn("why_it_matters", failure)
+        self.assertIn("next_step", failure)
+        self.assertIn("docs_ref", failure)
 
     def test_validate_run_requires_baseline_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

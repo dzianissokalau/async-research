@@ -359,3 +359,56 @@ Branch: `codex/autonomous-delivery-pivot-phase-6`
 
 - Phase 6 is delivered. Next automation run should start Phase 7 on
   `codex/autonomous-delivery-pivot-phase-7`.
+
+## Phase 7 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-7`
+
+### Scope
+
+- Add actionable remediation fields to analysis validator failures without
+  removing existing machine-readable failure fields.
+- Add a read-only `async-research analysis reviewer-packet` command that
+  collects analysis review context without accepting evidence.
+
+### Changes
+
+- Added remediation metadata for common analysis preflight, validate-run, and
+  validate-results hard gates.
+- Added the reviewer packet route to CLI wiring, `analysis_surface`, README
+  command docs, help output, and command architecture tests.
+- The packet summarizes the accepted plan, run manifest, metrics, diagnostics,
+  robustness checks, claim gates, result summary, validator outputs, result
+  acceptance state, source/data governance, and recommended reviewer focus.
+- Preserved pre-acceptance review flow by treating missing result acceptance as
+  `not_recorded` until the task is already accepted.
+- Added regression coverage for read-only behavior, missing artifact
+  diagnostics, remediation fields, pre-acceptance packet status, and rejection
+  of analysis directories outside `research_ops`.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 702 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/async-research analysis reviewer-packet src/async_research_workflow/examples/runnable_experiment_analysis/research_ops src/async_research_workflow/examples/runnable_experiment_analysis/research_ops/tasks/TASK-8003-completed-analysis --now 2026-01-15`: passed, exit 0
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-7-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the diff, tests, and
+  smoke output; a fully independent model review was not available in this run.
+- Remediation copy is intentionally concise and additive; future phases may
+  expand coverage for warning-only diagnostics if needed.
+
+### Next Action
+
+- Phase 7 is delivered. Next automation run should start Phase 8 on
+  `codex/autonomous-delivery-pivot-phase-8`.

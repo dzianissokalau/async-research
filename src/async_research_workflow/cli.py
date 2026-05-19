@@ -2857,6 +2857,22 @@ def register_analysis_commands(subparsers) -> None:
     dashboard.add_argument("--max-items", type=int, default=10, help="Maximum rows per dashboard section.")
     dashboard.set_defaults(func=lambda a: module_main("analysis_surface", ["dashboard", str(a.ops_dir), "--max-items", str(a.max_items)] + (["--now", a.now] if a.now else [])))
 
+    reviewer_packet = add_command(
+        analysis_sub,
+        "reviewer-packet",
+        help="Render a read-only reviewer packet for one analysis run.",
+        description=(
+            "Read-only reviewer packet for one run_analysis task: bundles the accepted experiment plan, "
+            "run artifacts, validator outputs, result-acceptance state, source/data governance status, "
+            "and recommended reviewer focus without accepting evidence."
+        ),
+        epilog="Exits 0 when packet context is complete, 2 when validators or artifacts have findings, 3 for invalid paths, and 4 when malformed state prevents reliable packet output.",
+    )
+    reviewer_packet.add_argument("ops_dir", type=Path, help="Path to research_ops.")
+    reviewer_packet.add_argument("analysis_run_dir", type=Path, help="run_analysis task directory to package for review.")
+    reviewer_packet.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    reviewer_packet.set_defaults(func=lambda a: module_main("analysis_surface", ["reviewer-packet", str(a.ops_dir), str(a.analysis_run_dir)] + (["--now", a.now] if a.now else [])))
+
     run_adapter = add_command(
         analysis_sub,
         "run-adapter",

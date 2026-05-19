@@ -18,10 +18,12 @@ from async_research_workflow.scripts.update_accepted_outputs_index import (
     load_empirical_result_acceptance,
     read_index_rows,
 )
+from async_research_workflow.scripts.validate_result_acceptance import load_result_summary
 
 
 SUCCESS = 0
 VALIDATION_FINDINGS = 2
+INVALID_REQUEST = 3
 MALFORMED = 4
 
 ACTIVE_ANALYSIS_STATUSES = {"ready_for_worker", "in_progress"}
@@ -37,6 +39,14 @@ REVIEWED_ANALYSIS_STATUSES = {
 EMPIRICAL_TASK_TYPES = {"run_analysis", "evaluate_results"}
 EMPIRICAL_CLAIM_TYPES = {"descriptive", "associative", "predictive", "causal", "probabilistic", "other"}
 RESULT_ACCEPTANCE_RELATIVE_PATH = Path("review_panel/result_acceptance.json")
+
+PACKET_ARTIFACTS = {
+    "run_manifest": Path("artifacts/analysis_run/run_manifest.json"),
+    "metrics": Path("artifacts/analysis_run/metrics.json"),
+    "diagnostics": Path("artifacts/analysis_run/diagnostics.json"),
+    "robustness_checks": Path("artifacts/analysis_run/robustness_checks.json"),
+    "claim_gates": Path("artifacts/analysis_run/claim_gates.json"),
+}
 
 
 def utc_now() -> datetime:
@@ -93,6 +103,25 @@ def relative_path(ops_dir: Path, path: Path) -> str:
         return path.relative_to(ops_dir).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def canonical_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        canonical_path(path).relative_to(canonical_path(base))
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_analysis_run_dir(ops_dir: Path, value: Path) -> Path:
+    if value.is_absolute() or value.exists():
+        return value
+    candidate = ops_dir / value
+    return candidate if candidate.exists() else value
 
 
 def task_id_for(item: dict[str, Any]) -> str:
@@ -629,6 +658,431 @@ def analysis_digest_section(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def artifact_summary(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    if kind == "run_manifest":
+        return {
+            "run_id": payload.get("run_id"),
+            "task_id": payload.get("task_id"),
+            "experiment_plan_id": payload.get("experiment_plan_id"),
+            "accepted_plan_task_id": payload.get("accepted_plan_task_id"),
+            "run_status": payload.get("run_status"),
+            "method_family": payload.get("method_family"),
+            "primary_metric": (payload.get("primary_metric") or {}).get("name")
+            if isinstance(payload.get("primary_metric"), dict)
+            else None,
+            "planned_output_count": len(payload.get("planned_outputs") or []),
+            "data_version_count": len(payload.get("data_versions") or []),
+        }
+    if kind == "metrics":
+        return {
+            "run_id": payload.get("run_id"),
+            "primary_metric_name": payload.get("primary_metric_name"),
+            "baseline_metric_count": len(payload.get("baseline_metrics") or []),
+            "candidate_metric_count": len(payload.get("candidate_metrics") or []),
+            "validation_split_count": len(payload.get("validation_splits") or []),
+        }
+    if kind == "diagnostics":
+        return {
+            "run_id": payload.get("run_id"),
+            "data_quality_check_count": len(payload.get("data_quality_checks") or []),
+            "leakage_check_count": len(payload.get("leakage_checks") or []),
+            "runtime_issue_count": len(payload.get("runtime_issues") or []),
+        }
+    if kind == "robustness_checks":
+        checks = payload.get("planned_checks") if isinstance(payload.get("planned_checks"), list) else []
+        return {
+            "run_id": payload.get("run_id"),
+            "planned_check_count": len(checks),
+            "non_pass_checks": [
+                {
+                    "name": item.get("name"),
+                    "status": item.get("status"),
+                    "decision_impact": item.get("decision_impact"),
+                }
+                for item in checks
+                if isinstance(item, dict) and str(item.get("status") or "").lower() != "pass"
+            ],
+        }
+    if kind == "claim_gates":
+        return {
+            "run_id": payload.get("run_id"),
+            "claim_type": payload.get("claim_type"),
+            "requested_claim_strength": payload.get("requested_claim_strength"),
+            "max_claim_strength": payload.get("max_claim_strength"),
+            "claim_decision": payload.get("claim_decision"),
+            "recommended_route": payload.get("recommended_route"),
+            "cap_reasons": payload.get("cap_reasons") if isinstance(payload.get("cap_reasons"), list) else [],
+            "human_gate": payload.get("human_gate") if isinstance(payload.get("human_gate"), dict) else {},
+        }
+    return {key: payload.get(key) for key in ("run_id", "experiment_plan_id", "task_id") if key in payload}
+
+
+def json_artifact_entry(
+    ops_dir: Path,
+    task_dir: Path,
+    kind: str,
+    rel_path: Path,
+) -> tuple[dict[str, Any], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+    path = task_dir / rel_path
+    entry: dict[str, Any] = {"path": relative_path(ops_dir, path), "available": False}
+    issue = read_json_object_issue(ops_dir, path, kind)
+    if issue is not None:
+        entry["diagnostic"] = issue
+        return entry, None, issue
+    payload = read_json_object(path)
+    if payload is None:
+        issue = {"path": relative_path(ops_dir, path), "reason": f"{kind}_unreadable"}
+        entry["diagnostic"] = issue
+        return entry, None, issue
+    entry.update({"available": True, "summary": artifact_summary(kind, payload)})
+    return entry, payload, None
+
+
+def result_summary_entry(ops_dir: Path, task_dir: Path) -> tuple[dict[str, Any], Optional[dict[str, Any]]]:
+    artifact_path = task_dir / "artifacts" / "result_summary.json"
+    worker_output = task_dir / "worker_output.md"
+    path = artifact_path if artifact_path.exists() else worker_output
+    summary = load_result_summary(task_dir)
+    entry: dict[str, Any] = {
+        "path": relative_path(ops_dir, path),
+        "available": summary is not None,
+        "source": "artifacts/result_summary.json" if artifact_path.exists() else "worker_output.md",
+    }
+    if summary is None:
+        diagnostic = {
+            "path": relative_path(ops_dir, path),
+            "reason": "result_summary_missing",
+            "message": "worker_output.md or artifacts/result_summary.json must contain a structured result summary",
+        }
+        entry["diagnostic"] = diagnostic
+        return entry, diagnostic
+    entry["summary"] = {
+        "result_id": summary.get("result_id"),
+        "run_id": summary.get("run_id"),
+        "experiment_plan_id": summary.get("experiment_plan_id"),
+        "claim_type": summary.get("claim_type"),
+        "claim_strength": summary.get("claim_strength"),
+        "recommended_decision": summary.get("recommended_decision"),
+        "claim": summary.get("claim"),
+    }
+    return entry, None
+
+
+def accepted_plan_entry(
+    ops_dir: Path,
+    manifest: Optional[dict[str, Any]],
+) -> tuple[dict[str, Any], Optional[dict[str, Any]]]:
+    raw_path = (manifest or {}).get("accepted_plan_path")
+    entry: dict[str, Any] = {
+        "path": raw_path,
+        "available": False,
+        "task_id": (manifest or {}).get("accepted_plan_task_id"),
+    }
+    plan_path = analysis_runs.workspace_path(ops_dir, raw_path)
+    if plan_path is None:
+        diagnostic = {
+            "path": str(raw_path or ""),
+            "reason": "accepted_plan_path_missing",
+            "message": "run_manifest.json must name accepted_plan_path",
+        }
+        entry["diagnostic"] = diagnostic
+        return entry, diagnostic
+    entry["path"] = relative_path(ops_dir, plan_path)
+    if not plan_path.exists():
+        diagnostic = {
+            "path": relative_path(ops_dir, plan_path),
+            "reason": "accepted_plan_missing",
+            "message": "accepted experiment plan artifact is missing",
+        }
+        entry["diagnostic"] = diagnostic
+        return entry, diagnostic
+    try:
+        plan = analysis_runs.load_plan(plan_path)
+    except ValueError as exc:
+        diagnostic = {
+            "path": relative_path(ops_dir, plan_path),
+            "reason": "accepted_plan_malformed",
+            "message": str(exc),
+        }
+        entry["diagnostic"] = diagnostic
+        return entry, diagnostic
+    entry.update(
+        {
+            "available": True,
+            "summary": {
+                "task_id": plan.get("task_id"),
+                "experiment_id": plan.get("experiment_id"),
+                "hypothesis_id": plan.get("hypothesis_id"),
+                "primary_metric": ((plan.get("metrics") or {}).get("primary_metric") if isinstance(plan.get("metrics"), dict) else None),
+                "data_audit_refs": plan.get("data_audit_refs") if isinstance(plan.get("data_audit_refs"), list) else [],
+                "candidate_method_count": len(plan.get("candidate_methods") or []),
+                "baseline_count": len(plan.get("baselines") or []),
+                "robustness_check_count": len(plan.get("robustness_checks") or []),
+            },
+        }
+    )
+    return entry, None
+
+
+def validator_packet_outputs(ops_dir: Path, task_dir: Path, now: datetime, status: Optional[dict[str, Any]]) -> dict[str, Any]:
+    outputs: dict[str, Any] = {}
+    status_value = str((status or {}).get("status") or "")
+    if status_value in ACTIVE_ANALYSIS_STATUSES:
+        code, payload = run_json(
+            analysis_runs,
+            ["preflight", task_dir, "--ops-dir", ops_dir, "--now", iso_now(now)],
+        )
+        outputs["analysis_preflight"] = {"exit_code": code, "output": payload}
+    else:
+        outputs["analysis_preflight"] = {
+            "not_run": True,
+            "reason": "preflight applies before execution; reviewer packet kept completed-run validation separate",
+            "task_status": status_value or None,
+        }
+    run_code, run_payload = run_json(
+        analysis_validation,
+        ["validate-run", task_dir, "--ops-dir", ops_dir, "--now", iso_now(now)],
+    )
+    results_code, results_payload = run_json(
+        analysis_validation,
+        ["validate-results", task_dir, "--ops-dir", ops_dir, "--now", iso_now(now)],
+    )
+    outputs["analysis_validate_run"] = {"exit_code": run_code, "output": run_payload}
+    outputs["analysis_validate_results"] = {"exit_code": results_code, "output": results_payload}
+    return outputs
+
+
+def validator_has_findings(entry: dict[str, Any]) -> bool:
+    if entry.get("not_run"):
+        return False
+    output = entry.get("output") if isinstance(entry.get("output"), dict) else {}
+    return entry.get("exit_code") != SUCCESS or bool(output.get("hard_gate_failures")) or bool(output.get("warnings"))
+
+
+def result_acceptance_entry(
+    ops_dir: Path,
+    task_dir: Path,
+    status: Optional[dict[str, Any]],
+) -> dict[str, Any]:
+    path = task_dir / RESULT_ACCEPTANCE_RELATIVE_PATH
+    entry: dict[str, Any] = {
+        "path": relative_path(ops_dir, path),
+        "record_present": False,
+        "state": "not_recorded",
+    }
+    if status is None:
+        entry["diagnostic"] = {
+            "path": relative_path(ops_dir, task_dir / "status.json"),
+            "reason": "task_status_missing_or_malformed",
+            "message": "status.json is required to interpret result acceptance state",
+        }
+        return entry
+    if not path.exists():
+        entry["summary"] = {
+            "task_id": status.get("id"),
+            "task_type": status.get("type"),
+            "task_status": status.get("status"),
+            "route": None,
+        }
+        if status.get("status") == "accepted":
+            entry["diagnostic"] = {
+                "path": relative_path(ops_dir, path),
+                "reason": "accepted_result_acceptance_missing",
+                "message": "accepted analysis tasks must record review_panel/result_acceptance.json",
+            }
+        return entry
+    record, blockers = load_empirical_result_acceptance(task_dir, status)
+    entry["blockers"] = blockers
+    if record is None:
+        entry["diagnostic"] = {
+            "path": relative_path(ops_dir, path),
+            "reason": "result_acceptance_missing_or_invalid",
+            "message": "result acceptance is unavailable or blocked",
+        }
+        return entry
+    entry.update(
+        {
+            "record_present": True,
+            "state": "recorded",
+            "summary": {
+                "task_id": record.get("task_id"),
+                "task_type": record.get("task_type"),
+                "route": record.get("route"),
+                "claim_strength": record.get("claim_strength"),
+                "max_claim_strength": record.get("max_claim_strength"),
+                "review_status": (record.get("review") or {}).get("status") if isinstance(record.get("review"), dict) else None,
+            },
+        }
+    )
+    return entry
+
+
+def source_data_governance_status(validator_outputs: dict[str, Any]) -> dict[str, Any]:
+    for key in ("analysis_validate_run", "analysis_validate_results", "analysis_preflight"):
+        entry = validator_outputs.get(key) if isinstance(validator_outputs.get(key), dict) else {}
+        output = entry.get("output") if isinstance(entry.get("output"), dict) else {}
+        if output.get("source_governance") or output.get("data_foundations"):
+            return {
+                "source": key,
+                "source_governance": output.get("source_governance"),
+                "data_foundations": output.get("data_foundations"),
+            }
+    return {"source": None, "source_governance": None, "data_foundations": None}
+
+
+def validator_gate_names(validator_outputs: dict[str, Any]) -> list[str]:
+    gates: list[str] = []
+    for entry in validator_outputs.values():
+        if not isinstance(entry, dict):
+            continue
+        output = entry.get("output") if isinstance(entry.get("output"), dict) else {}
+        for collection in ("hard_gate_failures", "warnings"):
+            for item in output.get(collection, []) if isinstance(output.get(collection), list) else []:
+                if isinstance(item, dict) and item.get("gate"):
+                    gates.append(str(item["gate"]))
+    return sorted(set(gates))
+
+
+def recommended_reviewer_focus(
+    artifact_diagnostics: list[dict[str, Any]],
+    validator_outputs: dict[str, Any],
+    claim_gates: dict[str, Any],
+    result_acceptance: dict[str, Any],
+) -> list[dict[str, Any]]:
+    focus: list[dict[str, Any]] = []
+    if artifact_diagnostics:
+        focus.append(
+            {
+                "area": "artifact_integrity",
+                "reason": "Some expected reviewer-packet artifacts are missing or malformed.",
+                "items": artifact_diagnostics,
+            }
+        )
+    gates = validator_gate_names(validator_outputs)
+    if gates:
+        focus.append(
+            {
+                "area": "validator_findings",
+                "reason": "Review validator blockers or warning-only findings before accepting evidence.",
+                "gates": gates,
+            }
+        )
+    claim_summary = claim_gates.get("summary") if isinstance(claim_gates.get("summary"), dict) else {}
+    if claim_summary.get("claim_decision") in {"capped", "rejected", "needs_human"} or claim_summary.get("cap_reasons"):
+        focus.append(
+            {
+                "area": "claim_boundaries",
+                "reason": "Claim gates constrain the requested claim or require additional review.",
+                "claim_decision": claim_summary.get("claim_decision"),
+                "cap_reasons": claim_summary.get("cap_reasons", []),
+            }
+        )
+    if result_acceptance.get("record_present"):
+        focus.append(
+            {
+                "area": "acceptance_record",
+                "reason": "Compare the acceptance route and recorded claim strength against the current validator outputs.",
+            }
+        )
+    if not focus:
+        focus.append(
+            {
+                "area": "empirical_review",
+                "reason": "Inspect plan alignment, metrics, diagnostics, robustness checks, limitations, and claim strength.",
+            }
+        )
+    return focus
+
+
+def reviewer_packet_report(ops_dir: Path, analysis_run_dir: Path, now: datetime) -> tuple[int, dict[str, Any]]:
+    task_dir = resolve_analysis_run_dir(ops_dir, analysis_run_dir)
+    if not task_dir.exists():
+        return (
+            INVALID_REQUEST,
+            {
+                "ok": False,
+                "action": "analysis_reviewer_packet_rendered",
+                "reason": "analysis_run_dir_missing",
+                "ops_dir": str(ops_dir),
+                "analysis_run_dir": str(analysis_run_dir),
+                "read_only": True,
+                "changed": False,
+            },
+        )
+    if not is_relative_to(task_dir, ops_dir):
+        return (
+            INVALID_REQUEST,
+            {
+                "ok": False,
+                "action": "analysis_reviewer_packet_rendered",
+                "reason": "analysis_run_dir_outside_ops_dir",
+                "ops_dir": str(ops_dir),
+                "analysis_run_dir": str(analysis_run_dir),
+                "read_only": True,
+                "changed": False,
+            },
+        )
+
+    artifact_diagnostics: list[dict[str, Any]] = []
+    artifacts: dict[str, Any] = {}
+    manifest: Optional[dict[str, Any]] = None
+    for kind, rel_path in PACKET_ARTIFACTS.items():
+        entry, payload, diagnostic = json_artifact_entry(ops_dir, task_dir, kind, rel_path)
+        artifacts[kind] = entry
+        if diagnostic is not None:
+            artifact_diagnostics.append(diagnostic)
+        if kind == "run_manifest":
+            manifest = payload
+
+    status = read_json_object(task_dir / "status.json")
+    accepted_plan, accepted_plan_diagnostic = accepted_plan_entry(ops_dir, manifest)
+    if accepted_plan_diagnostic is not None:
+        artifact_diagnostics.append(accepted_plan_diagnostic)
+    result_summary, result_summary_diagnostic = result_summary_entry(ops_dir, task_dir)
+    if result_summary_diagnostic is not None:
+        artifact_diagnostics.append(result_summary_diagnostic)
+    validator_outputs = validator_packet_outputs(ops_dir, task_dir, now, status)
+    result_acceptance = result_acceptance_entry(ops_dir, task_dir, status)
+    if result_acceptance.get("diagnostic"):
+        artifact_diagnostics.append(result_acceptance["diagnostic"])
+
+    has_validator_findings = any(validator_has_findings(entry) for entry in validator_outputs.values() if isinstance(entry, dict))
+    has_acceptance_findings = bool(result_acceptance.get("blockers"))
+    has_findings = has_validator_findings or has_acceptance_findings
+    exit_code = VALIDATION_FINDINGS if artifact_diagnostics or has_findings else SUCCESS
+    packet_status = "incomplete" if artifact_diagnostics else "findings_present" if has_findings else "ready_for_review"
+    packet = {
+        "ok": exit_code == SUCCESS,
+        "action": "analysis_reviewer_packet_rendered",
+        "ops_dir": str(ops_dir),
+        "analysis_run_dir": str(task_dir),
+        "generated_at": iso_now(now),
+        "read_only": True,
+        "changed": False,
+        "context_only": True,
+        "packet_notice": "Reviewer packet collects context only; it does not accept evidence or mark validation as passed.",
+        "packet_status": packet_status,
+        "accepted_experiment_plan": accepted_plan,
+        "run_manifest": artifacts["run_manifest"],
+        "metrics": artifacts["metrics"],
+        "diagnostics": artifacts["diagnostics"],
+        "robustness_checks": artifacts["robustness_checks"],
+        "claim_gates": artifacts["claim_gates"],
+        "result_summary": result_summary,
+        "validator_outputs": validator_outputs,
+        "result_acceptance_status": result_acceptance,
+        "source_data_governance_status": source_data_governance_status(validator_outputs),
+        "artifact_diagnostics": artifact_diagnostics,
+        "recommended_reviewer_focus": recommended_reviewer_focus(
+            artifact_diagnostics,
+            validator_outputs,
+            artifacts["claim_gates"],
+            result_acceptance,
+        ),
+    }
+    return exit_code, packet
+
+
 def command_dashboard(args: argparse.Namespace) -> int:
     try:
         now = parse_now(args.now)
@@ -650,6 +1104,26 @@ def command_dashboard(args: argparse.Namespace) -> int:
     return int(report["validation_exit_code"])
 
 
+def command_reviewer_packet(args: argparse.Namespace) -> int:
+    try:
+        now = parse_now(args.now)
+    except ValueError as exc:
+        print_json(
+            {
+                "ok": False,
+                "action": "analysis_reviewer_packet_rendered",
+                "reason": "invalid_now",
+                "error": str(exc),
+                "read_only": True,
+                "changed": False,
+            }
+        )
+        return INVALID_REQUEST
+    code, report = reviewer_packet_report(args.ops_dir, args.analysis_run_dir, now)
+    print_json(report)
+    return code
+
+
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render read-only analysis-run surfaces.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -665,6 +1139,18 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     dashboard.add_argument("--now", help="Override current time for deterministic freshness checks.")
     dashboard.add_argument("--max-items", type=int, default=10, help="Maximum rows per dashboard section.")
     dashboard.set_defaults(func=command_dashboard)
+    packet = subparsers.add_parser(
+        "reviewer-packet",
+        help="Render a read-only reviewer packet for one analysis run.",
+        description=(
+            "Read-only reviewer packet for one run_analysis task: bundles accepted plan, run artifacts, "
+            "validator outputs, result-acceptance state, source/data governance status, and reviewer focus."
+        ),
+    )
+    packet.add_argument("ops_dir", type=Path, help="Path to research_ops.")
+    packet.add_argument("analysis_run_dir", type=Path, help="run_analysis task directory to package for review.")
+    packet.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    packet.set_defaults(func=command_reviewer_packet)
     return parser.parse_args(list(argv))
 
 
@@ -674,7 +1160,7 @@ def main(argv: Iterable[str]) -> int:
         print_json(
             {
                 "ok": False,
-                "action": "analysis_dashboard_rendered",
+                "action": "analysis_reviewer_packet_rendered" if args.command == "reviewer-packet" else "analysis_dashboard_rendered",
                 "reason": "ops_dir_missing",
                 "ops_dir": str(args.ops_dir),
                 "read_only": True,

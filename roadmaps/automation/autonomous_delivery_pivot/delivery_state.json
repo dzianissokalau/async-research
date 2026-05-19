@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md",
   "roadmap_slug": "autonomous_delivery_pivot",
-  "current_phase": 7,
-  "branch": "codex/autonomous-delivery-pivot-phase-7",
+  "current_phase": 8,
+  "branch": "codex/autonomous-delivery-pivot-phase-8",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 6,
+    "phase": 7,
     "commands": [
       {
         "command": "git diff --check",
@@ -21,7 +21,7 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "700 tests"
+        "details": "702 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -29,25 +29,25 @@
         "details": "15 checks"
       },
       {
-        "command": ".venv/bin/python -m build",
-        "status": "passed"
+        "command": ".venv/bin/async-research analysis reviewer-packet src/async_research_workflow/examples/runnable_experiment_analysis/research_ops src/async_research_workflow/examples/runnable_experiment_analysis/research_ops/tasks/TASK-8003-completed-analysis --now 2026-01-15",
+        "status": "passed",
+        "details": "exit 0"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_runnable_examples tests.test_installed_package_analysis_smoke tests.test_packaged_resources",
-        "status": "passed",
-        "details": "12 tests"
+        "command": ".venv/bin/python -m build",
+        "status": "passed"
       }
     ],
-    "completed_at": "2026-05-19T15:26:15+01:00"
+    "completed_at": "2026-05-19T17:42:05+01:00"
   },
   "last_review": {
-    "phase": 6,
-    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-6-review-iteration-1.md",
+    "phase": 7,
+    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-7-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-19T15:26:15+01:00"
+    "completed_at": "2026-05-19T17:42:05+01:00"
   },
-  "last_delivered_phase": 6,
+  "last_delivered_phase": 7,
   "blocked_reason": null,
   "all_phases_complete": false,
-  "updated_at": "2026-05-19T15:26:15+01:00"
+  "updated_at": "2026-05-19T17:42:05+01:00"
 }

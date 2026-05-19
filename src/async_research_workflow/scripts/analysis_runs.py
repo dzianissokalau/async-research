@@ -83,12 +83,240 @@ class PreflightMalformed(ValueError):
     """Raised when required task state cannot be parsed safely."""
 
 
+DEFAULT_FAILURE_REMEDIATION = {
+    "why_it_matters": "This gate protects analysis provenance before reviewers rely on the run.",
+    "next_step": "Repair the cited artifact or field, then rerun the same analysis validator.",
+}
+
+FAILURE_REMEDIATION: dict[str, dict[str, str]] = {
+    "task_status_exists": {
+        "summary": "Missing task status",
+        "failing_field": "status.json",
+        "why_it_matters": "The task status identifies the analysis task and its review lifecycle state.",
+        "next_step": "Restore the task status.json file, then rerun the analysis validator.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "task_status_schema": {
+        "summary": "Malformed task status",
+        "failing_field": "status.json",
+        "why_it_matters": "Schema-valid task status lets downstream surfaces interpret the task deterministically.",
+        "next_step": "Fix status.json to match the task status schema, then rerun the validator.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "task_type": {
+        "summary": "Unsupported task type",
+        "failing_field": "status.json.type",
+        "why_it_matters": "Analysis validators only trust run_analysis task contracts.",
+        "next_step": "Use a run_analysis task directory or correct status.json.type before rerunning validation.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "task_status_runnable": {
+        "summary": "Task is not runnable",
+        "failing_field": "status.json.status",
+        "why_it_matters": "Preflight should run before execution, while the task is ready for worker work or in progress.",
+        "next_step": "Move the task back to a runnable state only through the normal lifecycle, or use completed-run validators instead.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "task_identity": {
+        "summary": "Task identity mismatch",
+        "failing_field": "status.json.id",
+        "why_it_matters": "The task directory and status id must identify the same analysis run.",
+        "next_step": "Fix the task directory or status id so they match, then rerun validation.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "manifest_exists": {
+        "summary": "Missing run manifest",
+        "failing_field": "artifacts/analysis_run/run_manifest.json",
+        "why_it_matters": "The manifest is the canonical source for run identity, planned artifacts, and accepted-plan linkage.",
+        "next_step": "Create or restore artifacts/analysis_run/run_manifest.json, then rerun the analysis validator.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "manifest_schema": {
+        "summary": "Malformed run manifest",
+        "failing_field": "artifacts/analysis_run/run_manifest.json",
+        "why_it_matters": "Schema-valid manifests keep run provenance and planned output references machine-readable.",
+        "next_step": "Fix run_manifest.json against analysis_run.schema.json, then rerun validation.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "manifest_framework_version": {
+        "summary": "Unsupported manifest framework version",
+        "failing_field": "run_manifest.json.framework_version",
+        "why_it_matters": "The validator only understands the current analysis_run_v1.0 contract.",
+        "next_step": "Update the manifest framework_version to analysis_run_v1.0 and verify the rest of the manifest shape.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "manifest_task_identity": {
+        "summary": "Manifest task identity mismatch",
+        "failing_field": "run_manifest.json.task_id",
+        "why_it_matters": "Run artifacts must belong to the same task that is being reviewed.",
+        "next_step": "Align run_manifest.json.task_id with status.json and the task directory name.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "manifest_task_type": {
+        "summary": "Manifest task type mismatch",
+        "failing_field": "run_manifest.json.task_type",
+        "why_it_matters": "Completed-run validators only review run_analysis manifests.",
+        "next_step": "Use a run_analysis manifest or correct run_manifest.json.task_type.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "output_paths_inside_task_folder": {
+        "summary": "Manifest path escapes task folder",
+        "failing_field": "run_manifest.json output paths",
+        "why_it_matters": "Analysis tasks must not claim or write outputs outside their own task artifact folder.",
+        "next_step": "Move the referenced artifact under the current task folder and update the manifest path.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_reference": {
+        "summary": "Missing accepted plan reference",
+        "failing_field": "run_manifest.json.accepted_plan_task_id",
+        "why_it_matters": "Analysis runs must be grounded in an accepted experiment plan.",
+        "next_step": "Record accepted_plan_task_id for the accepted experiment plan before analysis starts.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_task_exists": {
+        "summary": "Accepted plan task not found",
+        "failing_field": "run_manifest.json.accepted_plan_task_id",
+        "why_it_matters": "Reviewers need to inspect the accepted plan that authorized the run.",
+        "next_step": "Point accepted_plan_task_id at an existing accepted experiment_plan task.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_task_type": {
+        "summary": "Accepted plan task has wrong type",
+        "failing_field": "accepted plan status.json.type",
+        "why_it_matters": "Only accepted experiment_plan tasks can authorize analysis runs.",
+        "next_step": "Use an accepted experiment_plan task as the run's accepted_plan_task_id.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_task_accepted": {
+        "summary": "Accepted plan task is not accepted",
+        "failing_field": "accepted plan status.json.status",
+        "why_it_matters": "Analysis work must not start from an unaccepted plan.",
+        "next_step": "Complete plan review and acceptance before rerunning analysis preflight.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_indexed": {
+        "summary": "Accepted plan is missing from memory index",
+        "failing_field": "accepted_outputs_index.md",
+        "why_it_matters": "The accepted-memory index proves the plan is current enough for reuse.",
+        "next_step": "Refresh accepted_outputs_index.md after plan acceptance, then rerun validation.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_current": {
+        "summary": "Accepted plan memory is stale",
+        "failing_field": "accepted_outputs_index.md.revalidation_status",
+        "why_it_matters": "Stale accepted memory must not silently authorize new empirical evidence.",
+        "next_step": "Revalidate or replace the accepted experiment plan before running analysis.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_artifact_exists": {
+        "summary": "Accepted plan artifact is missing",
+        "failing_field": "run_manifest.json.accepted_plan_path",
+        "why_it_matters": "Reviewers need the exact accepted plan artifact linked by the run manifest.",
+        "next_step": "Restore the accepted plan artifact and update accepted_plan_path if needed.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_artifact_containment": {
+        "summary": "Accepted plan path escapes plan task",
+        "failing_field": "run_manifest.json.accepted_plan_path",
+        "why_it_matters": "The run must cite the accepted plan artifact from the accepted plan task folder.",
+        "next_step": "Point accepted_plan_path at the accepted plan task's artifact or worker_output.md.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_result_acceptance_exists": {
+        "summary": "Accepted plan review proof is missing",
+        "failing_field": "run_manifest.json.accepted_plan_result_acceptance_path",
+        "why_it_matters": "The analysis run needs proof that the experiment plan was accepted before execution.",
+        "next_step": "Restore the accepted plan review_panel/result_acceptance.json reference.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_result_acceptance_containment": {
+        "summary": "Accepted plan review proof escapes plan task",
+        "failing_field": "run_manifest.json.accepted_plan_result_acceptance_path",
+        "why_it_matters": "Review proof must come from the accepted experiment plan task, not an unrelated file.",
+        "next_step": "Point accepted_plan_result_acceptance_path at the plan task's review_panel/result_acceptance.json.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_valid": {
+        "summary": "Accepted plan no longer validates",
+        "failing_field": "accepted experiment plan artifact",
+        "why_it_matters": "Analysis evidence cannot rely on a plan that fails current hard gates.",
+        "next_step": "Repair or re-review the experiment plan before continuing with analysis validation.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "experiment_plan_id_matches": {
+        "summary": "Experiment plan identity mismatch",
+        "failing_field": "run_manifest.json.experiment_plan_id",
+        "why_it_matters": "Run evidence must trace to the exact accepted experiment plan.",
+        "next_step": "Align experiment_plan_id with the accepted plan artifact.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "accepted_plan_task_id_matches": {
+        "summary": "Accepted plan task id mismatch",
+        "failing_field": "run_manifest.json.accepted_plan_task_id",
+        "why_it_matters": "The manifest and plan artifact must name the same accepted plan task.",
+        "next_step": "Align accepted_plan_task_id with the accepted plan artifact.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "source_governance_allowed": {
+        "summary": "Source governance blocks this run",
+        "failing_field": "run_manifest.json.data_versions",
+        "why_it_matters": "Analysis evidence must use sources allowed for the selected claim and use case.",
+        "next_step": "Resolve source audit blockers or change the run to use approved source refs.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "data_foundations": {
+        "summary": "Data foundation state is not clean",
+        "failing_field": "research_ops/data and data_source_audit.md",
+        "why_it_matters": "Analysis review depends on coherent source, catalog, access, join, and gap metadata.",
+        "next_step": "Repair data foundation validation errors, then rerun the analysis validator.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "method_family_allowed": {
+        "summary": "Method does not match accepted plan",
+        "failing_field": "run_manifest.json.method_family",
+        "why_it_matters": "Post-plan method changes require review instead of silent analysis drift.",
+        "next_step": "Use the accepted plan method family or send the plan back for review.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "primary_metric_matches": {
+        "summary": "Primary metric does not match accepted plan",
+        "failing_field": "run_manifest.json.primary_metric",
+        "why_it_matters": "Changing the primary metric after plan acceptance changes the empirical claim.",
+        "next_step": "Align the manifest primary metric with the accepted plan or re-review the plan.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "budget_within_plan": {
+        "summary": "Run budget exceeds accepted plan",
+        "failing_field": "status.json budget or run_manifest.json cost/runtime",
+        "why_it_matters": "Analysis execution must stay within the accepted plan budget envelope.",
+        "next_step": "Reduce the run scope or get a reviewed plan update before accepting the result.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+    "stale_accepted_memory_reuse": {
+        "summary": "Stale accepted memory is cited",
+        "failing_field": "task.md, run_manifest.json, or runner parameters",
+        "why_it_matters": "Stale accepted outputs cannot be reused as current evidence without revalidation.",
+        "next_step": "Remove the stale citation or revalidate the cited accepted output before rerunning.",
+        "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+    },
+}
+
+
 def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def remediation_for_failure(gate: str, message: str) -> dict[str, str]:
+    remediation = dict(DEFAULT_FAILURE_REMEDIATION)
+    remediation.update(FAILURE_REMEDIATION.get(gate, {}))
+    remediation.setdefault("summary", str(message).strip().rstrip(".") or gate)
+    remediation.setdefault("failing_field", gate)
+    return remediation
+
+
 def add_failure(failures: list[dict[str, Any]], gate: str, message: str, details: Any = None) -> None:
     item: dict[str, Any] = {"gate": gate, "message": message}
+    item.update(remediation_for_failure(gate, message))
     if details is not None:
         item["details"] = details
     failures.append(item)
