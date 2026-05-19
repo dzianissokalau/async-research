@@ -1,9 +1,9 @@
 # Post-Review Operator Trust And Workflow Roadmap
 
-Status: In Progress
-Current phase: Phase 5 - Public adoption and release trust
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-16
-Next action: Publish release-trust assets
+Next action: Use the Real Research Product Readiness roadmap for active dogfood issues
 Blocked by: None
 
 Created: 2026-05-13
@@ -32,6 +32,10 @@ The next work should make the normal workflow hard to misuse:
 - idea capture and promotion need less manual JSON knowledge
 - docs, release signals, and worked examples need to match the quality of the
   implemented safety model
+
+Delivered scope: phases 0 through 4 are implemented. Remaining P3 release and
+adoption work is backlog, while May 16 coffee-pilot dogfood issues are now owned
+by the Real Research Product Readiness roadmap.
 
 ## Review Synthesis
 
@@ -475,6 +479,8 @@ Acceptance:
 - Hypothesis Testing Framework is delivered. Runnable experiment/analysis
   examples move to Phase 4 so contract-complete features become easier to
   evaluate.
+- Real Research Product Readiness owns the May 16 coffee-pilot product and
+  dashboard dogfood issues discovered after this roadmap's delivered scope.
 - Future Improvements Backlog remains the holding area for larger V2 apply
   paths, such as data/library proposal apply commands and richer import helpers.
 

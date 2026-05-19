@@ -1,6 +1,6 @@
 # Phase 4 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_real_research_product_readiness_roadmap.md`
+Roadmap: `roadmaps/delivered_real_research_product_readiness_roadmap.md`
 Phase: 4 - Foundations and cost drilldowns
 Branch: `codex/real-research-product-readiness-phase-4`
 Reviewed: 2026-05-17

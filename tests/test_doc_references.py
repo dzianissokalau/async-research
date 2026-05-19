@@ -104,12 +104,7 @@ ROADMAP_STATUS_PREFIXES = {
     "paused_": "Paused",
     "superseded_": "Superseded",
 }
-ROADMAP_OPERATIONAL_FILES = {
-    "codex_phase_gated_delivery_automation_template.md",
-    "real_research_product_readiness_codex_automation_guide.md",
-    "real_research_product_readiness_delivery_log.md",
-    "real_research_product_readiness_review_fix_log.md",
-}
+ROADMAP_OPERATIONAL_FILES: set[str] = set()
 
 
 def iter_documentation_files() -> list[Path]:
