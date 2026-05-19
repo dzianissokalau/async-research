@@ -1,13 +1,13 @@
 {
-  "roadmap": "roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md",
+  "roadmap": "roadmaps/delivered_autonomous_delivery_pivot_roadmap.md",
   "roadmap_slug": "autonomous_delivery_pivot",
   "current_phase": 9,
   "branch": "codex/autonomous-delivery-pivot-phase-9",
-  "status": "not_started",
-  "review_iterations": 0,
+  "status": "delivered",
+  "review_iterations": 1,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 8,
+    "phase": 9,
     "commands": [
       {
         "command": "git diff --check",
@@ -19,9 +19,19 @@
         "details": "15 tests"
       },
       {
+        "command": ".venv/bin/python -m unittest tests.test_docs_packaging",
+        "status": "passed",
+        "details": "7 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_release_trust_docs",
+        "status": "passed",
+        "details": "5 tests"
+      },
+      {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "707 tests"
+        "details": "712 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -29,30 +39,20 @@
         "details": "15 checks"
       },
       {
-        "command": ".venv/bin/async-research idea metrics tests/fixtures/idea_traceability/research_ops",
-        "status": "passed",
-        "details": "exit 0"
-      },
-      {
-        "command": ".venv/bin/async-research idea trace tests/fixtures/idea_traceability/research_ops IDEA-8601",
-        "status": "passed",
-        "details": "exit 0"
-      },
-      {
         "command": ".venv/bin/python -m build",
         "status": "passed"
       }
     ],
-    "completed_at": "2026-05-19T18:57:57+01:00"
+    "completed_at": "2026-05-19T19:43:02+01:00"
   },
   "last_review": {
-    "phase": 8,
-    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-8-review-iteration-1.md",
+    "phase": 9,
+    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-9-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-19T18:57:57+01:00"
+    "completed_at": "2026-05-19T19:43:02+01:00"
   },
-  "last_delivered_phase": 8,
+  "last_delivered_phase": 9,
   "blocked_reason": null,
-  "all_phases_complete": false,
-  "updated_at": "2026-05-19T18:57:57+01:00"
+  "all_phases_complete": true,
+  "updated_at": "2026-05-19T19:43:02+01:00"
 }

@@ -1,7 +1,7 @@
 # Autonomous Delivery Pivot Phase 0 Review - Iteration 1
 
 Date: 2026-05-19T07:30:19+01:00
-Roadmap: `roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md`
+Roadmap: `roadmaps/delivered_autonomous_delivery_pivot_roadmap.md`
 Phase: 0 - Roadmap lifecycle and automation hygiene
 
 ## Findings

@@ -67,9 +67,12 @@ The main cost reduction comes from:
 35. [Cost Controls](./cost_controls.md)
 36. [Async Research Console Specification](./async_research_console_spec.md)
 37. [Internal Helper Boundary](./internal_helper_boundary.md)
-38. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
-39. [Implementation Plan](./implementation_plan.md)
-40. [Sources](./sources.md)
+38. [Release-Trust Hardening Report](./release_trust_hardening_report.md)
+39. [Scaling Guidance](./scaling_guidance.md)
+40. [Worked Examples Index](./worked_examples_index.md)
+41. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
+42. [Implementation Plan](./implementation_plan.md)
+43. [Sources](./sources.md)
 
 ## Package Resources
 
@@ -85,6 +88,7 @@ Packaged resources:
 - [Real-estate worked example template](../templates/research_ops_starter/research_ops/README.md)
 - [Runnable experiment and analysis example](../examples/runnable_experiment_analysis/README.md)
 - [Coffee pilot deliverable maturity fixture](../examples/coffee_pilot_deliverable_maturity/README.md)
+- [Worked examples index](./worked_examples_index.md)
 - [GitHub worker example](../examples/github_actions_codex_worker.yml)
 - [Benchmark cases](../benchmarks/autonomy_benchmark_cases.json)
 - [Default mission policy](../mission_policy.json)

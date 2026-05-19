@@ -4,6 +4,11 @@ Use this checklist before tagging or publishing an alpha release. It is designed
 to verify the source tree, built artifacts, installed CLI, and packaged runtime
 resources from a clean environment.
 
+Local verification is necessary but not sufficient for publication. Do not
+publish to PyPI, create a GitHub release, tag a release, or announce public
+readiness until a human owner explicitly chooses the version, timing, and
+release notes.
+
 ## Preconditions
 
 - Work from a clean branch intended for release.
@@ -91,6 +96,10 @@ PY
 ## Release Hygiene
 
 - Update `CHANGELOG.md`.
+- Review the packaged release-trust docs:
+  `src/async_research_workflow/docs/release_trust_hardening_report.md`,
+  `src/async_research_workflow/docs/scaling_guidance.md`, and
+  `src/async_research_workflow/docs/worked_examples_index.md`.
 - Confirm `roadmaps/delivered_public_alpha_hardening_roadmap.md` reflects the release state.
 - Confirm GitHub description, topics, and release notes are ready.
 - Tag only after the source checks, build checks, installed-wheel smokes, and

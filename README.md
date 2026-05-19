@@ -27,6 +27,13 @@ promotion.
 The package is currently intended for GitHub install and real-project testing
 before PyPI publication.
 
+For release-trust context, read the packaged
+[Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md),
+[Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md), and
+[Worked examples index](src/async_research_workflow/docs/worked_examples_index.md).
+These docs distinguish local verification from release authority: passing tests
+does not publish to PyPI, create a GitHub release, or approve public claims.
+
 ## How The Loop Works
 
 The workflow is a durable research conveyor belt. Agents and humans read and
@@ -600,6 +607,9 @@ clean environment, and reruns installed CLI smokes.
 - [Task contracts](src/async_research_workflow/docs/task_contracts.md)
 - [Idea catalog contract](src/async_research_workflow/docs/idea_catalog_contract.md)
 - [Operational readiness runbook](src/async_research_workflow/docs/operational_readiness_runbook.md)
+- [Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md)
+- [Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md)
+- [Worked examples index](src/async_research_workflow/docs/worked_examples_index.md)
 - [Generic starter README](src/async_research_workflow/templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example README](src/async_research_workflow/templates/research_ops_starter/research_ops/README.md)
 - [Runnable experiment and analysis example](src/async_research_workflow/examples/runnable_experiment_analysis/README.md)

@@ -1,7 +1,7 @@
 # Autonomous Delivery Pivot Delivery Log
 
 Append-only phase-gated delivery log for
-`roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md`.
+`roadmaps/delivered_autonomous_delivery_pivot_roadmap.md`.
 
 ## Phase 0 - 2026-05-19
 
@@ -472,3 +472,64 @@ Branch: `codex/autonomous-delivery-pivot-phase-8`
 
 - Phase 8 is delivered. Next automation run should start Phase 9 on
   `codex/autonomous-delivery-pivot-phase-9`.
+
+## Phase 9 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-9`
+
+### Scope
+
+- Add release-trust documentation without publishing, tagging, or making public
+  release claims.
+- Document scaling boundaries and worked examples from packaged resources.
+- Preserve human ownership of release timing, versioning, positioning, and
+  high-stakes/public claims.
+
+### Changes
+
+- Added `release_trust_hardening_report.md` to summarize local verification,
+  delivered safety surfaces, alpha boundaries, and release-readiness limits.
+- Added `scaling_guidance.md` for file-backed workspace size expectations,
+  linear-scan tradeoffs, split-workspace signals, and heavier-orchestration
+  signals.
+- Added `worked_examples_index.md` to point to packaged starter templates,
+  runnable analysis fixtures, deliverable-maturity fixture, GitHub worker
+  example, and benchmark cases.
+- Linked the new docs from the root README and packaged docs index.
+- Added release-checklist language that local verification is not publishing
+  authority.
+- Added `tests.test_release_trust_docs` to lock key release-trust caveats,
+  example links, and scaling guidance.
+- Closed the roadmap lifecycle by renaming the roadmap to the delivered
+  lifecycle filename and updating normal references.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_docs_packaging`: passed, 7 tests
+- `.venv/bin/python -m unittest tests.test_release_trust_docs`: passed, 5 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 712 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-9-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the docs and tests; a
+  fully independent model review was not available in this run.
+- Release timing, versioning, public positioning, and release publication remain
+  human-owned.
+
+### Next Action
+
+- Phase 9 is delivered and all roadmap phases are complete. Create the final
+  branch `codex/autonomous-delivery-pivot-delivered`, push it once final
+  bookkeeping is committed, write the deep-review prompt, and pause the
+  automation or record `completed_pending_pause` if no automation-management
+  tool is available.

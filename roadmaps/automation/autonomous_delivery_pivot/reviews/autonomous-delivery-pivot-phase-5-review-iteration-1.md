@@ -3,7 +3,7 @@
 Verdict: delivered
 Reviewed at: 2026-05-19T14:34:05+01:00
 Branch: `codex/autonomous-delivery-pivot-phase-5`
-Roadmap: `roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md`
+Roadmap: `roadmaps/delivered_autonomous_delivery_pivot_roadmap.md`
 
 ## Findings
 

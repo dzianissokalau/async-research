@@ -1,6 +1,6 @@
 # Autonomous Delivery Pivot Phase 1 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md`
+Roadmap: `roadmaps/delivered_autonomous_delivery_pivot_roadmap.md`
 Branch: `codex/autonomous-delivery-pivot-phase-1`
 Reviewed at: 2026-05-19T07:58:44+01:00
 

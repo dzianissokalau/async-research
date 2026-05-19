@@ -1,9 +1,9 @@
 # Autonomous Delivery Pivot Roadmap
 
-Status: In Progress
-Current phase: Phase 9 - Release-Trust Docs And Scaling Guidance
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-19
-Next action: Run Phase 9 through the phase-gated delivery template
+Next action: Final branch pushed; automation is pending pause bookkeeping
 Blocked by: None
 
 Created: 2026-05-18
@@ -118,6 +118,33 @@ ambitions.
 | 7 | Analysis validator UX and reviewer packet | Add clearer validator explanations and a read-only reviewer packet command. | Operators and reviewers can understand blockers and review evidence faster. |
 | 8 | Idea traceability and metrics | Persist promotion trace metadata and expose lifecycle metrics/read models. | Task origins and idea-to-output flow are inspectable without raw JSON archaeology. |
 | 9 | Release-trust docs and scaling guidance | Add hardening report, scaling boundaries, and worked-example guidance without publishing. | External users can evaluate maturity while release authority remains human-owned. |
+
+## Delivery Completion
+
+All phases were delivered through the phase-gated automation loop on
+2026-05-19.
+
+| Phase | Completion |
+| ---: | --- |
+| 0 | Delivered - roadmap lifecycle and automation hygiene |
+| 1 | Delivered - stale-link guard, closeout checklist, and packaging diagnostics |
+| 2 | Delivered - shared foundation update proposal contract |
+| 3 | Delivered - read-only data proposal inspection |
+| 4 | Delivered - read-only library proposal inspection |
+| 5 | Delivered - guarded data/library proposal apply commands |
+| 6 | Delivered - empirical-loop fixture and installed package smoke |
+| 7 | Delivered - analysis validator UX and reviewer packet |
+| 8 | Delivered - idea traceability and lifecycle metrics |
+| 9 | Delivered - release-trust docs and scaling guidance |
+
+Final local verification passed:
+
+- `git diff --check`
+- `.venv/bin/python -m unittest tests.test_doc_references`
+- `.venv/bin/python -m unittest tests.test_docs_packaging`
+- `.venv/bin/python -m unittest discover -s tests`
+- `.venv/bin/async-research acceptance-suite`
+- `.venv/bin/python -m build`
 
 ## Phase 0 - Roadmap Lifecycle And Automation Hygiene
 
@@ -1119,7 +1146,7 @@ version number, license policy, or publication timing.
 Use these placeholders with the phase-gated template:
 
 ```text
-ROADMAP_PATH=roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md
+ROADMAP_PATH=roadmaps/delivered_autonomous_delivery_pivot_roadmap.md
 ROADMAP_SLUG=autonomous_delivery_pivot
 BRANCH_PREFIX=codex/
 BRANCH_NAME=codex/autonomous-delivery-pivot-phase-<phase-n>
@@ -1134,7 +1161,7 @@ Initial state:
 
 ```json
 {
-  "roadmap": "roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md",
+  "roadmap": "roadmaps/delivered_autonomous_delivery_pivot_roadmap.md",
   "roadmap_slug": "autonomous_delivery_pivot",
   "current_phase": "0",
   "branch": "codex/autonomous-delivery-pivot-phase-0",
