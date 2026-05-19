@@ -242,3 +242,66 @@ Branch: `codex/autonomous-delivery-pivot-phase-4`
 
 - Phase 4 is delivered. Next automation run should start Phase 5 on
   `codex/autonomous-delivery-pivot-phase-5`.
+
+## Phase 5 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-5`
+
+### Scope
+
+- Add guarded dry-run/write apply paths for accepted data and library
+  `foundation_update_proposal_v1` proposals.
+- Preserve manual notes, enforce accepted proof and preflight hashes, acquire
+  locks, rollback touched files on failed validation, and keep all write smoke
+  checks on temporary fixture copies.
+
+### Changes
+
+- Added shared guarded apply implementation plus thin data/library command
+  wrappers.
+- Wired `async-research data apply-proposals` and
+  `async-research library apply-proposals` with default dry-run, explicit
+  `--write`, `--preflight-hash`, and in-workspace accepted proof support.
+- Added idempotent Markdown table/profile upserts, target-specific locks,
+  source-register lock coordination for data writes, file snapshots, rollback,
+  post-write validation, and warning-only validator handling that does not make
+  existing warning exits strict.
+- Updated CLI help, command docs, packaged proposal contract, proposal template,
+  and starter README guidance.
+- Added regression coverage for dry-run safety, stale hashes, accepted artifact
+  proof, lock contention, source-register lock contention, idempotent writes,
+  manual note preservation, rollback after failed validation, and warning-only
+  post-write validation.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_foundation_proposal_apply`: passed, 9 tests
+- `.venv/bin/python -m unittest tests.test_cli_help tests.test_cli_architecture tests.test_data_proposal_inspection tests.test_library_proposal_inspection tests.test_foundation_proposals tests.test_foundation_proposal_apply`: passed, 47 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 698 tests
+- `.venv/bin/async-research data apply-proposals <fixture-ops-dir> <fixture-proposal-source> --dry-run`: passed
+- `.venv/bin/async-research library apply-proposals <fixture-ops-dir> <fixture-proposal-source> --dry-run`: passed
+- `.venv/bin/async-research data apply-proposals <temp-fixture-ops-dir> <temp-data-task> --write --preflight-hash <hash>`: passed
+- `.venv/bin/async-research library apply-proposals <temp-fixture-ops-dir> <temp-library-task> --write --preflight-hash <hash>`: passed
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-5-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the diff and relevant
+  tests; a fully independent model review was not available in this run.
+- The write path intentionally applies only the Phase 2-4 proposal operations;
+  it does not infer prose updates, import external files, or auto-approve
+  proposed rows.
+
+### Next Action
+
+- Phase 5 is delivered. Next automation run should start Phase 6 on
+  `codex/autonomous-delivery-pivot-phase-6`.

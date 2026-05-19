@@ -35,17 +35,26 @@ that contains `foundation_update_proposal_v1`:
 
 Set `target` to `data` for data foundation rows and `library` for knowledge
 library rows. Keep `target_path` workspace-relative and use only the canonical
-foundation files. This proposal format is review input only; applying accepted
-proposals is a separate guarded workflow.
+foundation files. Proposals remain review input until the source task is
+accepted or an accepted review/result-acceptance artifact is supplied.
 
 For data proposals, reviewers can run:
 
 ```bash
 async-research data inspect-proposals research_ops <proposal-source>
+async-research data apply-proposals research_ops <proposal-source> --dry-run
+async-research data apply-proposals research_ops <proposal-source> --write --preflight-hash <hash>
 ```
 
 For library proposals, reviewers can run:
 
 ```bash
 async-research library inspect-proposals research_ops <proposal-source>
+async-research library apply-proposals research_ops <proposal-source> --dry-run
+async-research library apply-proposals research_ops <proposal-source> --write --preflight-hash <hash>
 ```
+
+Dry-run is the default for both apply commands. Write mode requires explicit
+`--write`, the matching dry-run `preflight_hash`, accepted source-task or
+review proof, a foundation apply lock, and passing post-write validation. Failed
+post-write validation rolls back touched foundation files.

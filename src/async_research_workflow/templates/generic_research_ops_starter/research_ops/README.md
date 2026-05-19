@@ -76,8 +76,13 @@ the relevant `library/*.md` files, the exact files that would change, reviewer
 notes for weak or disputed sources, and the `library_update_log.md` provenance
 row. Reviewers can run
 `async-research library inspect-proposals research_ops <proposal-source>` before
-any guarded apply workflow exists. A reviewer applies accepted updates and
-reruns `async-research library validate research_ops`.
+apply. For accepted tasks, use
+`async-research library apply-proposals research_ops <proposal-source> --dry-run`
+to review the exact edits and preflight hash, then rerun with `--write
+--preflight-hash <hash>` only after acceptance proof is in place. The write path
+uses a lock, preserves notes outside generated blocks, reruns
+`async-research library validate research_ops`, and rolls back on validation
+failure.
 
 ## Deliverable Maturity
 
@@ -122,6 +127,14 @@ Profiles should be named like `data/profiles/DS-0001.md`, declare the same
 `source_id` inside the file, and point back to one audit row.
 After editing data foundation files, run
 `async-research data validate research_ops` before review.
+
+Data-readiness workers can propose source/profile/catalog/access/join/gap
+updates with `foundation_update_proposal_v1`. Reviewers can run
+`async-research data inspect-proposals research_ops <proposal-source>`, then use
+`async-research data apply-proposals research_ops <proposal-source> --dry-run`
+for accepted tasks. Write mode requires `--write --preflight-hash <hash>`,
+accepted task or review proof, a foundation apply lock, and post-write
+`source validate`/`data validate`; failed validation rolls back touched files.
 
 ## First Setup Steps
 

@@ -136,15 +136,17 @@ class CliHelpTests(unittest.TestCase):
             (["source", "check-experiment"], ["source IDs allowed for experiment planning", "--claim-impact"]),
             (["source", "check-claim"], ["selected use case and impact", "--use-case", "--allow-tier4-explicit"]),
             (["source", "explain"], ["one DS-* id", "--use-case", "--allow-tier4-explicit"]),
-            (["data"], ["data foundation readiness", "validate", "dashboard", "inspect-proposals"]),
+            (["data"], ["data foundation readiness", "validate", "dashboard", "inspect-proposals", "apply-proposals"]),
             (["data", "validate"], ["research_ops/data", "profiles", "Read-only", "--now", "Exits 0"]),
             (["data", "dashboard"], ["Read-only dashboard", "approved", "candidate", "blocked", "join-caveat", "--now", "--use-case"]),
             (["data", "inspect-proposals"], ["foundation_update_proposal_v1 data proposals", "worker_output.md", "JSON proposal artifact", "unsafe target paths", "Exits 0"]),
-            (["library"], ["knowledge library", "init", "validate", "dashboard", "inspect-proposals", "research_ops/library"]),
+            (["data", "apply-proposals"], ["foundation_update_proposal_v1 data proposals", "Dry-run is the default", "--write", "--preflight-hash", "Accepted review"]),
+            (["library"], ["knowledge library", "init", "validate", "dashboard", "inspect-proposals", "apply-proposals", "research_ops/library"]),
             (["library", "init"], ["research_ops/library", "--dry-run", "--write", "Without --write"]),
             (["library", "validate"], ["research_ops/library", "Read-only", "--now", "--stale-days", "Exits 0"]),
             (["library", "dashboard"], ["Read-only dashboard", "topic coverage", "stale reviews", "proposed library update tasks", "--now", "--stale-days", "Exits 0"]),
             (["library", "inspect-proposals"], ["foundation_update_proposal_v1 library proposals", "worker_output.md", "JSON proposal artifact", "unresolved source refs", "Exits 0"]),
+            (["library", "apply-proposals"], ["foundation_update_proposal_v1 library proposals", "Dry-run is the default", "--write", "--preflight-hash", "Accepted review"]),
             (["cost"], ["cost_ledger.csv", "summary", "ingest-usage", "budget-check"]),
             (["cost", "summary"], ["aggregate spend", "--ledger"]),
             (["cost", "ingest-usage"], ["usage artifact", "--usage-file", "--dry-run"]),
@@ -332,6 +334,7 @@ class CliHelpTests(unittest.TestCase):
                 "init",
                 "validate",
                 "inspect-proposals",
+                "apply-proposals",
             ],
         )
         self.assert_help_contains(
@@ -362,6 +365,16 @@ class CliHelpTests(unittest.TestCase):
                 "JSON proposal artifact",
                 "unresolved source refs",
                 "Exits 0",
+            ],
+        )
+        self.assert_help_contains(
+            ["library", "apply-proposals"],
+            [
+                "foundation_update_proposal_v1 library proposals",
+                "Dry-run is the default",
+                "--write",
+                "--preflight-hash",
+                "Accepted review",
             ],
         )
 

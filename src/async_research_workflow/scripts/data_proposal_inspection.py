@@ -571,7 +571,7 @@ def next_step_messages(blockers: list[dict[str, Any]], warnings: list[dict[str, 
     if blockers:
         return ["Fix blocked proposal diagnostics and rerun data inspect-proposals."]
     if warnings:
-        return ["Review warnings before routing the accepted proposal to a future guarded apply workflow."]
+        return ["Review warnings before routing the accepted proposal to data apply-proposals --dry-run."]
     return ["Proposal diagnostics are clean for data review; no files were changed."]
 
 

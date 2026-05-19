@@ -44,7 +44,7 @@ marking the work delivered.
 | [Post-Review Operator Trust And Workflow Roadmap](./delivered_post_review_operator_trust_roadmap.md) | Delivered | Complete | 2026-05-16 | Use the Real Research Product Readiness roadmap for active dogfood issues. | None |
 | [Real Research Product Readiness Roadmap](./delivered_real_research_product_readiness_roadmap.md) | Delivered | Complete | 2026-05-17 | Use the follow-on deliverable maturity/editorial QA roadmap for publication-readiness work. | None |
 | [Deliverable Maturity And Editorial QA Roadmap](./delivered_deliverable_maturity_editorial_qa_roadmap.md) | Delivered | Complete | 2026-05-18 | Final branch push and automation pause. | None |
-| [Autonomous Delivery Pivot Roadmap](./in_progress_autonomous_delivery_pivot_roadmap.md) | In Progress | Phase 2 - Shared foundation proposal contract | 2026-05-19 | Run Phase 2 through the phase-gated delivery template. | None |
+| [Autonomous Delivery Pivot Roadmap](./in_progress_autonomous_delivery_pivot_roadmap.md) | In Progress | Phase 6 - Analysis Adoption Fixture And Installed Smoke | 2026-05-19 | Run Phase 6 through the phase-gated delivery template. | None |
 | [Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md) | Not Started | Backlog | 2026-05-11 | Select one item and split it into a dedicated roadmap when explicitly requested. | None |
 | [Operator UX And Workflow Ergonomics Roadmap](./delivered_operator_ux_workflow_ergonomics_roadmap.md) | Delivered | Complete | 2026-05-11 | Monitor operator dogfood feedback and patch regressions. | None |
 | [Dashboard Delivery Roadmap](./delivered_dashboard_delivery_roadmap.md) | Delivered | Complete | 2026-05-13 | Monitor dashboard dogfood feedback and patch regressions. | None |

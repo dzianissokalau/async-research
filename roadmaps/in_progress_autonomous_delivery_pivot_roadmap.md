@@ -1,9 +1,9 @@
 # Autonomous Delivery Pivot Roadmap
 
 Status: In Progress
-Current phase: Phase 5 - Reviewed Proposal Apply Commands
+Current phase: Phase 6 - Analysis Adoption Fixture And Installed Smoke
 Last updated: 2026-05-19
-Next action: Run Phase 5 through the phase-gated delivery template
+Next action: Run Phase 6 through the phase-gated delivery template
 Blocked by: None
 
 Created: 2026-05-18

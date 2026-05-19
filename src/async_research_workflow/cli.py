@@ -554,6 +554,19 @@ def run_data_inspect_proposals_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_data_apply_proposals_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir), str(args.proposal_source)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.write:
+        argv.append("--write")
+    if args.preflight_hash:
+        argv.extend(["--preflight-hash", args.preflight_hash])
+    if args.accepted_artifact:
+        argv.extend(["--accepted-artifact", str(args.accepted_artifact)])
+    return module_main("data_proposal_apply", argv)
+
+
 def run_library_init_command(args: argparse.Namespace) -> int:
     argv = ["init", str(args.ops_dir)]
     if args.dry_run:
@@ -586,6 +599,19 @@ def run_library_inspect_proposals_command(args: argparse.Namespace) -> int:
         "library_proposal_inspection",
         [str(args.ops_dir), str(args.proposal_source)],
     )
+
+
+def run_library_apply_proposals_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir), str(args.proposal_source)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.write:
+        argv.append("--write")
+    if args.preflight_hash:
+        argv.extend(["--preflight-hash", args.preflight_hash])
+    if args.accepted_artifact:
+        argv.extend(["--accepted-artifact", str(args.accepted_artifact)])
+    return module_main("library_proposal_apply", argv)
 
 
 def run_cost_summary_command(args: argparse.Namespace) -> int:
@@ -2116,6 +2142,24 @@ def register_data_commands(subparsers) -> None:
     add_required_ops(inspect_proposals)
     inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
     inspect_proposals.set_defaults(func=run_data_inspect_proposals_command)
+    apply_proposals = add_command(
+        data_sub,
+        "apply-proposals",
+        help="Dry-run or apply accepted data foundation update proposals.",
+        description=(
+            "Guarded apply workflow for accepted foundation_update_proposal_v1 data proposals. "
+            "Dry-run is the default and emits the preflight hash required for explicit --write mode."
+        ),
+        epilog="Exits 0 for clean dry-runs or successful writes, 2 for lock contention or rollback after failed validation, 3 for invalid write requests, and 4 for blocked proposal or acceptance preconditions.",
+    )
+    add_required_ops(apply_proposals)
+    apply_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    apply_mode = apply_proposals.add_mutually_exclusive_group()
+    apply_mode.add_argument("--dry-run", action="store_true", help="Preview proposed edits and preflight hash without writing. This is the default.")
+    apply_mode.add_argument("--write", action="store_true", help="Apply proposals only after all write preconditions pass.")
+    apply_proposals.add_argument("--preflight-hash", help="Hash from a clean dry-run output; required with --write.")
+    apply_proposals.add_argument("--accepted-artifact", "--acceptance-artifact", dest="accepted_artifact", type=Path, help="Accepted review_panel/result_acceptance.json proof inside research_ops when source task status is not accepted.")
+    apply_proposals.set_defaults(func=run_data_apply_proposals_command)
 
 
 def register_library_commands(subparsers) -> None:
@@ -2172,6 +2216,24 @@ def register_library_commands(subparsers) -> None:
     add_required_ops(inspect_proposals)
     inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
     inspect_proposals.set_defaults(func=run_library_inspect_proposals_command)
+    apply_proposals = add_command(
+        library_sub,
+        "apply-proposals",
+        help="Dry-run or apply accepted knowledge library update proposals.",
+        description=(
+            "Guarded apply workflow for accepted foundation_update_proposal_v1 library proposals. "
+            "Dry-run is the default and emits the preflight hash required for explicit --write mode."
+        ),
+        epilog="Exits 0 for clean dry-runs or successful writes, 2 for lock contention or rollback after failed validation, 3 for invalid write requests, and 4 for blocked proposal or acceptance preconditions.",
+    )
+    add_required_ops(apply_proposals)
+    apply_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    apply_mode = apply_proposals.add_mutually_exclusive_group()
+    apply_mode.add_argument("--dry-run", action="store_true", help="Preview proposed edits and preflight hash without writing. This is the default.")
+    apply_mode.add_argument("--write", action="store_true", help="Apply proposals only after all write preconditions pass.")
+    apply_proposals.add_argument("--preflight-hash", help="Hash from a clean dry-run output; required with --write.")
+    apply_proposals.add_argument("--accepted-artifact", "--acceptance-artifact", dest="accepted_artifact", type=Path, help="Accepted review_panel/result_acceptance.json proof inside research_ops when source task status is not accepted.")
+    apply_proposals.set_defaults(func=run_library_apply_proposals_command)
 
 
 def register_cost_commands(subparsers) -> None:

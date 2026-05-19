@@ -2,10 +2,12 @@
 
 Created: 2026-05-19
 
-`foundation_update_proposal_v1` is the shared read-only proposal envelope for
-data foundation and knowledge library updates. Workers can propose durable
+`foundation_update_proposal_v1` is the shared proposal envelope for data
+foundation and knowledge library updates. Workers can propose durable
 foundation changes without mutating `research_ops/data/`,
-`research_ops/library/`, or `data_source_audit.md` directly.
+`research_ops/library/`, or `data_source_audit.md` directly. Reviewers inspect
+the proposal first; accepted proposals can then go through the guarded
+dry-run/write apply workflow.
 
 ## Envelope
 
@@ -89,7 +91,7 @@ Invalid proposals produce structured diagnostics with:
 - `remediation`
 
 Multiple proposals with the same `proposal_id` are rejected because reviewers
-and future apply tooling need one unambiguous proposal target.
+and apply tooling need one unambiguous proposal target.
 
 ## Data Inspection
 
@@ -127,11 +129,29 @@ malformed library row IDs, duplicate proposed row IDs, and claim, method, or
 topic payloads whose `source_refs` do not resolve to existing or proposed
 `LIT-*` rows.
 
+## Guarded Apply
+
+Accepted proposals can be routed through dry-run-first apply commands:
+
+```bash
+async-research data apply-proposals research_ops <proposal-source> --dry-run
+async-research library apply-proposals research_ops <proposal-source> --dry-run
+```
+
+Dry-run is the default. It reports proposed file edits, warnings, blockers,
+post-write validators, and a `preflight_hash`. Write mode requires explicit
+`--write`, the matching `--preflight-hash`, accepted source task status or an
+accepted review/result-acceptance artifact inside `research_ops`, a foundation
+apply lock, and clean proposal inspection. The write path re-reads proposals
+after acquiring the lock, applies operations idempotently, preserves notes
+outside generated table blocks, runs post-write validators, and rolls back
+touched files when validation fails.
+
 ## Non-Goals
 
-This contract is read-only. It does not apply proposals, infer proposals from
-arbitrary prose, import external files, or mutate source-of-truth foundation
-files.
+This contract does not auto-approve proposals, infer proposals from arbitrary
+prose, import external files, bypass source/library validation, or treat
+proposed rows as authoritative before a guarded write succeeds.
 
 The packaged template is
 [`foundation_update_proposal_template.md`](../templates/artifact_templates/foundation_update_proposal_template.md).
