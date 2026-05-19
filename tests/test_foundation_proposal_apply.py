@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import foundation_proposal_apply
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -265,6 +266,26 @@ def valid_library_proposal(source_id: str = "LIT-0100") -> dict:
 
 
 class FoundationProposalApplyTests(unittest.TestCase):
+    def test_data_profile_write_layer_refuses_path_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            ops_dir = tmp / "research_ops"
+            ops_dir.mkdir()
+            outside = tmp / "outside-profile.md"
+            profile_operation = operation(
+                "OP-9999",
+                "upsert_data_profile",
+                "../outside-profile.md",
+                "DS-9999",
+                {},
+            )
+
+            with self.assertRaises(foundation_proposal_apply.ApplyError) as raised:
+                foundation_proposal_apply.write_data_profile_operation(ops_dir, profile_operation)
+
+            self.assertEqual("target_path_outside_workspace", raised.exception.payload["reason"])
+            self.assertFalse(outside.exists())
+
     def test_data_apply_default_dry_run_is_safe_and_reports_preflight_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ops_dir = copy_starter(Path(tmpdir))

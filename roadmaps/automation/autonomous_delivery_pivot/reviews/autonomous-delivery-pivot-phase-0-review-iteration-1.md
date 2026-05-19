@@ -3,6 +3,7 @@
 Date: 2026-05-19T07:30:19+01:00
 Roadmap: `roadmaps/delivered_autonomous_delivery_pivot_roadmap.md`
 Phase: 0 - Roadmap lifecycle and automation hygiene
+Verdict: delivered
 
 ## Findings
 
@@ -23,7 +24,3 @@ Phase: 0 - Roadmap lifecycle and automation hygiene
 
 - Fresh-context reviewer did not rerun the full unit suite, but reviewed the committed diff and verification summary.
 - Historical automation review files now reference delivered roadmap filenames so normal links are current; their original timestamps and phase context were preserved.
-
-## Verdict
-
-delivered

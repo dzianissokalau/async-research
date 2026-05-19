@@ -396,7 +396,20 @@ def update_existing_profile_text(text: str, row_id: str, payload: dict[str, Any]
 
 def write_data_profile_operation(ops_dir: Path, operation: dict[str, Any]) -> dict[str, Any]:
     row_id = str(operation["row_id"])
-    path = ops_dir / str(operation["target_path"])
+    path = (ops_dir / str(operation["target_path"])).resolve(strict=False)
+    if not is_relative_to(path, ops_dir):
+        raise ApplyError(
+            {
+                "ok": False,
+                "reason": "target_path_outside_workspace",
+                "message": "data profile proposal target path must stay inside the research_ops workspace",
+                "target_path": operation["target_path"],
+                "operation_id": operation["operation_id"],
+                "operation": operation["operation"],
+                "row_id": row_id,
+            },
+            MALFORMED,
+        )
     payload = operation["payload"]
     if path.exists():
         next_text = update_existing_profile_text(path.read_text(encoding="utf-8"), row_id, payload)
