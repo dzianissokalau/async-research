@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dzianissokalau/async-research/schemas/foundation_update_proposal.schema.json",
+  "title": "Foundation Update Proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "proposal_version",
+    "proposal_id",
+    "source_task_id",
+    "target",
+    "created_by",
+    "rationale",
+    "operations"
+  ],
+  "properties": {
+    "proposal_version": {
+      "const": "foundation_update_proposal_v1"
+    },
+    "proposal_id": {
+      "type": "string",
+      "pattern": "^PROP-[0-9]{4}(-[A-Za-z0-9][A-Za-z0-9_-]*)?$"
+    },
+    "source_task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}(-[A-Za-z0-9][A-Za-z0-9_-]*)?$"
+    },
+    "target": {
+      "enum": [
+        "data",
+        "library"
+      ]
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "operation",
+          "target_path",
+          "row_id",
+          "payload",
+          "preserve_manual_notes"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+          },
+          "operation": {
+            "enum": [
+              "upsert_data_source",
+              "upsert_data_profile",
+              "upsert_data_catalog_row",
+              "upsert_data_access_row",
+              "upsert_join_map_row",
+              "upsert_known_data_gap",
+              "upsert_lit_source",
+              "upsert_topic_summary",
+              "upsert_claim",
+              "upsert_method",
+              "upsert_open_question",
+              "append_library_update_log"
+            ]
+          },
+          "target_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "row_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "payload": {
+            "type": "object"
+          },
+          "preserve_manual_notes": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

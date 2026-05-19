@@ -87,3 +87,56 @@ Branch: `codex/autonomous-delivery-pivot-phase-1`
 
 - Phase 1 is delivered. Next automation run should start Phase 2 on
   `codex/autonomous-delivery-pivot-phase-2`.
+
+## Phase 2 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-2`
+
+### Scope
+
+- Define one shared read-only `foundation_update_proposal_v1` contract for data
+  and library foundation update proposals.
+- Support standalone JSON proposal artifacts and fenced proposal blocks in
+  `worker_output.md`.
+- Validate envelope fields, target values, operation vocabulary, operation
+  IDs, target paths, row IDs, payload objects, and manual-note preservation
+  flags without mutating source-of-truth files.
+
+### Changes
+
+- Added `async_research_workflow.scripts.foundation_proposals` with reusable
+  `load_proposal_paths` and `discover_task_proposals` helpers plus structured
+  diagnostics.
+- Added a packaged proposal schema, artifact template, and contract
+  documentation for worker-authored data/library foundation proposals.
+- Added regression tests covering valid data and library proposals, duplicate
+  proposal IDs, unknown operations, missing fields, malformed JSON, unsafe
+  paths, invalid row IDs, payload type checks, and read-only behavior.
+- Documented the helper as internal until later data/library inspection commands
+  wrap it.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_foundation_proposals`: passed, 8 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 675 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- The shared parser intentionally stops at v1 contract validation. Deeper data
+  and library semantics, review proof checks, and apply safety are deferred to
+  later phases.
+
+### Next Action
+
+- Phase 2 is delivered. Next automation run should start Phase 3 on
+  `codex/autonomous-delivery-pivot-phase-3`.
