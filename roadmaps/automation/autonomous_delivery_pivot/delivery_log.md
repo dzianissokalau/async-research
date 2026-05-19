@@ -189,3 +189,56 @@ Branch: `codex/autonomous-delivery-pivot-phase-3`
 
 - Phase 3 is delivered. Next automation run should start Phase 4 on
   `codex/autonomous-delivery-pivot-phase-4`.
+
+## Phase 4 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-4`
+
+### Scope
+
+- Add read-only `async-research library inspect-proposals <ops-dir>
+  <proposal-source>` using the Phase 2 proposal parser.
+- Validate library proposal targets, row IDs, duplicate proposed rows, source
+  references, existing-row conflicts, and malformed payloads without mutating
+  `research_ops`.
+
+### Changes
+
+- Added `library_proposal_inspection` with JSON output for proposal counts,
+  operation diagnostics, warnings, blockers, read-only status, and next steps.
+- Wired the public `library inspect-proposals` CLI command and help coverage.
+- Added regression coverage for valid literature-extract proposals, read-only
+  behavior, existing-row upsert warnings, duplicate `LIT-*` rows, missing
+  source references, invalid targets, path traversal, unknown operations, and
+  non-library proposal targets.
+- Documented library proposal inspection in the command map, packaged docs,
+  helper boundary, proposal contract, proposal template, and starter READMEs.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest tests.test_library_proposal_inspection`: passed, 8 tests
+- `.venv/bin/python -m unittest tests.test_cli_architecture`: passed, 10 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 689 tests
+- `.venv/bin/async-research library inspect-proposals <fixture-ops-dir> <fixture-proposal-source>`: passed
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the diff and relevant
+  tests; a fully independent model review was not available in this run.
+- Apply safety, locks, rollback, and write validation remain deferred to Phase
+  5.
+
+### Next Action
+
+- Phase 4 is delivered. Next automation run should start Phase 5 on
+  `codex/autonomous-delivery-pivot-phase-5`.

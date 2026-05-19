@@ -43,3 +43,9 @@ For data proposals, reviewers can run:
 ```bash
 async-research data inspect-proposals research_ops <proposal-source>
 ```
+
+For library proposals, reviewers can run:
+
+```bash
+async-research library inspect-proposals research_ops <proposal-source>
+```

@@ -337,6 +337,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research library init research_ops --dry-run` | Preview or add missing knowledge library starter files. | Existing `research_ops/library/` files. | JSON to stdout; with `--write`, only missing library Markdown files. |
 | `async-research library validate research_ops` | Validate knowledge library Markdown contracts. | `library/` generated blocks, `LIT-*` source IDs, source refs, metadata, and update provenance. | JSON to stdout only; read-only. |
 | `async-research library dashboard research_ops` | Render a read-only knowledge library dashboard. | Knowledge library validator read model, active `literature_extract` task status, and active idea support refs. | JSON to stdout only; read-only and never mutates library files. |
+| `async-research library inspect-proposals research_ops <proposal-source>` | Inspect `foundation_update_proposal_v1` library proposals before any apply workflow exists. | A task directory, `worker_output.md`, JSON proposal artifact, or proposal artifact directory plus knowledge library files. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research idea catalog validate research_ops` | Validate durable idea catalog state. | Canonical `ideas/IDEA-*.json`, generated Markdown projections, schema, refs, and lifecycle gates. | JSON to stdout only; read-only. |
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
@@ -411,6 +412,7 @@ async-research exploration validate <worker-output> --ops-dir research_ops --tas
 async-research library init research_ops --dry-run
 async-research library validate research_ops
 async-research library dashboard research_ops
+async-research library inspect-proposals research_ops research_ops/tasks/TASK-0001-literature-extract
 async-research console research_ops
 async-research console snapshot research_ops --json
 async-research prompts init research_ops --dry-run
@@ -521,6 +523,7 @@ specific diagnostic.
 | `library init` | `0` missing library files reported or created. | `3` invalid flags; `4` malformed workspace path or write failure. |
 | `library validate` | `0` knowledge library contracts are clean. | `2` warning-only findings with `ok: true`; `3` invalid request such as malformed `--now`; `4` malformed generated blocks, duplicate IDs, invalid vocabularies, or unresolved source refs. |
 | `library dashboard` | `0` dashboard rendered and knowledge library state is clean. | `2` dashboard rendered with validator warnings or dashboard read-model warnings; `3` invalid request such as malformed `--now`; `4` dashboard rendered with malformed library state. |
+| `library inspect-proposals` | `0` library proposals are inspectable; existing-row upserts are warning-only. | `4` malformed proposals, unsafe target paths, non-library proposals, unresolved source refs, or workspace blockers. |
 | `cost summary` and `cost ingest-usage` | `0` cost summary printed or usage row ingested. | `4` malformed or unreadable cost ledger or usage artifact. |
 | `cost budget-check` | `0` proposed spend is below the configured threshold. | `2` budget threshold exceeded. |
 | `batch init`, `batch validate-manifest`, `batch submit`, `batch complete`, `batch ingest`, and `batch mark-reviewed` | `0` batch lifecycle step succeeded or dry-run validation passed. | `2` invalid lifecycle step, invalid manifest, or invalid cost ledger; `4` malformed manifest. |

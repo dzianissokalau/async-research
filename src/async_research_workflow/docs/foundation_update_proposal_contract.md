@@ -108,6 +108,25 @@ path traversal, target paths that resolve outside the selected `research_ops/`
 workspace, malformed row IDs, duplicate row operations, and payload row IDs
 that do not match the operation `row_id`.
 
+## Library Inspection
+
+Literature-extract workers can hand reviewers a library proposal artifact
+without manually copying rows into knowledge-library Markdown tables. Inspect it
+with:
+
+```bash
+async-research library inspect-proposals research_ops <proposal-source>
+```
+
+`<proposal-source>` may be a task directory, `worker_output.md`, a JSON
+proposal artifact, or a directory containing proposal artifacts. The command
+returns JSON with proposal counts, per-operation diagnostics, warning-only
+existing-row upserts, blockers, and next steps. It rejects non-library
+proposals, path traversal, target paths outside `research_ops/library/`,
+malformed library row IDs, duplicate proposed row IDs, and claim, method, or
+topic payloads whose `source_refs` do not resolve to existing or proposed
+`LIT-*` rows.
+
 ## Non-Goals
 
 This contract is read-only. It does not apply proposals, infer proposals from

@@ -74,8 +74,10 @@ missing files; existing notes are preserved. Run
 their task folder. Worker output should list proposed generated-table rows for
 the relevant `library/*.md` files, the exact files that would change, reviewer
 notes for weak or disputed sources, and the `library_update_log.md` provenance
-row. A reviewer applies accepted updates and reruns
-`async-research library validate research_ops`.
+row. Reviewers can run
+`async-research library inspect-proposals research_ops <proposal-source>` before
+any guarded apply workflow exists. A reviewer applies accepted updates and
+reruns `async-research library validate research_ops`.
 
 ## Deliverable Maturity
 

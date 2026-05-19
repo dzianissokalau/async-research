@@ -140,10 +140,11 @@ class CliHelpTests(unittest.TestCase):
             (["data", "validate"], ["research_ops/data", "profiles", "Read-only", "--now", "Exits 0"]),
             (["data", "dashboard"], ["Read-only dashboard", "approved", "candidate", "blocked", "join-caveat", "--now", "--use-case"]),
             (["data", "inspect-proposals"], ["foundation_update_proposal_v1 data proposals", "worker_output.md", "JSON proposal artifact", "unsafe target paths", "Exits 0"]),
-            (["library"], ["knowledge library", "init", "validate", "dashboard", "research_ops/library"]),
+            (["library"], ["knowledge library", "init", "validate", "dashboard", "inspect-proposals", "research_ops/library"]),
             (["library", "init"], ["research_ops/library", "--dry-run", "--write", "Without --write"]),
             (["library", "validate"], ["research_ops/library", "Read-only", "--now", "--stale-days", "Exits 0"]),
             (["library", "dashboard"], ["Read-only dashboard", "topic coverage", "stale reviews", "proposed library update tasks", "--now", "--stale-days", "Exits 0"]),
+            (["library", "inspect-proposals"], ["foundation_update_proposal_v1 library proposals", "worker_output.md", "JSON proposal artifact", "unresolved source refs", "Exits 0"]),
             (["cost"], ["cost_ledger.csv", "summary", "ingest-usage", "budget-check"]),
             (["cost", "summary"], ["aggregate spend", "--ledger"]),
             (["cost", "ingest-usage"], ["usage artifact", "--usage-file", "--dry-run"]),
@@ -330,6 +331,7 @@ class CliHelpTests(unittest.TestCase):
                 "research_ops/library",
                 "init",
                 "validate",
+                "inspect-proposals",
             ],
         )
         self.assert_help_contains(
@@ -350,6 +352,16 @@ class CliHelpTests(unittest.TestCase):
                 "2 for warning-only findings",
                 "3 for invalid request flags",
                 "4 for malformed generated blocks",
+            ],
+        )
+        self.assert_help_contains(
+            ["library", "inspect-proposals"],
+            [
+                "foundation_update_proposal_v1 library proposals",
+                "worker_output.md",
+                "JSON proposal artifact",
+                "unresolved source refs",
+                "Exits 0",
             ],
         )
 

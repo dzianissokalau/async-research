@@ -176,6 +176,12 @@ inspect a data-readiness worker's `foundation_update_proposal_v1` artifact
 before any write-capable apply workflow exists. The command is read-only and
 fails closed for unsafe target paths or non-data proposals.
 
+Run `async-research library inspect-proposals research_ops <proposal-source>` to
+inspect a literature-extract worker's `foundation_update_proposal_v1` artifact
+before any write-capable apply workflow exists. The command is read-only and
+fails closed for unsafe library target paths, non-library proposals, or missing
+`LIT-*` source references.
+
 ## Recommended First Setup
 
 Create this operational folder in the working research repo:

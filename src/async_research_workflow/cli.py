@@ -581,6 +581,13 @@ def run_library_dashboard_command(args: argparse.Namespace) -> int:
     return module_main("knowledge_library", argv)
 
 
+def run_library_inspect_proposals_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "library_proposal_inspection",
+        [str(args.ops_dir), str(args.proposal_source)],
+    )
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -2152,6 +2159,19 @@ def register_library_commands(subparsers) -> None:
     dashboard.add_argument("--now", help="Override current time for deterministic stale review checks.")
     dashboard.add_argument("--stale-days", type=int, default=180, help="Report sources and claims older than this many days.")
     dashboard.set_defaults(func=run_library_dashboard_command)
+    inspect_proposals = add_command(
+        library_sub,
+        "inspect-proposals",
+        help="Inspect knowledge library update proposals.",
+        description=(
+            "Read-only inspection for foundation_update_proposal_v1 library proposals. "
+            "The proposal source may be a task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory."
+        ),
+        epilog="Exits 0 when proposals are inspectable, including warning-only existing-row upserts; exits 4 for malformed proposals, unsafe target paths, non-library proposals, unresolved source refs, or workspace blockers.",
+    )
+    add_required_ops(inspect_proposals)
+    inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    inspect_proposals.set_defaults(func=run_library_inspect_proposals_command)
 
 
 def register_cost_commands(subparsers) -> None:

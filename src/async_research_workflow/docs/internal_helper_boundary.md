@@ -26,7 +26,7 @@ prompts, recovery procedures, and package maintainers.
 | `metrics_history append-snapshot --period weekly` | `async-research metrics append` for default snapshots. | The weekly-period/internal options are used by scheduled synthesis prompts and are not part of the public alpha contract. |
 | `decision_log` | `async-research decision ...`. | Library-only parser module behind the public decision group. |
 | `version_metadata` | Public workflow commands that preserve prompt/framework metadata. | Library-only defaults module used by status-writing helpers. |
-| `foundation_proposals` | `async-research data inspect-proposals` and future `async-research library inspect-proposals` commands. | Shared read-only proposal parser/validator; operator workflows use target-specific inspection commands. |
+| `foundation_proposals` | `async-research data inspect-proposals` and `async-research library inspect-proposals` commands. | Shared read-only proposal parser/validator; operator workflows use target-specific inspection commands. |
 
 ## Internal Tier 0 Boundary
 
