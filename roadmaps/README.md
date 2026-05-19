@@ -45,7 +45,7 @@ marking the work delivered.
 | [Real Research Product Readiness Roadmap](./delivered_real_research_product_readiness_roadmap.md) | Delivered | Complete | 2026-05-17 | Use the follow-on deliverable maturity/editorial QA roadmap for publication-readiness work. | None |
 | [Deliverable Maturity And Editorial QA Roadmap](./delivered_deliverable_maturity_editorial_qa_roadmap.md) | Delivered | Complete | 2026-05-18 | Final branch push and automation pause. | None |
 | [Autonomous Delivery Pivot Roadmap](./delivered_autonomous_delivery_pivot_roadmap.md) | Delivered | Complete | 2026-05-19 | Final branch push and automation pause. | None |
-| [LLM Operator Skill Roadmap](./not_started_llm_operator_skill_roadmap.md) | Not Started | Phase 0 - Contract review gate | 2026-05-19 | Resolve the contract gate, then create the Codex-first skill skeleton with trigger evals. | None |
+| [LLM Operator Skill Roadmap](./in_progress_llm_operator_skill_roadmap.md) | In Progress | Phase 1 - Codex-first skill skeleton and trigger contract | 2026-05-19 | Create the Codex-first skill skeleton with trigger evals. | None |
 | [Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md) | Not Started | Backlog | 2026-05-11 | Select one item and split it into a dedicated roadmap when explicitly requested. | None |
 | [Operator UX And Workflow Ergonomics Roadmap](./delivered_operator_ux_workflow_ergonomics_roadmap.md) | Delivered | Complete | 2026-05-11 | Monitor operator dogfood feedback and patch regressions. | None |
 | [Dashboard Delivery Roadmap](./delivered_dashboard_delivery_roadmap.md) | Delivered | Complete | 2026-05-13 | Monitor dashboard dogfood feedback and patch regressions. | None |

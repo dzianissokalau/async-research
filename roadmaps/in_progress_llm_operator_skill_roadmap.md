@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
-Status: Not Started
-Current phase: Phase 0 - Contract review gate
+Status: In Progress
+Current phase: Phase 1 - Codex-first skill skeleton and trigger contract
 Last updated: 2026-05-19
-Next action: Resolve the contract gate, then create the Codex-first skill skeleton with trigger evals
+Next action: Create the Codex-first skill skeleton with trigger evals
 Blocked by: None
 
 Created: 2026-05-19
@@ -66,6 +66,85 @@ The skill should let an LLM reliably answer:
 - Prefer explanations over brittle commandments in skill text except for hard
   safety rules. For example, explain that file-backed state outranks chat memory
   because chat context can drift across sessions.
+
+## Resolved Phase 0 Contract
+
+Phase 0 locks the v0.1 operating contract so Phase 1 can build the skill package
+without reopening product boundaries.
+
+### Product Contract
+
+- **Skill name**: `async-research-operator`.
+- **Primary job**: operate an async-research workspace safely through public CLI
+  commands, dashboard snapshots, and file-backed state.
+- **v0.1 target**: Codex with repository file access and terminal access.
+- **Source package root**: `skills/async-research-operator/` in this repository.
+- **Codex metadata**: `skills/async-research-operator/agents/openai.yaml` is
+  generated from `SKILL.md`; it is not a separate operating contract.
+- **Default autonomy**: `guided`.
+- **Validated framework range**: `async-research-workflow==0.2.0a5`, derived
+  from this repository's `pyproject.toml` on 2026-05-19. The startup protocol
+  may continue on other detected versions only after reporting version drift and
+  probing required command capabilities.
+
+### What The Skill Does
+
+- inspect an existing async-research workspace and summarize current state
+- recommend the next safe action from public CLI output and dashboard snapshots
+- guide first-time framework or workspace setup after explicit approval
+- run one bounded task loop only when explicitly placed in
+  `bounded_autonomous` mode and no stop condition exists
+- report progress, blockers, validation results, and human decisions needed
+
+### What The Skill Does Not Do
+
+- build a standalone UI or replace the dashboard
+- treat chat history, model memory, or unstated assumptions as source of truth
+- auto-install into `$CODEX_HOME/skills` or any user-global skill directory
+- perform global installs, network installs, cloning/fetching, shell-config
+  edits, or writes outside the workspace without explicit approval
+- operate web-only chat clients as v0.1 targets; they may advise from copied
+  artifacts only
+- implement an API-agent gateway or remote command gateway in this roadmap
+
+### Autonomy Levels
+
+- `read_only`: inspect state and report the next safe action; use when the user
+  asks for status, inspection, audit, or review only.
+- `guided`: ask before writes; this is the default for "continue" or ambiguous
+  operation requests.
+- `bounded_autonomous`: run one safe task loop when the user explicitly asks for
+  autonomous operation and no human gate or stop condition exists.
+- `maintenance`: run validation, dashboard refresh, and bookkeeping actions
+  that do not decide product direction or research substance.
+
+### Mandatory Stop Conditions
+
+- **Irreversibility**: destructive file/git operations, public/private boundary
+  ambiguity, publishing, submission, release, or publication-readiness claims.
+- **External access or spend**: credentials, external accounts, paid API/cloud
+  or data use, network installs, cloning, or fetching without approval.
+- **Human judgment**: human decision gates, source governance approval, missing
+  target audience, deliverable maturity choice, target venue choice, or
+  publication-readiness judgment.
+- **Broken tooling or inconsistent truth**: required tests or validators cannot
+  run, required CLI commands are missing, task acceptance sources disagree,
+  dashboard state conflicts with file-backed state, or deliverable readiness
+  checks fail or disagree.
+
+### Source-Of-Truth Hierarchy
+
+1. `research_ops/` files
+2. public `async-research` CLI JSON output
+3. dashboard or console snapshot
+4. user messages
+5. model memory
+
+### Guided Setup Sources
+
+The setup flow should prefer the checked-out repository and project-local
+`.venv` first, then an existing CLI path, then a pinned package or release only
+after explicit approval. Global installs are not a default setup path.
 
 ## Target Deliverable
 
@@ -140,7 +219,7 @@ The changes below reflect the strongest review findings:
 
 | Phase | Status | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- |
-| 0 | Not Started | Contract review gate | Resolve v0.1 target, source root, framework version range, autonomy defaults, stop categories, and source-of-truth rules. | Phase 1 can start without rediscovering product boundaries or provider scope. |
+| 0 | Delivered | Contract review gate | Resolve v0.1 target, source root, framework version range, autonomy defaults, stop categories, and source-of-truth rules. | Phase 1 can start without rediscovering product boundaries or provider scope. |
 | 1 | Not Started | Codex-first skill skeleton and trigger contract | Create concise `SKILL.md`, generated Codex UI metadata, reference-file structure, candidate descriptions, and trigger eval set. | Codex can discover the skill reliably and load detailed references only when needed. |
 | 2 | Not Started | Workspace discovery, guided setup, and startup protocol | Add startup recipe, guided framework setup flow, version guardrail, capability probe, privacy-boundary check, and optional read-only helper script. | The skill can safely pick up an existing project, guide first-time setup, and report unsupported CLI drift clearly. |
 | 3 | Not Started | Command recipes for setup and core loop | Document exact dry-run/write command sequences plus a command capability table for setup, planning, workers, review, acceptance, gates, deliverables, and foundation proposals. | Another LLM can set up and operate common workflows without improvising command order or mutation safety. |
@@ -161,7 +240,7 @@ in Phase 1.
 
 ### Owned Files
 
-- `roadmaps/not_started_llm_operator_skill_roadmap.md`
+- `roadmaps/in_progress_llm_operator_skill_roadmap.md`
 - optionally `src/async_research_workflow/docs/llm_operator_contract.md`
 - `roadmaps/README.md`
 
@@ -913,16 +992,12 @@ When the skill validation script exists:
 .venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py
 ```
 
-## Open Decisions
+## Remaining Decisions
 
-- Should the skill source live in this repo under `skills/`, or in a separate
-  Codex-skill repository?
-- What exact framework version range should v0.1 declare support for?
-- Which framework install sources should guided setup support first: checked-out
-  repo, pinned PyPI package, Git URL, or all three?
-- Which helper scripts are worth including in v0.1 beyond
-  `inspect_workspace.py` and `validate_skill_pack.py`?
-- Should an API-agent gateway be a future roadmap after the skill stabilizes?
-- Should `guided` be the default autonomy level when the user says "continue",
-  with `bounded_autonomous` requiring explicit wording?
-- What real workspace should be the first Codex dogfood target?
+- Phase 2 should decide whether any helper beyond `inspect_workspace.py` and
+  `validate_skill_pack.py` is justified by concrete startup or validation risk.
+- Phase 7 should pick the first real Codex dogfood workspace and record the
+  evidence in the delivery log.
+- Phase 8 should decide whether cross-provider exports are useful after Codex
+  dogfood and whether any API-agent or remote command gateway deserves a
+  separate future roadmap.

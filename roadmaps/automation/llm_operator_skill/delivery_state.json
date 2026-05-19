@@ -1,0 +1,43 @@
+{
+  "roadmap": "roadmaps/in_progress_llm_operator_skill_roadmap.md",
+  "roadmap_slug": "llm_operator_skill",
+  "current_phase": 1,
+  "branch": "codex/llm-operator-skill-phase-1",
+  "status": "not_started",
+  "review_iterations": 0,
+  "max_review_iterations": 3,
+  "last_verification": {
+    "phase": 0,
+    "commands": [
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_doc_references",
+        "status": "passed",
+        "details": "15 tests"
+      },
+      {
+        "command": ".venv/bin/python -m unittest discover -s tests",
+        "status": "passed",
+        "details": "713 tests"
+      }
+    ],
+    "completed_at": "2026-05-19T23:20:52+01:00"
+  },
+  "last_review": {
+    "phase": 0,
+    "file": "roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-0-review-iteration-1.md",
+    "verdict": "delivered",
+    "completed_at": "2026-05-19T23:20:52+01:00"
+  },
+  "last_delivered_phase": 0,
+  "blocked_reason": null,
+  "all_phases_complete": false,
+  "auto_advance_after_delivered_review": true,
+  "commit_delivered_phase_locally": true,
+  "push_to_github": "after_all_phases",
+  "cadence": "hourly",
+  "updated_at": "2026-05-19T23:20:52+01:00"
+}
