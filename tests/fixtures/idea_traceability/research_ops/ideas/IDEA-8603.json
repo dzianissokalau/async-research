@@ -1,0 +1,63 @@
+{
+  "created_at": "2026-05-01T00:00:00Z",
+  "decision_history": [
+    {
+      "actor": "fixture",
+      "at": "2026-05-08T00:00:00Z",
+      "from_status": "candidate",
+      "reason": "fixture rejected",
+      "to_status": "reject"
+    }
+  ],
+  "id": "IDEA-8603",
+  "kill_reason": "Reject if fixture evidence is unavailable.",
+  "main_risks": [
+    "fixture risk"
+  ],
+  "minimum_viable_test": "Run a bounded fixture check.",
+  "question": "Should this rejected fixture stay out of the queue?",
+  "recommended_next_task": "reject",
+  "required_data": [
+    "fixture source"
+  ],
+  "revisit_condition": "Reopen only if a new fixture decision is recorded.",
+  "schema_version": "1.0",
+  "score": {
+    "budget_mode": "normal",
+    "budget_mode_reason": "fixture",
+    "budget_pressure_threshold": 0.8,
+    "budget_usage": {
+      "monthly_budget_usd": null,
+      "monthly_cost_usd": 0.0,
+      "monthly_usage_ratio": null,
+      "weekly_budget_usd": null,
+      "weekly_cost_usd": 0.0,
+      "weekly_usage_ratio": null
+    },
+    "cost": 2,
+    "data_availability": 2,
+    "decision_impact": 2,
+    "feasibility": 2,
+    "hard_gate_results": [
+      {
+        "gate": "research_question_present",
+        "passed": true,
+        "reason": "fixture"
+      }
+    ],
+    "killability": 4,
+    "max_promotions_per_week": 3,
+    "minimum_killability": 3,
+    "mission_policy_version": "fixture_policy_v1.0",
+    "novelty": 2,
+    "promotion_threshold": 14.0,
+    "reuse_potential": 2,
+    "robustness_risk": 3,
+    "score_explanation": "Fixture rejected score.",
+    "weighted_total": 7.0
+  },
+  "status": "reject",
+  "title": "Rejected traceability fixture",
+  "updated_at": "2026-05-08T00:00:00Z",
+  "why_it_might_matter": "It verifies rejected idea lifecycle state."
+}

@@ -547,6 +547,26 @@ def run_data_dashboard_command(args: argparse.Namespace) -> int:
     return module_main("data_foundations", argv)
 
 
+def run_data_inspect_proposals_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "data_proposal_inspection",
+        [str(args.ops_dir), str(args.proposal_source)],
+    )
+
+
+def run_data_apply_proposals_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir), str(args.proposal_source)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.write:
+        argv.append("--write")
+    if args.preflight_hash:
+        argv.extend(["--preflight-hash", args.preflight_hash])
+    if args.accepted_artifact:
+        argv.extend(["--accepted-artifact", str(args.accepted_artifact)])
+    return module_main("data_proposal_apply", argv)
+
+
 def run_library_init_command(args: argparse.Namespace) -> int:
     argv = ["init", str(args.ops_dir)]
     if args.dry_run:
@@ -572,6 +592,26 @@ def run_library_dashboard_command(args: argparse.Namespace) -> int:
     if args.stale_days is not None:
         argv.extend(["--stale-days", str(args.stale_days)])
     return module_main("knowledge_library", argv)
+
+
+def run_library_inspect_proposals_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "library_proposal_inspection",
+        [str(args.ops_dir), str(args.proposal_source)],
+    )
+
+
+def run_library_apply_proposals_command(args: argparse.Namespace) -> int:
+    argv = [str(args.ops_dir), str(args.proposal_source)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.write:
+        argv.append("--write")
+    if args.preflight_hash:
+        argv.extend(["--preflight-hash", args.preflight_hash])
+    if args.accepted_artifact:
+        argv.extend(["--accepted-artifact", str(args.accepted_artifact)])
+    return module_main("library_proposal_apply", argv)
 
 
 def run_cost_summary_command(args: argparse.Namespace) -> int:
@@ -1226,6 +1266,14 @@ def run_idea_catalog_dashboard_command(args: argparse.Namespace) -> int:
 
 def run_idea_catalog_show_command(args: argparse.Namespace) -> int:
     return module_main("idea_catalog", ["show", str(args.ops_dir), args.idea_id])
+
+
+def run_idea_metrics_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["metrics", str(args.ops_dir)] + optional_text("--now", args.now))
+
+
+def run_idea_trace_command(args: argparse.Namespace) -> int:
+    return module_main("idea_catalog", ["trace", str(args.ops_dir), args.idea_id] + optional_text("--now", args.now))
 
 
 def run_idea_catalog_maintain_command(args: argparse.Namespace) -> int:
@@ -2089,6 +2137,37 @@ def register_data_commands(subparsers) -> None:
     dashboard.add_argument("--now", help="Override current time for deterministic source freshness checks.")
     dashboard.add_argument("--use-case", choices=SOURCE_USE_CASE_CHOICES, default="experiment_planning", help="Source use case for usable-today policy.")
     dashboard.set_defaults(func=run_data_dashboard_command)
+    inspect_proposals = add_command(
+        data_sub,
+        "inspect-proposals",
+        help="Inspect data foundation update proposals.",
+        description=(
+            "Read-only inspection for foundation_update_proposal_v1 data proposals. "
+            "The proposal source may be a task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory."
+        ),
+        epilog="Exits 0 when proposals are inspectable, including warning-only existing-row upserts; exits 4 for malformed proposals, unsafe target paths, non-data proposals, or workspace blockers.",
+    )
+    add_required_ops(inspect_proposals)
+    inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    inspect_proposals.set_defaults(func=run_data_inspect_proposals_command)
+    apply_proposals = add_command(
+        data_sub,
+        "apply-proposals",
+        help="Dry-run or apply accepted data foundation update proposals.",
+        description=(
+            "Guarded apply workflow for accepted foundation_update_proposal_v1 data proposals. "
+            "Dry-run is the default and emits the preflight hash required for explicit --write mode."
+        ),
+        epilog="Exits 0 for clean dry-runs or successful writes, 2 for lock contention or rollback after failed validation, 3 for invalid write requests, and 4 for blocked proposal or acceptance preconditions.",
+    )
+    add_required_ops(apply_proposals)
+    apply_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    apply_mode = apply_proposals.add_mutually_exclusive_group()
+    apply_mode.add_argument("--dry-run", action="store_true", help="Preview proposed edits and preflight hash without writing. This is the default.")
+    apply_mode.add_argument("--write", action="store_true", help="Apply proposals only after all write preconditions pass.")
+    apply_proposals.add_argument("--preflight-hash", help="Hash from a clean dry-run output; required with --write.")
+    apply_proposals.add_argument("--accepted-artifact", "--acceptance-artifact", dest="accepted_artifact", type=Path, help="Accepted review_panel/result_acceptance.json proof inside research_ops when source task status is not accepted.")
+    apply_proposals.set_defaults(func=run_data_apply_proposals_command)
 
 
 def register_library_commands(subparsers) -> None:
@@ -2132,6 +2211,37 @@ def register_library_commands(subparsers) -> None:
     dashboard.add_argument("--now", help="Override current time for deterministic stale review checks.")
     dashboard.add_argument("--stale-days", type=int, default=180, help="Report sources and claims older than this many days.")
     dashboard.set_defaults(func=run_library_dashboard_command)
+    inspect_proposals = add_command(
+        library_sub,
+        "inspect-proposals",
+        help="Inspect knowledge library update proposals.",
+        description=(
+            "Read-only inspection for foundation_update_proposal_v1 library proposals. "
+            "The proposal source may be a task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory."
+        ),
+        epilog="Exits 0 when proposals are inspectable, including warning-only existing-row upserts; exits 4 for malformed proposals, unsafe target paths, non-library proposals, unresolved source refs, or workspace blockers.",
+    )
+    add_required_ops(inspect_proposals)
+    inspect_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    inspect_proposals.set_defaults(func=run_library_inspect_proposals_command)
+    apply_proposals = add_command(
+        library_sub,
+        "apply-proposals",
+        help="Dry-run or apply accepted knowledge library update proposals.",
+        description=(
+            "Guarded apply workflow for accepted foundation_update_proposal_v1 library proposals. "
+            "Dry-run is the default and emits the preflight hash required for explicit --write mode."
+        ),
+        epilog="Exits 0 for clean dry-runs or successful writes, 2 for lock contention or rollback after failed validation, 3 for invalid write requests, and 4 for blocked proposal or acceptance preconditions.",
+    )
+    add_required_ops(apply_proposals)
+    apply_proposals.add_argument("proposal_source", type=Path, help="Task directory, worker_output.md, JSON proposal artifact, or proposal artifact directory.")
+    apply_mode = apply_proposals.add_mutually_exclusive_group()
+    apply_mode.add_argument("--dry-run", action="store_true", help="Preview proposed edits and preflight hash without writing. This is the default.")
+    apply_mode.add_argument("--write", action="store_true", help="Apply proposals only after all write preconditions pass.")
+    apply_proposals.add_argument("--preflight-hash", help="Hash from a clean dry-run output; required with --write.")
+    apply_proposals.add_argument("--accepted-artifact", "--acceptance-artifact", dest="accepted_artifact", type=Path, help="Accepted review_panel/result_acceptance.json proof inside research_ops when source task status is not accepted.")
+    apply_proposals.set_defaults(func=run_library_apply_proposals_command)
 
 
 def register_cost_commands(subparsers) -> None:
@@ -2755,6 +2865,22 @@ def register_analysis_commands(subparsers) -> None:
     dashboard.add_argument("--max-items", type=int, default=10, help="Maximum rows per dashboard section.")
     dashboard.set_defaults(func=lambda a: module_main("analysis_surface", ["dashboard", str(a.ops_dir), "--max-items", str(a.max_items)] + (["--now", a.now] if a.now else [])))
 
+    reviewer_packet = add_command(
+        analysis_sub,
+        "reviewer-packet",
+        help="Render a read-only reviewer packet for one analysis run.",
+        description=(
+            "Read-only reviewer packet for one run_analysis task: bundles the accepted experiment plan, "
+            "run artifacts, validator outputs, result-acceptance state, source/data governance status, "
+            "and recommended reviewer focus without accepting evidence."
+        ),
+        epilog="Exits 0 when packet context is complete, 2 when validators or artifacts have findings, 3 for invalid paths, and 4 when malformed state prevents reliable packet output.",
+    )
+    reviewer_packet.add_argument("ops_dir", type=Path, help="Path to research_ops.")
+    reviewer_packet.add_argument("analysis_run_dir", type=Path, help="run_analysis task directory to package for review.")
+    reviewer_packet.add_argument("--now", help="Override current time for deterministic source/data and accepted-memory checks.")
+    reviewer_packet.set_defaults(func=lambda a: module_main("analysis_surface", ["reviewer-packet", str(a.ops_dir), str(a.analysis_run_dir)] + (["--now", a.now] if a.now else [])))
+
     run_adapter = add_command(
         analysis_sub,
         "run-adapter",
@@ -2925,6 +3051,25 @@ def register_artifact_commands(subparsers) -> None:
     idea_promote.add_argument("--dry-run", action="store_true", help="Preview the task proposal without writing; this is the default.")
     idea_promote.add_argument("--write", action="store_true", help="Create the reserved task folder, append queue.md, append inbox.md, and update the selected idea.")
     idea_promote.set_defaults(func=run_idea_promote_command)
+    idea_metrics = add_command(
+        idea_sub,
+        "metrics",
+        help="Render read-only idea lifecycle metrics.",
+        description="Read canonical ideas, queue rows, linked task statuses, accepted outputs, and cost ledger rows to report deterministic idea lifecycle metrics without mutating research_ops.",
+    )
+    add_common_ops(idea_metrics)
+    idea_metrics.add_argument("--now", help="Override report time for deterministic parked-age metrics.")
+    idea_metrics.set_defaults(func=run_idea_metrics_command)
+    idea_trace = add_command(
+        idea_sub,
+        "trace",
+        help="Trace one idea to promoted tasks and outputs.",
+        description="Explain why a promoted task exists by reading one canonical idea, queue evidence, linked task status metadata, promotion trace fields, and accepted-output rows without mutating research_ops.",
+    )
+    add_common_ops(idea_trace)
+    idea_trace.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
+    idea_trace.add_argument("--now", help="Override report time for deterministic parked-age metrics.")
+    idea_trace.set_defaults(func=run_idea_trace_command)
     idea_resolve = add_command(
         idea_sub,
         "resolve",

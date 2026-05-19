@@ -29,6 +29,34 @@ def packaged_doc_files() -> list[Path]:
     return sorted(path for path in DOCS_ROOT.rglob("*") if path.is_file())
 
 
+def packaged_docs_diagnostics(docs: list[Path]) -> str:
+    total_bytes = sum(path.stat().st_size for path in docs)
+    largest_docs = sorted(
+        ((path.stat().st_size, path.relative_to(DOCS_ROOT)) for path in docs),
+        key=lambda item: item[0],
+        reverse=True,
+    )[:5]
+    non_markdown = [
+        str(path.relative_to(DOCS_ROOT))
+        for path in docs
+        if path.suffix != ".md"
+    ]
+
+    lines = [
+        f"packaged docs total: {total_bytes} bytes "
+        f"(threshold: {MAX_PACKAGED_DOCS_BYTES} bytes)",
+        f"single doc threshold: {MAX_SINGLE_DOC_BYTES} bytes",
+        "largest packaged docs:",
+    ]
+    lines.extend(f"- {relative}: {size} bytes" for size, relative in largest_docs)
+    if non_markdown:
+        lines.append("non-Markdown files:")
+        lines.extend(f"- {path}" for path in non_markdown)
+    else:
+        lines.append("non-Markdown files: none")
+    return "\n".join(lines)
+
+
 class DocsPackagingTests(unittest.TestCase):
     def test_policy_records_keep_packaged_decision(self) -> None:
         text = POLICY.read_text(encoding="utf-8")
@@ -69,6 +97,7 @@ class DocsPackagingTests(unittest.TestCase):
 
     def test_packaged_docs_are_markdown_only_and_within_footprint(self) -> None:
         docs = packaged_doc_files()
+        diagnostics = packaged_docs_diagnostics(docs)
         non_markdown = [
             str(path.relative_to(DOCS_ROOT))
             for path in docs
@@ -82,9 +111,21 @@ class DocsPackagingTests(unittest.TestCase):
         total_bytes = sum(path.stat().st_size for path in docs)
 
         self.assertGreaterEqual(len(docs), 40)
-        self.assertEqual([], non_markdown)
-        self.assertEqual([], oversized)
-        self.assertLessEqual(total_bytes, MAX_PACKAGED_DOCS_BYTES)
+        self.assertEqual([], non_markdown, diagnostics)
+        self.assertEqual([], oversized, diagnostics)
+        self.assertLessEqual(total_bytes, MAX_PACKAGED_DOCS_BYTES, diagnostics)
+
+    def test_packaged_docs_diagnostics_include_threshold_context(self) -> None:
+        diagnostics = packaged_docs_diagnostics(packaged_doc_files())
+
+        for snippet in [
+            "packaged docs total:",
+            f"threshold: {MAX_PACKAGED_DOCS_BYTES} bytes",
+            f"single doc threshold: {MAX_SINGLE_DOC_BYTES} bytes",
+            "largest packaged docs:",
+            "non-Markdown files:",
+        ]:
+            self.assertIn(snippet, diagnostics)
 
     def test_key_docs_are_available_via_importlib_resources(self) -> None:
         docs = importlib_resources.files("async_research_workflow").joinpath("docs")

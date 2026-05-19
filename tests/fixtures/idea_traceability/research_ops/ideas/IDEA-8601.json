@@ -1,0 +1,73 @@
+{
+  "created_at": "2026-05-01T00:00:00Z",
+  "data_refs": [
+    "DS-0001"
+  ],
+  "decision_history": [
+    {
+      "actor": "fixture",
+      "at": "2026-05-02T00:00:00Z",
+      "from_status": "candidate",
+      "reason": "ready for promotion",
+      "to_status": "promote"
+    },
+    {
+      "actor": "fixture",
+      "at": "2026-05-03T00:00:00Z",
+      "from_status": "promote",
+      "reason": "task created",
+      "to_status": "promoted"
+    }
+  ],
+  "id": "IDEA-8601",
+  "kill_reason": "Reject if fixture source evidence is unavailable.",
+  "main_risks": [
+    "fixture risk"
+  ],
+  "minimum_viable_test": "Run a bounded data readiness check.",
+  "promoted_task_id": "TASK-8601",
+  "question": "Can this fixture idea be traced to an accepted task?",
+  "recommended_next_task": "data_readiness",
+  "required_data": [
+    "fixture source"
+  ],
+  "schema_version": "1.0",
+  "score": {
+    "budget_mode": "normal",
+    "budget_mode_reason": "fixture",
+    "budget_pressure_threshold": 0.8,
+    "budget_usage": {
+      "monthly_budget_usd": null,
+      "monthly_cost_usd": 0.0,
+      "monthly_usage_ratio": null,
+      "weekly_budget_usd": null,
+      "weekly_cost_usd": 0.0,
+      "weekly_usage_ratio": null
+    },
+    "cost": 2,
+    "data_availability": 4,
+    "decision_impact": 4,
+    "feasibility": 4,
+    "hard_gate_results": [
+      {
+        "gate": "research_question_present",
+        "passed": true,
+        "reason": "fixture"
+      }
+    ],
+    "killability": 4,
+    "max_promotions_per_week": 3,
+    "minimum_killability": 3,
+    "mission_policy_version": "fixture_policy_v1.0",
+    "novelty": 3,
+    "promotion_threshold": 14.0,
+    "reuse_potential": 4,
+    "robustness_risk": 2,
+    "score_explanation": "Fixture score.",
+    "weighted_total": 16.5
+  },
+  "status": "promoted",
+  "title": "Accepted traceability fixture",
+  "updated_at": "2026-05-03T00:00:00Z",
+  "why_it_might_matter": "It verifies idea traceability metrics."
+}

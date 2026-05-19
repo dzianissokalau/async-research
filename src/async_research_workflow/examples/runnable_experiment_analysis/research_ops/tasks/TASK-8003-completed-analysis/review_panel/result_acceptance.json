@@ -1,0 +1,469 @@
+{
+  "accepted_memory": {
+    "claim_type": "predictive",
+    "freshness_window_days": "45",
+    "next_recheck_date": "2026-06-23",
+    "revalidation_status": "current",
+    "superseded_by": "none",
+    "supersedes": "none"
+  },
+  "analysis_run": {
+    "accepted_plan_task_id": "TASK-8001",
+    "artifact_paths": {
+      "claim_gates": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/claim_gates.json",
+      "diagnostics": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/diagnostics.json",
+      "metrics": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/metrics.json",
+      "robustness": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/robustness_checks.json"
+    },
+    "claim_gates": {
+      "artifact": {
+        "cap_reasons": [],
+        "claim": "The candidate feature improves predictive accuracy in this bounded backtest.",
+        "claim_decision": "accepted",
+        "claim_gate_results": [
+          {
+            "evidence": [],
+            "gate": "metrics_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "metrics artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "diagnostics_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "diagnostics artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "robustness_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "robustness artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_identity_present",
+            "max_claim_strength": "strong",
+            "reason": "result summary provenance identifiers are present",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "artifact_identity_matches_claim",
+            "max_claim_strength": "strong",
+            "reason": "artifact identities match the claim summary",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_type_classified",
+            "max_claim_strength": "strong",
+            "reason": "claim_type is classified as predictive",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_limitations_declared",
+            "max_claim_strength": "strong",
+            "reason": "claim limitations are declared",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "diagnostic_quality",
+            "max_claim_strength": "strong",
+            "reason": "diagnostics do not cap the claim",
+            "status": "pass"
+          },
+          {
+            "evidence": [
+              "passed baseline comparisons: 1",
+              "out-of-sample splits: 1"
+            ],
+            "gate": "predictive_validation_and_baseline",
+            "max_claim_strength": "moderate",
+            "reason": "predictive validation and baseline comparison are present; predictive claims remain capped at moderate",
+            "status": "pass"
+          },
+          {
+            "evidence": [
+              "statuses: pass"
+            ],
+            "gate": "predictive_leakage_checks",
+            "max_claim_strength": "moderate",
+            "reason": "predictive leakage checks include a passing row",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "robustness_decision_impact",
+            "max_claim_strength": "strong",
+            "reason": "no robustness decision impacts block the claim",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "human_approval_required",
+            "max_claim_strength": "strong",
+            "reason": "human approval is not required",
+            "status": "pass"
+          }
+        ],
+        "claim_type": "predictive",
+        "experiment_plan_id": "EXP-8001",
+        "framework_version": "analysis_claim_gates_v1.0",
+        "generated_at": "2026-05-09T00:00:00Z",
+        "human_gate": {
+          "reason": "not required",
+          "required": false,
+          "satisfied": true
+        },
+        "max_claim_strength": "moderate",
+        "recommended_route": "accept_as_evidence",
+        "requested_claim_strength": "moderate",
+        "review_notes": [
+          "Claim gates accepted the requested claim strength."
+        ],
+        "run_id": "RUN-8003",
+        "schema_version": "1.0",
+        "task_id": "TASK-8003"
+      },
+      "computed": {
+        "cap_reasons": [],
+        "claim": "The candidate feature improves predictive accuracy in this bounded backtest.",
+        "claim_decision": "accepted",
+        "claim_gate_results": [
+          {
+            "evidence": [],
+            "gate": "metrics_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "metrics artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "diagnostics_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "diagnostics artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "robustness_schema_valid",
+            "max_claim_strength": "strong",
+            "reason": "robustness artifact schema is valid",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_identity_present",
+            "max_claim_strength": "strong",
+            "reason": "result summary provenance identifiers are present",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "artifact_identity_matches_claim",
+            "max_claim_strength": "strong",
+            "reason": "artifact identities match the claim summary",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_type_classified",
+            "max_claim_strength": "strong",
+            "reason": "claim_type is classified as predictive",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "claim_limitations_declared",
+            "max_claim_strength": "strong",
+            "reason": "claim limitations are declared",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "diagnostic_quality",
+            "max_claim_strength": "strong",
+            "reason": "diagnostics do not cap the claim",
+            "status": "pass"
+          },
+          {
+            "evidence": [
+              "passed baseline comparisons: 1",
+              "out-of-sample splits: 1"
+            ],
+            "gate": "predictive_validation_and_baseline",
+            "max_claim_strength": "moderate",
+            "reason": "predictive validation and baseline comparison are present; predictive claims remain capped at moderate",
+            "status": "pass"
+          },
+          {
+            "evidence": [
+              "statuses: pass"
+            ],
+            "gate": "predictive_leakage_checks",
+            "max_claim_strength": "moderate",
+            "reason": "predictive leakage checks include a passing row",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "robustness_decision_impact",
+            "max_claim_strength": "strong",
+            "reason": "no robustness decision impacts block the claim",
+            "status": "pass"
+          },
+          {
+            "evidence": [],
+            "gate": "human_approval_required",
+            "max_claim_strength": "strong",
+            "reason": "human approval is not required",
+            "status": "pass"
+          }
+        ],
+        "claim_type": "predictive",
+        "experiment_plan_id": "EXP-8001",
+        "framework_version": "analysis_claim_gates_v1.0",
+        "generated_at": "2026-05-09T00:00:00Z",
+        "human_gate": {
+          "reason": "not required",
+          "required": false,
+          "satisfied": true
+        },
+        "max_claim_strength": "moderate",
+        "recommended_route": "accept_as_evidence",
+        "requested_claim_strength": "moderate",
+        "review_notes": [
+          "Claim gates accepted the requested claim strength."
+        ],
+        "run_id": "RUN-8003",
+        "schema_version": "1.0",
+        "task_id": "TASK-8003"
+      }
+    },
+    "data_versions": [
+      {
+        "accessed_at": "2026-05-09T00:00:00Z",
+        "artifact_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/source_snapshot.json",
+        "role": "outcome",
+        "source_id": "DS-0001",
+        "version": "fixture"
+      }
+    ],
+    "diagnostics": {
+      "generated_at": "2026-05-09T10:35:00Z",
+      "path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/diagnostics.json",
+      "status_counts": {
+        "not_applicable": 2,
+        "pass": 4
+      }
+    },
+    "experiment_plan_id": "EXP-8001",
+    "required": true,
+    "revalidation_triggers": [],
+    "run_id": "RUN-8003",
+    "run_manifest_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/run_manifest.json",
+    "task_dir": "research_ops/tasks/TASK-8003-completed-analysis",
+    "validation": {
+      "failure_count": 0,
+      "ok": true,
+      "warning_count": 0
+    }
+  },
+  "claim_strength": "moderate",
+  "claim_strength_policy": "result_acceptance_v1.0_claim_caps",
+  "evaluated_at": "2026-05-09T00:00:00Z",
+  "evidence_ledger": {
+    "evidence_link": "tasks/TASK-8003-completed-analysis/worker_output.md",
+    "ledger_path": "research_ops/evidence_ledger.md",
+    "logged": false,
+    "required": true
+  },
+  "followups": [],
+  "framework_version": "result_acceptance_v1.0",
+  "hard_gate_results": [
+    {
+      "gate": "analysis_run_artifacts_valid",
+      "passed": true,
+      "reason": "analysis run artifacts pass result acceptance validation"
+    },
+    {
+      "gate": "worker_output_present",
+      "passed": true,
+      "reason": "worker_output.md exists and is non-empty"
+    },
+    {
+      "gate": "review_aggregate_present",
+      "passed": true,
+      "reason": "review aggregate present"
+    },
+    {
+      "gate": "aggregate_accepts",
+      "passed": true,
+      "reason": "aggregate decision is accepted"
+    },
+    {
+      "gate": "claim_strength_current",
+      "passed": true,
+      "reason": "claim strength is current"
+    },
+    {
+      "gate": "claim_strength_cap",
+      "passed": true,
+      "reason": "claim moderate <= cap moderate"
+    },
+    {
+      "gate": "key_finding_present",
+      "passed": true,
+      "reason": "key finding available"
+    },
+    {
+      "gate": "evidence_link_present",
+      "passed": true,
+      "reason": "evidence link available"
+    },
+    {
+      "gate": "result_summary_present",
+      "passed": true,
+      "reason": "structured result summary present"
+    },
+    {
+      "gate": "result_summary_required_fields",
+      "passed": true,
+      "reason": "required result summary fields present"
+    },
+    {
+      "gate": "run_manifest_path_points_to_analysis_run_manifest",
+      "passed": true,
+      "reason": "run manifest path points to artifacts/analysis_run/run_manifest.json"
+    },
+    {
+      "gate": "baseline_comparison_present",
+      "passed": true,
+      "reason": "baseline comparison present"
+    },
+    {
+      "gate": "leakage_checks_present",
+      "passed": true,
+      "reason": "leakage checks present"
+    },
+    {
+      "gate": "robustness_checks_present",
+      "passed": true,
+      "reason": "robustness checks present"
+    },
+    {
+      "gate": "failed_robustness_disclosed",
+      "passed": true,
+      "reason": "no failed robustness checks detected"
+    },
+    {
+      "gate": "audited_sources_cited",
+      "passed": true,
+      "reason": "accepted evidence cites audited sources: DS-0001"
+    },
+    {
+      "gate": "source_governance_allowed",
+      "passed": true,
+      "reason": "source governance allows accepted evidence"
+    },
+    {
+      "gate": "data_foundations_valid",
+      "passed": true,
+      "reason": "data foundation validator has no error-level findings"
+    },
+    {
+      "gate": "human_gate",
+      "passed": true,
+      "reason": "not required"
+    }
+  ],
+  "human_gate": {
+    "reason": "not required",
+    "required": false,
+    "satisfied": true
+  },
+  "max_claim_strength": "moderate",
+  "recommended_decision": "ready",
+  "rejection_logging": {
+    "log_path": "research_ops/rejected_results.md",
+    "logged": false,
+    "required": false
+  },
+  "review_notes": [
+    "Accepted evidence must cite result_acceptance.json and evidence_ledger.md."
+  ],
+  "reviewer_panel": {
+    "aggregate_decision": "accepted",
+    "aggregate_present": true,
+    "disagreement_present": false,
+    "required_reviewers": [
+      "primary",
+      "methodology"
+    ],
+    "reviewer_count": 2,
+    "tier": 2
+  },
+  "route": "accept_as_evidence",
+  "schema_version": "1.0",
+  "scorecard": {
+    "baseline_comparison": 5,
+    "claim_discipline": 5,
+    "decision_usefulness": 4,
+    "leakage_safety": 5,
+    "limitation_honesty": 5,
+    "metric_validity": 5,
+    "plan_compliance": 5,
+    "reproducibility": 5,
+    "robustness_strength": 5,
+    "validation_strength": 5
+  },
+  "source_governance": {
+    "audit_register": "research_ops/data_source_audit.md",
+    "blocked": [],
+    "data_foundations": {
+      "action": "data_foundations_validate",
+      "active_idea_gap_refs": [],
+      "audit_register": "research_ops/data_source_audit.md",
+      "data_dir": "research_ops/data",
+      "error_count": 0,
+      "errors": [],
+      "ignored_templates": [],
+      "ok": true,
+      "ops_dir": "research_ops",
+      "profile_count": 1,
+      "source_count": 1,
+      "warning_count": 0,
+      "warnings": []
+    },
+    "ok": true,
+    "required": true,
+    "source_decisions": [
+      {
+        "action": "cite source id and limitations",
+        "allowed": true,
+        "approval_status": "approved",
+        "approved_use_cases": "experiment_planning; accepted_evidence; context",
+        "blocked_use_cases": "no blocked use cases",
+        "citation_requirements": "cite DS-0001",
+        "freshness_window_days": "365",
+        "last_reviewed": "2026-05-09",
+        "reason": "source is approved for this use",
+        "severity": "ok",
+        "source_id": "DS-0001",
+        "source_name": "Analysis Fixture Source",
+        "source_tier": "tier_1_official"
+      }
+    ],
+    "source_ids": [
+      "DS-0001"
+    ],
+    "warnings": []
+  },
+  "task_id": "TASK-8003",
+  "task_type": "run_analysis"
+}

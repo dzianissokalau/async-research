@@ -13,6 +13,7 @@ from typing import Any, Iterable, Optional
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts import analysis_claim_gates
 from async_research_workflow.scripts.analysis_runs import (
+    FAILURE_REMEDIATION,
     MANIFEST_RELATIVE_PATH,
     MANIFEST_SCHEMA,
     STATUS_SCHEMA,
@@ -51,6 +52,207 @@ COMPLETED_MANIFEST_FIELDS = ["completed_at", "runtime_minutes", "cost"]
 IDENTITY_FIELDS = ["run_id", "experiment_plan_id", "task_id"]
 OUT_OF_SAMPLE_SPLIT_ROLES = {"validation", "test", "holdout", "backtest"}
 PLANNED_METRIC_ROLES = {"baseline", "candidate", "validation"}
+
+FAILURE_REMEDIATION.update(
+    {
+        "run_completed": {
+            "summary": "Run manifest is not completed",
+            "failing_field": "run_manifest.json.run_status",
+            "why_it_matters": "Completed-run validation can only review artifacts from a finished analysis run.",
+            "next_step": "Complete the run and record run_status=completed before result validation.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "run_completion_fields": {
+            "summary": "Run completion metadata is missing",
+            "failing_field": "run_manifest.json completed_at/runtime_minutes/cost",
+            "why_it_matters": "Reviewers need completion time, runtime, and cost to assess the run envelope.",
+            "next_step": "Fill completed_at, runtime_minutes, and cost in run_manifest.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "metrics_exists": {
+            "summary": "Metrics artifact is missing",
+            "failing_field": "artifacts/analysis_run/metrics.json",
+            "why_it_matters": "Result validation needs structured metrics to compare claims against observed outputs.",
+            "next_step": "Create artifacts/analysis_run/metrics.json, then rerun validate-run.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "metrics_schema": {
+            "summary": "Metrics artifact is malformed",
+            "failing_field": "artifacts/analysis_run/metrics.json",
+            "why_it_matters": "Schema-valid metrics let reviewers verify planned metric coverage.",
+            "next_step": "Fix metrics.json against analysis_metrics.schema.json, then rerun validation.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "metrics_identity": {
+            "summary": "Metrics identity does not match manifest",
+            "failing_field": "metrics.json run_id/experiment_plan_id/task_id",
+            "why_it_matters": "Structured metrics must belong to the same run manifest under review.",
+            "next_step": "Align metrics identity fields with run_manifest.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "diagnostics_exists": {
+            "summary": "Diagnostics artifact is missing",
+            "failing_field": "artifacts/analysis_run/diagnostics.json",
+            "why_it_matters": "Reviewers need diagnostics to assess data quality, leakage, and runtime caveats.",
+            "next_step": "Create artifacts/analysis_run/diagnostics.json, then rerun validate-run.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "diagnostics_schema": {
+            "summary": "Diagnostics artifact is malformed",
+            "failing_field": "artifacts/analysis_run/diagnostics.json",
+            "why_it_matters": "Schema-valid diagnostics make reviewer checks deterministic.",
+            "next_step": "Fix diagnostics.json against analysis_diagnostics.schema.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "diagnostics_identity": {
+            "summary": "Diagnostics identity does not match manifest",
+            "failing_field": "diagnostics.json run_id/experiment_plan_id/task_id",
+            "why_it_matters": "Diagnostics must describe the same run manifest being reviewed.",
+            "next_step": "Align diagnostics identity fields with run_manifest.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_exists": {
+            "summary": "Robustness artifact is missing",
+            "failing_field": "artifacts/analysis_run/robustness_checks.json",
+            "why_it_matters": "Result validation needs robustness checks to constrain claim strength.",
+            "next_step": "Create artifacts/analysis_run/robustness_checks.json, then rerun validation.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_schema": {
+            "summary": "Robustness artifact is malformed",
+            "failing_field": "artifacts/analysis_run/robustness_checks.json",
+            "why_it_matters": "Schema-valid robustness checks let claim gates interpret support and caps.",
+            "next_step": "Fix robustness_checks.json against analysis_robustness_checks.schema.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_identity": {
+            "summary": "Robustness identity does not match manifest",
+            "failing_field": "robustness_checks.json run_id/experiment_plan_id/task_id",
+            "why_it_matters": "Robustness checks must belong to the run manifest under review.",
+            "next_step": "Align robustness identity fields with run_manifest.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "required_output_files_exist": {
+            "summary": "Required run outputs are missing",
+            "failing_field": "run_manifest.json planned_outputs and baseline_refs",
+            "why_it_matters": "Reviewers cannot verify a completed run when required outputs are absent.",
+            "next_step": "Restore every required planned output and baseline artifact referenced by the manifest.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "primary_metric_matches_plan": {
+            "summary": "Metrics primary metric does not match accepted plan",
+            "failing_field": "metrics.json.primary_metric_name",
+            "why_it_matters": "The result summary must evaluate the primary metric selected during plan review.",
+            "next_step": "Use the accepted plan primary metric or send the analysis back for reviewed plan changes.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "baseline_comparisons_match_plan": {
+            "summary": "Baseline comparisons do not cover the accepted plan",
+            "failing_field": "metrics.json.baseline_comparisons",
+            "why_it_matters": "Every planned baseline must be represented before reviewers compare results.",
+            "next_step": "Add baseline comparison rows for all accepted plan baselines.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "planned_metrics_match_plan": {
+            "summary": "Metric rows are not in the accepted plan",
+            "failing_field": "metrics.json metric rows",
+            "why_it_matters": "Post-hoc metric changes can alter the empirical conclusion without review.",
+            "next_step": "Remove unplanned metrics or route the plan change through review before acceptance.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "out_of_sample_validation_present": {
+            "summary": "Out-of-sample validation metadata is missing",
+            "failing_field": "metrics.json.validation_splits",
+            "why_it_matters": "Reviewers need validation, test, holdout, or backtest context for empirical claims.",
+            "next_step": "Add validation split metadata for the completed run.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "unplanned_metric_changes": {
+            "summary": "Metric deviations need review",
+            "failing_field": "run_manifest.json.deviations_from_plan",
+            "why_it_matters": "Metric deviations change the accepted analysis contract.",
+            "next_step": "Resolve metric deviations through human review before result acceptance.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_checks_match_plan": {
+            "summary": "Robustness refs do not match accepted plan",
+            "failing_field": "robustness_checks.json.planned_checks",
+            "why_it_matters": "Robustness checks must trace to checks selected during experiment planning.",
+            "next_step": "Use planned_check_ref values from the accepted plan or re-review the plan.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_semantics": {
+            "summary": "Robustness check cannot support claim",
+            "failing_field": "robustness_checks.json.planned_checks",
+            "why_it_matters": "A failed, not-run, or not-applicable robustness check cannot strengthen a claim.",
+            "next_step": "Change the robustness decision impact or rerun/repair the robustness check before acceptance.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "result_summary_present": {
+            "summary": "Result summary is missing",
+            "failing_field": "worker_output.md or artifacts/result_summary.json",
+            "why_it_matters": "Reviewers need a structured result summary before claim gates can be validated.",
+            "next_step": "Add a structured result summary to worker_output.md or artifacts/result_summary.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "result_summary_identity_matches": {
+            "summary": "Result summary identity does not match manifest",
+            "failing_field": "result summary run_id/experiment_plan_id/task_id",
+            "why_it_matters": "The summary must describe the same run artifacts under validation.",
+            "next_step": "Align result summary identity fields with run_manifest.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "result_summary_matches_outputs": {
+            "summary": "Result summary does not match outputs",
+            "failing_field": "result summary fields",
+            "why_it_matters": "Claims and decisions must be grounded in the current manifest and metrics artifacts.",
+            "next_step": "Rewrite the result summary from the current run manifest and metrics outputs.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "claim_gates_exists": {
+            "summary": "Claim gates artifact is missing",
+            "failing_field": "artifacts/analysis_run/claim_gates.json",
+            "why_it_matters": "Claim gates cap or route claims before reviewers accept empirical evidence.",
+            "next_step": "Generate claim_gates.json from the current result summary and structured outputs.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "claim_gates_schema": {
+            "summary": "Claim gates artifact is malformed",
+            "failing_field": "artifacts/analysis_run/claim_gates.json",
+            "why_it_matters": "Schema-valid claim gates let acceptance checks enforce claim boundaries.",
+            "next_step": "Fix claim_gates.json against analysis_claim_gates.schema.json.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "claim_gates_computed_schema": {
+            "summary": "Computed claim gates are malformed",
+            "failing_field": "computed claim gates",
+            "why_it_matters": "The validator cannot compare stored claim gates to malformed computed gates.",
+            "next_step": "Repair the result summary and structured artifacts that feed claim gate computation.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "claim_gates_match_outputs": {
+            "summary": "Claim gates are stale",
+            "failing_field": "artifacts/analysis_run/claim_gates.json",
+            "why_it_matters": "Stored claim gates must match the current result summary and run outputs.",
+            "next_step": "Regenerate claim_gates.json from the current result summary and structured artifacts.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "robustness_caps_claim_reflected": {
+            "summary": "Robustness cap is missing from claim gates",
+            "failing_field": "claim_gates.json.claim_gate_results",
+            "why_it_matters": "Robustness checks that cap a claim must constrain the accepted claim strength.",
+            "next_step": "Regenerate claim gates so robustness caps are reflected before acceptance.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+        "claim_gate_decision": {
+            "summary": "Claim gates block acceptance",
+            "failing_field": "claim_gates.json.claim_decision",
+            "why_it_matters": "Rejected or human-gated claims cannot be accepted as empirical evidence automatically.",
+            "next_step": "Revise the claim, lower the requested strength, or route to the required human review.",
+            "docs_ref": "src/async_research_workflow/docs/task_contracts.md",
+        },
+    }
+)
 
 
 def print_json(payload: dict[str, Any]) -> None:

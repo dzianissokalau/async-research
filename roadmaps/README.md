@@ -20,6 +20,17 @@ marked `In Progress`, or the exact roadmap the user names. Do not start
 `Blocked`, `Superseded`, or `Delivered` roadmap work except bug fixes or
 explicitly requested follow-ups.
 
+## Folder Layout
+
+Keep the root of this folder for human-facing roadmap documents and this index.
+Low-level Codex automation machinery lives under
+[`automation/`](./automation/README.md), including delivery templates, state
+JSON, delivery logs, fix logs, and review iteration outputs.
+
+When closing out or renaming a roadmap, follow the
+[Roadmap Closeout Checklist](./automation/roadmap_closeout_checklist.md) before
+marking the work delivered.
+
 ## Roadmap Index
 
 | Roadmap | Status | Current Phase | Last Updated | Next Action | Blocked By |
@@ -30,9 +41,10 @@ explicitly requested follow-ups.
 | [Research Foundations Roadmap](./delivered_research_foundations_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor foundation dogfood feedback and patch regressions. | None |
 | [Knowledge Library Roadmap](./delivered_knowledge_library_roadmap.md) | Delivered | Complete | 2026-05-09 | Monitor dogfood feedback and patch regressions. | None |
 | [Hypothesis Testing Framework Roadmap](./delivered_hypothesis_testing_framework_roadmap.md) | Delivered | Complete | 2026-05-10 | Monitor dogfood feedback and split adoption or V2 work from the Future Improvements Backlog when explicitly requested. | None |
-| [Post-Review Operator Trust And Workflow Roadmap](./in_progress_post_review_operator_trust_roadmap.md) | In Progress | Phase 5 - Public adoption and release trust | 2026-05-16 | Publish release-trust assets. | None |
-| [Real Research Product Readiness Roadmap](./in_progress_real_research_product_readiness_roadmap.md) | In Progress | Phase 1 - Research lifecycle map | 2026-05-17 | Build project-level roadmap/subway-map lifecycle view. | None |
+| [Post-Review Operator Trust And Workflow Roadmap](./delivered_post_review_operator_trust_roadmap.md) | Delivered | Complete | 2026-05-16 | Use the Real Research Product Readiness roadmap for active dogfood issues. | None |
+| [Real Research Product Readiness Roadmap](./delivered_real_research_product_readiness_roadmap.md) | Delivered | Complete | 2026-05-17 | Use the follow-on deliverable maturity/editorial QA roadmap for publication-readiness work. | None |
 | [Deliverable Maturity And Editorial QA Roadmap](./delivered_deliverable_maturity_editorial_qa_roadmap.md) | Delivered | Complete | 2026-05-18 | Final branch push and automation pause. | None |
+| [Autonomous Delivery Pivot Roadmap](./delivered_autonomous_delivery_pivot_roadmap.md) | Delivered | Complete | 2026-05-19 | Final branch push and automation pause. | None |
 | [Future Improvements Backlog](./not_started_future_improvements_backlog_roadmap.md) | Not Started | Backlog | 2026-05-11 | Select one item and split it into a dedicated roadmap when explicitly requested. | None |
 | [Operator UX And Workflow Ergonomics Roadmap](./delivered_operator_ux_workflow_ergonomics_roadmap.md) | Delivered | Complete | 2026-05-11 | Monitor operator dogfood feedback and patch regressions. | None |
 | [Dashboard Delivery Roadmap](./delivered_dashboard_delivery_roadmap.md) | Delivered | Complete | 2026-05-13 | Monitor dashboard dogfood feedback and patch regressions. | None |

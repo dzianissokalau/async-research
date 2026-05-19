@@ -1,6 +1,6 @@
 # Phase 3 Review - Iteration 1
 
-Roadmap: `roadmaps/not_started_deliverable_maturity_editorial_qa_roadmap.md`
+Roadmap: `roadmaps/delivered_deliverable_maturity_editorial_qa_roadmap.md`
 Phase: 3 - Review-response matrix
 Reviewed at: 2026-05-18T11:26:35Z
 

@@ -39,6 +39,14 @@ def update_status(task_dir: Path, **updates) -> None:
     write_json(task_dir / "status.json", status)
 
 
+def read_task_files(task_dir: Path) -> dict[str, str]:
+    return {
+        path.relative_to(task_dir).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(task_dir.rglob("*"))
+        if path.is_file() and path.suffix in {".json", ".md"}
+    }
+
+
 class AnalysisSurfaceTests(unittest.TestCase):
     def test_dashboard_lists_safe_active_analysis_and_preserves_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -246,6 +254,102 @@ class AnalysisSurfaceTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual("analysis_dashboard_rendered", payload["action"])
             self.assertTrue(payload["read_only"])
+
+    def test_reviewer_packet_bundles_analysis_context_without_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir)
+            accept_analysis_task(analysis_dir)
+            code, acceptance = run_json(validate_result_acceptance, [analysis_dir, "--ops-dir", ops_dir, "--write"])
+            self.assertEqual(validate_result_acceptance.SUCCESS, code, acceptance)
+            before = read_task_files(analysis_dir)
+
+            code, packet = run_cli_json(["analysis", "reviewer-packet", ops_dir, analysis_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.SUCCESS, code, packet)
+            self.assertTrue(packet["ok"])
+            self.assertTrue(packet["read_only"])
+            self.assertFalse(packet["changed"])
+            self.assertTrue(packet["context_only"])
+            self.assertIn("does not accept evidence", packet["packet_notice"])
+            self.assertTrue(packet["accepted_experiment_plan"]["available"])
+            self.assertTrue(packet["run_manifest"]["available"])
+            self.assertTrue(packet["metrics"]["available"])
+            self.assertTrue(packet["diagnostics"]["available"])
+            self.assertTrue(packet["robustness_checks"]["available"])
+            self.assertTrue(packet["claim_gates"]["available"])
+            self.assertTrue(packet["result_summary"]["available"])
+            self.assertTrue(packet["result_acceptance_status"]["record_present"])
+            self.assertEqual("recorded", packet["result_acceptance_status"]["state"])
+            self.assertEqual(analysis_surface.SUCCESS, packet["validator_outputs"]["analysis_validate_run"]["exit_code"])
+            self.assertEqual(analysis_surface.SUCCESS, packet["validator_outputs"]["analysis_validate_results"]["exit_code"])
+            self.assertIn("source_governance", packet["source_data_governance_status"])
+            self.assertEqual(before, read_task_files(analysis_dir))
+
+    def test_reviewer_packet_allows_missing_result_acceptance_before_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir)
+            update_status(analysis_dir, status="awaiting_review", previous_status="in_progress")
+
+            code, packet = run_json(analysis_surface, ["reviewer-packet", ops_dir, analysis_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.SUCCESS, code, packet)
+            self.assertTrue(packet["ok"])
+            self.assertEqual("not_recorded", packet["result_acceptance_status"]["state"])
+            self.assertFalse(packet["result_acceptance_status"]["record_present"])
+            self.assertEqual([], packet["artifact_diagnostics"])
+
+    def test_reviewer_packet_reports_missing_artifacts_and_remediation_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir)
+            (analysis_dir / "artifacts" / "analysis_run" / "metrics.json").unlink()
+
+            code, packet = run_json(analysis_surface, ["reviewer-packet", ops_dir, analysis_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.VALIDATION_FINDINGS, code, packet)
+            self.assertFalse(packet["ok"])
+            self.assertEqual("incomplete", packet["packet_status"])
+            self.assertIn("metrics_missing", {item["reason"] for item in packet["artifact_diagnostics"]})
+            failures = packet["validator_outputs"]["analysis_validate_run"]["output"]["hard_gate_failures"]
+            metrics_failure = next(item for item in failures if item["gate"] == "metrics_exists")
+            self.assertEqual("Metrics artifact is missing", metrics_failure["summary"])
+            self.assertEqual("artifacts/analysis_run/metrics.json", metrics_failure["failing_field"])
+            self.assertIn("next_step", metrics_failure)
+
+    def test_reviewer_packet_surfaces_result_acceptance_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ops_dir, _plan_dir, analysis_dir = create_fixture_workspace(Path(tmpdir))
+            write_completed_artifacts(analysis_dir)
+            accept_analysis_task(analysis_dir)
+            code, acceptance = run_json(validate_result_acceptance, [analysis_dir, "--ops-dir", ops_dir, "--write"])
+            self.assertEqual(validate_result_acceptance.SUCCESS, code, acceptance)
+            record_path = analysis_dir / "review_panel" / "result_acceptance.json"
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            record["route"] = "reject"
+            write_json(record_path, record)
+
+            code, packet = run_json(analysis_surface, ["reviewer-packet", ops_dir, analysis_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.VALIDATION_FINDINGS, code, packet)
+            self.assertEqual("findings_present", packet["packet_status"])
+            blockers = packet["result_acceptance_status"]["blockers"]
+            self.assertIn("result_acceptance_route", {item["gate"] for item in blockers})
+
+    def test_reviewer_packet_rejects_analysis_dir_outside_ops_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            ops_dir, _plan_dir, _analysis_dir = create_fixture_workspace(root / "workspace")
+            outside_dir = root / "outside" / "TASK-9000-run-analysis"
+            outside_dir.mkdir(parents=True)
+
+            code, packet = run_json(analysis_surface, ["reviewer-packet", ops_dir, outside_dir, "--now", NOW])
+
+            self.assertEqual(analysis_surface.INVALID_REQUEST, code, packet)
+            self.assertEqual("analysis_run_dir_outside_ops_dir", packet["reason"])
+            self.assertTrue(packet["read_only"])
+            self.assertFalse(packet["changed"])
 
     def test_surface_update_writes_analysis_digest_without_mutating_task_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

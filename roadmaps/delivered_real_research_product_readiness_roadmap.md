@@ -1,7 +1,7 @@
 # Real Research Product Readiness Roadmap
 
-Status: In Progress
-Current phase: Complete - all product readiness phases delivered
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-17
 Next action: Use the follow-on deliverable maturity/editorial QA roadmap for publication-readiness work
 Blocked by: None

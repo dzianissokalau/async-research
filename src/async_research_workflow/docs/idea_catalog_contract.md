@@ -463,6 +463,50 @@ The dashboard summary distinguishes issue volume from the capped blocker list:
 `displayed_blocker_count` reports how many entries were included in
 `sections.top_blockers` after applying `--max-blockers`.
 
+## Traceability And Lifecycle Metrics
+
+Read-only traceability commands make the idea-to-task-to-output path
+inspectable without opening raw JSON files by hand:
+
+```bash
+async-research idea metrics research_ops
+async-research idea trace research_ops IDEA-0001
+```
+
+`idea trace` reads the canonical idea record, promotion proposal refs, matching
+`queue.md` rows, linked task `status.json` files, and accepted-output rows. It
+reports a timeline, queue evidence, linked tasks, and lifecycle durations
+without mutating `research_ops`.
+
+`idea metrics` reports deterministic read-model summaries for:
+
+- capture-to-candidate, candidate-to-promote, promote-to-task-creation, and
+  task-creation-to-terminal-output durations
+- parked idea age
+- duplicate or near-duplicate rate
+- hard-gate and human-gate blocker frequency
+- cost per accepted promoted idea when `cost_ledger.csv` has complete rows
+
+Missing timestamps, absent task links, absent accepted outputs, missing cost
+ledger rows, or partial cost coverage render as `unavailable`, never as zero.
+Use `--now` for deterministic parked-age tests and dashboards.
+
+Promotion task writes persist optional point-in-time trace metadata on the
+created task status:
+
+```text
+origin_idea_id
+promotion_score_snapshot
+promotion_route
+routing_reason
+blocker_snapshot
+promotion_preflight_hash
+promotion_transaction_id
+```
+
+These fields are trace-only. `ideas/IDEA-*.json` remains the canonical idea
+record, and trace commands do not infer prose or apply lifecycle changes.
+
 ## V2 Promotion Write Contract And Preflight
 
 V2.1 was a design and test-preflight slice. V2.6 promotes the write path from

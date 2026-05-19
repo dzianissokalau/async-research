@@ -19,12 +19,6 @@
     "type": "git",
     "value": "fixture"
   },
-  "completed_at": "2026-05-09T00:00:00Z",
-  "cost": {
-    "api_usd": 0.0,
-    "compute_usd": 0.1,
-    "total_usd": 0.1
-  },
   "data_versions": [
     {
       "accessed_at": "2026-05-09T00:00:00Z",
@@ -73,23 +67,21 @@
     "planned_metric_ref": "experiment_plan.metrics.primary_metric"
   },
   "reproducibility": {
-    "determinism_notes": "deterministic fixture",
-    "environment": "test",
+    "determinism_notes": "local_script adapter only writes a marker in the planned task folder",
+    "environment": "deterministic fixture workspace",
     "random_seed": "none",
-    "rerun_command": "manual fixture",
+    "rerun_command": "async-research analysis run-adapter research_ops/tasks/TASK-8002-run-analysis --ops-dir research_ops --execute",
     "rerun_possible": true
   },
   "run_id": "RUN-8002",
-  "run_status": "completed",
+  "run_status": "planned",
   "runner": {
-    "entrypoint": "manual fixture",
-    "execution_environment": "test",
+    "entrypoint": "analysis_scripts/write_fixture_marker.py research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/adapter_marker.json",
+    "execution_environment": "deterministic fixture workspace",
     "parameters_ref": "none",
-    "type": "manual"
+    "type": "local_script"
   },
-  "runtime_minutes": 10,
   "schema_version": "1.0",
-  "started_at": "2026-05-09T00:00:00Z",
   "task_id": "TASK-8002",
   "task_type": "run_analysis"
 }

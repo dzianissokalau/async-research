@@ -1,6 +1,6 @@
 # Phase 2 Review - Iteration 1
 
-Roadmap: `roadmaps/not_started_deliverable_maturity_editorial_qa_roadmap.md`
+Roadmap: `roadmaps/delivered_deliverable_maturity_editorial_qa_roadmap.md`
 Phase: 2 - Adversarial reviewer stage
 Reviewed at: 2026-05-18T10:40:47Z
 

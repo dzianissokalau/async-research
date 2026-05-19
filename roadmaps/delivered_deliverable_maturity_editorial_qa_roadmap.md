@@ -282,7 +282,7 @@ The coffee-pilot fixture should prove this exact scenario:
 
 ## Integration With Existing Roadmaps
 
-- [Real Research Product Readiness Roadmap](./in_progress_real_research_product_readiness_roadmap.md)
+- [Real Research Product Readiness Roadmap](./delivered_real_research_product_readiness_roadmap.md)
   owns the immediate dashboard control-plane fixes. This roadmap owns the
   deliverable-maturity and editorial QA semantics that should be surfaced once
   artifact viewing and review visibility are reliable.

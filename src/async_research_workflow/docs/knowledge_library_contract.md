@@ -104,6 +104,18 @@ sources, stale sources and claims, disputed/deprecated/context-only claims,
 open questions, proposed library update tasks, ideas with unresolved or thin
 library support, and validator findings.
 
+Inspect a literature-extract worker's proposal artifact before any write-capable
+apply workflow exists:
+
+```bash
+async-research library inspect-proposals research_ops <proposal-source>
+```
+
+The proposal source may be a task directory, `worker_output.md`, a JSON
+proposal artifact, or a directory containing proposal artifacts. Inspection is
+read-only and reports per-operation diagnostics, warning-only existing-row
+upserts, missing `LIT-*` source references, unsafe paths, and next steps.
+
 Exit codes:
 
 | Code | Meaning |
@@ -115,6 +127,10 @@ Exit codes:
 
 For `library dashboard`, code `2` also covers warning-only dashboard read-model
 issues such as an unreadable active idea or task status file.
+
+For `library inspect-proposals`, code `0` also covers warning-only existing-row
+upserts. Code `4` covers malformed proposals, unsafe target paths, non-library
+proposals, unresolved source refs, or workspace blockers.
 
 Cold-start workspaces are allowed. A missing or empty library warns or passes
 depending on the state, but it must not block discovery, idea scoring, data

@@ -1,0 +1,24 @@
+{
+  "aggregate_claim_strength": "moderate",
+  "aggregate_decision": "accepted",
+  "disagreements": [
+    "none"
+  ],
+  "required_reviewers": [
+    "primary",
+    "methodology"
+  ],
+  "reviews": [
+    {
+      "claim_strength": "moderate",
+      "decision": "accept",
+      "reviewer_role": "primary"
+    },
+    {
+      "claim_strength": "moderate",
+      "decision": "accept",
+      "reviewer_role": "methodology"
+    }
+  ],
+  "tier": 2
+}

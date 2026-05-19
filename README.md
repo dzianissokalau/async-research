@@ -27,6 +27,13 @@ promotion.
 The package is currently intended for GitHub install and real-project testing
 before PyPI publication.
 
+For release-trust context, read the packaged
+[Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md),
+[Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md), and
+[Worked examples index](src/async_research_workflow/docs/worked_examples_index.md).
+These docs distinguish local verification from release authority: passing tests
+does not publish to PyPI, create a GitHub release, or approve public claims.
+
 ## How The Loop Works
 
 The workflow is a durable research conveyor belt. Agents and humans read and
@@ -356,11 +363,16 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research library init research_ops --dry-run` | Preview or add missing knowledge library starter files. | Existing `research_ops/library/` files. | JSON to stdout; with `--write`, only missing library Markdown files. |
 | `async-research library validate research_ops` | Validate knowledge library Markdown contracts. | `library/` generated blocks, `LIT-*` source IDs, source refs, metadata, and update provenance. | JSON to stdout only; read-only. |
 | `async-research library dashboard research_ops` | Render a read-only knowledge library dashboard. | Knowledge library validator read model, active `literature_extract` task status, and active idea support refs. | JSON to stdout only; read-only and never mutates library files. |
+| `async-research library inspect-proposals research_ops <proposal-source>` | Inspect `foundation_update_proposal_v1` library proposals before guarded apply. | A task directory, `worker_output.md`, JSON proposal artifact, or proposal artifact directory plus knowledge library files. | JSON to stdout only; read-only and never mutates `research_ops/`. |
+| `async-research library apply-proposals research_ops <proposal-source> --dry-run` | Preview accepted library proposal writes and emit a preflight hash. | Proposal source, accepted task/review proof, and target library files. | JSON to stdout only; dry-run is the default and never mutates `research_ops/`. |
+| `async-research library apply-proposals research_ops <proposal-source> --write --preflight-hash <hash>` | Apply accepted library proposals under lock after matching dry-run. | Proposal source, accepted task/review proof, preflight hash, lock, and target library files. | `research_ops/library/*.md`; rolls back if `library validate` fails. |
 | `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research idea catalog validate research_ops` | Validate durable idea catalog state. | Canonical `ideas/IDEA-*.json`, generated Markdown projections, schema, refs, and lifecycle gates. | JSON to stdout only; read-only. |
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
 | `async-research idea catalog dashboard research_ops` | Render a read-only idea portfolio dashboard. | Catalog read model plus validator output for canonical JSON, blockers, score artifacts, task recommendations, and promoted task links. | JSON to stdout only; read-only and never mutates idea files. |
 | `async-research idea catalog show research_ops IDEA-0001` | Show one canonical catalog record. | One canonical idea JSON record plus derived validation summary. | JSON to stdout only; read-only. |
+| `async-research idea metrics research_ops` | Render read-only idea lifecycle metrics. | Canonical ideas, queue rows, linked task status metadata, accepted outputs, and `cost_ledger.csv` when present. | JSON to stdout only; read-only and missing timestamps render as `unavailable`. |
+| `async-research idea trace research_ops IDEA-0001` | Trace one idea to promoted tasks and outputs. | One canonical idea, queue row, promotion trace metadata, linked task statuses, and accepted-output rows. | JSON to stdout only; read-only. |
 | `async-research idea capture research_ops --from-inbox row-7 --id IDEA-0007 --write` | Explicitly capture one discovery idea into the durable catalog; missing selectors report nearby rows, examples, next steps, and non-canonical inbox lines. | `discovery_inbox.md`, canonical catalog records, duplicate checks. | `ideas/IDEA-*.json`, generated catalog projections; with `--update-existing`, same-ID metadata merge only; never edits `queue.md` or task folders. |
 | `async-research idea catalog maintain research_ops --write` | Apply safe catalog maintenance proposals. | `discovery_inbox.md`, canonical catalog records, accepted output and rejected idea refs. | Lock-protected canonical JSON writes and generated catalog projections; never edits `queue.md` or task folders. |
 | `async-research idea promote research_ops IDEA-0001 --dry-run` | Preview one bounded task proposal from a catalog idea and return a `promotion_preflight_hash`; blocked proposals include `next_step`, `remediation_steps`, and task-id collision diagnostics. | One canonical idea JSON record plus catalog validation, duplicate, score, source, and lifecycle gates. | JSON proposal only; never edits `queue.md` or creates task folders. |
@@ -377,6 +389,9 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research source explain research_ops DS-0001` | Explain whether one source is allowed for a use case. | `data_source_audit.md`. | JSON to stdout only. |
 | `async-research data validate research_ops` | Validate data foundation readiness files. | `data_source_audit.md`, `data/` profiles, access notes, joins, gaps, and active idea gap refs. | JSON to stdout only; read-only. |
 | `async-research data dashboard research_ops --use-case experiment_planning` | Render a read-only data readiness dashboard. | Source audit, data foundation validator output, data catalog, access notes, known gaps, join map, profiles, idea gap refs, and selected source use-case policy. | JSON to stdout only; read-only and never mutates data files. |
+| `async-research data inspect-proposals research_ops <proposal-source>` | Inspect `foundation_update_proposal_v1` data proposals before guarded apply. | A task directory, `worker_output.md`, JSON proposal artifact, or proposal artifact directory plus source audit and data foundation files. | JSON to stdout only; read-only and never mutates `research_ops/`. |
+| `async-research data apply-proposals research_ops <proposal-source> --dry-run` | Preview accepted data proposal writes and emit a preflight hash. | Proposal source, accepted task/review proof, and target data foundation files. | JSON to stdout only; dry-run is the default and never mutates `research_ops/`. |
+| `async-research data apply-proposals research_ops <proposal-source> --write --preflight-hash <hash>` | Apply accepted data proposals under lock after matching dry-run. | Proposal source, accepted task/review proof, preflight hash, lock, source audit, and data foundation files. | `data_source_audit.md` and `research_ops/data/**`; rolls back if post-write source/data validation fails. |
 | `async-research cost summary research_ops` | Summarize spend and budget pressure. | `cost_ledger.csv`. | JSON to stdout only. |
 | `async-research cost ingest-usage research_ops --usage-file <usage-json> --item-id <id> --role worker --model <model>` | Append actual API usage to the cost ledger. | Usage JSON/JSONL artifact. | `cost_ledger.csv`; with `--dry-run`, stdout only. |
 | `async-research cost budget-check research_ops --item-id <id> --action promotion` | Gate proposed spend before promotion or expensive work. | `cost_ledger.csv` and proposed cost flags. | JSON to stdout only. |
@@ -393,6 +408,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research review aggregate <task-dir> --record-review-start` | Combine isolated reviews and route a task; optionally records the missing review-start transition first. | `status.json`, `reviews/*.md`, worker output, review policy, and claim-strength caps. | `review_panel/aggregate.json`, `review_panel/aggregate.md`, `status.json`, and accepted/rejected ledgers for final routes. Generic artifacts are capped before result acceptance. |
 | `async-research result-acceptance <task-dir> --ops-dir research_ops --write --update-ledgers` | Validate or write final result acceptance for a reviewed task. | Task status, worker output, review aggregate, source audit, accepted memory. | `review_panel/result_acceptance.json`; with ledgers, `evidence_ledger.md` or `rejected_results.md`. |
 | `async-research analysis dashboard research_ops` | Render a read-only analysis dashboard. | Analysis preflight output, completed-run validators, result-acceptance records, accepted-memory index rows, and claim gates. | JSON to stdout only; read-only and never mutates task artifacts. |
+| `async-research analysis reviewer-packet research_ops <analysis-run-dir>` | Render a read-only reviewer packet for one analysis run. | Accepted experiment plan, run manifest, metrics, diagnostics, robustness checks, claim gates, result summary, validator outputs, result-acceptance status, and source/data governance status. | JSON to stdout only; context collection only and never accepts evidence. |
 | `async-research analysis run-adapter <task-dir> --ops-dir research_ops` | Plan or execute an optional local analysis adapter. | Clean analysis preflight plus `runner.type=local_script` and a `runner.entrypoint` that starts with an existing workspace script outside `research_ops/tasks`; interpreter, shell, and dependency-bin entrypoints are rejected, and path-like args or option values must stay in the current task folder. | JSON to stdout; with `--execute`, runs project-owned local code but still requires `analysis validate-run` and `analysis validate-results` before acceptance. |
 | `async-research analysis preflight <task-dir> --ops-dir research_ops` | Check whether a `run_analysis` task is safe to start. | Task status, analysis run manifest, accepted experiment plan, source/data governance, accepted memory, budget, metric, method, and path safety. | JSON to stdout only; read-only. |
 | `async-research analysis validate-run <task-dir> --ops-dir research_ops` | Validate completed analysis run artifacts before result review. | Completed run manifest, metrics, diagnostics, robustness checks, accepted experiment plan, required outputs, baselines, and semantic robustness gates. | JSON to stdout only; read-only. |
@@ -429,6 +445,9 @@ async-research exploration validate <worker-output> --ops-dir research_ops --tas
 async-research library init research_ops --dry-run
 async-research library validate research_ops
 async-research library dashboard research_ops
+async-research library inspect-proposals research_ops research_ops/tasks/TASK-0001-literature-extract
+async-research library apply-proposals research_ops research_ops/tasks/TASK-0001-literature-extract --dry-run
+async-research library apply-proposals research_ops research_ops/tasks/TASK-0001-literature-extract --write --preflight-hash <hash>
 async-research console research_ops
 async-research console snapshot research_ops --json
 async-research prompts init research_ops --dry-run
@@ -445,12 +464,18 @@ async-research idea catalog validate research_ops
 async-research idea catalog list research_ops --status candidate
 async-research idea catalog dashboard research_ops
 async-research idea catalog show research_ops IDEA-0001
+async-research idea metrics research_ops
+async-research idea trace research_ops IDEA-0001
 async-research idea score <idea-json> --ops-dir research_ops
 async-research idea validate <idea-json> --ops-dir research_ops
 async-research data validate research_ops
 async-research data dashboard research_ops --use-case experiment_planning
+async-research data inspect-proposals research_ops research_ops/tasks/TASK-0001-data-readiness
+async-research data apply-proposals research_ops research_ops/tasks/TASK-0001-data-readiness --dry-run
+async-research data apply-proposals research_ops research_ops/tasks/TASK-0001-data-readiness --write --preflight-hash <hash>
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 async-research analysis dashboard research_ops
+async-research analysis reviewer-packet research_ops <analysis-run-dir>
 async-research analysis run-adapter <task-dir> --ops-dir research_ops
 async-research analysis preflight <task-dir> --ops-dir research_ops
 async-research analysis validate-run <task-dir> --ops-dir research_ops
@@ -534,9 +559,13 @@ specific diagnostic.
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |
 | `data validate` | `0` data foundation contracts are ready. | `2` warning-only readiness findings with `ok: true`; `4` malformed tables, invalid audit state, or profile identity errors. |
 | `data dashboard` | `0` dashboard rendered and data foundation plus catalog read-model state are clean. | `2` dashboard rendered with warning-only data findings or catalog read-model findings; `4` dashboard rendered with malformed data foundation state. |
+| `data inspect-proposals` | `0` data proposals are inspectable; existing-row upserts are warning-only. | `4` malformed proposals, unsafe target paths, non-data proposals, or workspace blockers. |
+| `data apply-proposals` | `0` clean dry-run or successful write after accepted proof, lock, matching preflight hash, and post-write validation. | `2` lock contention or rollback after failed validation; `3` missing or stale preflight hash; `4` blocked proposals, unsafe targets, or missing acceptance proof. |
 | `library init` | `0` missing library files reported or created. | `3` invalid flags; `4` malformed workspace path or write failure. |
 | `library validate` | `0` knowledge library contracts are clean. | `2` warning-only findings with `ok: true`; `3` invalid request such as malformed `--now`; `4` malformed generated blocks, duplicate IDs, invalid vocabularies, or unresolved source refs. |
 | `library dashboard` | `0` dashboard rendered and knowledge library state is clean. | `2` dashboard rendered with validator warnings or dashboard read-model warnings; `3` invalid request such as malformed `--now`; `4` dashboard rendered with malformed library state. |
+| `library inspect-proposals` | `0` library proposals are inspectable; existing-row upserts are warning-only. | `4` malformed proposals, unsafe target paths, non-library proposals, unresolved source refs, or workspace blockers. |
+| `library apply-proposals` | `0` clean dry-run or successful write after accepted proof, lock, matching preflight hash, and post-write validation. | `2` lock contention or rollback after failed validation; `3` missing or stale preflight hash; `4` blocked proposals, unsafe targets, or missing acceptance proof. |
 | `cost summary` and `cost ingest-usage` | `0` cost summary printed or usage row ingested. | `4` malformed or unreadable cost ledger or usage artifact. |
 | `cost budget-check` | `0` proposed spend is below the configured threshold. | `2` budget threshold exceeded. |
 | `batch init`, `batch validate-manifest`, `batch submit`, `batch complete`, `batch ingest`, and `batch mark-reviewed` | `0` batch lifecycle step succeeded or dry-run validation passed. | `2` invalid lifecycle step, invalid manifest, or invalid cost ledger; `4` malformed manifest. |
@@ -556,6 +585,7 @@ specific diagnostic.
 | `revision inspect` and `revision scan-limits` | `0` revision state reported. | `2` revision/status validation failed; `4` malformed schema or status input. |
 | `result-acceptance` | `0` gates passed. | `2` result-acceptance gates failed; `4` malformed task, aggregate, or source state. |
 | `analysis dashboard` | `0` dashboard rendered and analysis surface state is clean. | `2` dashboard rendered with analysis blockers, warnings, revalidation needs, or claim caps; `4` dashboard rendered with malformed analysis surface inputs. |
+| `analysis reviewer-packet` | `0` packet context is complete. | `2` packet rendered with validator or artifact findings; `3` invalid path; `4` malformed workspace state. |
 | `analysis run-adapter` | `0` adapter plan or execution succeeded. | `2` preflight findings or adapter command failure; `3` unsupported adapter or invalid request; `4` malformed task state. |
 | `analysis preflight`, `analysis validate-run`, and `analysis validate-results` | `0` clean preflight or validation. | `2` blockers or reviewable warnings; `3` invalid request; `4` malformed task, manifest, output, or plan state. |
 | `deliverable init`, `deliverable target`, and `deliverable response` | `0` manifest write succeeded. | `3` invalid request; `4` malformed manifest. |
@@ -565,6 +595,7 @@ specific diagnostic.
 | `idea catalog validate` | `0` catalog validation passed. | `2` valid shape but unsafe lifecycle, promotion, or reference state; `4` malformed catalog state such as duplicate IDs, schema failures, malformed JSON, or malformed generated blocks. |
 | `idea catalog dashboard` | `0` dashboard rendered and catalog validation passed. | `2` dashboard rendered with unsafe lifecycle, promotion, or reference state; `4` dashboard rendered with malformed catalog state. |
 | `idea catalog list` and `idea catalog show` | `0` catalog record or list printed. | `3` requested idea was not found; `4` catalog could not be read or contains duplicate canonical IDs for `show`. |
+| `idea metrics` and `idea trace` | `0` read-only lifecycle report printed. | `2` report rendered with unsafe catalog validation failures; `3` invalid `--now` or requested idea missing for `trace`; `4` malformed catalog state. Missing timestamps or cost coverage render as `unavailable`. |
 | `idea capture`, `idea catalog maintain`, `idea resolve`, `idea park`, and `idea reject` | `0` dry-run proposal printed or write succeeded. | `2` lock, unsafe write, blocked target status, or validation failure; `3` invalid request or conflicting flags; `4` malformed catalog state. |
 | `idea promote` | `0` dry-run proposal printed, promotion task write succeeded, or matching task write was already complete. | `2` lock, unsafe write, blocked promotion, human override required, changed preflight hash, or recovery required; `3` invalid request, missing `--preflight-hash` for `--write`, conflicting flags, or idea missing after lock; `4` malformed catalog or write state. |
 | `idea score` and `idea validate` | `0` score/validation passed. | `2` validation failed; `3` invalid request; `4` malformed idea artifact. |
@@ -595,6 +626,9 @@ clean environment, and reruns installed CLI smokes.
 - [Task contracts](src/async_research_workflow/docs/task_contracts.md)
 - [Idea catalog contract](src/async_research_workflow/docs/idea_catalog_contract.md)
 - [Operational readiness runbook](src/async_research_workflow/docs/operational_readiness_runbook.md)
+- [Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md)
+- [Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md)
+- [Worked examples index](src/async_research_workflow/docs/worked_examples_index.md)
 - [Generic starter README](src/async_research_workflow/templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example README](src/async_research_workflow/templates/research_ops_starter/research_ops/README.md)
 - [Runnable experiment and analysis example](src/async_research_workflow/examples/runnable_experiment_analysis/README.md)

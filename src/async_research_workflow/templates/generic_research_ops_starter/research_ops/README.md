@@ -42,11 +42,15 @@ async-research idea catalog list research_ops --status promote
 async-research idea promote research_ops IDEA-0001 --dry-run
 async-research idea promote research_ops IDEA-0001 --write --preflight-hash <hash>
 async-research idea catalog dashboard research_ops
+async-research idea metrics research_ops
+async-research idea trace research_ops IDEA-0001
 ```
 
 Let promotion write create the task folder, `queue.md` row, `inbox.md` proposal
 reference, and idea `promoted_task_id` only after a successful, unblocked
 dry-run. The dashboard should show the promoted idea with `link_status=available`.
+Use `idea trace` to inspect why a task exists, and `idea metrics` to review
+read-only lifecycle timings; missing timestamps render as `unavailable`.
 
 ## Knowledge Library
 
@@ -74,8 +78,15 @@ missing files; existing notes are preserved. Run
 their task folder. Worker output should list proposed generated-table rows for
 the relevant `library/*.md` files, the exact files that would change, reviewer
 notes for weak or disputed sources, and the `library_update_log.md` provenance
-row. A reviewer applies accepted updates and reruns
-`async-research library validate research_ops`.
+row. Reviewers can run
+`async-research library inspect-proposals research_ops <proposal-source>` before
+apply. For accepted tasks, use
+`async-research library apply-proposals research_ops <proposal-source> --dry-run`
+to review the exact edits and preflight hash, then rerun with `--write
+--preflight-hash <hash>` only after acceptance proof is in place. The write path
+uses a lock, preserves notes outside generated blocks, reruns
+`async-research library validate research_ops`, and rolls back on validation
+failure.
 
 ## Deliverable Maturity
 
@@ -120,6 +131,14 @@ Profiles should be named like `data/profiles/DS-0001.md`, declare the same
 `source_id` inside the file, and point back to one audit row.
 After editing data foundation files, run
 `async-research data validate research_ops` before review.
+
+Data-readiness workers can propose source/profile/catalog/access/join/gap
+updates with `foundation_update_proposal_v1`. Reviewers can run
+`async-research data inspect-proposals research_ops <proposal-source>`, then use
+`async-research data apply-proposals research_ops <proposal-source> --dry-run`
+for accepted tasks. Write mode requires `--write --preflight-hash <hash>`,
+accepted task or review proof, a foundation apply lock, and post-write
+`source validate`/`data validate`; failed validation rolls back touched files.
 
 ## First Setup Steps
 

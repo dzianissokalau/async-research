@@ -1,5 +1,5 @@
 {
-  "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
+  "roadmap": "roadmaps/delivered_real_research_product_readiness_roadmap.md",
   "roadmap_slug": "real-research-product-readiness",
   "current_phase": "complete",
   "branch": "codex/real-research-product-readiness-phase-5",
@@ -38,7 +38,7 @@
   },
   "last_review": {
     "phase": "5",
-    "file": "roadmaps/reviews/real-research-product-readiness-phase-5-review-iteration-1.md",
+    "file": "roadmaps/automation/real_research_product_readiness/reviews/real-research-product-readiness-phase-5-review-iteration-1.md",
     "verdict": "delivered",
     "completed_at": "2026-05-17T16:07:45Z"
   },
@@ -49,5 +49,5 @@
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-17T16:07:45Z"
+  "updated_at": "2026-05-17T16:27:50Z"
 }

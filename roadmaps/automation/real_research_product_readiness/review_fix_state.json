@@ -1,5 +1,5 @@
 {
-  "roadmap": "roadmaps/in_progress_real_research_product_readiness_roadmap.md",
+  "roadmap": "roadmaps/delivered_real_research_product_readiness_roadmap.md",
   "review": "/Users/dzianissokalau/Downloads/async-research-phase-0-5-independent-review.md",
   "roadmap_slug": "real-research-product-readiness",
   "fix_scope": "independent_review_phase_0_5_findings",
@@ -35,7 +35,7 @@
   },
   "last_review": {
     "completed_at": "2026-05-17T19:15:17Z",
-    "path": "roadmaps/reviews/real-research-product-readiness-review-fixes-review-iteration-1.md",
+    "path": "roadmaps/automation/real_research_product_readiness/reviews/real-research-product-readiness-review-fixes-review-iteration-1.md",
     "verdict": "delivered"
   },
   "blocked_reason": null,

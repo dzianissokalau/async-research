@@ -1,12 +1,12 @@
 # Real Research Product Readiness Review Fix Log
 
 Status: Delivered
-Roadmap: `roadmaps/in_progress_real_research_product_readiness_roadmap.md`
+Roadmap: `roadmaps/delivered_real_research_product_readiness_roadmap.md`
 Independent review: `/Users/dzianissokalau/Downloads/async-research-phase-0-5-independent-review.md`
 Base branch: `codex/real-research-product-readiness-review`
 Fix branch: `codex/real-research-product-readiness-review-fixes`
-State file: `roadmaps/real_research_product_readiness_review_fix_state.json`
-Review directory: `roadmaps/reviews`
+State file: `roadmaps/automation/real_research_product_readiness/review_fix_state.json`
+Review directory: `roadmaps/automation/real_research_product_readiness/reviews`
 Cadence: hourly
 Model: GPT-5.5
 Reasoning: xhigh
@@ -56,7 +56,7 @@ Branch: `codex/real-research-product-readiness-review-fixes`
 
 ### Review
 
-- Review file: `roadmaps/reviews/real-research-product-readiness-review-fixes-review-iteration-1.md`
+- Review file: `roadmaps/automation/real_research_product_readiness/reviews/real-research-product-readiness-review-fixes-review-iteration-1.md`
 - Verdict: delivered
 
 ### Residual Risks

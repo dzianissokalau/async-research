@@ -1,7 +1,7 @@
 # Deliverable Maturity Editorial QA Phase 1 Review - Iteration 1
 
 Date: 2026-05-18T09:23:38Z
-Roadmap: `roadmaps/not_started_deliverable_maturity_editorial_qa_roadmap.md`
+Roadmap: `roadmaps/delivered_deliverable_maturity_editorial_qa_roadmap.md`
 Phase: 1 - Paper-specific quality gates
 
 ## Findings

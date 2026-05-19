@@ -60,15 +60,19 @@ The main cost reduction comes from:
 28. [Programmatic Cost Tracking Protocol](./programmatic_cost_tracking_protocol.md)
 29. [Dynamic Killability Thresholds Protocol](./dynamic_killability_thresholds_protocol.md)
 30. [Data Source Audit Register Protocol](./data_source_audit_register_protocol.md)
-31. [Escalation Policy Protocol](./escalation_policy_protocol.md)
-32. [Operational Readiness Runbook](./operational_readiness_runbook.md)
-33. [Scheduler And Prompts](./scheduler_and_prompts.md)
-34. [Cost Controls](./cost_controls.md)
-35. [Async Research Console Specification](./async_research_console_spec.md)
-36. [Internal Helper Boundary](./internal_helper_boundary.md)
-37. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
-38. [Implementation Plan](./implementation_plan.md)
-39. [Sources](./sources.md)
+31. [Foundation Update Proposal Contract](./foundation_update_proposal_contract.md)
+32. [Escalation Policy Protocol](./escalation_policy_protocol.md)
+33. [Operational Readiness Runbook](./operational_readiness_runbook.md)
+34. [Scheduler And Prompts](./scheduler_and_prompts.md)
+35. [Cost Controls](./cost_controls.md)
+36. [Async Research Console Specification](./async_research_console_spec.md)
+37. [Internal Helper Boundary](./internal_helper_boundary.md)
+38. [Release-Trust Hardening Report](./release_trust_hardening_report.md)
+39. [Scaling Guidance](./scaling_guidance.md)
+40. [Worked Examples Index](./worked_examples_index.md)
+41. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
+42. [Implementation Plan](./implementation_plan.md)
+43. [Sources](./sources.md)
 
 ## Package Resources
 
@@ -84,6 +88,7 @@ Packaged resources:
 - [Real-estate worked example template](../templates/research_ops_starter/research_ops/README.md)
 - [Runnable experiment and analysis example](../examples/runnable_experiment_analysis/README.md)
 - [Coffee pilot deliverable maturity fixture](../examples/coffee_pilot_deliverable_maturity/README.md)
+- [Worked examples index](./worked_examples_index.md)
 - [GitHub worker example](../examples/github_actions_codex_worker.yml)
 - [Benchmark cases](../benchmarks/autonomy_benchmark_cases.json)
 - [Default mission policy](../mission_policy.json)
@@ -169,6 +174,17 @@ Run `async-research data dashboard research_ops --use-case experiment_planning`
 when you need a read-only view of sources usable for a selected policy use case,
 candidate or blocked sources, stale reviews, data gaps, ideas blocked by data
 readiness, and join caveats.
+
+Run `async-research data inspect-proposals research_ops <proposal-source>` to
+inspect a data-readiness worker's `foundation_update_proposal_v1` artifact
+before any write-capable apply workflow exists. The command is read-only and
+fails closed for unsafe target paths or non-data proposals.
+
+Run `async-research library inspect-proposals research_ops <proposal-source>` to
+inspect a literature-extract worker's `foundation_update_proposal_v1` artifact
+before any write-capable apply workflow exists. The command is read-only and
+fails closed for unsafe library target paths, non-library proposals, or missing
+`LIT-*` source references.
 
 ## Recommended First Setup
 

@@ -30,7 +30,7 @@
     "schema_versioning": "schema_versioning_v1.0"
   },
   "id": "TASK-8002",
-  "last_transition_reason": "runnable_example_fixture",
+  "last_transition_reason": "runnable_example_fixture_planned_analysis",
   "max_minutes": 30,
   "max_revisions": 1,
   "max_turns": 1,
@@ -66,7 +66,7 @@
   "revision_limit_hit": false,
   "schema_version": "1.0",
   "status": "ready_for_worker",
-  "title": "Runnable example analysis run",
+  "title": "Runnable example planned analysis run",
   "type": "run_analysis",
   "updated_at": "2026-05-09T00:00:00Z"
 }

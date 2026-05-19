@@ -1,0 +1,108 @@
+{
+  "action": "analysis_dashboard_rendered",
+  "changed": false,
+  "generated_at": "2026-05-09T00:00:00Z",
+  "generated_from": "analysis_preflight_validate_results_and_result_acceptance_read_model",
+  "ok": true,
+  "operator_summary": {
+    "accepted_empirical_task_ids": [
+      "TASK-8003"
+    ],
+    "blocked_task_ids": [],
+    "claims_needing_attention": [],
+    "completed_runs_needing_validation": [],
+    "safe_to_run_task_ids": [
+      "TASK-8002"
+    ]
+  },
+  "ops_dir": "research_ops",
+  "read_only": true,
+  "sections": {
+    "accepted_empirical_evidence": [
+      {
+        "claim_decision": "accepted",
+        "claim_gates_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/claim_gates.json",
+        "claim_strength": "moderate",
+        "claim_type": "predictive",
+        "diagnostics_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/diagnostics.json",
+        "max_claim_strength": "moderate",
+        "next_recheck_date": "2026-06-23",
+        "recommended_route": "accept_as_evidence",
+        "revalidation_status": "current",
+        "route": "accept_as_evidence",
+        "run_manifest_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/run_manifest.json",
+        "status": "accepted",
+        "task_dir": "tasks/TASK-8003-completed-analysis",
+        "task_id": "TASK-8003",
+        "title": "Runnable example accepted analysis result",
+        "type": "run_analysis",
+        "updated_at": "2026-05-09T00:00:00Z",
+        "validation_failure_count": 0,
+        "validation_ok": true,
+        "validation_warning_count": 0
+      }
+    ],
+    "active_run_analysis": [
+      {
+        "accepted_plan_task_id": "TASK-8001",
+        "blockers": [],
+        "exit_code": 0,
+        "experiment_plan_id": "EXP-8001",
+        "failure_count": 0,
+        "malformed": false,
+        "next_step": "run analysis",
+        "preflight_ok": true,
+        "run_id": "RUN-8002",
+        "safe_to_run": true,
+        "status": "ready_for_worker",
+        "task_dir": "tasks/TASK-8002-run-analysis",
+        "task_id": "TASK-8002",
+        "title": "Runnable example planned analysis run",
+        "type": "run_analysis",
+        "updated_at": "2026-05-09T00:00:00Z",
+        "warning_count": 0,
+        "warnings": []
+      }
+    ],
+    "claim_caps_and_human_review": [],
+    "completed_runs_missing_validation": [],
+    "malformed_read_model_inputs": [],
+    "preflight_blockers": [],
+    "preflight_warnings": [],
+    "revalidation_needed": [],
+    "safe_to_run": [
+      {
+        "accepted_plan_task_id": "TASK-8001",
+        "blockers": [],
+        "exit_code": 0,
+        "experiment_plan_id": "EXP-8001",
+        "failure_count": 0,
+        "malformed": false,
+        "next_step": "run analysis",
+        "preflight_ok": true,
+        "run_id": "RUN-8002",
+        "safe_to_run": true,
+        "status": "ready_for_worker",
+        "task_dir": "tasks/TASK-8002-run-analysis",
+        "task_id": "TASK-8002",
+        "title": "Runnable example planned analysis run",
+        "type": "run_analysis",
+        "updated_at": "2026-05-09T00:00:00Z",
+        "warning_count": 0,
+        "warnings": []
+      }
+    ]
+  },
+  "summary": {
+    "accepted_empirical_evidence_count": 1,
+    "active_run_analysis_count": 1,
+    "claim_caps_or_human_review_count": 0,
+    "completed_missing_validation_count": 0,
+    "malformed_read_model_count": 0,
+    "preflight_blocked_count": 0,
+    "preflight_warning_count": 0,
+    "revalidation_needed_count": 0,
+    "safe_to_run_count": 1
+  },
+  "validation_exit_code": 0
+}

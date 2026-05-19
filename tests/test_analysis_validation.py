@@ -46,6 +46,17 @@ def warning_names(payload: dict) -> set[str]:
     return {item["gate"] for item in payload.get("warnings", [])}
 
 
+def failure_for_gate(payload: dict, gate: str) -> dict:
+    return next(item for item in payload["hard_gate_failures"] if item["gate"] == gate)
+
+
+def assert_failure_has_remediation(testcase: unittest.TestCase, failure: dict) -> None:
+    for key in ("summary", "failing_field", "why_it_matters", "next_step", "docs_ref"):
+        testcase.assertIn(key, failure)
+        testcase.assertIsInstance(failure[key], str)
+        testcase.assertTrue(failure[key].strip(), f"{key} should be non-empty")
+
+
 def write_worker_summary(task_dir: Path, summary: dict) -> None:
     task_dir.joinpath("worker_output.md").write_text(
         "Completed fixture analysis.\n\n```json\n" + json.dumps(summary, indent=2, sort_keys=True) + "\n```\n",
@@ -205,6 +216,10 @@ class AnalysisValidationTests(unittest.TestCase):
 
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("manifest_exists", gate_names(payload))
+        failure = failure_for_gate(payload, "manifest_exists")
+        self.assertEqual("Missing run manifest", failure["summary"])
+        self.assertEqual("artifacts/analysis_run/run_manifest.json", failure["failing_field"])
+        assert_failure_has_remediation(self, failure)
 
     def test_validate_run_requires_baseline_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -216,6 +231,7 @@ class AnalysisValidationTests(unittest.TestCase):
 
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("required_output_files_exist", gate_names(payload))
+        assert_failure_has_remediation(self, failure_for_gate(payload, "required_output_files_exist"))
 
     def test_validate_run_rejects_unplanned_metric_change(self) -> None:
         metrics = analysis_metrics()
@@ -228,6 +244,7 @@ class AnalysisValidationTests(unittest.TestCase):
 
         self.assertEqual(analysis_validation.VALIDATION_FAILED, code, payload)
         self.assertIn("primary_metric_matches_plan", gate_names(payload))
+        assert_failure_has_remediation(self, failure_for_gate(payload, "primary_metric_matches_plan"))
 
     def test_validate_run_rejects_unplanned_metric_rows(self) -> None:
         metrics = analysis_metrics()

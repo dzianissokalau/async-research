@@ -231,6 +231,26 @@ mv research_ops/run_artifacts/.locks/worker \
   research_ops/run_artifacts/.locks/worker.stale.<timestamp>.manual
 ```
 
+Foundation proposal apply commands use separate workspace-level locks:
+
+```text
+research_ops/.foundation_data_apply.LOCK/
+research_ops/.foundation_library_apply.LOCK/
+```
+
+These locks are released automatically in normal exits. If a hard kill leaves
+one behind and `data apply-proposals` or `library apply-proposals` keeps
+returning `foundation_apply_locked`, inspect `owner.json`, confirm no matching
+process is still applying proposals, preserve the lock by moving the directory
+aside, then rerun the apply command in dry-run mode before any write retry:
+
+```bash
+cat research_ops/.foundation_data_apply.LOCK/owner.json
+mv research_ops/.foundation_data_apply.LOCK \
+  research_ops/.foundation_data_apply.LOCK.stale.<timestamp>.manual
+async-research data apply-proposals research_ops <proposal-source> --dry-run
+```
+
 ## Resolve `needs_human`
 
 Never move a task out of `needs_human` by editing `status.json` directly. Use:
