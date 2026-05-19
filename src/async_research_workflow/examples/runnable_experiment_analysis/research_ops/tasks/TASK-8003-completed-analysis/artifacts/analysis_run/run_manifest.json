@@ -5,7 +5,7 @@
   "analysis_config_path": "none",
   "baseline_refs": [
     {
-      "expected_output_path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
+      "expected_output_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/baseline_metrics.json",
       "name": "local median",
       "planned_baseline_ref": "experiment_plan.baselines[0]"
     }
@@ -19,10 +19,16 @@
     "type": "git",
     "value": "fixture"
   },
+  "completed_at": "2026-05-09T00:00:00Z",
+  "cost": {
+    "api_usd": 0.0,
+    "compute_usd": 0.1,
+    "total_usd": 0.1
+  },
   "data_versions": [
     {
       "accessed_at": "2026-05-09T00:00:00Z",
-      "artifact_path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/source_snapshot.json",
+      "artifact_path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/source_snapshot.json",
       "role": "outcome",
       "source_id": "DS-0001",
       "version": "fixture"
@@ -34,30 +40,30 @@
   "manifest_created_at": "2026-05-09T00:00:00Z",
   "method_family": "regression",
   "output_paths": [
-    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
-    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/metrics.json",
-    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/diagnostics.json",
-    "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/robustness_checks.json"
+    "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/baseline_metrics.json",
+    "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/metrics.json",
+    "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/diagnostics.json",
+    "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/robustness_checks.json"
   ],
   "planned_outputs": [
     {
       "name": "baseline metrics",
-      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/baseline_metrics.json",
+      "path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/baseline_metrics.json",
       "required_for_acceptance": true
     },
     {
       "name": "candidate metrics",
-      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/metrics.json",
+      "path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/metrics.json",
       "required_for_acceptance": true
     },
     {
       "name": "diagnostics",
-      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/diagnostics.json",
+      "path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/diagnostics.json",
       "required_for_acceptance": true
     },
     {
       "name": "robustness checks",
-      "path": "research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/robustness_checks.json",
+      "path": "research_ops/tasks/TASK-8003-completed-analysis/artifacts/analysis_run/robustness_checks.json",
       "required_for_acceptance": true
     }
   ],
@@ -67,21 +73,23 @@
     "planned_metric_ref": "experiment_plan.metrics.primary_metric"
   },
   "reproducibility": {
-    "determinism_notes": "local_script adapter only writes a marker in the planned task folder",
-    "environment": "deterministic fixture workspace",
+    "determinism_notes": "deterministic fixture",
+    "environment": "test",
     "random_seed": "none",
-    "rerun_command": "async-research analysis run-adapter research_ops/tasks/TASK-8002-run-analysis --ops-dir research_ops --execute",
+    "rerun_command": "manual fixture",
     "rerun_possible": true
   },
-  "run_id": "RUN-8002",
-  "run_status": "planned",
+  "run_id": "RUN-8003",
+  "run_status": "completed",
   "runner": {
-    "entrypoint": "analysis_scripts/write_fixture_marker.py research_ops/tasks/TASK-8002-run-analysis/artifacts/analysis_run/adapter_marker.json",
-    "execution_environment": "deterministic fixture workspace",
+    "entrypoint": "manual fixture",
+    "execution_environment": "test",
     "parameters_ref": "none",
-    "type": "local_script"
+    "type": "manual"
   },
+  "runtime_minutes": 10,
   "schema_version": "1.0",
-  "task_id": "TASK-8002",
+  "started_at": "2026-05-09T00:00:00Z",
+  "task_id": "TASK-8003",
   "task_type": "run_analysis"
 }

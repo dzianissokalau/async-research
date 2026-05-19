@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_autonomous_delivery_pivot_roadmap.md",
   "roadmap_slug": "autonomous_delivery_pivot",
-  "current_phase": 6,
-  "branch": "codex/autonomous-delivery-pivot-phase-6",
+  "current_phase": 7,
+  "branch": "codex/autonomous-delivery-pivot-phase-7",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 5,
+    "phase": 6,
     "commands": [
       {
         "command": "git diff --check",
@@ -19,35 +19,9 @@
         "details": "15 tests"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_foundation_proposal_apply",
-        "status": "passed",
-        "details": "9 tests"
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_cli_help tests.test_cli_architecture tests.test_data_proposal_inspection tests.test_library_proposal_inspection tests.test_foundation_proposals tests.test_foundation_proposal_apply",
-        "status": "passed",
-        "details": "47 tests"
-      },
-      {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "698 tests"
-      },
-      {
-        "command": ".venv/bin/async-research data apply-proposals <fixture-ops-dir> <fixture-proposal-source> --dry-run",
-        "status": "passed"
-      },
-      {
-        "command": ".venv/bin/async-research library apply-proposals <fixture-ops-dir> <fixture-proposal-source> --dry-run",
-        "status": "passed"
-      },
-      {
-        "command": ".venv/bin/async-research data apply-proposals <temp-fixture-ops-dir> <temp-data-task> --write --preflight-hash <hash>",
-        "status": "passed"
-      },
-      {
-        "command": ".venv/bin/async-research library apply-proposals <temp-fixture-ops-dir> <temp-library-task> --write --preflight-hash <hash>",
-        "status": "passed"
+        "details": "700 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -57,18 +31,23 @@
       {
         "command": ".venv/bin/python -m build",
         "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_runnable_examples tests.test_installed_package_analysis_smoke tests.test_packaged_resources",
+        "status": "passed",
+        "details": "12 tests"
       }
     ],
-    "completed_at": "2026-05-19T14:34:52+01:00"
+    "completed_at": "2026-05-19T15:26:15+01:00"
   },
   "last_review": {
-    "phase": 5,
-    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-5-review-iteration-1.md",
+    "phase": 6,
+    "file": "roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-6-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-19T14:34:52+01:00"
+    "completed_at": "2026-05-19T15:26:15+01:00"
   },
-  "last_delivered_phase": 5,
+  "last_delivered_phase": 6,
   "blocked_reason": null,
   "all_phases_complete": false,
-  "updated_at": "2026-05-19T14:34:52+01:00"
+  "updated_at": "2026-05-19T15:26:15+01:00"
 }

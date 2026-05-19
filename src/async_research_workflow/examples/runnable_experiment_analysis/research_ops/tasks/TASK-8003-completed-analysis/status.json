@@ -3,7 +3,7 @@
   "allow_code_execution": false,
   "allow_network": false,
   "allowed_paths": [
-    "research_ops/tasks/TASK-8002-*/**"
+    "research_ops/tasks/TASK-8003-*/**"
   ],
   "allowed_tools": [
     "read_files",
@@ -29,13 +29,13 @@
     "review_aggregation": "review_aggregation_v1.0",
     "schema_versioning": "schema_versioning_v1.0"
   },
-  "id": "TASK-8002",
-  "last_transition_reason": "runnable_example_fixture_planned_analysis",
+  "id": "TASK-8003",
+  "last_transition_reason": "runnable_example_fixture_completed_empirical_result",
   "max_minutes": 30,
   "max_revisions": 1,
   "max_turns": 1,
   "model_tier": "low",
-  "previous_status": "ready_for_planning",
+  "previous_status": "panel_review",
   "priority": 3,
   "prompt_versions": {
     "discovery_scout": "discovery_scout_v1.0",
@@ -50,9 +50,11 @@
   },
   "requires_human": false,
   "result": {
-    "claim_strength": "none",
+    "accepted_date": "2026-05-09T00:00:00Z",
+    "claim_strength": "moderate",
     "followup_count": 0,
-    "recommendation": null
+    "key_finding": "The candidate feature improves predictive accuracy in this bounded backtest.",
+    "recommendation": "ready"
   },
   "review_policy": {
     "human_required_for_acceptance": false,
@@ -65,8 +67,8 @@
   "revision_count": 0,
   "revision_limit_hit": false,
   "schema_version": "1.0",
-  "status": "ready_for_worker",
-  "title": "Runnable example planned analysis run",
+  "status": "accepted",
+  "title": "Runnable example accepted analysis result",
   "type": "run_analysis",
   "updated_at": "2026-05-09T00:00:00Z"
 }

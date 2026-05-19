@@ -26,12 +26,12 @@
       "status": "pass"
     }
   ],
-  "run_id": "RUN-8002",
+  "run_id": "RUN-8003",
   "schema_version": "1.0",
   "summary": {
     "overall_status": "pass",
     "review_notes": "Fixture robustness supports a bounded predictive-improvement claim only.",
     "strongest_supported_claim": "predictive"
   },
-  "task_id": "TASK-8002"
+  "task_id": "TASK-8003"
 }

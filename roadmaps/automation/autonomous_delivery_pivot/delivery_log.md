@@ -305,3 +305,57 @@ Branch: `codex/autonomous-delivery-pivot-phase-5`
 
 - Phase 5 is delivered. Next automation run should start Phase 6 on
   `codex/autonomous-delivery-pivot-phase-6`.
+
+## Phase 6 - 2026-05-19
+
+Status: delivered
+Branch: `codex/autonomous-delivery-pivot-phase-6`
+
+### Scope
+
+- Add a canonical deterministic empirical-loop fixture that exercises accepted
+  experiment planning, planned analysis preflight/adapter planning, completed
+  analysis artifacts, result acceptance, accepted-memory index refresh, and
+  analysis dashboard output.
+- Prove the fixture works from packaged installed resources, not only editable
+  source paths.
+
+### Changes
+
+- Expanded the packaged `runnable_experiment_analysis` example into a planned
+  run task plus a completed accepted empirical-result task.
+- Added deterministic metrics, diagnostics, robustness, claim-gate,
+  result-acceptance, accepted-index, and expected dashboard resources under the
+  packaged example.
+- Added a tiny packaged local-script adapter marker and included
+  `examples/**/*.py` in package data.
+- Updated example README copy-and-run guidance for source checkouts and
+  installed package resources.
+- Added source-resource and installed-wheel smoke tests that copy the fixture to
+  temporary workspaces and run public analysis/result-acceptance commands.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 700 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed
+- `.venv/bin/python -m unittest tests.test_runnable_examples tests.test_installed_package_analysis_smoke tests.test_packaged_resources`: passed, 12 tests
+
+### Review
+
+- Review file: `roadmaps/automation/autonomous_delivery_pivot/reviews/autonomous-delivery-pivot-phase-6-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the diff and fixture
+  files; a fully independent model review was not available in this run.
+- The fixture intentionally uses illustrative deterministic values and does not
+  validate any real research claim.
+
+### Next Action
+
+- Phase 6 is delivered. Next automation run should start Phase 7 on
+  `codex/autonomous-delivery-pivot-phase-7`.
