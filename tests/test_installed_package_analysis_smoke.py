@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -14,10 +15,23 @@ ROOT = Path(__file__).resolve().parents[1]
 NOW = "2026-05-09T00:00:00Z"
 
 
-def run(command: list[str | Path], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def clean_python_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    return env
+
+
+def run(
+    command: list[str | Path],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(item) for item in command],
         cwd=cwd,
+        env=env,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -31,8 +45,14 @@ def venv_bin(venv_dir: Path, name: str) -> Path:
     return venv_dir / "bin" / name
 
 
-def run_cli_json(executable: Path, argv: list[str | Path], *, cwd: Path) -> dict:
-    result = run([executable, *argv], cwd=cwd)
+def run_cli_json(
+    executable: Path,
+    argv: list[str | Path],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None = None,
+) -> dict:
+    result = run([executable, *argv], cwd=cwd, env=env)
     return json.loads(result.stdout)
 
 
@@ -43,15 +63,16 @@ class InstalledPackageAnalysisSmokeTests(unittest.TestCase):
             dist = tmp / "dist"
             venv = tmp / "venv"
             workspace = tmp / "workspace"
+            install_env = clean_python_env()
 
-            run([sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir", dist], cwd=ROOT)
+            run([sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir", dist], cwd=ROOT, env=install_env)
             wheels = sorted(dist.glob("async_research_workflow-*.whl"))
             self.assertEqual(1, len(wheels), [path.name for path in wheels])
 
-            run([sys.executable, "-m", "venv", venv])
+            run([sys.executable, "-m", "venv", venv], env=install_env)
             python = venv_bin(venv, "python")
             async_research = venv_bin(venv, "async-research")
-            run([python, "-m", "pip", "install", "--no-index", wheels[0]])
+            run([python, "-m", "pip", "install", "--no-index", wheels[0]], env=install_env)
 
             copy_script = """
 from importlib import resources
@@ -70,7 +91,7 @@ def copy_tree(source, target):
 source = resources.files("async_research_workflow").joinpath("examples", "runnable_experiment_analysis")
 copy_tree(source, Path(sys.argv[1]) / "runnable_experiment_analysis")
 """
-            run([python, "-c", copy_script, workspace])
+            run([python, "-c", copy_script, workspace], env=install_env)
 
             example_dir = workspace / "runnable_experiment_analysis"
             ops_dir = Path("research_ops")
@@ -95,11 +116,16 @@ copy_tree(source, Path(sys.argv[1]) / "runnable_experiment_analysis")
             ]
             for argv in checks:
                 with self.subTest(command=" ".join(str(item) for item in argv[:3])):
-                    payload = run_cli_json(async_research, argv, cwd=example_dir)
+                    payload = run_cli_json(async_research, argv, cwd=example_dir, env=install_env)
                     self.assertTrue(payload.get("ok"), payload)
                     self.assertEqual([], payload.get("hard_gate_failures", []), payload)
 
-            dashboard = run_cli_json(async_research, ["analysis", "dashboard", ops_dir, "--now", NOW], cwd=example_dir)
+            dashboard = run_cli_json(
+                async_research,
+                ["analysis", "dashboard", ops_dir, "--now", NOW],
+                cwd=example_dir,
+                env=install_env,
+            )
             expected = json.loads((example_dir / "expected" / "analysis_dashboard.json").read_text(encoding="utf-8"))
             self.assertEqual(expected, dashboard)
 
