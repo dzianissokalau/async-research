@@ -1806,6 +1806,40 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
     elif unresolved_gaps:
         warnings.append({"reason": "open_gaps_present", "message": "open gaps must stay visible until closed or waived", "open_gap_count": len(unresolved_gaps)})
 
+    from async_research_workflow.scripts import claim_verification
+
+    claim_report = claim_verification.verify_deliverable_claims(
+        ops_dir,
+        deliverable,
+        target_maturity=target_maturity,
+    )
+    if claim_report.get("required") is True and claim_report.get("readiness_ok") is not True:
+        blockers.append(
+            {
+                "reason": "citation_verification_unresolved",
+                "message": "working papers and submission-ready manuscripts require resolved claim and citation verification",
+                "claim_count": claim_report.get("claim_count", 0),
+                "unresolved_claim_count": claim_report.get("unresolved_claim_count", 0),
+                "readiness_blockers": claim_report.get("readiness_blockers", []),
+            }
+        )
+    elif claim_report.get("required") is True and claim_report.get("max_claim_strength") in {"none", "weak", "suggestive"}:
+        warnings.append(
+            {
+                "reason": "claim_verification_caps_deliverable_strength",
+                "message": f"claim verification caps claim strength at {claim_report.get('max_claim_strength')}",
+                "max_claim_strength": claim_report.get("max_claim_strength"),
+            }
+        )
+    for warning in claim_report.get("warnings", []):
+        if isinstance(warning, dict):
+            warnings.append(
+                {
+                    "reason": warning.get("reason", "claim_verification_warning"),
+                    "message": warning.get("message", str(warning)),
+                }
+            )
+
     verified_ceiling = min_maturity(
         current_maturity,
         gate_ceiling(deliverable),
@@ -1813,6 +1847,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         independence_ceiling(deliverable),
         critic_ceiling(deliverable),
         response_matrix_ceiling(deliverable),
+        claim_verification.claim_verification_ceiling(claim_report, target_maturity=target_maturity),
     )
     target_ready = not blockers and MATURITY_ORDER[verified_ceiling] >= MATURITY_ORDER[target_maturity]
     if MATURITY_ORDER[current_maturity] > MATURITY_ORDER[verified_ceiling]:
@@ -1843,6 +1878,10 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         "response_matrix_row_count": response_matrix["row_count"],
         "open_critical_major_response_count": response_matrix["unresolved_critical_major_count"],
         "open_gap_count": len(unresolved_gaps),
+        "claim_verification_status": claim_report.get("status"),
+        "claim_verification_claim_count": claim_report.get("claim_count", 0),
+        "claim_verification_unresolved_count": claim_report.get("unresolved_claim_count", 0),
+        "claim_verification_max_claim_strength": claim_report.get("max_claim_strength", "none"),
         "review_independence_status": "passed"
         if INDEPENDENCE_ORDER.get(achieved, 0) >= INDEPENDENCE_ORDER[required_independence]
         else "below_required",
@@ -1864,6 +1903,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
             "independence_ceiling": independence_ceiling(deliverable),
             "critic_ceiling": critic_ceiling(deliverable),
             "response_matrix_ceiling": response_matrix_ceiling(deliverable),
+            "claim_verification_ceiling": claim_verification.claim_verification_ceiling(claim_report, target_maturity=target_maturity),
             "taxonomy": [dict(item) for item in MATURITY_LEVELS],
         },
         "deliverable": {
@@ -1879,6 +1919,7 @@ def read_model(ops_dir: Path, deliverable: dict[str, Any], target_override: str 
         "manuscript_checklist": manuscript_rows,
         "critic_review": critic,
         "response_matrix": response_matrix,
+        "claim_verification": claim_report,
         "review_independence": {
             **review,
             "minimum_required": required_independence,

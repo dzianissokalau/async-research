@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Claim Verification",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "target_type",
+    "target_id",
+    "evaluated_at",
+    "required",
+    "status",
+    "acceptance_ok",
+    "readiness_ok",
+    "claim_count",
+    "outcome_counts",
+    "max_claim_strength",
+    "skeptic_review_required",
+    "acceptance_blockers",
+    "readiness_blockers",
+    "claims"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "claim_verification_v1.0"
+      ]
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "task",
+        "deliverable"
+      ]
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "pass",
+        "blocked"
+      ]
+    },
+    "acceptance_ok": {
+      "type": "boolean"
+    },
+    "readiness_ok": {
+      "type": "boolean"
+    },
+    "claim_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "supported_claim_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "weakly_supported_claim_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unresolved_claim_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "outcome_counts": {
+      "type": "object"
+    },
+    "max_claim_strength": {
+      "type": "string",
+      "enum": [
+        "none",
+        "weak",
+        "suggestive",
+        "moderate",
+        "strong"
+      ]
+    },
+    "cap_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skeptic_review_required": {
+      "type": "boolean"
+    },
+    "acceptance_blockers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "readiness_blockers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "artifact_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim_id",
+          "text",
+          "claim_type",
+          "strength",
+          "required_support_level",
+          "evidence_refs",
+          "citation_refs",
+          "verification_status",
+          "failure_reason"
+        ],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^CLM-[0-9]{4,6}$|^none$"
+          },
+          "text": {
+            "type": "string"
+          },
+          "claim_type": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string"
+          },
+          "required_support_level": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "citation_refs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "weakly_supported",
+              "unsupported",
+              "contradicted",
+              "stale",
+              "unverifiable",
+              "unverified"
+            ]
+          },
+          "failure_reason": {
+            "type": "string"
+          },
+          "citation_mappings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

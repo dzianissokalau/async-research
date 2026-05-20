@@ -454,6 +454,73 @@
         }
       }
     },
+    "claim_verification": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "framework_version": {
+          "type": "string"
+        },
+        "target_type": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "acceptance_ok": {
+          "type": "boolean"
+        },
+        "readiness_ok": {
+          "type": "boolean"
+        },
+        "claim_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outcome_counts": {
+          "type": "object"
+        },
+        "max_claim_strength": {
+          "type": "string",
+          "enum": [
+            "none",
+            "weak",
+            "suggestive",
+            "moderate",
+            "strong"
+          ]
+        },
+        "skeptic_review_required": {
+          "type": "boolean"
+        },
+        "acceptance_blockers": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "readiness_blockers": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "evidence_ledger": {
       "type": "object",
       "required": [

@@ -18,6 +18,7 @@ from async_research_workflow.scripts.analysis_runs import (
     PreflightMalformed,
     workspace_path,
 )
+from async_research_workflow.scripts import claim_verification
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import (
     SOURCE_REF_PATTERN,
@@ -827,9 +828,19 @@ def followups(
     return parsed
 
 
-def scorecard(task_type: str, summary: Optional[dict[str, Any]], claim: str, cap: str, worker_output_present: bool) -> dict[str, int]:
+def scorecard(
+    task_type: str,
+    summary: Optional[dict[str, Any]],
+    claim: str,
+    cap: str,
+    worker_output_present: bool,
+    claim_report: Optional[dict[str, Any]] = None,
+) -> dict[str, int]:
     is_result_task = task_type in RESULT_TASK_TYPES
     has_summary = isinstance(summary, dict)
+    claim_discipline = 5 if CLAIM_ORDER[claim] <= CLAIM_ORDER[cap] else 1
+    if isinstance(claim_report, dict) and claim_report.get("acceptance_ok") is not True:
+        claim_discipline = 1
     return {
         "plan_compliance": 5 if not is_result_task or (has_summary and nonempty_string(summary.get("experiment_plan_id"))) else 1,
         "reproducibility": 5 if has_summary and nonempty_string(summary.get("run_id")) and (valid_analysis_run_manifest_path(summary.get("run_manifest_path")) if is_result_task else (nonempty_string(summary.get("run_manifest_path")) or nonempty_string(summary.get("artifact_version")))) else (3 if worker_output_present else 1),
@@ -840,7 +851,7 @@ def scorecard(task_type: str, summary: Optional[dict[str, Any]], claim: str, cap
         "leakage_safety": 5 if has_summary and nonempty_list(summary.get("leakage_check_results")) else (3 if not is_result_task else 1),
         "limitation_honesty": 5 if has_summary and nonempty_list(summary.get("limitations")) else (3 if not is_result_task else 2),
         "decision_usefulness": 4 if worker_output_present else 1,
-        "claim_discipline": 5 if CLAIM_ORDER[claim] <= CLAIM_ORDER[cap] else 1,
+        "claim_discipline": claim_discipline,
     }
 
 
@@ -928,7 +939,13 @@ def build_acceptance_record(
                 {"gate": "analysis_validation_optional", "message": reason}
                 for reason in analysis_failure_reasons(analysis_failures)
             )
+    claim_report = claim_verification.verify_task_claims(task_dir, ops_dir, summary=summary, status=status)
     cap, cap_reasons = cap_claim_strength(summary, aggregate, task_type, analysis_run)
+    claim_report_cap = claim_report.get("max_claim_strength")
+    if claim_report_cap in CLAIM_ORDER:
+        if CLAIM_ORDER[str(claim_report_cap)] < CLAIM_ORDER[cap]:
+            cap = str(claim_report_cap)
+        cap_reasons.extend(str(reason) for reason in claim_report.get("cap_reasons", []) if str(reason).strip())
 
     worker_output_reason = "worker_output.md exists and is non-empty" if worker_output_present else "accepted evidence requires worker_output.md"
     if not accepted:
@@ -953,6 +970,18 @@ def build_acceptance_record(
             "claim_strength_cap",
             CLAIM_ORDER[claim] <= CLAIM_ORDER[cap],
             f"claim {claim} <= cap {cap}" if CLAIM_ORDER[claim] <= CLAIM_ORDER[cap] else f"claim {claim} exceeds cap {cap}: {'; '.join(cap_reasons)}",
+        )
+        claim_gate_reason = "claim citation verification passed"
+        if claim_report.get("required") is not True and claim_report.get("claim_count") == 0:
+            claim_gate_reason = "no explicit claim verification artifact required for this output"
+        elif claim_report.get("acceptance_ok") is not True:
+            blockers = claim_report.get("acceptance_blockers") if isinstance(claim_report.get("acceptance_blockers"), list) else []
+            claim_gate_reason = "; ".join(str(item.get("message") or item.get("reason")) for item in blockers if isinstance(item, dict)) or "claim citation verification failed"
+        add_gate(
+            gates,
+            "claim_citation_verification",
+            claim_report.get("acceptance_ok") is True,
+            claim_gate_reason,
         )
         key_finding = result_value(status, "key_finding")
         if not nonempty_string(key_finding) and isinstance(summary, dict):
@@ -1077,6 +1106,12 @@ def build_acceptance_record(
         add_gate(gates, "human_gate", not human_required or human_satisfied, human_reason)
     if cap_reasons:
         warnings.extend({"gate": "claim_strength_cap", "message": reason} for reason in cap_reasons)
+    if isinstance(claim_report.get("warnings"), list):
+        warnings.extend(
+            {"gate": "claim_citation_verification", "message": warning.get("message") or warning.get("reason", str(warning))}
+            for warning in claim_report["warnings"]
+            if isinstance(warning, dict)
+        )
     if accepted and revalidation_triggers:
         warnings.extend(
             {
@@ -1098,8 +1133,17 @@ def build_acceptance_record(
     review_notes = []
     if accepted:
         review_notes.append("Accepted evidence must cite result_acceptance.json and evidence_ledger.md.")
+        if claim_report.get("required") is True:
+            review_notes.append("Claim verification must cite claim_verification_ledger.md before downstream use.")
     if rejected:
         review_notes.append("Rejected result should be visible in rejected_results.md.")
+    task_followups = followups(status, summary, aggregate, task_dir)
+    existing_followups = {item["reason"].strip().lower() for item in task_followups if isinstance(item, dict) and "reason" in item}
+    for item in claim_verification.claim_followups(claim_report):
+        key = item["reason"].strip().lower()
+        if key not in existing_followups:
+            task_followups.append(item)
+            existing_followups.add(key)
 
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -1119,6 +1163,7 @@ def build_acceptance_record(
         "source_governance": source_governance,
         "accepted_memory": accepted_memory,
         "analysis_run": analysis_run,
+        "claim_verification": claim_report,
         "evidence_ledger": {
             "required": accepted,
             "ledger_path": "research_ops/evidence_ledger.md",
@@ -1130,7 +1175,7 @@ def build_acceptance_record(
             "log_path": "research_ops/rejected_results.md",
             "logged": False,
         },
-        "followups": followups(status, summary, aggregate, task_dir),
+        "followups": task_followups,
         "review_notes": review_notes,
         "_ledger_payload": {
             "result_id": result_id,
@@ -1167,6 +1212,9 @@ def update_ledgers(ops_dir: Path, record: dict[str, Any]) -> None:
     ledger_payload = record.get("_ledger_payload") if isinstance(record.get("_ledger_payload"), dict) else {}
     followup_text = "; ".join(item["reason"] for item in record.get("followups", [])) or "none"
     if record["route"] in {"accept_as_evidence", "accept_negative_result"}:
+        claim_report = record.get("claim_verification") if isinstance(record.get("claim_verification"), dict) else {}
+        if claim_report:
+            claim_verification.write_claim_ledger(ops_dir, claim_report)
         source_ids = ", ".join(record.get("source_governance", {}).get("source_ids", [])) or "none"
         accepted_memory = record.get("accepted_memory") if isinstance(record.get("accepted_memory"), dict) else {}
         upsert_markdown_row(

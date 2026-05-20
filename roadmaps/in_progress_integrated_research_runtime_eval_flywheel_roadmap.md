@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 4 - Claim and citation verification
+Current phase: Phase 5 - Trace-driven eval flywheel
 Last updated: 2026-05-20
-Next action: Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported material claims
+Next action: Build trace-driven eval dataset schema, graders, comparison commands, dashboard metrics, and release policy
 Blocked by: None
 
 Created: 2026-05-20
@@ -271,6 +271,43 @@ Locked decisions:
 - Runtime evidence objects remain normalized runtime artifacts only; review and
   result-acceptance gates still decide accepted evidence.
 
+## Resolved Phase 4 Claim And Citation Verification
+
+Phase 4 is delivered as the deterministic citation and claim-support gate
+between runtime evidence objects, result acceptance, and publication-oriented
+deliverables. It adds explicit claim objects, offline verifier outcomes,
+evidence-span mapping, result-acceptance claim gates, deliverable maturity
+readiness gates, dashboard visibility, and fixture coverage for supported,
+missing, stale, contradicted, and numeric claims.
+
+Authoritative verification docs and schemas:
+
+- [Claim And Citation Verification](../src/async_research_workflow/docs/claim_citation_verification.md)
+- [Claim Verification Schema](../src/async_research_workflow/schemas/claim_verification.schema.json)
+
+Locked decisions:
+
+- Claim verification reads explicit claim artifacts, result summaries,
+  worker-output JSON blocks, and deliverable claim artifacts; it does not fetch
+  live sources.
+- Atomic claim objects include `claim_id`, `text`, `claim_type`, `strength`,
+  `required_support_level`, `evidence_refs`, `citation_refs`,
+  `verification_status`, and `failure_reason`.
+- Evidence and citation references map to runtime evidence IDs, source URIs,
+  span refs, quote/paraphrase status, source freshness, and computation
+  artifacts.
+- Supported verifier outcomes are `supported`, `weakly_supported`,
+  `unsupported`, `contradicted`, `stale`, and `unverifiable`.
+- Unsupported, contradicted, or unverifiable material claims block result
+  acceptance; weak, stale, or unresolved support caps maximum claim strength.
+- Contradicted claims create skeptic-review follow-ups.
+- Working-paper and submission-ready deliverables require resolved claim and
+  citation verification before readiness can pass.
+- Claim verification rows are written to
+  `research_ops/claim_verification_ledger.md` when ledgers are updated.
+- The verifier remains an offline deterministic gate; it does not promise
+  perfect truth verification or enforce formal bibliography style.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -279,7 +316,7 @@ Locked decisions:
 | 1 | Delivered | P0 | Evidence objects and trace ledger | Add schemas and validators for tool calls, source snapshots, extracted spans, computed outputs, hashes, costs, and permissions. | Every future runtime action has a stable, auditable artifact format. |
 | 2 | Delivered | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
 | 3 | Delivered | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
-| 4 | Not Started | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
+| 4 | Delivered | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
 | 5 | Not Started | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
 | 6 | Not Started | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
 | 7 | Not Started | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |

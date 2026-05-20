@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import importlib
 import io
 import json
@@ -61,6 +62,85 @@ def write_text(path: Path, text: str) -> None:
 
 def write_json(path: Path, payload: dict) -> None:
     write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def sha256_text(text: str) -> str:
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+
+
+def write_supported_claim_verification(
+    ops_dir: Path,
+    *,
+    deliverable_id: str,
+    task_id: str,
+    now: str = "2026-05-18T00:00:00Z",
+) -> None:
+    evidence_id = f"EVID-{int(''.join(ch for ch in deliverable_id if ch.isdigit()) or '1'):06d}"
+    snapshot_text = f"{deliverable_id} has acceptance-suite verified citation support.\n"
+    snapshot_path = ops_dir / "runtime" / "snapshots" / f"{evidence_id}.txt"
+    write_text(snapshot_path, snapshot_text)
+    ledger = ops_dir / "runtime" / "evidence_objects.jsonl"
+    evidence = {
+        "schema_version": "1.0",
+        "framework_version": "runtime_evidence_object_v1.0",
+        "evidence_id": evidence_id,
+        "task_id": task_id,
+        "adapter_type": "file_fetch",
+        "source_uri": f"fixture://acceptance/{deliverable_id}",
+        "source_title": f"{deliverable_id} acceptance citation fixture",
+        "retrieved_at": now,
+        "content_hash": sha256_text(snapshot_text),
+        "snapshot_path": f"research_ops/runtime/snapshots/{evidence_id}.txt",
+        "span_refs": [
+            {
+                "span_id": "SPAN-0001",
+                "span_type": "text",
+                "selector": "line:1",
+                "content_hash": sha256_text(snapshot_text),
+            }
+        ],
+        "license_or_use_policy": "fixture-only",
+        "freshness_status": {"status": "current", "checked_at": now, "basis": "offline fixture"},
+        "cost": {"api_usd": 0.0, "compute_usd": 0.0, "tokens": 0, "basis": "offline fixture"},
+        "permission_basis": {
+            "type": "task_contract",
+            "reference": f"research_ops/tasks/{task_id}-internal-draft/status.json",
+            "capability": "file_fetch",
+        },
+    }
+    existing = ledger.read_text(encoding="utf-8") if ledger.exists() else ""
+    write_text(ledger, existing + json.dumps(evidence, sort_keys=True) + "\n")
+    claim_path = ops_dir / "deliverables" / "claim_verification" / f"{deliverable_id}.json"
+    write_json(
+        claim_path,
+        {
+            "claims": [
+                {
+                    "claim_id": "CLM-0001",
+                    "text": f"{deliverable_id} has acceptance-suite verified citation support.",
+                    "claim_type": "empirical",
+                    "strength": "moderate",
+                    "required_support_level": "direct",
+                    "evidence_refs": [
+                        {
+                            "evidence_id": evidence_id,
+                            "span_ref": "SPAN-0001",
+                            "quote_or_paraphrase_status": "quote",
+                            "quote": "verified citation support",
+                        }
+                    ],
+                    "citation_refs": [f"{evidence_id}#SPAN-0001"],
+                }
+            ]
+        },
+    )
+    manifest_path = ops_dir / "deliverables" / "deliverable_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for deliverable in manifest.get("deliverables", []):
+        if deliverable.get("deliverable_id") == deliverable_id:
+            deliverable["claim_verification_path"] = f"research_ops/deliverables/claim_verification/{deliverable_id}.json"
+            break
+    write_json(manifest_path, manifest)
 
 
 def file_snapshot(root: Path) -> dict[str, bytes]:
@@ -600,6 +680,7 @@ def run_deliverable_maturity_acceptance(ops_dir: Path) -> tuple[int, dict]:
         record_step("response_matrix_closure_unblocks_promotion", response_ok, response, code)
 
     if not failures:
+        write_supported_claim_verification(ops_dir, deliverable_id="DELIV-9903", task_id="TASK-9902")
         code, checked = run_cli(["deliverable", "check", str(ops_dir), "DELIV-9903"])
         record_step(
             "closed_response_matrix_allows_working_paper",

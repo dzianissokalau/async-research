@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import shutil
@@ -62,6 +63,81 @@ def write_task(ops_dir: Path, task_id: str, status: str = "accepted") -> Path:
         },
     )
     return task_dir
+
+
+def sha256_text(text: str) -> str:
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+
+
+def write_supported_claim_verification(ops_dir: Path, deliverable_id: str, task_id: str | None = None) -> None:
+    manifest_path = ops_dir / "deliverables" / "deliverable_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    deliverable = next(item for item in manifest["deliverables"] if item["deliverable_id"] == deliverable_id)
+    source_task_id = task_id or (deliverable.get("source_task_ids") or ["TASK-0001"])[0]
+    digits = "".join(ch for ch in deliverable_id if ch.isdigit()) or "1"
+    evidence_id = f"EVID-{int(digits):06d}"
+    snapshot_text = f"{deliverable_id} has verified citation support.\n"
+    snapshot_path = ops_dir / "runtime" / "snapshots" / f"{evidence_id}.txt"
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text(snapshot_text, encoding="utf-8")
+    evidence = {
+        "schema_version": "1.0",
+        "framework_version": "runtime_evidence_object_v1.0",
+        "evidence_id": evidence_id,
+        "task_id": source_task_id,
+        "adapter_type": "file_fetch",
+        "source_uri": f"fixture://deliverable/{deliverable_id}",
+        "source_title": f"{deliverable_id} citation fixture",
+        "retrieved_at": NOW,
+        "content_hash": sha256_text(snapshot_text),
+        "snapshot_path": f"research_ops/runtime/snapshots/{evidence_id}.txt",
+        "span_refs": [
+            {
+                "span_id": "SPAN-0001",
+                "span_type": "text",
+                "selector": "line:1",
+                "content_hash": sha256_text(snapshot_text),
+            }
+        ],
+        "license_or_use_policy": "fixture-only",
+        "freshness_status": {"status": "current", "checked_at": NOW, "basis": "offline fixture"},
+        "cost": {"api_usd": 0.0, "compute_usd": 0.0, "tokens": 0, "basis": "offline fixture"},
+        "permission_basis": {
+            "type": "task_contract",
+            "reference": f"research_ops/tasks/{source_task_id}-fixture/status.json",
+            "capability": "file_fetch",
+        },
+    }
+    ledger = ops_dir / "runtime" / "evidence_objects.jsonl"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    existing = ledger.read_text(encoding="utf-8") if ledger.exists() else ""
+    ledger.write_text(existing + json.dumps(evidence, sort_keys=True) + "\n", encoding="utf-8")
+    claim_path = ops_dir / "deliverables" / "claim_verification" / f"{deliverable_id}.json"
+    write_json(
+        claim_path,
+        {
+            "claims": [
+                {
+                    "claim_id": "CLM-0001",
+                    "text": f"{deliverable_id} has verified citation support.",
+                    "claim_type": "empirical",
+                    "strength": "moderate",
+                    "required_support_level": "direct",
+                    "evidence_refs": [
+                        {
+                            "evidence_id": evidence_id,
+                            "span_ref": "SPAN-0001",
+                            "quote_or_paraphrase_status": "quote",
+                            "quote": "verified citation support",
+                        }
+                    ],
+                    "citation_refs": [f"{evidence_id}#SPAN-0001"],
+                }
+            ]
+        },
+    )
+    deliverable["claim_verification_path"] = f"research_ops/deliverables/claim_verification/{deliverable_id}.json"
+    write_json(manifest_path, manifest)
 
 
 class DeliverableMaturityTests(unittest.TestCase):
@@ -321,6 +397,7 @@ class DeliverableMaturityTests(unittest.TestCase):
                 )
                 self.assertEqual(cli.SUCCESS, code, response)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0015", "TASK-0015")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0015"])
 
             self.assertEqual(cli.SUCCESS, code, checked)
@@ -675,6 +752,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             self.assertEqual("passed", response["response_matrix"]["status"])
             self.assertEqual(2, response["response_matrix"]["closed_or_waived_count"])
 
+            write_supported_claim_verification(ops_dir, "DELIV-0101", "TASK-0101")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0101"])
 
             self.assertEqual(cli.SUCCESS, code, checked)
@@ -788,6 +866,7 @@ class DeliverableMaturityTests(unittest.TestCase):
                 )
                 self.assertEqual(cli.SUCCESS, code, response)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0110", "TASK-0110")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0110"])
             self.assertEqual(cli.SUCCESS, code, checked)
             self.assertEqual("passed", checked["response_matrix"]["status"])
@@ -926,6 +1005,7 @@ class DeliverableMaturityTests(unittest.TestCase):
                 )
                 self.assertEqual(cli.SUCCESS, code, response)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0112", "TASK-0112")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0112"])
             self.assertEqual(cli.SUCCESS, code, checked)
             self.assertEqual(0, checked["response_matrix"]["untracked_required_revision_count"])
@@ -1052,6 +1132,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             )
             self.assertEqual(cli.SUCCESS, code, waived)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0105", "TASK-0105")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0105"])
 
             self.assertEqual(cli.SUCCESS, code, checked)
@@ -1347,6 +1428,7 @@ class DeliverableMaturityTests(unittest.TestCase):
             )
             self.assertEqual(cli.SUCCESS, code, critic)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0104", "TASK-0104")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0104"])
 
             self.assertEqual(cli.SUCCESS, code, checked)
@@ -1518,6 +1600,7 @@ class DeliverableMaturityTests(unittest.TestCase):
                 )
                 self.assertEqual(cli.SUCCESS, code, response)
 
+            write_supported_claim_verification(ops_dir, "DELIV-0150", "TASK-0015")
             code, checked = run_cli_json(["deliverable", "check", ops_dir, "DELIV-0150"])
 
             self.assertEqual(cli.SUCCESS, code, checked)

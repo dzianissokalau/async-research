@@ -87,3 +87,7 @@ The console snapshot includes a `runtime` group with:
 These fields are derived from `research_ops/runtime/` and remain read-only.
 Runtime evidence is not accepted evidence until existing review and
 result-acceptance gates say so.
+
+Phase 4 claim and citation verification uses these same evidence objects and
+snapshots to map explicit claims to source spans before accepted or
+publication-oriented outputs can rely on them.

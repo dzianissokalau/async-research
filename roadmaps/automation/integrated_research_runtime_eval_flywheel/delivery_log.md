@@ -213,3 +213,59 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-3`
 
 - Phase 3 is delivered. The next automation run should start Phase 4 on
   `codex/integrated-research-runtime-eval-flywheel-phase-4`.
+
+## Phase 4 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-4`
+
+### Scope
+
+- Add explicit claim objects and deterministic citation/evidence verification.
+- Map claims to runtime evidence objects, source spans, quote/paraphrase status,
+  freshness, and computation artifacts.
+- Integrate claim gates with result acceptance, deliverable maturity, dashboard
+  QA, and ledgers.
+- Cover supported, missing, stale, contradicted, and numeric-no-computation
+  cases with offline fixtures.
+
+### Changes
+
+- Added `claim_verification.py` and `claim_verification.schema.json`.
+- Result acceptance now records claim-verification reports, blocks unsupported
+  material claims, caps claim strength, writes claim ledgers, and routes
+  contradictions to skeptic review.
+- Deliverable maturity now requires resolved citation verification for
+  working-paper and submission-ready outputs.
+- Console snapshots surface claim-verification status, claim counts, caps, and
+  unresolved citation blockers.
+- Added claim/citation verification docs and linked them from runtime docs.
+- Added regression tests and updated acceptance-suite/deliverable fixtures for
+  the new publication-readiness gate.
+- Advanced the roadmap/index to Phase 5 after marking Phase 4 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 766 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 4 scope and
+  delivered diff; no separate reviewer sub-agent was used.
+- The verifier checks local evidence linkage, quote presence, freshness, and
+  computation artifacts; it does not perform live truth verification or
+  bibliography-style enforcement.
+
+### Next Action
+
+- Phase 4 is delivered. The next automation run should start Phase 5 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-5`.

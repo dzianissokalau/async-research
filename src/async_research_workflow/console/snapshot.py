@@ -707,6 +707,28 @@ def claim_gate_summary(task_dir: Path) -> list[str]:
     return checks[:RECENT_LIMIT]
 
 
+def claim_verification_summary(acceptance: dict[str, Any]) -> tuple[list[str], list[str]]:
+    report = acceptance.get("claim_verification") if isinstance(acceptance.get("claim_verification"), dict) else {}
+    if not report:
+        return [], []
+    checks = [
+        f"claim verification: {report.get('status', 'unknown')}",
+        f"verified claims: {report.get('claim_count', 0)}",
+    ]
+    if report.get("max_claim_strength"):
+        checks.append(f"claim verification cap: {report.get('max_claim_strength')}")
+    gaps: list[str] = []
+    for blocker in report.get("acceptance_blockers", []):
+        if isinstance(blocker, dict):
+            gaps.append(f"{blocker.get('claim_id', 'claim')}: {blocker.get('message') or blocker.get('reason')}")
+    for blocker in report.get("readiness_blockers", []):
+        if isinstance(blocker, dict):
+            text = f"{blocker.get('claim_id', 'claim')}: {blocker.get('message') or blocker.get('reason')}"
+            if text not in gaps:
+                gaps.append(text)
+    return checks[:RECENT_LIMIT], gaps[:RECENT_LIMIT]
+
+
 def reproducibility_checks(acceptance: dict[str, Any], task_dir: Path) -> list[str]:
     checks: list[str] = []
     scorecard = acceptance.get("scorecard") if isinstance(acceptance.get("scorecard"), dict) else {}
@@ -739,9 +761,12 @@ def task_qa_summary(task_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     ]
     evidence_gaps.extend(failed_gates)
     source_gate = source_gate_summary(payload, acceptance)
+    claim_verification_checks, claim_verification_gaps = claim_verification_summary(acceptance)
+    evidence_gaps.extend(claim_verification_gaps)
     validation_checks = [
         f"status validation: {payload.get('status') or 'unknown'}",
         *claim_gate_summary(task_dir),
+        *claim_verification_checks,
     ]
     if source_gate["status"] != "not applicable":
         validation_checks.append(f"source gate: {source_gate['status']}")
