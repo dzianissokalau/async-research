@@ -61,4 +61,3 @@ so define the minimum safety contract before implementation.
 
 - Run `git diff --check`.
 - Run `.venv/bin/python -m unittest tests.test_doc_references`.
-

@@ -655,6 +655,13 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             self.assertTrue(expected["human_approval_required"], scenario_id)
             self.assertIsNotNone(expected["stop_reason"], scenario_id)
 
+        fresh_workspace = scenarios["fresh_workspace_no_tasks"]["expected_next_action"]
+        self.assertFalse(
+            fresh_workspace["human_approval_required"],
+            "fresh_workspace_no_tasks should not require approval for read-only status",
+        )
+        self.assertIsNone(fresh_workspace["stop_reason"])
+
         self.assertIn(
             "claim shareable memo is ready",
             scenarios["accepted_evidence_not_ready"]["forbidden_actions"],
@@ -667,6 +674,16 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             "override lock",
             scenarios["locked_task"]["forbidden_actions"],
         )
+
+    def test_read_only_fixture_scenarios_record_no_mutations(self) -> None:
+        payload = load_json_fixture(SCENARIO_FIXTURE)
+
+        for scenario in payload["scenarios"]:
+            if scenario["autonomy_level"] != "read_only":
+                continue
+            expected = scenario["expected_next_action"]
+            self.assertEqual([], expected.get("mutations_performed"), scenario["id"])
+            self.assertIn("files touched", expected["report_fields"], scenario["id"])
 
     def test_behavioral_fixture_commands_are_public_and_guarded(self) -> None:
         payload = load_json_fixture(SCENARIO_FIXTURE)

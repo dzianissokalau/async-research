@@ -17,6 +17,7 @@
         "type": "guided_setup_stop",
         "summary": "Report missing CLI and ask before any setup, install, network use, or workspace initialization.",
         "commands": ["pwd", "git rev-parse --is-inside-work-tree", "command -v async-research", "test -x .venv/bin/async-research"],
+        "mutations_performed": [],
         "human_approval_required": true,
         "stop_reason": "missing_cli",
         "report_fields": ["framework version", "workspace path", "privacy status", "commands used", "files touched", "caveats", "unresolved gaps", "next safe action"]
@@ -85,6 +86,7 @@
         "type": "status_report",
         "summary": "Report no ready task and offer a guided idea capture or task creation path without writing.",
         "commands": ["async-research schema-check research_ops", "async-research readiness research_ops --dry-run", "async-research health research_ops --dry-run", "async-research workflow next research_ops", "async-research queue list <ops> --group all --limit 50", "async-research console snapshot research_ops --json"],
+        "mutations_performed": [],
         "human_approval_required": false,
         "stop_reason": null,
         "report_fields": ["framework version", "workspace path", "health/readiness/workflow summary", "dashboard URL or snapshot summary", "commands used", "files touched", "caveats", "unresolved gaps", "next safe action"]
