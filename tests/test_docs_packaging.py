@@ -19,6 +19,7 @@ REQUIRED_PACKAGED_DOCS = [
     ("operational_readiness_runbook.md",),
     ("scheduler_and_prompts.md",),
     ("task_contracts.md",),
+    ("research_brief_contract.md",),
     ("knowledge_library_contract.md",),
     ("reviewer_isolation_protocol.md",),
     ("framework_requirements", "README.md"),

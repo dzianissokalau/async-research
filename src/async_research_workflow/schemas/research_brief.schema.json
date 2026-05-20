@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Brief",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "brief_id",
+    "status",
+    "user_question",
+    "clarified_objective",
+    "intended_output_maturity",
+    "target_audience",
+    "allowed_source_classes",
+    "forbidden_source_classes",
+    "private_data_policy",
+    "public_claims_policy",
+    "permissions",
+    "budget",
+    "known_assumptions",
+    "unresolved_questions",
+    "human_gates"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "brief_id": {
+      "type": "string",
+      "pattern": "^BRIEF-[A-Za-z0-9_.:-]+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "needs_clarification",
+        "needs_human_gate",
+        "blocked"
+      ]
+    },
+    "user_question": {
+      "type": "string"
+    },
+    "clarified_objective": {
+      "type": "string"
+    },
+    "intended_output_maturity": {
+      "type": "string",
+      "enum": [
+        "unspecified",
+        "internal_note",
+        "internal_draft",
+        "shareable_memo",
+        "working_paper",
+        "submission_ready"
+      ]
+    },
+    "target_audience": {
+      "type": "string"
+    },
+    "target_venue": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "allowed_source_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "workspace_files",
+          "accepted_memory",
+          "knowledge_library",
+          "open_web",
+          "structured_api",
+          "private_data",
+          "mcp_private_data",
+          "code_execution",
+          "paid_services",
+          "external_credentials"
+        ]
+      }
+    },
+    "forbidden_source_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "workspace_files",
+          "accepted_memory",
+          "knowledge_library",
+          "open_web",
+          "structured_api",
+          "private_data",
+          "mcp_private_data",
+          "code_execution",
+          "paid_services",
+          "external_credentials"
+        ]
+      }
+    },
+    "private_data_policy": {
+      "type": "string",
+      "enum": [
+        "none",
+        "workspace_only",
+        "requires_human_gate",
+        "blocked"
+      ]
+    },
+    "public_claims_policy": {
+      "type": "string",
+      "enum": [
+        "none",
+        "internal_only",
+        "requires_human_gate"
+      ]
+    },
+    "permissions": {
+      "type": "object",
+      "required": [
+        "browsing",
+        "api",
+        "code_execution",
+        "network",
+        "credentials",
+        "paid_services"
+      ],
+      "properties": {
+        "browsing": {
+          "type": "boolean"
+        },
+        "api": {
+          "type": "boolean"
+        },
+        "code_execution": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "credentials": {
+          "type": "boolean"
+        },
+        "paid_services": {
+          "type": "boolean"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "max_api_usd",
+        "max_compute_usd",
+        "max_human_minutes",
+        "max_runtime_minutes"
+      ],
+      "properties": {
+        "max_api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_human_minutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_runtime_minutes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "known_assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "gate",
+          "reason",
+          "required_before"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "required_before": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  }
+}

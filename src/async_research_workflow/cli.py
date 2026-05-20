@@ -25,6 +25,10 @@ from async_research_workflow.scripts.deliverable_maturity import OUTPUT_TYPE_CHO
 from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_DECISION_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_STATUS_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import SEVERITY_LEVELS
+from async_research_workflow.scripts.research_brief import OUTPUT_MATURITIES
+from async_research_workflow.scripts.research_brief import PRIVATE_DATA_POLICIES
+from async_research_workflow.scripts.research_brief import PUBLIC_CLAIM_POLICIES
+from async_research_workflow.scripts.research_brief import SOURCE_CLASSES
 from async_research_workflow.scripts.task_authoring import TASK_TYPES
 
 
@@ -624,6 +628,53 @@ def run_runtime_summary_command(args: argparse.Namespace) -> int:
 
 def run_runtime_inspect_evidence_command(args: argparse.Namespace) -> int:
     return module_main("runtime_artifacts", ["inspect-evidence", str(args.ops_dir), args.evidence_id])
+
+
+def run_brief_draft_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "research_brief",
+        ["draft", str(args.ops_dir)]
+        + optional_text("--question", args.question)
+        + optional_text("--objective", args.objective)
+        + optional_text("--output-maturity", args.output_maturity)
+        + optional_text("--audience", args.audience)
+        + optional_text("--venue", args.venue)
+        + repeated_option("--allowed-source-class", args.allowed_source_class)
+        + repeated_option("--forbidden-source-class", args.forbidden_source_class)
+        + optional_text("--private-data-policy", args.private_data_policy)
+        + optional_text("--public-claims-policy", args.public_claims_policy)
+        + (["--allow-browsing"] if args.allow_browsing else [])
+        + (["--allow-api"] if args.allow_api else [])
+        + (["--allow-code-execution"] if args.allow_code_execution else [])
+        + (["--allow-network"] if args.allow_network else [])
+        + (["--requires-credentials"] if args.requires_credentials else [])
+        + (["--allow-paid"] if args.allow_paid else [])
+        + optional_number("--max-api-usd", args.max_api_usd)
+        + optional_number("--max-compute-usd", args.max_compute_usd)
+        + ["--max-human-minutes", str(args.max_human_minutes)]
+        + ["--max-runtime-minutes", str(args.max_runtime_minutes)]
+        + repeated_option("--assumption", args.assumption)
+        + repeated_option("--unresolved-question", args.unresolved_question)
+        + optional_text("--brief-id", args.brief_id)
+        + optional_path("--output", args.output)
+        + optional_text("--now", args.now)
+        + (["--dry-run"] if args.dry_run else [])
+        + (["--write"] if args.write else [])
+        + (["--force"] if args.force else []),
+    )
+
+
+def run_brief_validate_command(args: argparse.Namespace) -> int:
+    return module_main("research_brief", ["validate", str(args.brief_path)])
+
+
+def run_brief_apply_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "research_brief",
+        ["apply", str(args.ops_dir), str(args.brief_path)]
+        + optional_text("--task-type", args.task_type)
+        + (["--dry-run"] if args.dry_run else []),
+    )
 
 
 def run_cost_summary_command(args: argparse.Namespace) -> int:
@@ -1239,6 +1290,7 @@ def run_workflow_create_task_command(args: argparse.Namespace) -> int:
         + repeated_option("--allowed-path", args.allowed_path)
         + repeated_option("--data-audit-ref", args.data_audit_ref)
         + optional_text("--catalog-idea-id", args.catalog_idea_id)
+        + optional_path("--brief", args.brief)
         + ["--priority", str(args.priority)]
         + ["--review-tier", str(args.review_tier)]
         + ["--max-minutes", str(args.max_minutes)]
@@ -1248,6 +1300,7 @@ def run_workflow_create_task_command(args: argparse.Namespace) -> int:
         + ["--max-api-usd", str(args.max_api_usd)]
         + ["--max-compute-usd", str(args.max_compute_usd)]
         + (["--allow-browsing"] if args.allow_browsing else [])
+        + (["--allow-code-execution"] if args.allow_code_execution else [])
         + (["--allow-network"] if args.allow_network else [])
         + optional_text("--transition-reason", args.transition_reason)
         + (["--dry-run"] if args.dry_run else [])
@@ -1316,6 +1369,7 @@ def run_idea_promote_command(args: argparse.Namespace) -> int:
         "idea_catalog",
         ["promote", str(args.ops_dir), args.idea_id]
         + optional_text("--task-type", args.task_type)
+        + optional_path("--brief", args.brief)
         + optional_text("--preflight-hash", args.preflight_hash)
         + (["--allow-duplicate"] if args.allow_duplicate else [])
         + (["--human-override"] if args.human_override else [])
@@ -1625,6 +1679,7 @@ def register_workflow_commands(subparsers) -> None:
     create_task.add_argument("--allowed-path", action="append", default=[], help="Additional allowed path in status.json. Repeat as needed.")
     create_task.add_argument("--data-audit-ref", action="append", default=[], help="DS-* ref required by this task. Repeat as needed.")
     create_task.add_argument("--catalog-idea-id", help="Optional IDEA-0000 link for promoted tasks.")
+    create_task.add_argument("--brief", type=Path, help="Optional research_ops/briefs/research_brief.json path; defaults to the workspace brief when present.")
     create_task.add_argument("--priority", type=int, choices=[1, 2, 3, 4, 5], default=3)
     create_task.add_argument("--review-tier", type=int, choices=[1, 2, 3], default=1)
     create_task.add_argument("--max-minutes", type=int, default=45)
@@ -1634,6 +1689,7 @@ def register_workflow_commands(subparsers) -> None:
     create_task.add_argument("--max-api-usd", type=float, default=0.0)
     create_task.add_argument("--max-compute-usd", type=float, default=0.0)
     create_task.add_argument("--allow-browsing", action="store_true")
+    create_task.add_argument("--allow-code-execution", action="store_true")
     create_task.add_argument("--allow-network", action="store_true")
     create_task.add_argument("--transition-reason", default="manual_task_created_from_template")
     create_task.add_argument("--dry-run", action="store_true", help="Preview without writing; this is the default.")
@@ -2307,6 +2363,78 @@ def register_runtime_commands(subparsers) -> None:
     add_required_ops(inspect_cmd)
     inspect_cmd.add_argument("evidence_id", help="Evidence id such as EVID-000001.")
     inspect_cmd.set_defaults(func=run_runtime_inspect_evidence_command)
+
+
+def register_brief_commands(subparsers) -> None:
+    brief = add_command(
+        subparsers,
+        "brief",
+        help="Draft, validate, and dry-run apply research briefs.",
+        description=(
+            "Manage pre-planning research_brief.json contracts with output target, audience, source policy, "
+            "permissions, budget caps, clarifying questions, and human gates."
+        ),
+    )
+    brief_sub = brief.add_subparsers(dest="brief_command", required=True)
+
+    draft = add_command(
+        brief_sub,
+        "draft",
+        help="Draft a bounded research_brief.json contract.",
+        description="Draft a research brief from a question or research_ops/briefs/source_request.md; unresolved questions remain blocking.",
+    )
+    add_common_ops(draft)
+    draft.add_argument("--question", help="Raw user question or research request.")
+    draft.add_argument("--objective", help="Clarified executable objective.")
+    draft.add_argument("--output-maturity", choices=OUTPUT_MATURITIES, help="Intended output maturity.")
+    draft.add_argument("--audience", help="Target audience or decision owner.")
+    draft.add_argument("--venue", help="Known target venue or channel.")
+    draft.add_argument("--allowed-source-class", action="append", choices=SOURCE_CLASSES, help="Allowed source class. Repeat as needed.")
+    draft.add_argument("--forbidden-source-class", action="append", choices=SOURCE_CLASSES, help="Forbidden source class. Repeat as needed.")
+    draft.add_argument("--private-data-policy", choices=PRIVATE_DATA_POLICIES, default="none")
+    draft.add_argument("--public-claims-policy", choices=PUBLIC_CLAIM_POLICIES, default="none")
+    draft.add_argument("--allow-browsing", action="store_true")
+    draft.add_argument("--allow-api", action="store_true")
+    draft.add_argument("--allow-code-execution", action="store_true")
+    draft.add_argument("--allow-network", action="store_true")
+    draft.add_argument("--requires-credentials", action="store_true")
+    draft.add_argument("--allow-paid", action="store_true")
+    draft.add_argument("--max-api-usd", type=float, default=0.0)
+    draft.add_argument("--max-compute-usd", type=float, default=0.0)
+    draft.add_argument("--max-human-minutes", type=int, default=30)
+    draft.add_argument("--max-runtime-minutes", type=int, default=45)
+    draft.add_argument("--assumption", action="append", default=[], help="Known assumption. Repeat as needed.")
+    draft.add_argument("--unresolved-question", action="append", default=[], help="Clarifying question that must be answered before planning.")
+    draft.add_argument("--brief-id", help="Explicit BRIEF-* id.")
+    draft.add_argument("--output", type=Path, help="Output path inside research_ops; defaults to research_ops/briefs/research_brief.json.")
+    draft.add_argument("--now", help="Timestamp override.")
+    draft.add_argument("--dry-run", action="store_true", help="Preview without writing; this is the default.")
+    draft.add_argument("--write", action="store_true", help="Write the drafted brief JSON.")
+    draft.add_argument("--force", action="store_true", help="Replace an existing output brief when writing.")
+    draft.set_defaults(func=run_brief_draft_command)
+
+    validate_cmd = add_command(
+        brief_sub,
+        "validate",
+        help="Validate a research brief before planning.",
+        description="Validate schema, output target, audience, source policy, permissions, unresolved questions, and human gates.",
+        epilog="Exits 0 when the brief is ready for planning and 2 when clarification or human gates block planning.",
+    )
+    validate_cmd.add_argument("brief_path", type=Path, help="Path to research_brief.json.")
+    validate_cmd.set_defaults(func=run_brief_validate_command)
+
+    apply_cmd = add_command(
+        brief_sub,
+        "apply",
+        help="Dry-run a validated brief into a task planning command.",
+        description="Preview task creation from a validated brief that is ready for planning; Phase 2 apply does not mutate research_ops.",
+        epilog="Exits 0 when a task plan is ready, 2 when the brief is blocked, and 3 when --dry-run is omitted.",
+    )
+    apply_cmd.add_argument("ops_dir", type=Path, help="research_ops workspace directory.")
+    apply_cmd.add_argument("brief_path", type=Path, help="Path to a brief inside research_ops.")
+    apply_cmd.add_argument("--task-type", choices=("literature_extract", "data_readiness", "hypothesis_card", "experiment_plan", "admin"), default="literature_extract")
+    apply_cmd.add_argument("--dry-run", action="store_true", help="Required; preview without writing.")
+    apply_cmd.set_defaults(func=run_brief_apply_command)
 
 
 def register_cost_commands(subparsers) -> None:
@@ -3102,7 +3230,7 @@ def register_artifact_commands(subparsers) -> None:
             "Examples:\n"
             "  async-research idea promote research_ops IDEA-0007 --dry-run\n"
             "  async-research idea promote research_ops IDEA-0007 --write --preflight-hash <hash>\n\n"
-            "Dry-run is proposal-only and returns promotion_preflight_hash. Blocked dry-runs include next_step and "
+            "Dry-run is proposal-only and returns promotion_preflight_hash. A validated research brief is consumed when present. Blocked dry-runs include next_step and "
             "remediation_steps. Write mode requires the matching hash, appends inbox.md, creates one tasks/TASK-*/ "
             "folder, appends one queue.md row, and updates the selected idea's promoted_task_id under the catalog lock."
         ),
@@ -3110,6 +3238,7 @@ def register_artifact_commands(subparsers) -> None:
     add_common_ops(idea_promote)
     idea_promote.add_argument("idea_id", help="Canonical idea id such as IDEA-0001.")
     idea_promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
+    idea_promote.add_argument("--brief", type=Path, help="Optional research_ops/briefs/research_brief.json path; defaults to the workspace brief when present.")
     idea_promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
     idea_promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")
     idea_promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk promotion task writes.")
@@ -3306,6 +3435,7 @@ COMMAND_REGISTRARS = (
     register_data_commands,
     register_library_commands,
     register_runtime_commands,
+    register_brief_commands,
     register_cost_commands,
     register_batch_commands,
     register_metrics_commands,

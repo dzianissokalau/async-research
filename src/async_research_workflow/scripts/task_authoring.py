@@ -13,6 +13,7 @@ import sys
 from typing import Any, Iterable
 
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts import research_brief
 from async_research_workflow.scripts import validate_transition
 from async_research_workflow.scripts.schema_diagnostics import status_schema_diagnostics
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
@@ -121,8 +122,15 @@ def default_allowed_paths(task_dir: Path, ops_dir: Path, extra_paths: list[str])
     return paths
 
 
-def build_status(args: argparse.Namespace, task_id: str, task_dir: Path) -> dict[str, Any]:
+def build_status(args: argparse.Namespace, task_id: str, task_dir: Path, brief_context: dict[str, Any] | None = None) -> dict[str, Any]:
     now = iso_now()
+    brief_summary = brief_context.get("summary") if brief_context else None
+    brief_permissions = brief_summary.get("permissions", {}) if isinstance(brief_summary, dict) else {}
+    brief_budget = brief_summary.get("budget", {}) if isinstance(brief_summary, dict) else {}
+    max_minutes = args.max_minutes
+    brief_runtime_cap = brief_budget.get("max_runtime_minutes")
+    if isinstance(brief_runtime_cap, int) and not isinstance(brief_runtime_cap, bool):
+        max_minutes = min(max_minutes, brief_runtime_cap)
     status = {
         "schema_version": "1.0",
         "id": task_id,
@@ -141,10 +149,10 @@ def build_status(args: argparse.Namespace, task_id: str, task_dir: Path) -> dict
         "lock_expires_at": None,
         "allowed_paths": default_allowed_paths(task_dir, args.ops_dir, args.allowed_path or []),
         "allowed_tools": ["repo_read", "markdown_edit"],
-        "allow_browsing": bool(args.allow_browsing),
-        "allow_code_execution": False,
-        "allow_network": bool(args.allow_network),
-        "max_minutes": args.max_minutes,
+        "allow_browsing": bool(brief_permissions.get("browsing")) if isinstance(brief_summary, dict) else bool(args.allow_browsing),
+        "allow_code_execution": bool(brief_permissions.get("code_execution")) if isinstance(brief_summary, dict) else bool(args.allow_code_execution),
+        "allow_network": bool(brief_permissions.get("network")) if isinstance(brief_summary, dict) else bool(args.allow_network),
+        "max_minutes": max_minutes,
         "max_turns": args.max_turns,
         "model_tier": args.model_tier,
         "review_policy": review_policy(args.review_tier),
@@ -163,12 +171,35 @@ def build_status(args: argparse.Namespace, task_id: str, task_dir: Path) -> dict
     }
     if args.catalog_idea_id:
         status["catalog_idea_id"] = args.catalog_idea_id
+    if isinstance(brief_summary, dict):
+        status["research_brief_ref"] = str(brief_context["path"])
+        status["research_brief"] = brief_summary
     return apply_default_versions(status)
 
 
-def task_markdown(args: argparse.Namespace, task_id: str) -> str:
-    objective = args.objective or "State exactly what should be produced and how it will be used."
-    context_lines = args.context or ["Add relevant workspace files, source IDs, library refs, or accepted outputs here."]
+def task_markdown(args: argparse.Namespace, task_id: str, brief_context: dict[str, Any] | None = None) -> str:
+    brief_summary = brief_context.get("summary") if brief_context else None
+    objective = args.objective or (
+        str(brief_summary.get("clarified_objective")) if isinstance(brief_summary, dict) else ""
+    ) or "State exactly what should be produced and how it will be used."
+    context_lines = list(args.context or ["Add relevant workspace files, source IDs, library refs, or accepted outputs here."])
+    brief_section = ""
+    if isinstance(brief_summary, dict):
+        context_lines.insert(0, f"Research brief: {brief_context['path']}")
+        allowed_sources = ", ".join(brief_summary.get("allowed_source_classes") or []) or "none"
+        forbidden_sources = ", ".join(brief_summary.get("forbidden_source_classes") or []) or "none"
+        brief_section = f"""
+## Research Brief
+
+- Brief id: {brief_summary.get("brief_id")}.
+- Target audience: {brief_summary.get("target_audience")}.
+- Intended output maturity: {brief_summary.get("intended_output_maturity")}.
+- Target venue: {brief_summary.get("target_venue") or "none"}.
+- Allowed source classes: {allowed_sources}.
+- Forbidden source classes: {forbidden_sources}.
+- Private-data policy: {brief_summary.get("private_data_policy")}.
+- Public-claims policy: {brief_summary.get("public_claims_policy")}.
+"""
     context = "\n".join(f"- {item}" for item in context_lines)
     data_refs = ", ".join(args.data_audit_ref or []) or "none"
     return f"""# {task_id}: {args.title}
@@ -176,6 +207,7 @@ def task_markdown(args: argparse.Namespace, task_id: str) -> str:
 ## Objective
 
 {objective}
+{brief_section}
 
 ## Scope
 
@@ -262,14 +294,26 @@ def create_task(args: argparse.Namespace) -> int:
     if not args.title.strip():
         print_json({"ok": False, "reason": "missing_title"})
         return INVALID_REQUEST
+    brief_context, brief_error = research_brief.load_ready_brief_for_ops(args.ops_dir, args.brief)
+    if brief_error is not None:
+        print_json(
+            {
+                "ok": False,
+                "action": "task_create_refused",
+                "reason": "research_brief_not_ready",
+                "brief_error": brief_error,
+                "next_step": "run async-research brief validate on the brief and resolve blockers before creating a task",
+            }
+        )
+        return VALIDATION_FAILED if "validation" in brief_error else INVALID_REQUEST
     task_id = args.task_id or next_task_id(args.ops_dir)
     if not TASK_ID_RE.match(task_id):
         print_json({"ok": False, "reason": "invalid_task_id", "task_id": task_id, "expected": "TASK-0000"})
         return INVALID_REQUEST
     slug = args.slug or args.title
     task_dir = args.ops_dir / "tasks" / task_dir_name(task_id, slug)
-    status = build_status(args, task_id, task_dir)
-    markdown = task_markdown(args, task_id)
+    status = build_status(args, task_id, task_dir, brief_context)
+    markdown = task_markdown(args, task_id, brief_context)
     valid, errors, transition = validate_status(status, task_dir)
     if not valid:
         print_json({"ok": False, "reason": "generated_task_invalid", "errors": errors, "transition": transition})
@@ -293,6 +337,8 @@ def create_task(args: argparse.Namespace) -> int:
         "next_step": f"run async-research surface update {args.ops_dir}, then async-research workflow check {args.ops_dir}",
         "claim_strength_guidance": "Generic Markdown/prose artifacts are capped at suggestive unless structured result evidence supports a stronger claim.",
     }
+    if brief_context is not None:
+        payload["research_brief"] = brief_context["summary"]
     if not args.write:
         print_json(payload)
         return SUCCESS
@@ -337,6 +383,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     create.add_argument("--allowed-path", action="append", default=[], help="Additional allowed path for status.json. Repeat as needed.")
     create.add_argument("--data-audit-ref", action="append", default=[], help="DS-* ref required by this task. Repeat as needed.")
     create.add_argument("--catalog-idea-id", help="Optional IDEA-0000 link for promoted tasks.")
+    create.add_argument("--brief", type=Path, help="Optional research_ops/briefs/research_brief.json path; defaults to the workspace brief when present.")
     create.add_argument("--priority", type=int, choices=[1, 2, 3, 4, 5], default=3)
     create.add_argument("--review-tier", type=int, choices=[1, 2, 3], default=1)
     create.add_argument("--max-minutes", type=int, default=45)
@@ -346,6 +393,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     create.add_argument("--max-api-usd", type=float, default=0.0)
     create.add_argument("--max-compute-usd", type=float, default=0.0)
     create.add_argument("--allow-browsing", action="store_true")
+    create.add_argument("--allow-code-execution", action="store_true")
     create.add_argument("--allow-network", action="store_true")
     create.add_argument("--transition-reason", default="manual_task_created_from_template")
     create.add_argument("--dry-run", action="store_true", help="Preview without writing; this is the default.")

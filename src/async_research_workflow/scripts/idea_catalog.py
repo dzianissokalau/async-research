@@ -47,6 +47,7 @@ from async_research_workflow.idea_catalog import promotion_sort_key
 from async_research_workflow.idea_catalog import read_catalog
 from async_research_workflow.idea_catalog import validate_candidate_record
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts import research_brief
 from async_research_workflow.scripts import task_transaction
 from async_research_workflow.scripts.decision_log import append_decision
 from async_research_workflow.scripts.decision_log import normalize_related_artifacts
@@ -2747,7 +2748,7 @@ def promotion_required_output(task_type: str) -> list[str]:
     ]
 
 
-def promotion_preflight_payload(payload: dict[str, Any], task_type: str) -> dict[str, Any]:
+def promotion_preflight_payload(payload: dict[str, Any], task_type: str, brief_summary: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "idea_id": payload.get("id"),
         "status": payload.get("status"),
@@ -2763,12 +2764,13 @@ def promotion_preflight_payload(payload: dict[str, Any], task_type: str) -> dict
         },
         "kill_reason": payload.get("kill_reason"),
         "task_type": task_type,
+        "research_brief": brief_summary,
     }
 
 
-def promotion_preflight_hash(payload: dict[str, Any], task_type: str) -> str:
+def promotion_preflight_hash(payload: dict[str, Any], task_type: str, brief_summary: dict[str, Any] | None = None) -> str:
     encoded = json.dumps(
-        promotion_preflight_payload(payload, task_type),
+        promotion_preflight_payload(payload, task_type, brief_summary),
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -3022,6 +3024,7 @@ def promotion_task_proposal(
     blockers: list[dict[str, Any]],
     allow_duplicate: bool,
     task_identity: dict[str, Any],
+    brief_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = record["payload"]
     idea_id = str(record["idea_id"])
@@ -3032,9 +3035,21 @@ def promotion_task_proposal(
     limits = TASK_LIMITS[task_type]
     refs = promotion_refs(payload)
     evidence_support = promotion_evidence_support(ops_dir, payload)
+    brief_summary = brief_context.get("summary") if brief_context else None
+    brief_permissions = brief_summary.get("permissions", {}) if isinstance(brief_summary, dict) else {}
+    brief_budget = brief_summary.get("budget", {}) if isinstance(brief_summary, dict) else {}
+    max_minutes = limits["max_minutes"]
+    brief_runtime_cap = brief_budget.get("max_runtime_minutes")
+    if isinstance(brief_runtime_cap, int) and not isinstance(brief_runtime_cap, bool):
+        max_minutes = min(max_minutes, brief_runtime_cap)
     objective = (
         f"Advance catalog idea {idea_id} with one {task_type} task that can be accepted, revised, or killed independently."
     )
+    if isinstance(brief_summary, dict):
+        objective = (
+            f"Execute research brief {brief_summary.get('brief_id')}: "
+            f"{brief_summary.get('clarified_objective')}. Keep the catalog idea scope bounded to one {task_type} task."
+        )
     status_json_draft = {
         "schema_version": "1.0",
         "id": task_id,
@@ -3051,10 +3066,10 @@ def promotion_task_proposal(
         "updated_at": TIMESTAMP_PLACEHOLDER,
         "allowed_paths": promotion_allowed_paths(task_type, idea_id, slug),
         "allowed_tools": ["repo_read", "markdown_edit"],
-        "allow_browsing": task_type in {"literature_extract", "data_readiness"},
-        "allow_code_execution": False,
-        "allow_network": task_type in {"literature_extract", "data_readiness"},
-        "max_minutes": limits["max_minutes"],
+        "allow_browsing": bool(brief_permissions.get("browsing")) if isinstance(brief_summary, dict) else task_type in {"literature_extract", "data_readiness"},
+        "allow_code_execution": bool(brief_permissions.get("code_execution")),
+        "allow_network": bool(brief_permissions.get("network")) if isinstance(brief_summary, dict) else task_type in {"literature_extract", "data_readiness"},
+        "max_minutes": max_minutes,
         "max_turns": limits["max_turns"],
         "model_tier": "standard",
         "review_policy": {
@@ -3065,8 +3080,8 @@ def promotion_task_proposal(
         },
         "requires_human": False,
         "budget": {
-            "max_api_usd": 1.0,
-            "max_compute_usd": 0.0,
+            "max_api_usd": brief_budget.get("max_api_usd") if isinstance(brief_budget.get("max_api_usd"), (int, float)) else 1.0,
+            "max_compute_usd": brief_budget.get("max_compute_usd") if isinstance(brief_budget.get("max_compute_usd"), (int, float)) else 0.0,
         },
         "result": {
             "recommendation": None,
@@ -3093,7 +3108,27 @@ def promotion_task_proposal(
             "blocker_snapshot": copy.deepcopy(blockers),
         },
     }
+    if isinstance(brief_summary, dict):
+        status_json_draft["research_brief_ref"] = str(brief_context["path"])
+        status_json_draft["research_brief"] = copy.deepcopy(brief_summary)
     apply_default_versions(status_json_draft)
+    brief_lines: list[str] = []
+    if isinstance(brief_summary, dict):
+        allowed_sources = ", ".join(brief_summary.get("allowed_source_classes") or []) or "none"
+        forbidden_sources = ", ".join(brief_summary.get("forbidden_source_classes") or []) or "none"
+        brief_lines = [
+            "## Research Brief",
+            "",
+            f"- Brief id: {brief_summary.get('brief_id')}.",
+            f"- Target audience: {brief_summary.get('target_audience')}.",
+            f"- Intended output maturity: {brief_summary.get('intended_output_maturity')}.",
+            f"- Target venue: {brief_summary.get('target_venue') or 'none'}.",
+            f"- Allowed source classes: {allowed_sources}.",
+            f"- Forbidden source classes: {forbidden_sources}.",
+            f"- Private-data policy: {brief_summary.get('private_data_policy')}.",
+            f"- Public-claims policy: {brief_summary.get('public_claims_policy')}.",
+            "",
+        ]
     task_markdown_draft = "\n".join(
         [
             f"# {task_id}: {task_title}",
@@ -3102,6 +3137,7 @@ def promotion_task_proposal(
             "",
             objective,
             "",
+            *brief_lines,
             "## Scope",
             "",
             *[f"- {item}" for item in promotion_scope(task_type, payload)],
@@ -3115,7 +3151,7 @@ def promotion_task_proposal(
             str(payload.get("kill_reason") or "Kill if the worker cannot define a bounded, evidence-backed next step."),
         ]
     )
-    return {
+    proposal = {
         "proposed_task_id": task_id,
         "proposed_task_slug": slug,
         "task_identity": task_identity,
@@ -3135,7 +3171,7 @@ def promotion_task_proposal(
         },
         "data_refs": refs["data_refs"],
         "allowed_paths": promotion_allowed_paths(task_type, idea_id, slug),
-        "max_minutes": limits["max_minutes"],
+        "max_minutes": max_minutes,
         "max_turns": limits["max_turns"],
         "kill_reason": payload.get("kill_reason") or "Kill if no bounded test can be defined.",
         "validation_commands": promotion_validation_commands(task_type, slug),
@@ -3144,15 +3180,22 @@ def promotion_task_proposal(
         "status_json_draft": status_json_draft,
         "task_markdown_draft": task_markdown_draft,
     }
+    if isinstance(brief_summary, dict):
+        proposal["research_brief"] = copy.deepcopy(brief_summary)
+    return proposal
 
 
 def promoted_task_preparation_actions(ops_dir: Path, idea_id: str, proposal: dict[str, Any], preflight_hash: str) -> list[dict[str, Any]]:
     task_slug = str(proposal.get("proposed_task_slug") or "")
     task_dir = ops_dir / "tasks" / task_slug
+    brief_path = ""
+    if isinstance(proposal.get("research_brief"), dict):
+        brief_path = str(proposal["research_brief"].get("brief_path") or "")
+    brief_arg = f" --brief {brief_path}" if brief_path else ""
     return [
         {
             "label": "Write promoted task",
-            "command": f"async-research idea promote {ops_dir} {idea_id} --write --preflight-hash {preflight_hash}",
+            "command": f"async-research idea promote {ops_dir} {idea_id}{brief_arg} --write --preflight-hash {preflight_hash}",
             "reason": "create the reserved task folder, queue row, and promoted_task_id atomically",
             "mutates": True,
         },
@@ -3220,8 +3263,31 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
             "next_step": "run async-research idea catalog list to inspect available ideas",
         }
 
+    brief_context, brief_error = research_brief.load_ready_brief_for_ops(args.ops_dir, args.brief)
+    if brief_error is not None:
+        return VALIDATION_FAILED, {
+            "ok": False,
+            "action": "idea_promotion_blocked",
+            "reason": "research_brief_not_ready",
+            "ops_dir": str(args.ops_dir),
+            "idea_id": args.idea_id,
+            "dry_run": True,
+            "changed": False,
+            "brief_error": brief_error,
+            "proposal": None,
+            "next_step": "run async-research brief validate on the brief and resolve blockers before promotion",
+            "remediation_steps": [
+                {
+                    "reason": "research_brief_not_ready",
+                    "message": "promotion consumes the workspace research brief when present",
+                    "next_step": "answer unresolved brief questions or remove the default brief before promoting a tiny maintenance task",
+                }
+            ],
+        }
+
     task_type, route_reason = choose_promotion_task_type(args.ops_dir, record, args.task_type)
-    preflight_hash = promotion_preflight_hash(record["payload"], task_type)
+    brief_summary = brief_context.get("summary") if brief_context else None
+    preflight_hash = promotion_preflight_hash(record["payload"], task_type, brief_summary)
     idempotency_key = promotion_idempotency_key(args.idea_id, task_type, preflight_hash)
     blockers = promotion_blockers(args.ops_dir, record, task_type, args.allow_duplicate)
     task_identity = promotion_task_identity(args.ops_dir, model, record, task_type, idempotency_key)
@@ -3237,6 +3303,7 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         "route_reason": route_reason,
         "evidence_support": promotion_evidence_support(args.ops_dir, record["payload"]),
         "promotion_preflight_hash": preflight_hash,
+        "research_brief": brief_summary,
         "idempotency_key": idempotency_key,
         "task_identity": task_identity,
         "blockers": blockers,
@@ -3263,6 +3330,7 @@ def build_promotion_plan(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         blockers,
         args.allow_duplicate,
         task_identity,
+        brief_context,
     )
     preparation_actions = promoted_task_preparation_actions(args.ops_dir, args.idea_id, proposal, preflight_hash)
     return SUCCESS, {
@@ -4301,6 +4369,7 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("ops_dir", type=Path, help="Path to the research_ops workspace.")
     promote.add_argument("idea_id", help="Canonical IDEA-0000 id to promote.")
     promote.add_argument("--task-type", choices=PROMOTION_TASK_TYPES, help="Explicit task type override for the promotion proposal.")
+    promote.add_argument("--brief", type=Path, help="Optional research_ops/briefs/research_brief.json path; defaults to the workspace brief when present.")
     promote.add_argument("--allow-duplicate", action="store_true", help="Record a human override allowing duplicate or near-duplicate ideas to produce a proposal.")
     promote.add_argument("--human-override", action="store_true", help="Confirm a recorded human decision for high-risk promotion task writes.")
     promote.add_argument("--preflight-hash", help="Required with --write; use promotion_preflight_hash from a prior dry run.")

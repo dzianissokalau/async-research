@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 2 - Clarifier and research brief rewrite
+Current phase: Phase 3 - Minimal unified runtime adapters
 Last updated: 2026-05-20
-Next action: Add a clarifier/research brief contract, CLI draft/validate/apply dry-run support, prompt guidance, and planner/task creation integration where available
+Next action: Implement the smallest useful runtime adapter layer with deterministic/local adapters first, explicit capability flags, dry-run reporting, and trace/evidence emission
 Blocked by: None
 
 Created: 2026-05-20
@@ -196,13 +196,52 @@ Locked decisions:
 - Evidence objects remain normalized runtime artifacts only; review and
   result-acceptance gates still decide accepted evidence.
 
+## Resolved Phase 2 Clarifier And Research Brief Rewrite
+
+Phase 2 is delivered as the pre-planning contract for broad or ambiguous
+research requests. It defines a bounded `research_brief.json` artifact, public
+draft/validate/apply dry-run commands, planner prompt guidance, and task/idea
+integration without adding a chat UI, runtime adapters, or live fetching.
+
+Authoritative brief docs and schema:
+
+- [Research Brief Contract](../src/async_research_workflow/docs/research_brief_contract.md)
+- [Research Brief Schema](../src/async_research_workflow/schemas/research_brief.schema.json)
+
+Locked decisions:
+
+- The canonical brief path is `research_ops/briefs/research_brief.json`.
+- `async-research brief draft` creates a draft contract from flags or
+  `briefs/source_request.md`; unresolved questions remain blocking.
+- `async-research brief validate` fails closed unless the brief has a concrete
+  objective, output maturity, target audience, non-overlapping source policy,
+  no unresolved questions, no pending human gates, `status=ready`, and no
+  blocked private-data policy.
+- `async-research brief apply` is dry-run only in Phase 2 and returns a
+  planner-facing `workflow create-task ... --brief ... --dry-run` command
+  rather than mutating `research_ops/`.
+- `workflow create-task` and `idea promote` consume a validated ready brief
+  when one is explicitly supplied or when the default workspace brief exists.
+- A non-ready default brief blocks task creation and idea promotion until the
+  operator resolves blockers or removes the default brief for tiny maintenance
+  work.
+- Brief permissions narrow browsing, network, code execution, and budget caps;
+  explicit CLI flags cannot broaden a task beyond the ready brief.
+- Idea promotion preflight hashes include the brief summary so write mode is
+  tied to the reviewed brief contract.
+- Human gates are explicit for credentials, paid services, private data, public
+  claims, and nonzero paid API budgets.
+- Briefs do not become accepted evidence and do not authorize runtime adapters
+  by themselves; task contracts, runtime traces, review, and result acceptance
+  still govern execution and acceptance.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- | --- |
 | 0 | Delivered | P0 | Runtime and evaluation contract | Define runtime boundary, adapter contract, evidence object schema, trace schema, dependency posture, and success metrics. | Another LLM can implement adapters and evals without guessing what counts as evidence or success. |
 | 1 | Delivered | P0 | Evidence objects and trace ledger | Add schemas and validators for tool calls, source snapshots, extracted spans, computed outputs, hashes, costs, and permissions. | Every future runtime action has a stable, auditable artifact format. |
-| 2 | Not Started | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
+| 2 | Delivered | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
 | 3 | Not Started | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
 | 4 | Not Started | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
 | 5 | Not Started | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |

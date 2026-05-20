@@ -100,3 +100,58 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-1`
 
 - Phase 1 is delivered. The next automation run should start Phase 2 on
   `codex/integrated-research-runtime-eval-flywheel-phase-2`.
+
+## Phase 2 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-2`
+
+### Scope
+
+- Add a pre-planning research brief contract for broad or ambiguous requests.
+- Add public draft, validate, and dry-run apply CLI support.
+- Add planner prompt guidance and task/idea promotion integration where
+  available.
+- Add offline fixtures for clear, ambiguous, missing-audience, public-claim,
+  and private-credential brief cases.
+
+### Changes
+
+- Added `research_brief.schema.json` and `research_brief_contract.md`.
+- Added `research_brief.py` with deterministic brief drafting, validation,
+  path-bound dry-run apply plans, readiness blockers, and human-gate detection.
+- Added public `async-research brief draft`, `validate`, and `apply` commands.
+- Updated planner prompt guidance to require a ready brief before broad
+  research planning while leaving tiny maintenance tasks unblocked when no
+  brief exists.
+- Updated `workflow create-task` and `idea promote` to consume ready briefs,
+  narrow permissions and budgets from the brief, include brief summaries in task
+  proposals, and block on non-ready default briefs.
+- Added regression fixtures and tests, including a review-discovered
+  fail-closed regression for blocked brief status/private-data policy.
+- Advanced the roadmap/index to Phase 3 after marking Phase 2 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 756 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 2 scope and
+  delivered diff; no separate reviewer sub-agent was used.
+- Runtime adapters, live fetching, automatic evidence acceptance, claim
+  verification, and a chat UI remain future-phase or non-goal work.
+
+### Next Action
+
+- Phase 2 is delivered. The next automation run should start Phase 3 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-3`.

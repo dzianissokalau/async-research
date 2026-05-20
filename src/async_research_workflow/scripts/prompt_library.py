@@ -263,6 +263,27 @@ fresh, when the task needs a human decision, or when source/cost gates block.
 Respect task budgets, source governance, and the deterministic escalation policy
 in `{ESCALATION_POLICY_REF}` before doing expensive or risky work.
 """
+    if spec.prompt_id == "planner":
+        body += """
+## Research Brief Gate
+
+For broad research requests, draft or validate a bounded brief before creating
+tasks:
+
+- Run `async-research brief draft research_ops --question "<request>" --dry-run`
+  or use an existing `research_ops/briefs/research_brief.json`.
+- Run `async-research brief validate research_ops/briefs/research_brief.json`.
+- If validation reports unresolved questions, credentials, paid services,
+  private-data ambiguity, or public-claim gates, stop for a human decision.
+- Run `async-research brief apply research_ops research_ops/briefs/research_brief.json --dry-run`
+  before creating a task from the brief.
+- Use `async-research workflow create-task ... --brief research_ops/briefs/research_brief.json`
+  or `async-research idea promote ... --brief research_ops/briefs/research_brief.json`
+  only after the brief is ready for planning.
+
+Tiny maintenance tasks do not require a brief when no brief file is present, but
+the planner must not start broad research from ambiguous prompts without one.
+"""
     if spec.prompt_id == "deliverable_critic":
         body += """
 ## Critic Review Rubric

@@ -146,6 +146,12 @@ You are the daily planner for a low-cost async research workflow.
 Repository root: {RESEARCH_REPO_ROOT}
 Operational folder: {RESEARCH_REPO_ROOT}/research_ops
 
+Research brief gate:
+- If research_ops/briefs/research_brief.json exists, run async-research brief validate research_ops/briefs/research_brief.json before creating or promoting broad research tasks.
+- For a new broad or ambiguous research request, run async-research brief draft research_ops --question "<request>" --dry-run, resolve unresolved questions, then run async-research brief apply research_ops research_ops/briefs/research_brief.json --dry-run.
+- Stop for human approval when brief validation reports credentials, paid services, private-data ambiguity, or public-claim gates.
+- Tiny maintenance tasks may proceed without a brief when no brief file exists.
+
 Task:
 1. Run async-research accepted update research_ops.
 2. Run async-research accepted revalidation research_ops --write-schedule.

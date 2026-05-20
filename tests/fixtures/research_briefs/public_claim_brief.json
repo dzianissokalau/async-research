@@ -1,0 +1,46 @@
+{
+  "allowed_source_classes": [
+    "workspace_files",
+    "accepted_memory",
+    "knowledge_library"
+  ],
+  "brief_id": "BRIEF-PUBLIC-CLAIM-FIXTURE",
+  "budget": {
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0,
+    "max_human_minutes": 60,
+    "max_runtime_minutes": 90
+  },
+  "clarified_objective": "Draft a shareable memo with source-grounded claims after public-claim approval.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "forbidden_source_classes": [
+    "paid_services",
+    "external_credentials"
+  ],
+  "human_gates": [
+    {
+      "gate": "public_claims",
+      "reason": "public-facing claims require human approval and stricter citation gates",
+      "required_before": "synthesis"
+    }
+  ],
+  "intended_output_maturity": "shareable_memo",
+  "known_assumptions": [],
+  "permissions": {
+    "api": false,
+    "browsing": false,
+    "code_execution": false,
+    "credentials": false,
+    "network": false,
+    "paid_services": false
+  },
+  "private_data_policy": "none",
+  "public_claims_policy": "requires_human_gate",
+  "schema_version": "1.0",
+  "status": "needs_human_gate",
+  "target_audience": "External partner readers",
+  "target_venue": "Partner memo",
+  "unresolved_questions": [],
+  "updated_at": "2026-05-20T00:00:00Z",
+  "user_question": "Can we publish a shareable claim summary?"
+}

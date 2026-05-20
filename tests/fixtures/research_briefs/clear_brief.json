@@ -1,0 +1,44 @@
+{
+  "allowed_source_classes": [
+    "workspace_files",
+    "accepted_memory",
+    "knowledge_library"
+  ],
+  "brief_id": "BRIEF-CLEAR-FIXTURE",
+  "budget": {
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0,
+    "max_human_minutes": 20,
+    "max_runtime_minutes": 40
+  },
+  "clarified_objective": "Summarize accepted coffee climate evidence for an internal planning note.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "forbidden_source_classes": [
+    "open_web",
+    "structured_api",
+    "paid_services",
+    "external_credentials"
+  ],
+  "human_gates": [],
+  "intended_output_maturity": "internal_note",
+  "known_assumptions": [
+    "Use only already-reviewed workspace evidence."
+  ],
+  "permissions": {
+    "api": false,
+    "browsing": false,
+    "code_execution": false,
+    "credentials": false,
+    "network": false,
+    "paid_services": false
+  },
+  "private_data_policy": "none",
+  "public_claims_policy": "internal_only",
+  "schema_version": "1.0",
+  "status": "ready",
+  "target_audience": "Internal research lead",
+  "target_venue": null,
+  "unresolved_questions": [],
+  "updated_at": "2026-05-20T00:00:00Z",
+  "user_question": "What does accepted coffee climate evidence imply for the next planning step?"
+}

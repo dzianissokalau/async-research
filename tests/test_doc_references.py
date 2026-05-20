@@ -318,18 +318,22 @@ class DocumentationReferenceTests(unittest.TestCase):
     def test_integrated_runtime_phase0_contract_is_documented(self) -> None:
         runtime_contract = PACKAGE_ROOT / "docs" / "research_runtime_contract.md"
         runtime_artifacts = PACKAGE_ROOT / "docs" / "runtime_artifacts.md"
+        research_brief = PACKAGE_ROOT / "docs" / "research_brief_contract.md"
         eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         runtime_text = runtime_contract.read_text(encoding="utf-8")
         artifact_text = runtime_artifacts.read_text(encoding="utf-8")
+        brief_text = research_brief.read_text(encoding="utf-8")
         eval_text = eval_contract.read_text(encoding="utf-8")
         runtime_normalized = " ".join(runtime_text.split())
         artifact_normalized = " ".join(artifact_text.split())
+        brief_normalized = " ".join(brief_text.split())
         eval_normalized = " ".join(eval_text.split())
         failures: list[str] = []
 
         for snippet in [
             "[Research Runtime Contract](./research_runtime_contract.md)",
+            "[Research Brief Contract](./research_brief_contract.md)",
             "[Runtime Artifacts](./runtime_artifacts.md)",
             "[Evaluation Flywheel](./evaluation_flywheel.md)",
         ]:
@@ -385,6 +389,23 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if f"`{field}`" not in runtime_text:
                 failures.append(f"research_runtime_contract.md missing field {field}")
+
+        for snippet in [
+            "research_ops/briefs/research_brief.json",
+            "schemas/research_brief.schema.json",
+            "async-research brief draft research_ops",
+            "async-research brief validate research_ops/briefs/research_brief.json",
+            "async-research brief apply research_ops research_ops/briefs/research_brief.json --dry-run",
+            "The planner must not start broad research from those prompts",
+            "credentials",
+            "paid_services",
+            "private_data",
+            "public_claims",
+            "workflow create-task --brief",
+            "idea promote --brief",
+        ]:
+            if " ".join(snippet.split()) not in brief_normalized:
+                failures.append(f"research_brief_contract.md missing {snippet}")
 
         for snippet in [
             "research_ops/runtime/traces.jsonl",
