@@ -84,14 +84,59 @@ REQUIRED_ROLE_PHRASES = (
 )
 REQUIRED_SAFETY_PHRASES = (
     "## Role And Autonomy Gates",
+    "## Reporting And Dashboard Alignment Stops",
     "## High-Impact Claims",
     "first status report",
     "`autonomy_level`",
     "`bounded_autonomous`",
     "same_agent_visible",
+    "console snapshot research_ops --json",
+    "aggregate/result acceptance",
+    "accepted memory disagree",
+    "`deliverable check` fails",
     "publication-readiness claims",
     "working-paper-ready",
     "submission-ready",
+)
+REQUIRED_REPORTING_HEADINGS = (
+    "## Report Rules",
+    "## Startup Report",
+    "## Task Completion Report",
+    "## Human Decision Request",
+    "## Deliverable Maturity Report",
+    "## Maintenance Report",
+    "## Dashboard Alignment Rules",
+)
+REQUIRED_REPORTING_PHRASES = (
+    "framework version",
+    "workspace path",
+    "privacy status",
+    "health/readiness/workflow summary",
+    "task ID",
+    "files changed",
+    "worker output",
+    "review status",
+    "acceptance route",
+    "decision needed",
+    "evidence links",
+    "consequences",
+    "recommended default",
+    "target maturity",
+    "current maturity",
+    "failed gates",
+    "critic status",
+    "open response rows",
+    "checks run",
+    "warnings",
+    "stale evidence",
+    "dashboard URL or snapshot summary",
+    "commands used",
+    "console snapshot research_ops --json",
+    "dashboard or console snapshot data as a consistency check",
+    "task acceptance from deliverable readiness",
+    "aggregate or result acceptance",
+    "accepted memory disagree",
+    "`deliverable check` fails",
 )
 
 
@@ -278,6 +323,31 @@ def validate_safety(skill_dir: Path, failures: list[dict[str, str]]) -> None:
             )
 
 
+def validate_reporting(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    reporting = skill_dir / "references" / "reporting.md"
+    if not reporting.is_file():
+        return
+
+    text = reporting.read_text(encoding="utf-8")
+    normalized = " ".join(text.lower().split())
+    for heading in REQUIRED_REPORTING_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/reporting.md",
+                    "reason": f"missing_reporting_heading:{heading}",
+                }
+            )
+    for phrase in REQUIRED_REPORTING_PHRASES:
+        if phrase.lower() not in normalized:
+            failures.append(
+                {
+                    "path": "references/reporting.md",
+                    "reason": f"missing_reporting_contract:{phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -305,6 +375,7 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_command_recipes(skill_dir, failures)
     validate_roles(skill_dir, failures)
     validate_safety(skill_dir, failures)
+    validate_reporting(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 

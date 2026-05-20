@@ -274,6 +274,54 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             payload["failures"],
         )
 
+    def test_validator_requires_reporting_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            reporting = candidate / "references" / "reporting.md"
+            reporting.write_text(
+                reporting.read_text(encoding="utf-8").replace(
+                    "## Task Completion Report",
+                    "## Completion Report",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/reporting.md",
+                "reason": "missing_reporting_heading:## Task Completion Report",
+            },
+            payload["failures"],
+        )
+
+    def test_validator_requires_acceptance_readiness_stop_invariants(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            safety = candidate / "references" / "safety-and-stop-conditions.md"
+            safety.write_text(
+                safety.read_text(encoding="utf-8").replace(
+                    "aggregate/result acceptance",
+                    "result acceptance",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/safety-and-stop-conditions.md",
+                "reason": "missing_safety_contract:aggregate/result acceptance",
+            },
+            payload["failures"],
+        )
+
     def test_validator_rejects_forbidden_clutter_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"

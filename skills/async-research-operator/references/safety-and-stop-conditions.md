@@ -55,6 +55,22 @@ run. In `bounded_autonomous` mode, still stop at every mandatory stop condition.
   conversation, disclose `same_agent_visible` review independence and stop when
   stronger independence is required.
 
+## Reporting And Dashboard Alignment Stops
+
+- Before broad workspace reports, use
+  `async-research console snapshot research_ops --json` when the CLI and
+  workspace are available.
+- Use dashboard or console snapshots as consistency checks, not as the sole
+  source of truth.
+- If dashboard state conflicts with raw public CLI output, trust the raw CLI for
+  the specific object and report the dashboard discrepancy.
+- Stop instead of saying a task is accepted when `status.json`,
+  aggregate/result acceptance, and accepted memory disagree.
+- Stop instead of saying a deliverable is ready when `deliverable check` fails,
+  has not run, or contradicts the requested maturity.
+- Stop when a report would blur task acceptance, review status, accepted memory,
+  and deliverable readiness into one unsupported success claim.
+
 ## High-Impact Claims
 
 Do not claim a deliverable is working-paper-ready, submission-ready, published,

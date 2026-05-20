@@ -259,3 +259,56 @@ Branch: `codex/llm-operator-skill-phase-4`
 ### Next Action
 
 - Phase 4 is delivered. The next automation run should start Phase 5 on `codex/llm-operator-skill-phase-5`.
+
+## Phase 5 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-5`
+
+### Scope
+
+- Define concise human-facing report formats for startup/status, task
+  completion, human decisions, deliverable maturity, and maintenance.
+- Align broad workspace reports with console snapshot checks while keeping raw
+  CLI output and file-backed state authoritative.
+- Promote task acceptance and deliverable readiness mismatches to explicit stop
+  invariants in the safety reference.
+
+### Changes
+
+- Expanded `references/reporting.md` with required report rules, field
+  templates, dashboard alignment rules, evidence-first decision requests, and
+  task-acceptance vs deliverable-readiness separation.
+- Expanded `references/safety-and-stop-conditions.md` with reporting/dashboard
+  alignment stops for dashboard conflicts, acceptance source disagreements, and
+  failed or missing `deliverable check` results.
+- Updated `validate_skill_pack.py` to require the reporting contract and
+  acceptance/readiness stop phrases.
+- Added validator regression tests for the reporting contract and
+  acceptance/readiness stop invariants.
+- Advanced the roadmap header and phase table to Phase 6.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 19 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 732 tests
+- Final verification was rerun after roadmap, state, log, and review updates.
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-5-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 5 scope and
+  diff; no separate reviewer sub-agent was used.
+- Phase 6 still owns fixture-based behavior tests and forward-test evidence for
+  realistic operator reports.
+
+### Next Action
+
+- Phase 5 is delivered. The next automation run should start Phase 6 on `codex/llm-operator-skill-phase-6`.
