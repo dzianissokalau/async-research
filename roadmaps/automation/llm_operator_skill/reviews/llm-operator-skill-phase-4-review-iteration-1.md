@@ -1,7 +1,7 @@
 # Phase 4 Review - Iteration 1
 
 Reviewed: 2026-05-20T03:26:17+01:00
-Roadmap: `roadmaps/in_progress_llm_operator_skill_roadmap.md`
+Roadmap: `roadmaps/delivered_llm_operator_skill_roadmap.md`
 Branch: `codex/llm-operator-skill-phase-4`
 
 ## Findings

@@ -2,7 +2,7 @@
 
 Review date: 2026-05-20
 Branch: `codex/llm-operator-skill-phase-8`
-Roadmap: `roadmaps/in_progress_llm_operator_skill_roadmap.md`
+Roadmap: `roadmaps/delivered_llm_operator_skill_roadmap.md`
 
 ## Findings
 

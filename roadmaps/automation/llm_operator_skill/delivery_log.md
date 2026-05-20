@@ -1,7 +1,7 @@
 # LLM Operator Skill Delivery Log
 
 Append-only phase-gated delivery log for
-`roadmaps/in_progress_llm_operator_skill_roadmap.md`.
+`roadmaps/delivered_llm_operator_skill_roadmap.md`.
 
 Automation template: `roadmaps/automation/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/automation/llm_operator_skill/delivery_state.json`
@@ -20,7 +20,7 @@ Branch: `codex/llm-operator-skill-phase-0`
 
 ### Changes
 
-- Moved the roadmap to `roadmaps/in_progress_llm_operator_skill_roadmap.md` and advanced the header/current phase to Phase 1.
+- Moved the roadmap into the active lifecycle path and advanced the header/current phase to Phase 1; the final delivered filename is `roadmaps/delivered_llm_operator_skill_roadmap.md`.
 - Added a resolved Phase 0 contract section covering the skill's job, non-goals, validated `async-research-workflow==0.2.0a5` range, default `guided` autonomy, stop conditions, source-of-truth hierarchy, and guided setup sources.
 - Marked Phase 0 delivered in the phased plan and converted remaining unresolved items into phase-owned future decisions.
 - Updated `roadmaps/README.md` to point at the active lifecycle filename.
@@ -521,3 +521,36 @@ Branch: `codex/llm-operator-skill-phase-8`
 - All LLM Operator Skill roadmap phases are delivered. Complete final roadmap
   closeout, create the final branch, attempt the final GitHub push, and pause
   the automation.
+
+## Final Closeout - 2026-05-20
+
+Status: completed_pending_pause
+Branch: `codex/llm-operator-skill-delivered`
+
+### Changes
+
+- Renamed the roadmap to
+  `roadmaps/delivered_llm_operator_skill_roadmap.md`.
+- Marked the roadmap status `Delivered` with current phase `Complete`.
+- Updated the roadmap index to point at the delivered lifecycle filename.
+- Updated delivery state to `completed_pending_pause` with
+  `all_phases_complete: true`.
+- Wrote the deep independent review prompt at
+  `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-deep-review-prompt.md`.
+- Searched for stale LLM Operator Skill roadmap lifecycle references and updated
+  them to the delivered filename.
+
+### Final Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 30 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 743 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Pause Instruction
+
+- No automation management tool was available in this session. The state file is
+  set to `completed_pending_pause`; the automation should be paused and should
+  not start new delivery work.

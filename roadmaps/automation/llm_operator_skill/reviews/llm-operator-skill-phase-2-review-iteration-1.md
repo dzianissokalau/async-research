@@ -1,7 +1,7 @@
 # LLM Operator Skill Phase 2 Review - Iteration 1
 
 Date: 2026-05-20
-Roadmap: `roadmaps/in_progress_llm_operator_skill_roadmap.md`
+Roadmap: `roadmaps/delivered_llm_operator_skill_roadmap.md`
 Branch: `codex/llm-operator-skill-phase-2`
 
 ## Findings

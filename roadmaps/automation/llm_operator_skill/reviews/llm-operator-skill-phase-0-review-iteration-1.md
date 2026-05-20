@@ -4,7 +4,7 @@ Verdict: delivered
 
 ## Scope Reviewed
 
-- Phase 0 contract gate in `roadmaps/in_progress_llm_operator_skill_roadmap.md`.
+- Phase 0 contract gate in `roadmaps/delivered_llm_operator_skill_roadmap.md`.
 - Roadmap lifecycle/index update in `roadmaps/README.md`.
 - Automation state and log setup for `llm_operator_skill`.
 

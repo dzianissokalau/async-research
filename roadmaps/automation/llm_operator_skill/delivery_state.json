@@ -1,9 +1,9 @@
 {
-  "roadmap": "roadmaps/in_progress_llm_operator_skill_roadmap.md",
+  "roadmap": "roadmaps/delivered_llm_operator_skill_roadmap.md",
   "roadmap_slug": "llm_operator_skill",
   "current_phase": 8,
-  "branch": "codex/llm-operator-skill-phase-8",
-  "status": "delivered",
+  "branch": "codex/llm-operator-skill-delivered",
+  "status": "completed_pending_pause",
   "review_iterations": 1,
   "max_review_iterations": 3,
   "last_verification": {
@@ -38,7 +38,7 @@
         "details": "15 checks"
       }
     ],
-    "completed_at": "2026-05-20T07:46:07+01:00"
+    "completed_at": "2026-05-20T07:49:54+01:00"
   },
   "last_review": {
     "phase": 8,
@@ -48,10 +48,10 @@
   },
   "last_delivered_phase": 8,
   "blocked_reason": null,
-  "all_phases_complete": false,
+  "all_phases_complete": true,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": "after_all_phases",
   "cadence": "hourly",
-  "updated_at": "2026-05-20T07:46:07+01:00"
+  "updated_at": "2026-05-20T07:49:54+01:00"
 }
