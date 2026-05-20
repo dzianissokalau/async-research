@@ -461,3 +461,63 @@ Branch: `codex/llm-operator-skill-phase-7`
 ### Next Action
 
 - Phase 7 is delivered. The next automation run should start Phase 8 on `codex/llm-operator-skill-phase-8`.
+
+## Phase 8 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-8`
+
+### Scope
+
+- Define cross-provider capability profiles after Codex dogfood.
+- Document portable prompt-pack contracts that reuse the proven skill rules.
+- Keep web-only chat operation advisory/read-only.
+- Split write-capable remote/API gateway work into a future roadmap instead of
+  building it inside the skill package.
+
+### Changes
+
+- Expanded `references/provider-notes.md` with provider profiles for Codex App,
+  Codex CLI/automation, Claude Code, ChatGPT agent tools, web-only chat, and API
+  wrappers.
+- Added portable prompt-pack contracts for setup/startup, daily status,
+  planner, worker, reviewer, critic, synthesizer, maintenance, and read-only
+  external review modes.
+- Added explicit web-only advisory limits and a remote gateway decision that
+  keeps API/browser write capability deferred.
+- Added `roadmaps/not_started_llm_operator_remote_gateway_roadmap.md` for the
+  future remote/API gateway safety design.
+- Extended the skill validator and regression tests to enforce the provider
+  portability contract.
+- Marked Phase 8 delivered in the roadmap and updated the roadmap index while
+  preserving unrelated pre-existing roadmap additions in the worktree.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 30 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 743 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-8-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Provider exports are documented prompt-pack contracts, not installed
+  provider-specific bundles. This is intentional because only Codex dogfood has
+  been exercised.
+- Remote/API write operation remains deferred until a separate gateway roadmap
+  is explicitly started and delivered.
+- Review ran in the orchestration context after rereading the Phase 8 scope and
+  diff; no separate reviewer sub-agent was used.
+
+### Next Action
+
+- All LLM Operator Skill roadmap phases are delivered. Complete final roadmap
+  closeout, create the final branch, attempt the final GitHub push, and pause
+  the automation.

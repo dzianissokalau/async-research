@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
 Status: In Progress
-Current phase: Phase 8 - Cross-provider exports and remote gateway scoping
+Current phase: Phase 8 - Delivered pending final closeout
 Last updated: 2026-05-20
-Next action: Add provider portability notes and remote-gateway scoping after Codex dogfood evidence
+Next action: Complete final roadmap closeout and pause the delivery automation
 Blocked by: None
 
 Created: 2026-05-19
@@ -227,7 +227,7 @@ The changes below reflect the strongest review findings:
 | 5 | Delivered | Reporting, dashboard alignment, and stop invariants | Define response formats, dashboard snapshot checks, artifact summaries, decision requests, progress reports, and acceptance/readiness mismatch stops. | Human-facing updates become consistent, concise, and tied to framework state. |
 | 6 | Delivered | Skill validation and behavioral evals | Add simulated workspaces, structural tests, trigger evals, and fixture-based behavior/forward tests. | The skill has regression coverage for realistic states, unsafe requests, and actual operator behavior. |
 | 7 | Delivered | Packaging, install, and Codex dogfood rollout | Add install instructions, validation command, dogfood checklist, and first real-project trial procedure. | A new Codex session can install/use the skill and pass a real workspace dogfood run. |
-| 8 | Not Started | Cross-provider exports and remote gateway scoping | After Codex dogfood, create Claude/API/read-only export notes and decide whether a safe remote command gateway deserves its own roadmap. | Portability is based on proven behavior, and unsupported web-only operation is not over-promised. |
+| 8 | Delivered | Cross-provider exports and remote gateway scoping | After Codex dogfood, create Claude/API/read-only export notes and decide whether a safe remote command gateway deserves its own roadmap. | Portability is based on proven behavior, and unsupported web-only operation is not over-promised. |
 
 ## Phase 0 - Contract Review Gate
 
@@ -935,6 +935,11 @@ safe remote command gateway or MCP surface. The gateway should expose a small
 allowlist over the public CLI, capability probing, budget policy, path allowlist,
 and audit logs. Do not hide this work inside the skill package.
 
+Phase 8 split that future work into
+`roadmaps/not_started_llm_operator_remote_gateway_roadmap.md`. Until that
+roadmap is explicitly started and delivered, API wrappers and browser agents are
+read-only or advisory for workspace operation.
+
 ### Acceptance Criteria
 
 - Provider notes are explicit about what each environment can and cannot do.
@@ -996,6 +1001,6 @@ When the skill validation script exists:
 
 - Phase 2 should decide whether any helper beyond `inspect_workspace.py` and
   `validate_skill_pack.py` is justified by concrete startup or validation risk.
-- Phase 8 should decide whether cross-provider exports are useful after Codex
-  dogfood and whether any API-agent or remote command gateway deserves a
-  separate future roadmap.
+- Phase 8 decided that cross-provider notes belong in the skill reference and
+  any write-capable API-agent or remote command gateway belongs in
+  `roadmaps/not_started_llm_operator_remote_gateway_roadmap.md`.

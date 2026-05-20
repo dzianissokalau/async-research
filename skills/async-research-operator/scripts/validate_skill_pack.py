@@ -198,6 +198,42 @@ REQUIRED_PACKAGING_PHRASES = (
     "If `CODEX_HOME` is empty or unknown",
     "tests/fixtures/skill_operator/transcripts/codex_dogfood_rollout_2026-05-20.md",
 )
+REQUIRED_PROVIDER_HEADINGS = (
+    "## Provider Profile Matrix",
+    "## Portable Contract",
+    "## Prompt Pack Contracts",
+    "## Web-Only Advisory Mode",
+    "## Remote Gateway Decision",
+)
+REQUIRED_PROVIDER_PHRASES = (
+    "Codex App",
+    "Codex CLI/automation",
+    "Claude Code",
+    "ChatGPT agent with repo tools",
+    "ChatGPT/Claude web chat only",
+    "API agent wrapper",
+    "workspace root and `research_ops/` path are explicit variables",
+    "allowed files and forbidden files",
+    "public `async-research` commands are preferred",
+    "dry-run comes before write",
+    "Setup And Startup Operator",
+    "Daily Status Reporter",
+    "Planner",
+    "Worker",
+    "Reviewer",
+    "Critic",
+    "Synthesizer",
+    "Maintenance Runner",
+    "Read-Only External Reviewer",
+    "`same_agent_visible`",
+    "copied artifacts, dashboard exports, command output, or transcripts only",
+    "Remote/API write operation is split into a future roadmap",
+    "small allowlist over public `async-research` CLI commands",
+    "capability manifest",
+    "path allowlists",
+    "audit logs",
+    "API wrappers and browser agents stay read-only or advisory",
+)
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], list[str]]:
@@ -458,6 +494,31 @@ def validate_packaging(skill_dir: Path, failures: list[dict[str, str]]) -> None:
             )
 
 
+def validate_provider_notes(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    provider_notes = skill_dir / "references" / "provider-notes.md"
+    if not provider_notes.is_file():
+        return
+
+    text = provider_notes.read_text(encoding="utf-8")
+    normalized = " ".join(text.lower().split())
+    for heading in REQUIRED_PROVIDER_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/provider-notes.md",
+                    "reason": f"missing_provider_heading:{heading}",
+                }
+            )
+    for phrase in REQUIRED_PROVIDER_PHRASES:
+        if phrase.lower() not in normalized:
+            failures.append(
+                {
+                    "path": "references/provider-notes.md",
+                    "reason": f"missing_provider_contract:{phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -488,6 +549,7 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_reporting(skill_dir, failures)
     validate_behavioral_evals(skill_dir, failures)
     validate_packaging(skill_dir, failures)
+    validate_provider_notes(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 

@@ -385,6 +385,30 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             payload["failures"],
         )
 
+    def test_validator_requires_provider_portability_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            provider_notes = candidate / "references" / "provider-notes.md"
+            provider_notes.write_text(
+                provider_notes.read_text(encoding="utf-8").replace(
+                    "## Remote Gateway Decision",
+                    "## Gateway Notes",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/provider-notes.md",
+                "reason": "missing_provider_heading:## Remote Gateway Decision",
+            },
+            payload["failures"],
+        )
+
     def test_validator_requires_acceptance_readiness_stop_invariants(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"
@@ -780,6 +804,28 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
 
         for phrase in required_phrases:
             self.assertIn(phrase, text)
+
+    def test_provider_notes_scope_cross_provider_exports_and_gateway(self) -> None:
+        text = (SKILL_DIR / "references" / "provider-notes.md").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(text.split())
+        required_phrases = (
+            "Codex App",
+            "Codex CLI/automation",
+            "Claude Code",
+            "ChatGPT agent with repo tools",
+            "ChatGPT/Claude web chat only",
+            "API agent wrapper",
+            "Prompt Pack Contracts",
+            "Read-Only External Reviewer",
+            "same_agent_visible",
+            "Remote/API write operation is split into a future roadmap",
+            "API wrappers and browser agents stay read-only or advisory",
+        )
+
+        for phrase in required_phrases:
+            self.assertIn(" ".join(phrase.split()), normalized)
 
 
 if __name__ == "__main__":
