@@ -30,6 +30,7 @@ from async_research_workflow.scripts import deliverable_maturity
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
+from async_research_workflow.scripts import runtime_artifacts
 from async_research_workflow.scripts import schedule_manifest
 from async_research_workflow.scripts import update_accepted_outputs_index
 from async_research_workflow.scripts import validate_transition
@@ -2158,6 +2159,32 @@ def runs_snapshot(ops_dir: Path) -> dict[str, Any]:
     }
 
 
+def runtime_snapshot(ops_dir: Path) -> dict[str, Any]:
+    code, report = runtime_artifacts.validate_runtime_workspace(ops_dir)
+    summary = report.get("summary", {}) if isinstance(report.get("summary"), dict) else {}
+    errors = report.get("errors", []) if isinstance(report.get("errors"), list) else []
+    warnings = report.get("warnings", []) if isinstance(report.get("warnings"), list) else []
+    return {
+        "available": code != runtime_artifacts.MALFORMED,
+        "status": "available" if code == runtime_artifacts.SUCCESS else "findings",
+        "ok": code == runtime_artifacts.SUCCESS,
+        "read_only": True,
+        "changed": False,
+        "trace_count": summary.get("runtime_trace_count", 0),
+        "evidence_object_count": summary.get("evidence_object_count", 0),
+        "unsupported_or_stale_evidence_count": summary.get("unsupported_or_stale_evidence_count", 0),
+        "latest_runtime_errors": summary.get("latest_runtime_errors", []),
+        "summary": summary,
+        "ledger_paths": report.get("ledger_paths", {}),
+        "errors": errors[:RECENT_LIMIT],
+        "warnings": warnings[:RECENT_LIMIT],
+        "recovery_commands": [
+            command_hint("Validate runtime ledgers", ["async-research", "runtime", "validate", str(ops_dir)]),
+            command_hint("Summarize runtime ledgers", ["async-research", "runtime", "summary", str(ops_dir)]),
+        ],
+    }
+
+
 def dashboard_summaries(ops_dir: Path, now: datetime) -> dict[str, Any]:
     return {
         "ideas": guarded_dashboard(
@@ -2241,6 +2268,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     }
     sources = source_snapshot(ops_dir, current, dashboards["data"]) if workspace_ready else unavailable("ops_dir_missing", "sources are unavailable until research_ops exists", ops_dir)
     runs = runs_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runs are unavailable until research_ops exists", ops_dir)
+    runtime = runtime_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runtime is unavailable until research_ops exists", ops_dir)
     lifecycle = lifecycle_snapshot(ops_dir, tasks, accepted_outputs, delivered_projects, health, sources) if workspace_ready else unavailable(
         "ops_dir_missing",
         "lifecycle is unavailable until research_ops exists",
@@ -2255,7 +2283,10 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         warnings.extend(sources.get("warnings", []))
     if deliverables.get("available") is not False:
         warnings.extend(deliverables.get("warnings", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, lifecycle, deliverables, *dashboards.values()]))
+    if runtime.get("available") is not False:
+        warnings.extend(runtime.get("warnings", []))
+        warnings.extend(runtime.get("errors", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, lifecycle, deliverables, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2284,6 +2315,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "analysis": dashboards["analysis"],
         "lifecycle": lifecycle,
         "runs": runs,
+        "runtime": runtime,
         "warnings": warnings,
     }
 

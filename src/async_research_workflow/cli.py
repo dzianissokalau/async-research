@@ -614,6 +614,18 @@ def run_library_apply_proposals_command(args: argparse.Namespace) -> int:
     return module_main("library_proposal_apply", argv)
 
 
+def run_runtime_validate_command(args: argparse.Namespace) -> int:
+    return module_main("runtime_artifacts", ["validate", str(args.ops_dir)])
+
+
+def run_runtime_summary_command(args: argparse.Namespace) -> int:
+    return module_main("runtime_artifacts", ["summary", str(args.ops_dir)])
+
+
+def run_runtime_inspect_evidence_command(args: argparse.Namespace) -> int:
+    return module_main("runtime_artifacts", ["inspect-evidence", str(args.ops_dir), args.evidence_id])
+
+
 def run_cost_summary_command(args: argparse.Namespace) -> int:
     return module_main(
         "cost_tracking",
@@ -2244,6 +2256,59 @@ def register_library_commands(subparsers) -> None:
     apply_proposals.set_defaults(func=run_library_apply_proposals_command)
 
 
+def register_runtime_commands(subparsers) -> None:
+    runtime = add_command(
+        subparsers,
+        "runtime",
+        help="Validate and summarize runtime evidence and trace ledgers.",
+        description=(
+            "Inspect read-only runtime artifacts under research_ops/runtime: evidence_objects.jsonl, "
+            "traces.jsonl, snapshots, hashes, task links, and permission metadata."
+        ),
+    )
+    runtime_sub = runtime.add_subparsers(dest="runtime_command", required=True)
+
+    validate_cmd = add_command(
+        runtime_sub,
+        "validate",
+        help="Validate runtime evidence objects and trace ledgers.",
+        description=(
+            "Read evidence_objects.jsonl and traces.jsonl, validate schema shape, task links, "
+            "research_ops-bounded paths, snapshot hashes, freshness, costs, and permission metadata."
+        ),
+        epilog="Exits 0 when schemas and hashes are clean, 2 for validation errors, and 4 when the workspace is missing.",
+    )
+    add_required_ops(validate_cmd)
+    validate_cmd.set_defaults(func=run_runtime_validate_command)
+
+    summary_cmd = add_command(
+        runtime_sub,
+        "summary",
+        help="Summarize runtime evidence and trace ledgers.",
+        description=(
+            "Return runtime trace count, evidence object count, unsupported or stale evidence count, "
+            "latest runtime errors, and validation warning/error counts without mutating research_ops."
+        ),
+        epilog="Exits 0 when runtime ledgers are valid and 2 when malformed runtime artifacts are present.",
+    )
+    add_required_ops(summary_cmd)
+    summary_cmd.set_defaults(func=run_runtime_summary_command)
+
+    inspect_cmd = add_command(
+        runtime_sub,
+        "inspect-evidence",
+        help="Inspect one runtime evidence object.",
+        description=(
+            "Show one EVID-* object from research_ops/runtime/evidence_objects.jsonl with related traces "
+            "and validation findings without treating it as accepted evidence."
+        ),
+        epilog="Exits 0 when the evidence object is present and valid, 2 for validation errors, and 3 when the id is missing.",
+    )
+    add_required_ops(inspect_cmd)
+    inspect_cmd.add_argument("evidence_id", help="Evidence id such as EVID-000001.")
+    inspect_cmd.set_defaults(func=run_runtime_inspect_evidence_command)
+
+
 def register_cost_commands(subparsers) -> None:
     cost = add_command(
         subparsers,
@@ -3240,6 +3305,7 @@ COMMAND_REGISTRARS = (
     register_source_commands,
     register_data_commands,
     register_library_commands,
+    register_runtime_commands,
     register_cost_commands,
     register_batch_commands,
     register_metrics_commands,

@@ -180,6 +180,8 @@ function renderMetrics(snapshot) {
   const cost = snapshot.cost || {};
   const readiness = snapshot.readiness || {};
   const health = snapshot.health || {};
+  const runtime = snapshot.runtime || {};
+  const runtimeSummary = runtime.summary || {};
   const warnings = snapshot.warnings || [];
   const grid = el("dashboard");
   grid.replaceChildren(
@@ -190,6 +192,7 @@ function renderMetrics(snapshot) {
     metric("Delivered projects", asNumber((delivered.summary || {}).project_count || accepted.count), `${asNumber((delivered.summary || {}).accepted_count)} accepted outputs`),
     metric("Deliverables", asNumber(deliverables.count), `${asNumber(deliverableSummary.target_ready_count)} ready / ${asNumber(deliverableSummary.blocked_count)} blocked`),
     metric("Rejected results", asNumber(rejected.count), "recent rejected ledger rows"),
+    metric("Runtime evidence", asNumber(runtimeSummary.evidence_object_count), `${asNumber(runtimeSummary.runtime_trace_count)} traces / ${asNumber(runtimeSummary.unsupported_or_stale_evidence_count)} gaps`),
     metric("Cost this month", money(cost.month_spend_usd), `this week ${money(cost.week_spend_usd)}`),
     metric("Warnings", warnings.length, `${(tasks.stale_locks || []).length} stale locks`)
   );

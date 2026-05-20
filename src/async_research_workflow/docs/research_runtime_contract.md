@@ -51,6 +51,30 @@ The Phase 0 adapter taxonomy is stable enough for later schema and CLI work:
 Phase 3 may add concrete adapters only inside this taxonomy unless a roadmap
 update explicitly extends the contract.
 
+## Phase 1 Runtime Artifact Locations
+
+Phase 1 adds machine-readable ledgers and schemas without implementing live
+adapters:
+
+- `research_ops/runtime/traces.jsonl`
+- `research_ops/runtime/evidence_objects.jsonl`
+- `research_ops/runtime/snapshots/`
+- `schemas/runtime_trace.schema.json`
+- `schemas/runtime_evidence_object.schema.json`
+
+Validate and inspect them with:
+
+```bash
+async-research runtime validate research_ops
+async-research runtime summary research_ops
+async-research runtime inspect-evidence research_ops EVID-000001
+```
+
+The validator checks required fields, task links, `research_ops/` path
+boundaries, snapshot hashes, freshness metadata, costs, and permission basis.
+Missing license or use-policy metadata produces a warning; malformed paths,
+missing task links, and hash mismatches fail closed.
+
 ## Default Permission Posture
 
 The runtime is read-only by default. Capability must be granted by the task
@@ -152,4 +176,3 @@ The core package remains standard-library first. Phase 0 chooses this posture:
 
 This keeps the governance kernel installable and auditable while leaving room
 for richer adapter packages once the evidence and trace contracts are proven.
-

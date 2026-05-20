@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 1 - Evidence objects and trace ledger
+Current phase: Phase 2 - Clarifier and research brief rewrite
 Last updated: 2026-05-20
-Next action: Add stable runtime evidence and trace schemas, validators, ledgers, CLI summaries, dashboard fields, and offline fixtures
+Next action: Add a clarifier/research brief contract, CLI draft/validate/apply dry-run support, prompt guidance, and planner/task creation integration where available
 Blocked by: None
 
 Created: 2026-05-20
@@ -166,12 +166,42 @@ Locked decisions:
 - Head-to-head Deep Research-style comparison claims remain out of scope until
   Phase 10 and must be benchmark-limited.
 
+## Resolved Phase 1 Evidence Objects And Trace Ledger
+
+Phase 1 is delivered as the runtime artifact substrate for future adapters. It
+adds schemas, validators, ledger locations, CLI summaries, console snapshot
+fields, starter template runtime directories, and offline fixtures without
+implementing live fetching or accepting evidence automatically.
+
+Authoritative artifact docs and schemas:
+
+- [Runtime Artifacts](../src/async_research_workflow/docs/runtime_artifacts.md)
+- [Runtime Evidence Object Schema](../src/async_research_workflow/schemas/runtime_evidence_object.schema.json)
+- [Runtime Trace Schema](../src/async_research_workflow/schemas/runtime_trace.schema.json)
+
+Locked decisions:
+
+- Runtime ledgers live at `research_ops/runtime/evidence_objects.jsonl` and
+  `research_ops/runtime/traces.jsonl`; snapshots live under
+  `research_ops/runtime/snapshots/`.
+- `async-research runtime validate`, `summary`, and `inspect-evidence` are
+  read-only public CLI surfaces.
+- Validators fail closed for malformed rows, missing task links, paths outside
+  `research_ops/`, missing snapshots, and snapshot hash mismatches.
+- Missing or unknown license/use-policy metadata is warning-level and counted
+  as unsupported until resolved.
+- Console snapshots expose runtime trace count, evidence object count,
+  unsupported or stale evidence count, latest runtime errors, and validation
+  findings as derived read-only fields.
+- Evidence objects remain normalized runtime artifacts only; review and
+  result-acceptance gates still decide accepted evidence.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- | --- |
 | 0 | Delivered | P0 | Runtime and evaluation contract | Define runtime boundary, adapter contract, evidence object schema, trace schema, dependency posture, and success metrics. | Another LLM can implement adapters and evals without guessing what counts as evidence or success. |
-| 1 | Not Started | P0 | Evidence objects and trace ledger | Add schemas and validators for tool calls, source snapshots, extracted spans, computed outputs, hashes, costs, and permissions. | Every future runtime action has a stable, auditable artifact format. |
+| 1 | Delivered | P0 | Evidence objects and trace ledger | Add schemas and validators for tool calls, source snapshots, extracted spans, computed outputs, hashes, costs, and permissions. | Every future runtime action has a stable, auditable artifact format. |
 | 2 | Not Started | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
 | 3 | Not Started | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
 | 4 | Not Started | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |

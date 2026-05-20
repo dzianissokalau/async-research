@@ -317,16 +317,20 @@ class DocumentationReferenceTests(unittest.TestCase):
 
     def test_integrated_runtime_phase0_contract_is_documented(self) -> None:
         runtime_contract = PACKAGE_ROOT / "docs" / "research_runtime_contract.md"
+        runtime_artifacts = PACKAGE_ROOT / "docs" / "runtime_artifacts.md"
         eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         runtime_text = runtime_contract.read_text(encoding="utf-8")
+        artifact_text = runtime_artifacts.read_text(encoding="utf-8")
         eval_text = eval_contract.read_text(encoding="utf-8")
         runtime_normalized = " ".join(runtime_text.split())
+        artifact_normalized = " ".join(artifact_text.split())
         eval_normalized = " ".join(eval_text.split())
         failures: list[str] = []
 
         for snippet in [
             "[Research Runtime Contract](./research_runtime_contract.md)",
+            "[Runtime Artifacts](./runtime_artifacts.md)",
             "[Evaluation Flywheel](./evaluation_flywheel.md)",
         ]:
             if snippet not in docs_index:
@@ -381,6 +385,20 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if f"`{field}`" not in runtime_text:
                 failures.append(f"research_runtime_contract.md missing field {field}")
+
+        for snippet in [
+            "research_ops/runtime/traces.jsonl",
+            "research_ops/runtime/evidence_objects.jsonl",
+            "research_ops/runtime/snapshots/",
+            "schemas/runtime_trace.schema.json",
+            "schemas/runtime_evidence_object.schema.json",
+            "async-research runtime validate research_ops",
+            "async-research runtime inspect-evidence research_ops EVID-000001",
+            "content_hash does not match the snapshot bytes",
+            "not accepted evidence until existing review and result-acceptance gates say so",
+        ]:
+            if " ".join(snippet.split()) not in artifact_normalized and " ".join(snippet.split()) not in runtime_normalized:
+                failures.append(f"runtime artifact docs missing {snippet}")
 
         for snippet in [
             "Expert preference win rate",

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Runtime Evidence Object",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "evidence_id",
+    "task_id",
+    "adapter_type",
+    "source_uri",
+    "source_title",
+    "retrieved_at",
+    "content_hash",
+    "snapshot_path",
+    "span_refs",
+    "license_or_use_policy",
+    "freshness_status",
+    "cost",
+    "permission_basis"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "runtime_evidence_object_v1.0"
+      ]
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^EVID-[0-9]{6}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "adapter_type": {
+      "type": "string",
+      "enum": [
+        "web_search",
+        "web_open",
+        "file_search",
+        "file_fetch",
+        "mcp_search",
+        "mcp_fetch",
+        "api_query",
+        "code_execute"
+      ]
+    },
+    "source_uri": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "source_title": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.+"
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^(sha256:[0-9a-f]{64}|unknown)$"
+    },
+    "snapshot_path": {
+      "type": "string",
+      "pattern": "^research_ops/(?!.*\\.\\.).+"
+    },
+    "span_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "span_id",
+          "span_type",
+          "selector",
+          "content_hash"
+        ],
+        "properties": {
+          "span_id": {
+            "type": "string",
+            "pattern": "^SPAN-[0-9]{4,6}$"
+          },
+          "span_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "page",
+              "row",
+              "section",
+              "computed",
+              "file"
+            ]
+          },
+          "selector": {
+            "type": "string",
+            "pattern": ".+"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^(sha256:[0-9a-f]{64}|unknown)$"
+          }
+        }
+      }
+    },
+    "license_or_use_policy": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "freshness_status": {
+      "type": "object",
+      "required": [
+        "status",
+        "checked_at",
+        "basis"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "stale",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "checked_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.+"
+        },
+        "basis": {
+          "type": "string",
+          "pattern": ".+"
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": [
+        "api_usd",
+        "compute_usd",
+        "tokens",
+        "basis"
+      ],
+      "properties": {
+        "api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "basis": {
+          "type": "string",
+          "pattern": ".+"
+        }
+      }
+    },
+    "permission_basis": {
+      "type": "object",
+      "required": [
+        "type",
+        "reference",
+        "capability"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "task_contract",
+            "human_decision",
+            "fixture",
+            "none"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "pattern": ".+"
+        },
+        "capability": {
+          "type": "string",
+          "pattern": ".+"
+        }
+      }
+    }
+  }
+}
