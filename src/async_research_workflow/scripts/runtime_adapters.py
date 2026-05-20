@@ -15,6 +15,11 @@ import time
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
+try:
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - Windows fallback
+    _fcntl = None
+
 
 SUCCESS = 0
 VALIDATION_FAILED = 2
@@ -153,6 +158,8 @@ def ref_for_path(ops_dir: Path, path: Path) -> str:
 
 
 def allowed_path(ref: str, allowed_paths: Iterable[Any]) -> bool:
+    if not ref or ref.startswith("/") or any(part in {"", ".", ".."} for part in ref.split("/")):
+        return False
     for raw_pattern in allowed_paths:
         if not isinstance(raw_pattern, str) or not raw_pattern.strip():
             continue
@@ -172,6 +179,11 @@ def numeric_value(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     return None
+
+
+def numeric_value_or_zero(value: Any) -> float:
+    parsed = numeric_value(value)
+    return parsed if parsed is not None else 0.0
 
 
 def integer_value(value: Any) -> int | None:
@@ -213,8 +225,15 @@ def append_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        if _fcntl is not None:
+            _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
+        try:
+            for row in rows:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+            handle.flush()
+        finally:
+            if _fcntl is not None:
+                _fcntl.flock(handle.fileno(), _fcntl.LOCK_UN)
 
 
 def find_task_status(ops_dir: Path, task_id: str) -> tuple[Path | None, dict[str, Any] | None]:
@@ -888,12 +907,22 @@ def call_costs(calls: list[dict[str, Any]]) -> tuple[float, float]:
 def domain_allowed(host: str, allowed_domains: list[Any]) -> bool:
     normalized_host = host.lower().strip(".")
     for raw_domain in allowed_domains:
-        if not isinstance(raw_domain, str):
+        domain = normalized_allowed_domain(raw_domain)
+        if domain is None:
             continue
-        domain = raw_domain.lower().strip(".")
         if normalized_host == domain or normalized_host.endswith(f".{domain}"):
             return True
     return False
+
+
+def normalized_allowed_domain(raw_domain: Any) -> str | None:
+    if not isinstance(raw_domain, str):
+        return None
+    domain = raw_domain.lower().strip(".")
+    labels = domain.split(".")
+    if len(labels) < 2 or any(not label for label in labels):
+        return None
+    return domain
 
 
 def parallel_permissions(context: RuntimeContext) -> dict[str, Any]:
@@ -1217,6 +1246,16 @@ def policy_findings(call: dict[str, Any], context: RuntimeContext) -> list[dict[
         if not isinstance(allowed_domains, list) or not allowed_domains:
             findings.append(issue("allowed_domains_missing", "web adapters require runtime_permissions.allowed_domains", field=RUNTIME_PERMISSIONS_KEY))
         else:
+            for raw_domain in allowed_domains:
+                if normalized_allowed_domain(raw_domain) is None:
+                    findings.append(
+                        issue(
+                            "allowed_domain_too_broad",
+                            "allowed_domains entries must be fully qualified domains, not TLDs or single-label names",
+                            field="runtime_permissions.allowed_domains",
+                            actual=raw_domain,
+                        )
+                    )
             source_uri = str(call.get("source_uri") or "")
             domain = str(call.get("domain") or "")
             if not domain and source_uri:
@@ -1248,8 +1287,8 @@ def request_findings(request: dict[str, Any], context: RuntimeContext, calls: li
     budget = context.task_status.get("budget") if isinstance(context.task_status.get("budget"), dict) else {}
     max_api = numeric_value(permissions.get("max_api_usd"))
     max_compute = numeric_value(permissions.get("max_compute_usd"))
-    budget_api = numeric_value(budget.get("max_api_usd")) or 0.0
-    budget_compute = numeric_value(budget.get("max_compute_usd")) or 0.0
+    budget_api = numeric_value_or_zero(budget.get("max_api_usd"))
+    budget_compute = numeric_value_or_zero(budget.get("max_compute_usd"))
     api_limit = min(value for value in [budget_api, max_api] if value is not None)
     compute_limit = min(value for value in [budget_compute, max_compute] if value is not None)
     if api_cost > api_limit:

@@ -49,7 +49,15 @@ PROVIDER_MARKERS = (
     "gpt_",
     "mistral",
     "cohere",
+    "command-r",
+    "deepseek",
+    "fireworks",
+    "groq",
+    "llama",
     "perplexity",
+    "qwen",
+    "replicate",
+    "together",
 )
 MODEL_TIERS = {"deterministic", "cheap", "standard", "frontier", "human"}
 REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh", "human"}

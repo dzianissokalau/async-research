@@ -147,6 +147,19 @@ class ModelRoutingTests(unittest.TestCase):
             self.assertEqual(2, code, payload)
             self.assertIn("provider_hardcoded", {error["reason"] for error in payload["errors"]})
 
+    def test_validate_rejects_newer_provider_names(self) -> None:
+        for provider_name in ("deepseek-v3", "llama-3.1-70b"):
+            with self.subTest(provider_name=provider_name), tempfile.TemporaryDirectory() as tmp:
+                policy = model_routing.default_policy(now=NOW)
+                policy["roles"]["worker"]["prompt_posture"] = f"Always route worker tasks to {provider_name}."
+                policy_path = Path(tmp) / "model_routing_policy.json"
+                write_json(policy_path, policy)
+
+                code, payload = run_cli_json(["model-routing", "validate", policy_path])
+
+                self.assertEqual(2, code, payload)
+                self.assertIn("provider_hardcoded", {error["reason"] for error in payload["errors"]})
+
     def test_eval_check_requires_candidate_to_match_or_improve_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = init_ops(Path(tmp))

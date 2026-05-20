@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import evidence_memory
 
 
 NOW = "2026-05-20T09:00:00Z"
@@ -273,6 +274,107 @@ class EvidenceMemoryTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, query_code, query)
             self.assertEqual(1, query["targeted_reflection_count"])
             self.assertEqual("source_quality", query["targeted_reflections"][0]["failure_class"])
+
+    def test_path_safety_helpers_reject_output_and_workspace_escapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = self.init_ops(root)
+
+            self.assertIsNone(evidence_memory.output_path_for(ops_dir, root / "escape.json"))
+            self.assertIsNone(evidence_memory.workspace_path(ops_dir, "research_ops/../outside.json"))
+            self.assertIsNone(evidence_memory.workspace_path(ops_dir, "../outside.json"))
+            self.assertEqual(ops_dir / "memory" / "evidence_memory_index.json", evidence_memory.output_path_for(ops_dir, None))
+
+            code, payload = run_cli_json(["evidence-memory", "update", ops_dir, "--output", root / "escape.json"])
+
+            self.assertEqual(3, code, payload)
+            self.assertEqual("output_outside_research_ops", payload["reason"])
+            self.assertFalse((root / "escape.json").exists())
+
+    def test_normalize_reflection_warns_for_missing_review_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_task(ops_dir, "TASK-9201", "Missing Review Evidence")
+            now = evidence_memory.parse_datetime(NOW)
+            self.assertIsNotNone(now)
+            record = {
+                "schema_version": "1.0",
+                "framework_version": "targeted_reflection_v1.0",
+                "reflection_id": "REFL-920001",
+                "created_at": NOW,
+                "task_id": "TASK-9201",
+                "task_title": "Missing Review Evidence",
+                "failure_class": "source_quality",
+                "trigger_condition": "source quality review had no supporting evidence file",
+                "affected_stage": "review",
+                "mitigation": "require review evidence before reflection reuse",
+                "anti_context_injection": "Do not reuse reflections without review evidence.",
+                "review_evidence": {
+                    "path": "research_ops/tasks/TASK-9201-missing-review-evidence/review_panel/missing.json",
+                    "summary": "missing fixture",
+                },
+                "source_task_dir": "research_ops/tasks/TASK-9201-missing-review-evidence",
+                "status": "active",
+            }
+
+            normalized, warnings = evidence_memory.normalize_reflection_record(record, ops_dir, now)
+
+            self.assertIsNotNone(normalized)
+            self.assertIn("reflection_review_evidence_missing", {warning["reason"] for warning in warnings})
+
+    def test_contradiction_edges_and_expired_reflections_are_filtered(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task(ops_dir, "TASK-9301", "Contradiction Reflection")
+            write_json(task_dir / "review_panel" / "aggregate.json", {"decision": "rejected"})
+            edges = evidence_memory.contradiction_edges_for_claims(
+                "TASK-9301",
+                [
+                    {
+                        "claim_id": "CLM-9301",
+                        "verification_status": "contradicted",
+                        "failure_reason": "fixture contradiction",
+                        "evidence_refs": [{"evidence_id": "EVID-930001"}],
+                        "citation_refs": [{"evidence_id": "EVID-930002"}],
+                    }
+                ],
+            )
+            self.assertEqual(["EVID-930001", "EVID-930002"], [edge["to_evidence_id"] for edge in edges])
+
+            write_jsonl(
+                ops_dir / "reflections" / "targeted_reflections.jsonl",
+                [
+                    {
+                        "schema_version": "1.0",
+                        "framework_version": "targeted_reflection_v1.0",
+                        "reflection_id": "REFL-930001",
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "task_id": "TASK-9301",
+                        "task_title": "Contradiction Reflection",
+                        "failure_class": "contradiction",
+                        "trigger_condition": "coffee contradiction",
+                        "affected_stage": "verification",
+                        "mitigation": "route contradicted claims to skeptic review",
+                        "anti_context_injection": "Do not synthesize contradicted coffee claims.",
+                        "review_evidence": {
+                            "path": "research_ops/tasks/TASK-9301-contradiction-reflection/review_panel/aggregate.json",
+                            "summary": "reviewed",
+                        },
+                        "source_task_dir": "research_ops/tasks/TASK-9301-contradiction-reflection",
+                        "status": "active",
+                        "expires_at": "2026-01-02T00:00:00Z",
+                    }
+                ],
+            )
+            now = evidence_memory.parse_datetime(NOW)
+            self.assertIsNotNone(now)
+
+            records, warnings = evidence_memory.load_reflection_records(ops_dir, now=now)
+            matches = evidence_memory.targeted_reflection_matches(ops_dir, "coffee contradiction", now=now)
+
+            self.assertEqual([], warnings)
+            self.assertEqual("expired", records[0]["status"])
+            self.assertEqual([], matches)
 
 
 if __name__ == "__main__":

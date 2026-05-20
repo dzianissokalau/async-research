@@ -9,8 +9,10 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import runtime_adapters
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -479,6 +481,89 @@ class RuntimeAdapterTests(unittest.TestCase):
             self.assertFalse(dry_run["changed"])
             self.assertEqual("blocked", dry_run["calls"][0]["status"])
             self.assertEqual("invalid_estimated_cost", dry_run["calls"][0]["error"]["code"])
+
+    def test_allowed_path_rejects_unsanitized_refs_and_treats_glob_chars_as_literals(self) -> None:
+        self.assertFalse(runtime_adapters.allowed_path("research_ops/../etc/passwd", ["research_ops/**"]))
+        self.assertFalse(runtime_adapters.allowed_path("research_ops/./sources/file.md", ["research_ops/**"]))
+        self.assertFalse(runtime_adapters.allowed_path("research_ops//sources/file.md", ["research_ops/**"]))
+        self.assertFalse(runtime_adapters.allowed_path("research_ops/sources/file[1].md", ["research_ops/sources/file1.md"]))
+        self.assertTrue(runtime_adapters.allowed_path("research_ops/sources/file[1].md", ["research_ops/sources/**"]))
+
+    def test_jsonl_append_uses_advisory_lock_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.jsonl"
+
+            class FakeFcntl:
+                LOCK_EX = 1
+                LOCK_UN = 2
+
+                def __init__(self) -> None:
+                    self.calls: list[int] = []
+
+                def flock(self, _fd: int, mode: int) -> None:
+                    self.calls.append(mode)
+
+            fake = FakeFcntl()
+            with mock.patch.object(runtime_adapters, "_fcntl", fake):
+                runtime_adapters.append_jsonl(path, [{"row": 1}])
+
+            self.assertEqual([fake.LOCK_EX, fake.LOCK_UN], fake.calls)
+            self.assertEqual([{"row": 1}], [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()])
+
+    def test_single_label_allowed_domain_fails_closed(self) -> None:
+        self.assertFalse(runtime_adapters.domain_allowed("example.com", ["com"]))
+        self.assertTrue(runtime_adapters.domain_allowed("reports.example.com", ["example.com"]))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir, _task_dir = init_vertical_slice(root, allow_network=True)
+            status_path = ops_dir / "tasks" / "TASK-1001-runtime-vertical-slice" / "status.json"
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["allowed_tools"] = ["runtime:web_open"]
+            status["allow_browsing"] = True
+            status["runtime_permissions"]["allowed_domains"] = ["com"]
+            status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            request_path = root / "broad_domain_request.json"
+            request_path.write_text(
+                json.dumps(
+                    {
+                        "mode": "vertical_slice",
+                        "task_id": "TASK-1001",
+                        "calls": [
+                            {
+                                "adapter_type": "web_open",
+                                "source_uri": "https://example.com/report",
+                                "domain": "example.com",
+                                "source_class": "official_page",
+                                "source_profile": "document_repository",
+                                "browser_fallback_reason": "api_incomplete",
+                                "route_reason": "The official page supplies narrative context missing from the API.",
+                                "route_alternatives": [],
+                                "estimated_cost": {"api_usd": 0.0, "compute_usd": 0.0, "tokens": 0},
+                                "mock_response": {
+                                    "source_uri": "https://example.com/report",
+                                    "source_title": "Example report",
+                                    "license_or_use_policy": "fixture-only",
+                                    "content": "snapshot\n",
+                                },
+                            }
+                        ],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            dry_code, dry_run = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+
+            self.assertEqual(2, dry_code, dry_run)
+            call = dry_run["calls"][0]
+            reasons = {error["reason"] for error in call.get("findings", [])}
+            if "error" in call:
+                reasons.add(call["error"]["code"])
+            self.assertIn("allowed_domain_too_broad", reasons)
 
 
 if __name__ == "__main__":
