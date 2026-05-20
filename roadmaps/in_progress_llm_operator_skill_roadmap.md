@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
 Status: In Progress
-Current phase: Phase 4 - Role modes and autonomy policy
+Current phase: Phase 5 - Reporting, dashboard alignment, and stop invariants
 Last updated: 2026-05-20
-Next action: Define role modes and autonomy policy
+Next action: Define reporting, dashboard alignment, and stop invariants
 Blocked by: None
 
 Created: 2026-05-19
@@ -223,7 +223,7 @@ The changes below reflect the strongest review findings:
 | 1 | Delivered | Codex-first skill skeleton and trigger contract | Create concise `SKILL.md`, generated Codex UI metadata, reference-file structure, candidate descriptions, and trigger eval set. | Codex can discover the skill reliably and load detailed references only when needed. |
 | 2 | Delivered | Workspace discovery, guided setup, and startup protocol | Add startup recipe, guided framework setup flow, version guardrail, capability probe, privacy-boundary check, and optional read-only helper script. | The skill can safely pick up an existing project, guide first-time setup, and report unsupported CLI drift clearly. |
 | 3 | Delivered | Command recipes for setup and core loop | Document exact dry-run/write command sequences plus a command capability table for setup, planning, workers, review, acceptance, gates, deliverables, and foundation proposals. | Another LLM can set up and operate common workflows without improvising command order or mutation safety. |
-| 4 | Not Started | Role modes and autonomy policy | Define planner, worker, reviewer, critic, synthesizer, status reporter, and maintainer modes with allowed files, independence limits, and stop rules. | The LLM can switch roles deliberately and expose weak review independence. |
+| 4 | Delivered | Role modes and autonomy policy | Define planner, worker, reviewer, critic, synthesizer, status reporter, and maintainer modes with allowed files, independence limits, and stop rules. | The LLM can switch roles deliberately and expose weak review independence. |
 | 5 | Not Started | Reporting, dashboard alignment, and stop invariants | Define response formats, dashboard snapshot checks, artifact summaries, decision requests, progress reports, and acceptance/readiness mismatch stops. | Human-facing updates become consistent, concise, and tied to framework state. |
 | 6 | Not Started | Skill validation and behavioral evals | Add simulated workspaces, structural tests, trigger evals, and fixture-based behavior/forward tests. | The skill has regression coverage for realistic states, unsafe requests, and actual operator behavior. |
 | 7 | Not Started | Packaging, install, and Codex dogfood rollout | Add install instructions, validation command, dogfood checklist, and first real-project trial procedure. | A new Codex session can install/use the skill and pass a real workspace dogfood run. |

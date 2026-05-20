@@ -202,6 +202,78 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             payload["failures"],
         )
 
+    def test_validator_requires_role_mode_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            roles = candidate / "references" / "roles.md"
+            roles.write_text(
+                roles.read_text(encoding="utf-8").replace(
+                    "## Autonomy Policy Matrix",
+                    "## Autonomy Levels",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/roles.md",
+                "reason": "missing_role_heading:## Autonomy Policy Matrix",
+            },
+            payload["failures"],
+        )
+
+    def test_validator_requires_review_independence_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            roles = candidate / "references" / "roles.md"
+            roles.write_text(
+                roles.read_text(encoding="utf-8").replace(
+                    "--independence-type same_agent_visible",
+                    "--independence-type hidden_same_agent",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/roles.md",
+                "reason": "missing_role_contract:--independence-type same_agent_visible",
+            },
+            payload["failures"],
+        )
+
+    def test_validator_requires_safety_role_and_public_claim_stops(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            safety = candidate / "references" / "safety-and-stop-conditions.md"
+            safety.write_text(
+                safety.read_text(encoding="utf-8").replace(
+                    "## High-Impact Claims",
+                    "## External Claims",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/safety-and-stop-conditions.md",
+                "reason": "missing_safety_contract:## High-Impact Claims",
+            },
+            payload["failures"],
+        )
+
     def test_validator_rejects_forbidden_clutter_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"

@@ -208,3 +208,54 @@ Branch: `codex/llm-operator-skill-phase-3`
 ### Next Action
 
 - Phase 3 is delivered. The next automation run should start Phase 4 on `codex/llm-operator-skill-phase-4`.
+
+## Phase 4 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-4`
+
+### Scope
+
+- Define explicit status reporter, planner, worker, reviewer, critic,
+  synthesizer, and maintainer modes.
+- Document autonomy levels with max writes, allowed files, allowed commands,
+  stop conditions, and required reports.
+- Make same-agent review limits and critic independence metadata visible.
+
+### Changes
+
+- Expanded `references/roles.md` with a first-status-report contract, role mode
+  matrix, same-agent review and critic-independence rules, role-switching
+  rules, and an autonomy policy matrix.
+- Expanded `references/safety-and-stop-conditions.md` with role/autonomy gates,
+  same-agent independence stops, and high-impact public-claim stops.
+- Updated `validate_skill_pack.py` so role/autonomy headings, role names,
+  independence metadata, autonomy levels, and public-claim stops are required.
+- Added validator regression tests for role mode headings, review-independence
+  metadata, and high-impact safety stops.
+- Advanced the roadmap header and phase table to Phase 5.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 730 tests
+- Final verification was rerun after roadmap, state, log, and review updates.
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 4 scope and
+  diff; no separate reviewer sub-agent was used.
+- Phase 6 still owns fixture-based behavior tests proving fresh operator
+  behavior for role and autonomy policy.
+
+### Next Action
+
+- Phase 4 is delivered. The next automation run should start Phase 5 on `codex/llm-operator-skill-phase-5`.

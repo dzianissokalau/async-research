@@ -29,8 +29,36 @@ states.
 - Dashboard state conflicts with file-backed state.
 - Deliverable readiness checks fail, have not run, or disagree with reported
   maturity.
+- Same-agent review or critic independence is weaker than the requested task,
+  deliverable maturity, or public claim requires.
+- The requested role or autonomy level would require files, commands, or
+  decisions outside the current bounded task.
 
 ## Default Behavior
 
 In `guided` mode, stop before writes and present the exact command that would be
 run. In `bounded_autonomous` mode, still stop at every mandatory stop condition.
+
+## Role And Autonomy Gates
+
+- The first status report must name the current role and `autonomy_level`.
+- `read_only` means no writes, no setup, no task creation, and no gate
+  resolution.
+- `guided` is the default for ambiguous "continue" requests and requires user
+  approval before writes.
+- `bounded_autonomous` is available only after an explicit request and covers
+  one bounded task loop or one bounded recipe. It never includes self-acceptance
+  or publication/readiness claims.
+- `maintenance` may run validation and derived-state upkeep, but must not change
+  research content or decide direction.
+- If the role changes from worker to reviewer or critic in the same
+  conversation, disclose `same_agent_visible` review independence and stop when
+  stronger independence is required.
+
+## High-Impact Claims
+
+Do not claim a deliverable is working-paper-ready, submission-ready, published,
+externally validated, or ready for a target venue unless the relevant public
+checks have passed and the needed human approvals and review independence are
+present. If the user asks for such a claim and evidence is incomplete, report
+the missing check or approval instead of approximating.

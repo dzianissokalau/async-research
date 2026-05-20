@@ -58,6 +58,41 @@ REQUIRED_CAPABILITY_ROWS = (
     "| `deliverable` |",
     "| Maintenance |",
 )
+REQUIRED_ROLE_HEADINGS = (
+    "## First Status Report",
+    "## Role Mode Matrix",
+    "## Same-Agent Review And Critic Independence",
+    "## Role Switching Rules",
+    "## Autonomy Policy Matrix",
+)
+REQUIRED_ROLE_PHRASES = (
+    "Status reporter",
+    "Planner",
+    "Worker",
+    "Reviewer",
+    "Critic",
+    "Synthesizer",
+    "Maintainer",
+    "autonomy_level",
+    "same_agent_visible",
+    "--independence-type separate_agent",
+    "--independence-type same_agent_visible",
+    "`read_only`",
+    "`guided`",
+    "`bounded_autonomous`",
+    "`maintenance`",
+)
+REQUIRED_SAFETY_PHRASES = (
+    "## Role And Autonomy Gates",
+    "## High-Impact Claims",
+    "first status report",
+    "`autonomy_level`",
+    "`bounded_autonomous`",
+    "same_agent_visible",
+    "publication-readiness claims",
+    "working-paper-ready",
+    "submission-ready",
+)
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], list[str]]:
@@ -203,6 +238,46 @@ def validate_command_recipes(skill_dir: Path, failures: list[dict[str, str]]) ->
             )
 
 
+def validate_roles(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    roles = skill_dir / "references" / "roles.md"
+    if not roles.is_file():
+        return
+
+    text = roles.read_text(encoding="utf-8")
+    for heading in REQUIRED_ROLE_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/roles.md",
+                    "reason": f"missing_role_heading:{heading}",
+                }
+            )
+    for phrase in REQUIRED_ROLE_PHRASES:
+        if phrase not in text:
+            failures.append(
+                {
+                    "path": "references/roles.md",
+                    "reason": f"missing_role_contract:{phrase}",
+                }
+            )
+
+
+def validate_safety(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    safety = skill_dir / "references" / "safety-and-stop-conditions.md"
+    if not safety.is_file():
+        return
+
+    text = safety.read_text(encoding="utf-8")
+    for phrase in REQUIRED_SAFETY_PHRASES:
+        if phrase not in text:
+            failures.append(
+                {
+                    "path": "references/safety-and-stop-conditions.md",
+                    "reason": f"missing_safety_contract:{phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -228,6 +303,8 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_openai_yaml(skill_dir, failures)
     validate_trigger_evals(skill_dir, failures)
     validate_command_recipes(skill_dir, failures)
+    validate_roles(skill_dir, failures)
+    validate_safety(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 
