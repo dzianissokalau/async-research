@@ -31,6 +31,16 @@ async-research runtime summary research_ops
 async-research runtime inspect-evidence research_ops EVID-000001
 ```
 
+Runtime adapter execution is a separate Phase 3 surface:
+
+```bash
+async-research runtime dry-run research_ops --request runtime_request.json
+async-research runtime execute research_ops --request runtime_request.json
+```
+
+These commands still write only runtime traces, evidence objects, and snapshots;
+they do not accept evidence or transition tasks.
+
 ## Evidence Objects
 
 Evidence objects use

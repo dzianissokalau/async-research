@@ -1,0 +1,20 @@
+{
+  "mode": "vertical_slice",
+  "now": "2026-05-20T10:00:00Z",
+  "task_id": "TASK-1001",
+  "calls": [
+    {
+      "adapter_type": "api_query",
+      "api_name": "fixture_stats",
+      "source_title": "Mock Runtime API Fixture",
+      "license_or_use_policy": "fixture-only",
+      "input_summary": "Attempt mocked API fixture metrics without network permission.",
+      "mock_response": {
+        "source_uri": "mock://fixture_stats/runtime",
+        "source_title": "Mock Runtime API Fixture",
+        "license_or_use_policy": "fixture-only",
+        "content": "mock_metric=42\nbasis=offline fixture\n"
+      }
+    }
+  ]
+}

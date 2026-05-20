@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 3 - Minimal unified runtime adapters
+Current phase: Phase 4 - Claim and citation verification
 Last updated: 2026-05-20
-Next action: Implement the smallest useful runtime adapter layer with deterministic/local adapters first, explicit capability flags, dry-run reporting, and trace/evidence emission
+Next action: Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported material claims
 Blocked by: None
 
 Created: 2026-05-20
@@ -235,6 +235,42 @@ Locked decisions:
   by themselves; task contracts, runtime traces, review, and result acceptance
   still govern execution and acceptance.
 
+## Resolved Phase 3 Minimal Unified Runtime Adapters
+
+Phase 3 is delivered as the first bounded runtime execution slice. It adds a
+single adapter interface, public dry-run and execute commands, deterministic
+local adapters, mocked-only external adapters, task-contract permission checks,
+trace/evidence emission, and an offline vertical-slice fixture.
+
+Authoritative adapter docs:
+
+- [Runtime Adapters](../src/async_research_workflow/docs/runtime_adapters.md)
+
+Locked decisions:
+
+- `async-research runtime dry-run` is read-only and reports planned local or
+  mocked adapter calls against a task contract.
+- `async-research runtime execute` writes only
+  `research_ops/runtime/traces.jsonl`,
+  `research_ops/runtime/evidence_objects.jsonl`, and snapshots under
+  `research_ops/runtime/snapshots/`; it never transitions task state or accepts
+  evidence.
+- Runtime requests require explicit task contract bounds: `allowed_tools`,
+  `allowed_paths`, `runtime_permissions.max_calls`, budget ceilings, and the
+  relevant network, browsing, code execution, domain, API, MCP, credential, and
+  paid-call permissions.
+- `file_fetch`, `file_search`, and `code_execute` are standard-library local
+  adapters. `code_execute` is restricted to deterministic built-in summary
+  operations.
+- `web_search`, `web_open`, `mcp_search`, `mcp_fetch`, and `api_query` are
+  mocked-only in Phase 3. They fail closed without explicit task-contract
+  permission and a `mock_response`; the core package performs no live network,
+  credentialed, or paid calls.
+- Blocked executions may write a `blocked_by_policy` trace for audit, but they
+  write no evidence objects.
+- Runtime evidence objects remain normalized runtime artifacts only; review and
+  result-acceptance gates still decide accepted evidence.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -242,7 +278,7 @@ Locked decisions:
 | 0 | Delivered | P0 | Runtime and evaluation contract | Define runtime boundary, adapter contract, evidence object schema, trace schema, dependency posture, and success metrics. | Another LLM can implement adapters and evals without guessing what counts as evidence or success. |
 | 1 | Delivered | P0 | Evidence objects and trace ledger | Add schemas and validators for tool calls, source snapshots, extracted spans, computed outputs, hashes, costs, and permissions. | Every future runtime action has a stable, auditable artifact format. |
 | 2 | Delivered | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
-| 3 | Not Started | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
+| 3 | Delivered | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
 | 4 | Not Started | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
 | 5 | Not Started | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
 | 6 | Not Started | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |

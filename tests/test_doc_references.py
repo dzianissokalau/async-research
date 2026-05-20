@@ -318,15 +318,18 @@ class DocumentationReferenceTests(unittest.TestCase):
     def test_integrated_runtime_phase0_contract_is_documented(self) -> None:
         runtime_contract = PACKAGE_ROOT / "docs" / "research_runtime_contract.md"
         runtime_artifacts = PACKAGE_ROOT / "docs" / "runtime_artifacts.md"
+        runtime_adapters = PACKAGE_ROOT / "docs" / "runtime_adapters.md"
         research_brief = PACKAGE_ROOT / "docs" / "research_brief_contract.md"
         eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         runtime_text = runtime_contract.read_text(encoding="utf-8")
         artifact_text = runtime_artifacts.read_text(encoding="utf-8")
+        adapter_text = runtime_adapters.read_text(encoding="utf-8")
         brief_text = research_brief.read_text(encoding="utf-8")
         eval_text = eval_contract.read_text(encoding="utf-8")
         runtime_normalized = " ".join(runtime_text.split())
         artifact_normalized = " ".join(artifact_text.split())
+        adapter_normalized = " ".join(adapter_text.split())
         brief_normalized = " ".join(brief_text.split())
         eval_normalized = " ".join(eval_text.split())
         failures: list[str] = []
@@ -335,6 +338,7 @@ class DocumentationReferenceTests(unittest.TestCase):
             "[Research Runtime Contract](./research_runtime_contract.md)",
             "[Research Brief Contract](./research_brief_contract.md)",
             "[Runtime Artifacts](./runtime_artifacts.md)",
+            "[Runtime Adapters](./runtime_adapters.md)",
             "[Evaluation Flywheel](./evaluation_flywheel.md)",
         ]:
             if snippet not in docs_index:
@@ -420,6 +424,19 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if " ".join(snippet.split()) not in artifact_normalized and " ".join(snippet.split()) not in runtime_normalized:
                 failures.append(f"runtime artifact docs missing {snippet}")
+
+        for snippet in [
+            "async-research runtime dry-run research_ops --request runtime_request.json",
+            "async-research runtime execute research_ops --request runtime_request.json",
+            "Missing permission data fails closed",
+            "runtime_permissions.max_calls",
+            "runtime_permissions.allowed_api_names",
+            "mocked-only in Phase 3",
+            "does not perform live network, credentialed, or paid calls",
+            "without changing task state",
+        ]:
+            if " ".join(snippet.split()) not in adapter_normalized:
+                failures.append(f"runtime_adapters.md missing {snippet}")
 
         for snippet in [
             "Expert preference win rate",

@@ -630,6 +630,20 @@ def run_runtime_inspect_evidence_command(args: argparse.Namespace) -> int:
     return module_main("runtime_artifacts", ["inspect-evidence", str(args.ops_dir), args.evidence_id])
 
 
+def run_runtime_adapter_dry_run_command(args: argparse.Namespace) -> int:
+    argv = ["dry-run", str(args.ops_dir), "--request", str(args.request)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("runtime_adapters", argv)
+
+
+def run_runtime_adapter_execute_command(args: argparse.Namespace) -> int:
+    argv = ["execute", str(args.ops_dir), "--request", str(args.request)]
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("runtime_adapters", argv)
+
+
 def run_brief_draft_command(args: argparse.Namespace) -> int:
     return module_main(
         "research_brief",
@@ -2363,6 +2377,36 @@ def register_runtime_commands(subparsers) -> None:
     add_required_ops(inspect_cmd)
     inspect_cmd.add_argument("evidence_id", help="Evidence id such as EVID-000001.")
     inspect_cmd.set_defaults(func=run_runtime_inspect_evidence_command)
+
+    dry_run_cmd = add_command(
+        runtime_sub,
+        "dry-run",
+        help="Preview bounded runtime adapter calls.",
+        description=(
+            "Read a runtime request JSON file, load the task contract, and report planned local or mocked "
+            "adapter calls without writing traces, evidence objects, snapshots, or task state."
+        ),
+        epilog="Exits 0 when every requested adapter is permitted, 2 when task-contract policy blocks a call, and 3 or 4 for malformed inputs.",
+    )
+    add_required_ops(dry_run_cmd)
+    dry_run_cmd.add_argument("--request", required=True, type=Path, help="Runtime request JSON file.")
+    dry_run_cmd.add_argument("--now", help="Override report timestamp for deterministic output.")
+    dry_run_cmd.set_defaults(func=run_runtime_adapter_dry_run_command)
+
+    execute_cmd = add_command(
+        runtime_sub,
+        "execute",
+        help="Execute permitted local or mocked runtime adapter calls.",
+        description=(
+            "Run standard-library local adapters or explicit mock external adapters, then write runtime "
+            "traces, evidence objects, and snapshots under research_ops/runtime without changing task state."
+        ),
+        epilog="Exits 0 when all calls execute, 2 when policy blocks a call, and never performs live network or paid calls in Phase 3.",
+    )
+    add_required_ops(execute_cmd)
+    execute_cmd.add_argument("--request", required=True, type=Path, help="Runtime request JSON file.")
+    execute_cmd.add_argument("--now", help="Override evidence and trace timestamp for deterministic output.")
+    execute_cmd.set_defaults(func=run_runtime_adapter_execute_command)
 
 
 def register_brief_commands(subparsers) -> None:

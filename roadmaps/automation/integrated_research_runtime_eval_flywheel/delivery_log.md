@@ -155,3 +155,61 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-2`
 
 - Phase 2 is delivered. The next automation run should start Phase 3 on
   `codex/integrated-research-runtime-eval-flywheel-phase-3`.
+
+## Phase 3 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-3`
+
+### Scope
+
+- Add a minimal unified runtime adapter interface.
+- Implement deterministic local adapters first and mocked-only external
+  adapters behind explicit task-contract permissions.
+- Add runtime dry-run and execute CLI wrappers.
+- Emit trace and evidence artifacts without transitioning task state.
+- Add one offline vertical-slice fixture with a validated brief, local file
+  source, mocked API source, worker output, and review packet.
+
+### Changes
+
+- Added `runtime_adapters.py` with `capabilities`, `dry_run`, `execute`,
+  `to_trace`, and `to_evidence_objects` adapter flow.
+- Added local `file_fetch`, `file_search`, and deterministic `code_execute`
+  operations.
+- Added mocked-only `web_search`, `web_open`, `mcp_search`, `mcp_fetch`, and
+  `api_query` adapter classes that fail closed without task-contract permission
+  and `mock_response`.
+- Added public `async-research runtime dry-run` and `runtime execute` commands.
+- Added `runtime_adapters.md` and linked adapter guidance from the docs index
+  and runtime artifact docs.
+- Added offline runtime vertical-slice fixtures and regression tests for
+  dry-run read-only behavior, evidence/trace/dashboard visibility,
+  fail-closed network and live-adapter behavior, malformed cost handling, and
+  no task-state transition.
+- Advanced the roadmap/index to Phase 4 after marking Phase 3 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 760 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 3 scope and
+  delivered diff; no separate reviewer sub-agent was used.
+- Live external fetching, automatic evidence acceptance, and claim verification
+  remain future-phase work.
+
+### Next Action
+
+- Phase 3 is delivered. The next automation run should start Phase 4 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-4`.
