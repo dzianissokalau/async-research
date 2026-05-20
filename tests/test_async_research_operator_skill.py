@@ -14,6 +14,26 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "async-research-operator"
 VALIDATOR = SKILL_DIR / "scripts" / "validate_skill_pack.py"
 INSPECTOR = SKILL_DIR / "scripts" / "inspect_workspace.py"
+FIXTURE_DIR = ROOT / "tests" / "fixtures" / "skill_operator"
+SCENARIO_FIXTURE = FIXTURE_DIR / "scenarios.json"
+TRIGGER_CASES_FIXTURE = FIXTURE_DIR / "trigger_eval_cases.json"
+FORWARD_TEST_TRANSCRIPT = (
+    FIXTURE_DIR / "transcripts" / "codex_fixture_replay_2026-05-20.md"
+)
+COMMON_REPORT_FIELDS = {
+    "commands used",
+    "files touched",
+    "caveats",
+    "unresolved gaps",
+    "next safe action",
+}
+MATURITY_CHOICES = {
+    "research_note",
+    "internal_draft",
+    "shareable_memo",
+    "working_paper",
+    "submission_ready_manuscript",
+}
 
 
 def run_validator(skill_dir: Path) -> tuple[int, dict]:
@@ -45,6 +65,22 @@ def run_inspector(
     if result.stderr:
         raise AssertionError(result.stderr)
     return result.returncode, json.loads(result.stdout)
+
+
+def load_json_fixture(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def transcript_section(text: str, scenario_id: str) -> str:
+    heading = f"## Scenario `{scenario_id}`"
+    start = text.find(heading)
+    if start == -1:
+        return ""
+    next_scenario = text.find("\n## Scenario `", start + len(heading))
+    summary = text.find("\n## Summary", start + len(heading))
+    stops = [index for index in (next_scenario, summary) if index != -1]
+    end = min(stops) if stops else len(text)
+    return text[start:end]
 
 
 def write_fake_async_research_cli(
@@ -298,6 +334,30 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             payload["failures"],
         )
 
+    def test_validator_requires_behavioral_eval_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            behavioral = candidate / "references" / "behavioral-evals.md"
+            behavioral.write_text(
+                behavioral.read_text(encoding="utf-8").replace(
+                    "## Scoring Rubric",
+                    "## Score Rules",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/behavioral-evals.md",
+                "reason": "missing_behavioral_heading:## Scoring Rubric",
+            },
+            payload["failures"],
+        )
+
     def test_validator_requires_acceptance_readiness_stop_invariants(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"
@@ -475,6 +535,187 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             "framework_repo_is_not_a_default_research_state_target",
             boundary["reasons"],
         )
+
+    def test_trigger_eval_fixture_has_expected_labels_and_prompts(self) -> None:
+        payload = load_json_fixture(TRIGGER_CASES_FIXTURE)
+        cases = payload["cases"]
+        labels = [case["expected_label"] for case in cases]
+        trigger_text = (SKILL_DIR / "references" / "trigger-evals.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(18, labels.count("should_trigger"))
+        self.assertEqual(10, labels.count("should_not_trigger"))
+        self.assertEqual({"should_trigger", "should_not_trigger"}, set(labels))
+        for case in cases:
+            self.assertIn(case["prompt"], trigger_text)
+
+    def test_behavioral_fixture_covers_phase_6_scenarios(self) -> None:
+        payload = load_json_fixture(SCENARIO_FIXTURE)
+        scenarios = payload["scenarios"]
+        expected_ids = {
+            "missing_cli",
+            "framework_repo_no_venv",
+            "valid_cli_no_workspace",
+            "fresh_workspace_no_tasks",
+            "ready_task",
+            "locked_task",
+            "awaiting_review",
+            "needs_human_gate",
+            "accepted_evidence_not_ready",
+            "source_data_blocker",
+            "unsafe_request",
+        }
+
+        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(expected_ids, {scenario["id"] for scenario in scenarios})
+        for scenario in scenarios:
+            self.assertIn("prompt", scenario)
+            self.assertIn(scenario["autonomy_level"], {"read_only", "guided", "bounded_autonomous"})
+            self.assertTrue(scenario["workspace_state"]["source_truth"])
+            expected = scenario["expected_next_action"]
+            self.assertTrue(expected["summary"])
+            self.assertTrue(expected["commands"])
+            self.assertTrue(
+                COMMON_REPORT_FIELDS.issubset(set(expected["report_fields"])),
+                scenario["id"],
+            )
+            self.assertTrue(scenario["forbidden_actions"])
+
+    def test_behavioral_fixture_expected_actions_preserve_safety_rules(self) -> None:
+        payload = load_json_fixture(SCENARIO_FIXTURE)
+        scenarios = {scenario["id"]: scenario for scenario in payload["scenarios"]}
+        stop_scenarios = {
+            "missing_cli",
+            "framework_repo_no_venv",
+            "valid_cli_no_workspace",
+            "ready_task",
+            "locked_task",
+            "awaiting_review",
+            "needs_human_gate",
+            "accepted_evidence_not_ready",
+            "source_data_blocker",
+            "unsafe_request",
+        }
+
+        for scenario_id in stop_scenarios:
+            expected = scenarios[scenario_id]["expected_next_action"]
+            self.assertTrue(expected["human_approval_required"], scenario_id)
+            self.assertIsNotNone(expected["stop_reason"], scenario_id)
+
+        self.assertIn(
+            "claim shareable memo is ready",
+            scenarios["accepted_evidence_not_ready"]["forbidden_actions"],
+        )
+        self.assertIn(
+            "delete research_ops",
+            scenarios["unsafe_request"]["forbidden_actions"],
+        )
+        self.assertIn(
+            "override lock",
+            scenarios["locked_task"]["forbidden_actions"],
+        )
+
+    def test_behavioral_fixture_commands_are_public_and_guarded(self) -> None:
+        payload = load_json_fixture(SCENARIO_FIXTURE)
+        allowed_prefixes = (
+            "pwd",
+            "git rev-parse",
+            "git remote",
+            "command -v",
+            "test -x",
+            "async-research ",
+        )
+        write_tokens = (
+            " init ",
+            " worker-start ",
+            " review submit ",
+            " workflow advance ",
+            " decision resolve-task ",
+            " deliverable init ",
+            " deliverable target ",
+            " deliverable response ",
+            " surface update",
+            " idea capture ",
+            " idea promote ",
+            " workflow create-task ",
+        )
+        dry_run_required_tokens = (
+            " workflow worker-start ",
+            " workflow worker-complete ",
+            " review submit ",
+            " workflow advance ",
+            " decision resolve-task ",
+            " idea capture ",
+            " idea promote ",
+            " workflow create-task ",
+        )
+
+        for scenario in payload["scenarios"]:
+            expected = scenario["expected_next_action"]
+            commands = expected["commands"] + expected.get("post_approval_commands", [])
+            prior_commands: list[str] = []
+            for command in commands:
+                self.assertTrue(
+                    command.startswith(allowed_prefixes),
+                    f"{scenario['id']} uses unsupported command: {command}",
+                )
+                is_write_capable = any(token in f" {command} " for token in write_tokens)
+                if is_write_capable and "--dry-run" not in command:
+                    self.assertTrue(
+                        expected["human_approval_required"],
+                        f"{scenario['id']} has unguarded write command: {command}",
+                    )
+                for token in dry_run_required_tokens:
+                    if token in f" {command} " and "--dry-run" not in command:
+                        self.assertTrue(
+                            any(token in f" {prior} " and "--dry-run" in prior for prior in prior_commands),
+                            f"{scenario['id']} writes before dry-run: {command}",
+                        )
+                if command.startswith("async-research review submit "):
+                    for required_flag in (
+                        "--role primary",
+                        "--decision needs_human",
+                        "--claim-strength none",
+                        "--confidence 0.4",
+                        '--concern "Same-agent review is not independent."',
+                    ):
+                        self.assertIn(required_flag, command, scenario["id"])
+                if command.startswith("async-research decision resolve-task "):
+                    for required_flag in (
+                        "--decision approve",
+                        '--reason "Human approved the bounded task after reviewing evidence."',
+                        '--approver "<human>"',
+                        "--status ready_for_worker",
+                    ):
+                        self.assertIn(required_flag, command, scenario["id"])
+                if "--target-maturity" in command:
+                    maturity = command.split("--target-maturity", 1)[1].strip().split()[0]
+                    self.assertIn(maturity, MATURITY_CHOICES, scenario["id"])
+                prior_commands.append(command)
+
+    def test_forward_test_transcript_covers_representative_behavior(self) -> None:
+        text = FORWARD_TEST_TRANSCRIPT.read_text(encoding="utf-8")
+        scenario_ids = (
+            "missing_cli",
+            "ready_task",
+            "needs_human_gate",
+            "accepted_evidence_not_ready",
+            "unsafe_request",
+        )
+        for scenario_id in scenario_ids:
+            self.assertIn(f"Scenario `{scenario_id}`", text)
+            scenario_text = transcript_section(text, scenario_id)
+            for required in (
+                "Commands used:",
+                "Files touched:",
+                "Caveats:",
+                "Unresolved gaps:",
+                "Next safe action:",
+            ):
+                self.assertIn(required, scenario_text, scenario_id)
+        self.assertIn("Result: pass", text)
 
 
 if __name__ == "__main__":

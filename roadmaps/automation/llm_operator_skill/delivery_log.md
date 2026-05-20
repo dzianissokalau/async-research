@@ -312,3 +312,64 @@ Branch: `codex/llm-operator-skill-phase-5`
 ### Next Action
 
 - Phase 5 is delivered. The next automation run should start Phase 6 on `codex/llm-operator-skill-phase-6`.
+
+## Phase 6 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-6`
+
+### Scope
+
+- Add Phase 6 validation evidence for realistic operator states and safety
+  stops.
+- Add fixture-backed checks for trigger eval labels, expected next actions,
+  report completeness, public command usage, dry-run ordering, and forward-test
+  transcripts.
+- Record honest forward-test evidence without claiming real workspace dogfood.
+
+### Changes
+
+- Added `references/behavioral-evals.md` and linked it from `SKILL.md`.
+- Added `tests/fixtures/skill_operator/scenarios.json` covering all 11 roadmap
+  fixture scenarios.
+- Added `tests/fixtures/skill_operator/trigger_eval_cases.json` mirroring the
+  selected trigger-eval prompts and expected labels.
+- Added a Codex fixture replay transcript with explicit limitations and
+  fresh-context subagent replay evidence.
+- Extended `validate_skill_pack.py` to require the behavioral-eval reference and
+  core fixture/evidence phrases.
+- Expanded `tests/test_async_research_operator_skill.py` to validate fixture
+  coverage, trigger labels, safety stops, public command families, dry-run
+  ordering, concrete review/gate command flags, valid maturity choices, and
+  per-scenario transcript completeness.
+- Advanced the roadmap header and phase table to Phase 7.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 25 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 738 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- Final verification was rerun after review fixes.
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-6-review-iteration-1.md`
+- Verdict: needs-fix
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-6-review-iteration-2.md`
+- Verdict: needs-fix
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-6-review-iteration-3.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Forward-test evidence is fixture/subagent replay evidence, not real workspace
+  dogfood or live write-path execution. Phase 7 owns real Codex dogfood rollout.
+- JSON fixtures simulate workspace states; they do not yet exercise full
+  `research_ops/` directory fixtures end to end.
+
+### Next Action
+
+- Phase 6 is delivered. The next automation run should start Phase 7 on `codex/llm-operator-skill-phase-7`.

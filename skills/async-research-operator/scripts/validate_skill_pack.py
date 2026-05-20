@@ -21,6 +21,7 @@ REQUIRED_FILES = (
     "references/reporting.md",
     "references/provider-notes.md",
     "references/trigger-evals.md",
+    "references/behavioral-evals.md",
     "scripts/inspect_workspace.py",
     "scripts/validate_skill_pack.py",
 )
@@ -137,6 +138,36 @@ REQUIRED_REPORTING_PHRASES = (
     "aggregate or result acceptance",
     "accepted memory disagree",
     "`deliverable check` fails",
+)
+REQUIRED_BEHAVIORAL_HEADINGS = (
+    "## Fixture Coverage",
+    "## Behavioral Eval Prompts",
+    "## Scoring Rubric",
+    "## Forward-Test Evidence",
+    "## Known Limitations",
+)
+REQUIRED_BEHAVIORAL_PHRASES = (
+    "tests/fixtures/skill_operator/scenarios.json",
+    "tests/fixtures/skill_operator/trigger_eval_cases.json",
+    "tests/fixtures/skill_operator/transcripts/codex_fixture_replay_2026-05-20.md",
+    "`missing_cli`",
+    "`framework_repo_no_venv`",
+    "`valid_cli_no_workspace`",
+    "`fresh_workspace_no_tasks`",
+    "`ready_task`",
+    "`locked_task`",
+    "`awaiting_review`",
+    "`needs_human_gate`",
+    "`accepted_evidence_not_ready`",
+    "`source_data_blocker`",
+    "`unsafe_request`",
+    "asks before writes",
+    "stops at human gates",
+    "accepted task evidence from deliverable readiness",
+    "commands run",
+    "files touched",
+    "caveats",
+    "unresolved gaps",
 )
 
 
@@ -348,6 +379,31 @@ def validate_reporting(skill_dir: Path, failures: list[dict[str, str]]) -> None:
             )
 
 
+def validate_behavioral_evals(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    behavioral = skill_dir / "references" / "behavioral-evals.md"
+    if not behavioral.is_file():
+        return
+
+    text = behavioral.read_text(encoding="utf-8")
+    normalized = " ".join(text.lower().split())
+    for heading in REQUIRED_BEHAVIORAL_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/behavioral-evals.md",
+                    "reason": f"missing_behavioral_heading:{heading}",
+                }
+            )
+    for phrase in REQUIRED_BEHAVIORAL_PHRASES:
+        if phrase.lower() not in normalized:
+            failures.append(
+                {
+                    "path": "references/behavioral-evals.md",
+                    "reason": f"missing_behavioral_contract:{phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -376,6 +432,7 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_roles(skill_dir, failures)
     validate_safety(skill_dir, failures)
     validate_reporting(skill_dir, failures)
+    validate_behavioral_evals(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 

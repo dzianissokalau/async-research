@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"id": "trigger_01", "expected_label": "should_trigger", "prompt": "Use Codex to continue my async-research worker loop."},
+    {"id": "trigger_02", "expected_label": "should_trigger", "prompt": "What is the next safe action in this `research_ops` workspace?"},
+    {"id": "trigger_03", "expected_label": "should_trigger", "prompt": "Inspect the async-research dashboard snapshot and summarize blockers."},
+    {"id": "trigger_04", "expected_label": "should_trigger", "prompt": "Run the framework status checks and tell me whether acceptance is blocked."},
+    {"id": "trigger_05", "expected_label": "should_trigger", "prompt": "Set up this repo for async-research, but ask before installing anything."},
+    {"id": "trigger_06", "expected_label": "should_trigger", "prompt": "The task is awaiting review; use async-research to decide what comes next."},
+    {"id": "trigger_07", "expected_label": "should_trigger", "prompt": "Check `async-research workflow next research_ops` and report the result."},
+    {"id": "trigger_08", "expected_label": "should_trigger", "prompt": "I need an operator pass on the research_ops gates."},
+    {"id": "trigger_09", "expected_label": "should_trigger", "prompt": "Resume the async research automation from the file-backed state."},
+    {"id": "trigger_10", "expected_label": "should_trigger", "prompt": "Can you guide initialization of `research_ops/` in this private repo?"},
+    {"id": "trigger_11", "expected_label": "should_trigger", "prompt": "Look at readiness and health before continuing this async-research task."},
+    {"id": "trigger_12", "expected_label": "should_trigger", "prompt": "Review whether accepted memory and deliverable readiness disagree."},
+    {"id": "trigger_13", "expected_label": "should_trigger", "prompt": "Run a bounded autonomous loop for one safe async-research task."},
+    {"id": "trigger_14", "expected_label": "should_trigger", "prompt": "Use the console snapshot JSON to produce a status report."},
+    {"id": "trigger_15", "expected_label": "should_trigger", "prompt": "The dashboard says blocked; inspect the source files and CLI state."},
+    {"id": "trigger_16", "expected_label": "should_trigger", "prompt": "Continue from workflow status, but stop at human gates."},
+    {"id": "trigger_17", "expected_label": "should_trigger", "prompt": "Check whether the async-research CLI version has drifted."},
+    {"id": "trigger_18", "expected_label": "should_trigger", "prompt": "Prepare a human decision request for this async-research gate."},
+    {"id": "not_trigger_01", "expected_label": "should_not_trigger", "prompt": "Give me general research advice about survey design."},
+    {"id": "not_trigger_02", "expected_label": "should_not_trigger", "prompt": "Refactor this unrelated React component."},
+    {"id": "not_trigger_03", "expected_label": "should_not_trigger", "prompt": "Summarize the status of my generic software project."},
+    {"id": "not_trigger_04", "expected_label": "should_not_trigger", "prompt": "Build a new standalone dashboard UI."},
+    {"id": "not_trigger_05", "expected_label": "should_not_trigger", "prompt": "Run a non-async-research workflow for a marketing campaign."},
+    {"id": "not_trigger_06", "expected_label": "should_not_trigger", "prompt": "Explain how LLM agents work at a high level."},
+    {"id": "not_trigger_07", "expected_label": "should_not_trigger", "prompt": "Install a global Python package without asking."},
+    {"id": "not_trigger_08", "expected_label": "should_not_trigger", "prompt": "Write a paper submission readiness claim from memory."},
+    {"id": "not_trigger_09", "expected_label": "should_not_trigger", "prompt": "Review this CSV without any async-research workspace."},
+    {"id": "not_trigger_10", "expected_label": "should_not_trigger", "prompt": "Create a GitHub Actions workflow unrelated to async-research."}
+  ]
+}

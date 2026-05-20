@@ -64,5 +64,7 @@ ready without the required checks.
   provider portability limits.
 - [trigger-evals.md](references/trigger-evals.md): selected description,
   candidate descriptions, and trigger examples.
+- [behavioral-evals.md](references/behavioral-evals.md): fixture scenarios,
+  scoring rubric, and forward-test evidence.
 
 Load only the reference file needed for the current task.
