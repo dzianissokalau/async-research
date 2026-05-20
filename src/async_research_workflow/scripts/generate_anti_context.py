@@ -16,6 +16,7 @@ from async_research_workflow.scripts.update_accepted_outputs_index import (
     read_index_rows,
     similarity,
 )
+from async_research_workflow.scripts.evidence_memory import targeted_reflection_matches
 
 
 SUCCESS = 0
@@ -201,11 +202,19 @@ def rejected_label(item: dict[str, Any]) -> str:
     return f"{item_id}: {title} - {failure_mode(item)}"
 
 
+def reflection_label(item: dict[str, Any]) -> str:
+    reflection_id = item.get("reflection_id") or "reflection"
+    failure_class = item.get("failure_class") or "failure"
+    mitigation = item.get("mitigation") or item.get("anti_context_injection") or "review the recorded mitigation"
+    return f"{reflection_id}: {failure_class} - {mitigation}"
+
+
 def build_bundle(ops_dir: Path, title: str, threshold: float, max_items: int) -> dict[str, Any]:
     accepted = accepted_matches(ops_dir, title, threshold, max_items)
     rejected_ideas = rejected_idea_matches(ops_dir, title, threshold, max_items)
     rejected_tasks = rejected_task_matches(ops_dir, title, threshold, max_items)
     rejected = sorted(rejected_ideas + rejected_tasks, key=lambda item: item["similarity"], reverse=True)[:max_items]
+    reflections = targeted_reflection_matches(ops_dir, title, threshold=threshold, max_items=max_items)
     failure_modes = [failure_mode(item) for item in rejected]
 
     warnings: list[str] = []
@@ -221,6 +230,10 @@ def build_bundle(ops_dir: Path, title: str, threshold: float, max_items: int) ->
         warnings.append(
             f"Do not repeat {item.get('item_id', item.get('task_id', 'a rejected approach'))} without directly addressing: {failure_mode(item)}."
         )
+    for item in reflections:
+        injection = str(item.get("anti_context_injection") or item.get("mitigation") or "").strip()
+        if injection:
+            warnings.append(injection)
     if not warnings:
         warnings.append("No similar accepted or rejected prior work found; still state novelty and cheap kill criteria explicitly.")
 
@@ -229,6 +242,7 @@ def build_bundle(ops_dir: Path, title: str, threshold: float, max_items: int) ->
         "threshold": threshold,
         "similar_accepted_findings": accepted,
         "similar_rejected_approaches": rejected,
+        "targeted_reflections": reflections,
         "known_failure_modes": failure_modes[:max_items],
         "do_not_repeat_warnings": warnings[: max_items * 2],
     }
@@ -243,6 +257,7 @@ def bullet_list(items: list[str]) -> list[str]:
 def render_markdown(bundle: dict[str, Any]) -> str:
     accepted = [accepted_label(item) for item in bundle["similar_accepted_findings"]]
     rejected = [rejected_label(item) for item in bundle["similar_rejected_approaches"]]
+    reflections = [reflection_label(item) for item in bundle.get("targeted_reflections", [])]
     failures = [str(item) for item in bundle["known_failure_modes"] if str(item).strip()]
     warnings = [str(item) for item in bundle["do_not_repeat_warnings"] if str(item).strip()]
     lines = [
@@ -256,6 +271,9 @@ def render_markdown(bundle: dict[str, Any]) -> str:
         "",
         "### Known Failure Modes",
         *bullet_list(failures),
+        "",
+        "### Targeted Reflections",
+        *bullet_list(reflections),
         "",
         "### Do-Not-Repeat Warnings",
         *bullet_list(warnings),

@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 8 - Structured evidence memory and targeted reflection
+Current phase: Phase 9 - Bounded parallel research threads
 Last updated: 2026-05-20
-Next action: Add queryable evidence state, contradiction links, failure classes, and targeted critic routing
+Next action: Add planner-controlled fan-out policy, merge requirements, and concurrency gates
 Blocked by: None
 
 Created: 2026-05-20
@@ -413,6 +413,42 @@ Locked decisions:
   checks, API-only/browser-only/hybrid fixture patterns, and route metrics that
   can show cost improvement only within the recorded fixture evidence.
 
+## Resolved Phase 8 Structured Evidence Memory And Targeted Reflection
+
+Phase 8 is delivered as a derived, repo-first evidence memory and reflection
+slice. It adds a machine-queryable accepted-evidence index and targeted
+reflection records without adding a database or replacing authoritative
+`research_ops/` artifacts.
+
+Authoritative memory docs and schemas:
+
+- [Structured Evidence Memory And Targeted Reflection](../src/async_research_workflow/docs/structured_evidence_memory.md)
+- [Evidence Memory Index Schema](../src/async_research_workflow/schemas/evidence_memory_index.schema.json)
+- [Targeted Reflection Schema](../src/async_research_workflow/schemas/targeted_reflection.schema.json)
+
+Locked decisions:
+
+- The derived evidence memory index lives at
+  `research_ops/memory/evidence_memory_index.json`.
+- Targeted reflection rows live at
+  `research_ops/reflections/targeted_reflections.jsonl`.
+- `async-research evidence-memory update` derives claim IDs, evidence IDs,
+  source IDs, freshness status, contradiction edges, task lineage, and
+  deliverable links from existing accepted-memory, runtime-evidence,
+  claim-verification, deliverable, and reflection artifacts.
+- `async-research evidence-memory query` is read-only and surfaces stale or
+  contradicted evidence before reuse; when no index file exists it builds a
+  read-only in-memory view and reports that fallback.
+- `async-research reflection record` writes bounded failure-class reflection
+  rows only when review evidence resolves to an existing file inside
+  `research_ops/`.
+- `async-research anti-context build` preserves accepted-memory and
+  rejected-idea anti-context while injecting only active, relevant targeted
+  reflection rows above the similarity threshold.
+- Structured evidence memory remains a derived planning/read-model aid. Review,
+  result acceptance, deliverable maturity, claim verification, and task state
+  remain the acceptance sources of truth.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -425,7 +461,7 @@ Locked decisions:
 | 5 | Delivered | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
 | 6 | Delivered | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
 | 7 | Delivered | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
-| 8 | Not Started | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
+| 8 | Delivered | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
 | 9 | Not Started | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
 | 10 | Not Started | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
 | 11 | Not Started | P3 | Optional scalable state backend | Decide whether event-log, queue, or indexed state storage is needed beyond repo files. | Scaling work is justified by measured friction, not assumed upfront. |
@@ -1152,7 +1188,7 @@ event log, and indexed read model are needed for higher concurrency.
 | P0 | Trace-driven eval flywheel | Builds eval cases from traces and gates future prompt/runtime changes. | Turns quality into a measured loop instead of opinion. | Not Started |
 | P1 | Prompt and model routing modernization | Slim prompts, keep hard rules in validators, and route model tiers by role. | Improves quality/cost balance with stronger models. | Not Started |
 | P1 | Hybrid API-first routing | Prefer structured APIs and authoritative data before browsing. | Improves reliability, freshness, and cost. | Delivered |
-| P1 | Structured evidence memory and targeted reflection | Adds queryable evidence and failure memory while preserving repo artifacts. | Improves longitudinal research quality. | Not Started |
+| P1 | Structured evidence memory and targeted reflection | Adds queryable evidence and failure memory while preserving repo artifacts. | Improves longitudinal research quality. | Delivered |
 | P2 | Bounded parallel research threads | Allows controlled fan-out/fan-in for source gathering and extraction. | Improves coverage without agent-swarm risk. | Not Started |
 | P2 | Domain pack and head-to-head benchmark | Proves one vertical where the framework can beat general-purpose research products. | Creates credible external quality evidence. | Not Started |
 | P3 | Optional scalable backend | Adds indexed state only if measured friction justifies it. | Helps scale without prematurely abandoning repo-first design. | Not Started |

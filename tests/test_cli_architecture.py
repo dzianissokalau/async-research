@@ -51,6 +51,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_library_commands",
                 "register_runtime_commands",
                 "register_eval_commands",
+                "register_evidence_memory_commands",
                 "register_model_routing_commands",
                 "register_brief_commands",
                 "register_cost_commands",
@@ -60,6 +61,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_outcomes_commands",
                 "register_deliverable_commands",
                 "register_anti_context_commands",
+                "register_reflection_commands",
                 "register_review_commands",
                 "register_revision_commands",
                 "register_result_command",
@@ -96,6 +98,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "library",
                 "runtime",
                 "eval",
+                "evidence-memory",
                 "model-routing",
                 "brief",
                 "cost",
@@ -105,6 +108,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "outcomes",
                 "deliverable",
                 "anti-context",
+                "reflection",
                 "review",
                 "revision",
                 "result-acceptance",
@@ -340,6 +344,8 @@ class CliArchitectureTests(unittest.TestCase):
         accepted_choices = subparser_choices(choices["accepted"])
         outcomes_choices = subparser_choices(choices["outcomes"])
         anti_context_choices = subparser_choices(choices["anti-context"])
+        evidence_memory_choices = subparser_choices(choices["evidence-memory"])
+        reflection_choices = subparser_choices(choices["reflection"])
         review_choices = subparser_choices(choices["review"])
         revision_choices = subparser_choices(choices["revision"])
         analysis_choices = subparser_choices(choices["analysis"])
@@ -362,6 +368,8 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(["update", "check-duplicate", "check-memory-use", "revalidation", "revalidate"], list(accepted_choices))
         self.assertEqual(["refresh", "list", "summary"], list(outcomes_choices))
         self.assertEqual(["build"], list(anti_context_choices))
+        self.assertEqual(["update", "query"], list(evidence_memory_choices))
+        self.assertEqual(["record"], list(reflection_choices))
         self.assertEqual(["draft", "submit", "prepare-context", "install-context", "aggregate"], list(review_choices))
         self.assertEqual(["defaults", "request", "inspect", "scan-limits"], list(revision_choices))
         self.assertEqual(["dashboard", "reviewer-packet", "run-adapter", "preflight", "validate-run", "validate-results"], list(analysis_choices))

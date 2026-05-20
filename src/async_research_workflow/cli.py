@@ -25,6 +25,8 @@ from async_research_workflow.scripts.deliverable_maturity import OUTPUT_TYPE_CHO
 from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_DECISION_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import RESPONSE_MATRIX_STATUS_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import SEVERITY_LEVELS
+from async_research_workflow.scripts.evidence_memory import AFFECTED_STAGES
+from async_research_workflow.scripts.evidence_memory import FAILURE_CLASSES
 from async_research_workflow.scripts.research_brief import OUTPUT_MATURITIES
 from async_research_workflow.scripts.research_brief import PRIVATE_DATA_POLICIES
 from async_research_workflow.scripts.research_brief import PUBLIC_CLAIM_POLICIES
@@ -683,6 +685,68 @@ def run_eval_compare_command(args: argparse.Namespace) -> int:
             str(args.cost_tolerance_usd),
         ],
     )
+
+
+def run_evidence_memory_update_command(args: argparse.Namespace) -> int:
+    argv = ["update", str(args.ops_dir)]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("evidence_memory", argv)
+
+
+def run_evidence_memory_query_command(args: argparse.Namespace) -> int:
+    argv = ["query", str(args.ops_dir), "--limit", str(args.limit)]
+    if args.query:
+        argv.extend(["--query", args.query])
+    if args.freshness_status:
+        argv.extend(["--freshness-status", args.freshness_status])
+    if args.source_id:
+        argv.extend(["--source-id", args.source_id])
+    if args.contradictions_only:
+        argv.append("--contradictions-only")
+    if args.failure_class:
+        argv.extend(["--failure-class", args.failure_class])
+    if args.reflection_threshold is not None:
+        argv.extend(["--reflection-threshold", str(args.reflection_threshold)])
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("evidence_memory", argv)
+
+
+def run_reflection_record_command(args: argparse.Namespace) -> int:
+    argv = [
+        "record-reflection",
+        str(args.task_dir),
+        "--failure-class",
+        args.failure_class,
+        "--trigger-condition",
+        args.trigger_condition,
+        "--affected-stage",
+        args.affected_stage,
+        "--mitigation",
+        args.mitigation,
+        "--anti-context",
+        args.anti_context,
+        "--review-evidence",
+        str(args.review_evidence),
+        "--status",
+        args.status,
+    ]
+    if args.review_summary:
+        argv.extend(["--review-summary", args.review_summary])
+    if args.reflection_id:
+        argv.extend(["--reflection-id", args.reflection_id])
+    if args.expires_at:
+        argv.extend(["--expires-at", args.expires_at])
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("evidence_memory", argv)
 
 
 def run_model_routing_init_command(args: argparse.Namespace) -> int:
@@ -2569,6 +2633,58 @@ def register_eval_commands(subparsers) -> None:
     compare.set_defaults(func=run_eval_compare_command)
 
 
+def register_evidence_memory_commands(subparsers) -> None:
+    evidence_memory = add_command(
+        subparsers,
+        "evidence-memory",
+        help="Build and query structured accepted-evidence memory.",
+        description=(
+            "Build structured accepted-evidence memory by deriving research_ops/memory/evidence_memory_index.json "
+            "from accepted memory, runtime evidence, claim verification, deliverable links, and targeted "
+            "reflections without replacing source files."
+        ),
+    )
+    memory_sub = evidence_memory.add_subparsers(dest="evidence_memory_command", required=True)
+
+    update = add_command(
+        memory_sub,
+        "update",
+        help="Build the structured evidence memory index.",
+        description=(
+            "Write a structured evidence memory index under research_ops/memory with claim ids, evidence ids, "
+            "source ids, contradiction edges, freshness status, task lineage, deliverable links, and reflection "
+            "summaries."
+        ),
+        epilog="Exits 0 when the derived index is valid, 2 for schema issues, 3 for unsafe output paths, and 4 when research_ops is missing.",
+    )
+    add_required_ops(update)
+    update.add_argument("--dry-run", action="store_true", help="Build the index payload without writing it.")
+    update.add_argument("--output", type=Path, help="Override output path under research_ops.")
+    update.add_argument("--now", help="Override generated_at for deterministic output.")
+    update.set_defaults(func=run_evidence_memory_update_command)
+
+    query = add_command(
+        memory_sub,
+        "query",
+        help="Query structured evidence memory and targeted reflections.",
+        description=(
+            "Search accepted evidence entries and relevant targeted reflections while surfacing stale or "
+            "contradicted evidence before reuse."
+        ),
+        epilog="Exits 0 for a readable index, 2 for malformed derived memory, and 4 when research_ops is missing.",
+    )
+    add_required_ops(query)
+    query.add_argument("--query", help="Text to match against titles, findings, sources, claims, and reflections.")
+    query.add_argument("--freshness-status", choices=["current", "due", "stale", "superseded", "contradicted", "unknown"], help="Limit evidence entries by freshness.")
+    query.add_argument("--source-id", help="Limit evidence entries to one DS-* source id.")
+    query.add_argument("--contradictions-only", action="store_true", help="Return only memory entries with contradiction edges.")
+    query.add_argument("--failure-class", choices=FAILURE_CLASSES, help="Limit targeted reflections to one failure class.")
+    query.add_argument("--reflection-threshold", type=float, default=0.2, help="Minimum reflection relevance score.")
+    query.add_argument("--limit", type=int, default=10, help="Maximum memory and reflection matches to return.")
+    query.add_argument("--now", help="Override current time for deterministic reflection expiry.")
+    query.set_defaults(func=run_evidence_memory_query_command)
+
+
 def register_model_routing_commands(subparsers) -> None:
     routing = add_command(
         subparsers,
@@ -3163,6 +3279,43 @@ def register_anti_context_commands(subparsers) -> None:
     build.set_defaults(func=run_anti_context_build_command)
 
 
+def register_reflection_commands(subparsers) -> None:
+    reflection = add_command(
+        subparsers,
+        "reflection",
+        help="Record targeted reflection for future planning context.",
+        description=(
+            "Write bounded failure-class reflections under research_ops/reflections so anti-context can "
+            "inject only relevant mitigation guidance."
+        ),
+    )
+    reflection_sub = reflection.add_subparsers(dest="reflection_command", required=True)
+    record = add_command(
+        reflection_sub,
+        "record",
+        help="Record one targeted reflection from a task review artifact.",
+        description=(
+            "Create a targeted_reflection_v1.0 JSONL row with failure class, trigger condition, affected "
+            "stage, mitigation, future anti-context text, and review evidence under research_ops."
+        ),
+        epilog="Exits 0 when the reflection is recorded, 2 for invalid records or unsafe task paths.",
+    )
+    record.add_argument("task_dir", type=Path, help="Task directory under research_ops/tasks.")
+    record.add_argument("--failure-class", choices=FAILURE_CLASSES, required=True)
+    record.add_argument("--trigger-condition", required=True)
+    record.add_argument("--affected-stage", choices=AFFECTED_STAGES, required=True)
+    record.add_argument("--mitigation", required=True)
+    record.add_argument("--anti-context", required=True, help="Future anti-context injection text for relevant planning tasks.")
+    record.add_argument("--review-evidence", type=Path, required=True, help="Review artifact path under the task or research_ops.")
+    record.add_argument("--review-summary", help="Short review-evidence summary stored with the record.")
+    record.add_argument("--reflection-id", help="Explicit reflection id such as REFL-000001.")
+    record.add_argument("--status", choices=["active", "suppressed", "superseded"], default="active")
+    record.add_argument("--expires-at", help="Optional ISO timestamp after which the record is no longer injected.")
+    record.add_argument("--dry-run", action="store_true", help="Validate and print without writing the reflection ledger.")
+    record.add_argument("--now", help="Override created_at for deterministic output.")
+    record.set_defaults(func=run_reflection_record_command)
+
+
 def register_review_commands(subparsers) -> None:
     review = add_command(
         subparsers,
@@ -3715,6 +3868,7 @@ COMMAND_REGISTRARS = (
     register_library_commands,
     register_runtime_commands,
     register_eval_commands,
+    register_evidence_memory_commands,
     register_model_routing_commands,
     register_brief_commands,
     register_cost_commands,
@@ -3724,6 +3878,7 @@ COMMAND_REGISTRARS = (
     register_outcomes_commands,
     register_deliverable_commands,
     register_anti_context_commands,
+    register_reflection_commands,
     register_review_commands,
     register_revision_commands,
     register_result_command,

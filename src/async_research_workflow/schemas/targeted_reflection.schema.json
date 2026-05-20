@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Targeted Reflection Record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "reflection_id",
+    "created_at",
+    "task_id",
+    "task_title",
+    "failure_class",
+    "trigger_condition",
+    "affected_stage",
+    "mitigation",
+    "anti_context_injection",
+    "review_evidence",
+    "source_task_dir",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "targeted_reflection_v1.0"
+      ]
+    },
+    "reflection_id": {
+      "type": "string",
+      "pattern": "^REFL-[0-9]{6}$"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{4}$"
+    },
+    "task_title": {
+      "type": "string"
+    },
+    "failure_class": {
+      "type": "string",
+      "enum": [
+        "source_quality",
+        "stale_evidence",
+        "contradiction",
+        "citation_gap",
+        "unsupported_claim",
+        "route_policy",
+        "reviewer_disagreement",
+        "reproducibility",
+        "cost_budget",
+        "scope_ambiguity"
+      ]
+    },
+    "trigger_condition": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "affected_stage": {
+      "type": "string",
+      "enum": [
+        "clarifier",
+        "planner",
+        "runtime",
+        "extraction",
+        "verification",
+        "review",
+        "synthesis",
+        "deliverable",
+        "eval"
+      ]
+    },
+    "mitigation": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "anti_context_injection": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "review_evidence": {
+      "type": "object",
+      "required": [
+        "path",
+        "summary"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^research_ops/(?!.*\\.\\.).+"
+        },
+        "summary": {
+          "type": "string",
+          "pattern": ".+"
+        }
+      }
+    },
+    "source_task_dir": {
+      "type": "string",
+      "pattern": "^research_ops/tasks/(?!.*\\.\\.).+"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "suppressed",
+        "superseded",
+        "expired"
+      ]
+    },
+    "expires_at": {
+      "type": "string"
+    }
+  }
+}

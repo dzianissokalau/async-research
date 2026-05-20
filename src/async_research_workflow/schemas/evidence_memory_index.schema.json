@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Structured Evidence Memory Index",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "generated_at",
+    "source_files",
+    "entry_count",
+    "contradiction_count",
+    "stale_evidence_count",
+    "reflection_count",
+    "entries",
+    "contradiction_edges",
+    "targeted_reflections",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "evidence_memory_index_v1.0"
+      ]
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source_files": {
+      "type": "object"
+    },
+    "entry_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "contradiction_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "stale_evidence_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reflection_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "memory_id",
+          "task_id",
+          "title",
+          "claim_ids",
+          "evidence_ids",
+          "source_ids",
+          "freshness_status",
+          "accepted_memory_status",
+          "task_lineage",
+          "deliverable_links",
+          "contradiction_edges",
+          "accepted_memory_row"
+        ],
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "pattern": "^MEM-[0-9]{6}$"
+          },
+          "task_id": {
+            "type": "string",
+            "pattern": "^TASK-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "key_finding": {
+            "type": "string"
+          },
+          "claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^CLM-[0-9]{4,6}$"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^EVID-[0-9]{6}$"
+            }
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^DS-[0-9]{4}$"
+            }
+          },
+          "source_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "freshness_status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "due",
+              "stale",
+              "superseded",
+              "contradicted",
+              "unknown"
+            ]
+          },
+          "accepted_memory_status": {
+            "type": "string"
+          },
+          "task_lineage": {
+            "type": "object",
+            "required": [
+              "task_id",
+              "task_dir",
+              "supersedes",
+              "superseded_by",
+              "source_of_truth_paths"
+            ]
+          },
+          "deliverable_links": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "contradiction_edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "from_claim_id",
+                "to_evidence_id",
+                "task_id",
+                "reason"
+              ]
+            }
+          },
+          "accepted_memory_row": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "contradiction_edges": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "targeted_reflections": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

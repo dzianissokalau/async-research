@@ -321,17 +321,20 @@ class DocumentationReferenceTests(unittest.TestCase):
         runtime_adapters = PACKAGE_ROOT / "docs" / "runtime_adapters.md"
         research_brief = PACKAGE_ROOT / "docs" / "research_brief_contract.md"
         eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
+        evidence_memory = PACKAGE_ROOT / "docs" / "structured_evidence_memory.md"
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         runtime_text = runtime_contract.read_text(encoding="utf-8")
         artifact_text = runtime_artifacts.read_text(encoding="utf-8")
         adapter_text = runtime_adapters.read_text(encoding="utf-8")
         brief_text = research_brief.read_text(encoding="utf-8")
         eval_text = eval_contract.read_text(encoding="utf-8")
+        evidence_memory_text = evidence_memory.read_text(encoding="utf-8")
         runtime_normalized = " ".join(runtime_text.split())
         artifact_normalized = " ".join(artifact_text.split())
         adapter_normalized = " ".join(adapter_text.split())
         brief_normalized = " ".join(brief_text.split())
         eval_normalized = " ".join(eval_text.split())
+        evidence_memory_normalized = " ".join(evidence_memory_text.split())
         failures: list[str] = []
 
         for snippet in [
@@ -340,6 +343,7 @@ class DocumentationReferenceTests(unittest.TestCase):
             "[Runtime Artifacts](./runtime_artifacts.md)",
             "[Runtime Adapters](./runtime_adapters.md)",
             "[Evaluation Flywheel](./evaluation_flywheel.md)",
+            "[Structured Evidence Memory And Targeted Reflection](./structured_evidence_memory.md)",
         ]:
             if snippet not in docs_index:
                 failures.append(f"docs/README.md missing {snippet}")
@@ -453,6 +457,18 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if " ".join(snippet.split()) not in eval_normalized:
                 failures.append(f"evaluation_flywheel.md missing {snippet}")
+
+        for snippet in [
+            "research_ops/memory/evidence_memory_index.json",
+            "research_ops/reflections/targeted_reflections.jsonl",
+            "async-research evidence-memory update research_ops",
+            "async-research evidence-memory query research_ops --contradictions-only",
+            "async-research reflection record research_ops/tasks/TASK-0001-example",
+            "Targeted Reflections",
+            "Expired, suppressed, superseded, or irrelevant rows are not injected",
+        ]:
+            if " ".join(snippet.split()) not in evidence_memory_normalized:
+                failures.append(f"structured_evidence_memory.md missing {snippet}")
 
         self.assertEqual([], failures)
 

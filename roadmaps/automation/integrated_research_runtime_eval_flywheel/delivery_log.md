@@ -433,3 +433,66 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-7`
 
 - Phase 7 is delivered. The next automation run should start Phase 8 on
   `codex/integrated-research-runtime-eval-flywheel-phase-8`.
+
+## Phase 8 - 2026-05-20 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-8`
+
+### Scope
+
+- Add machine-queryable structured evidence memory while preserving
+  `research_ops/` source files as authoritative.
+- Add targeted reflection records with failure classes, trigger conditions,
+  affected stages, mitigations, anti-context text, and review evidence.
+- Add public `evidence-memory` update/query and `reflection record` CLI
+  surfaces plus offline fixtures.
+- Surface stale or contradicted evidence before reuse and inject only relevant
+  reflection context into planning anti-context.
+
+### Changes
+
+- Added `evidence_memory.py` with a derived
+  `research_ops/memory/evidence_memory_index.json` builder, read-only query
+  support, path-bounded reflection recording, schemas, and public
+  `evidence-memory` / `reflection` CLI surfaces.
+- Structured memory entries now expose claim IDs, evidence IDs, source IDs,
+  source URIs, freshness status, accepted-memory status, contradiction edges,
+  task lineage, deliverable links, and source-of-truth paths.
+- Added targeted reflection records with failure class, trigger condition,
+  affected stage, mitigation, anti-context injection text, review evidence, and
+  expiry/status handling.
+- Wired targeted reflections into `anti-context build` without replacing
+  accepted-memory or rejected-idea anti-context sections.
+- Added read-only console snapshot fields for evidence memory counts, recent
+  contradiction edges, targeted reflections, warnings, and recovery commands.
+- Added Phase 8 docs, schemas, package-resource coverage, CLI help/architecture
+  coverage, and offline fixtures for contradiction, stale accepted evidence,
+  repeated source-quality failure, and irrelevant reflection suppression.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 779 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-8-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Existing unrelated dirty operator-skill/version files are intentionally
+  outside this phase scope and will not be staged for the phase commit.
+- Review ran in the orchestration context after rereading scope and diff; no
+  separate reviewer sub-agent was used.
+- The index is intentionally derived from repo files and is not a database or
+  full-text search backend.
+
+### Next Action
+
+- Phase 8 is delivered. The next automation run should start Phase 9 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-9`.

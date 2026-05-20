@@ -27,6 +27,7 @@ from async_research_workflow.scripts import autonomy_readiness_gate
 from async_research_workflow.scripts import data_source_audit
 from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import deliverable_maturity
+from async_research_workflow.scripts import evidence_memory
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
@@ -2215,6 +2216,30 @@ def evals_snapshot(ops_dir: Path) -> dict[str, Any]:
     return runtime_evals.evals_snapshot(ops_dir)
 
 
+def evidence_memory_snapshot(ops_dir: Path, now: datetime) -> dict[str, Any]:
+    code, report = evidence_memory.build_evidence_memory_index(ops_dir, now=now)
+    return {
+        "available": code != evidence_memory.MALFORMED,
+        "status": "available" if code == evidence_memory.SUCCESS else "findings",
+        "ok": code == evidence_memory.SUCCESS,
+        "read_only": True,
+        "changed": False,
+        "index_path": str(ops_dir / evidence_memory.INDEX_RELATIVE_PATH),
+        "entry_count": report.get("entry_count", 0),
+        "contradiction_count": report.get("contradiction_count", 0),
+        "stale_evidence_count": report.get("stale_evidence_count", 0),
+        "reflection_count": report.get("reflection_count", 0),
+        "recent_contradiction_edges": report.get("contradiction_edges", [])[:RECENT_LIMIT],
+        "recent_targeted_reflections": report.get("targeted_reflections", [])[:RECENT_LIMIT],
+        "warnings": report.get("warnings", [])[:RECENT_LIMIT],
+        "errors": report.get("errors", [])[:RECENT_LIMIT],
+        "recovery_commands": [
+            command_hint("Update evidence memory", ["async-research", "evidence-memory", "update", str(ops_dir)]),
+            command_hint("Query evidence memory", ["async-research", "evidence-memory", "query", str(ops_dir)]),
+        ],
+    }
+
+
 def dashboard_summaries(ops_dir: Path, now: datetime) -> dict[str, Any]:
     return {
         "ideas": guarded_dashboard(
@@ -2300,6 +2325,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     runs = runs_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runs are unavailable until research_ops exists", ops_dir)
     runtime = runtime_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runtime is unavailable until research_ops exists", ops_dir)
     evals = evals_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "evals are unavailable until research_ops exists", ops_dir)
+    structured_memory = evidence_memory_snapshot(ops_dir, current) if workspace_ready else unavailable("ops_dir_missing", "evidence memory is unavailable until research_ops exists", ops_dir)
     lifecycle = lifecycle_snapshot(ops_dir, tasks, accepted_outputs, delivered_projects, health, sources) if workspace_ready else unavailable(
         "ops_dir_missing",
         "lifecycle is unavailable until research_ops exists",
@@ -2320,7 +2346,10 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     if evals.get("available") is not False:
         warnings.extend(evals.get("warnings", []))
         warnings.extend(evals.get("errors", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, lifecycle, deliverables, *dashboards.values()]))
+    if structured_memory.get("available") is not False:
+        warnings.extend(structured_memory.get("warnings", []))
+        warnings.extend(structured_memory.get("errors", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, structured_memory, lifecycle, deliverables, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2351,6 +2380,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "runs": runs,
         "runtime": runtime,
         "evals": evals,
+        "evidence_memory": structured_memory,
         "warnings": warnings,
     }
 
