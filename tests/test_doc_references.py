@@ -315,6 +315,91 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_integrated_runtime_phase0_contract_is_documented(self) -> None:
+        runtime_contract = PACKAGE_ROOT / "docs" / "research_runtime_contract.md"
+        eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
+        docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+        runtime_text = runtime_contract.read_text(encoding="utf-8")
+        eval_text = eval_contract.read_text(encoding="utf-8")
+        runtime_normalized = " ".join(runtime_text.split())
+        eval_normalized = " ".join(eval_text.split())
+        failures: list[str] = []
+
+        for snippet in [
+            "[Research Runtime Contract](./research_runtime_contract.md)",
+            "[Evaluation Flywheel](./evaluation_flywheel.md)",
+        ]:
+            if snippet not in docs_index:
+                failures.append(f"docs/README.md missing {snippet}")
+
+        for snippet in [
+            "Workflow commands own task transitions",
+            "Review and result-acceptance commands own acceptance decisions",
+            "The runtime is read-only by default",
+            "Missing permission data fails closed",
+            "The core package remains standard-library first",
+        ]:
+            if " ".join(snippet.split()) not in runtime_normalized:
+                failures.append(f"research_runtime_contract.md missing {snippet}")
+
+        for adapter_type in [
+            "web_search",
+            "web_open",
+            "file_search",
+            "file_fetch",
+            "mcp_search",
+            "mcp_fetch",
+            "api_query",
+            "code_execute",
+        ]:
+            if f"`{adapter_type}`" not in runtime_text:
+                failures.append(f"research_runtime_contract.md missing adapter {adapter_type}")
+
+        for field in [
+            "evidence_id",
+            "task_id",
+            "adapter_type",
+            "source_uri",
+            "source_title",
+            "retrieved_at",
+            "content_hash",
+            "snapshot_path",
+            "span_refs",
+            "license_or_use_policy",
+            "freshness_status",
+            "cost",
+            "permission_basis",
+            "trace_id",
+            "tool_name",
+            "input_summary",
+            "output_summary",
+            "artifact_paths",
+            "return_code",
+            "duration_ms",
+            "token_usage",
+            "error",
+        ]:
+            if f"`{field}`" not in runtime_text:
+                failures.append(f"research_runtime_contract.md missing field {field}")
+
+        for snippet in [
+            "Expert preference win rate",
+            "Grounded claim rate",
+            "Unsupported claim rate",
+            "Task success rate",
+            "Accepted-output rate",
+            "Cost per accepted report",
+            "Median latency to accepted report",
+            "Freshness failure rate",
+            "Reviewer disagreement rate",
+            "Reproducibility pass rate",
+            "One domain pack cannot justify broad superiority claims",
+        ]:
+            if " ".join(snippet.split()) not in eval_normalized:
+                failures.append(f"evaluation_flywheel.md missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_first_success_quickstart_stays_short_and_public(self) -> None:
         quickstart = PACKAGE_ROOT / "docs" / "first_success_quickstart.md"
         text = quickstart.read_text(encoding="utf-8")
