@@ -20,6 +20,9 @@ TRIGGER_CASES_FIXTURE = FIXTURE_DIR / "trigger_eval_cases.json"
 FORWARD_TEST_TRANSCRIPT = (
     FIXTURE_DIR / "transcripts" / "codex_fixture_replay_2026-05-20.md"
 )
+DOGFOOD_TRANSCRIPT = (
+    FIXTURE_DIR / "transcripts" / "codex_dogfood_rollout_2026-05-20.md"
+)
 COMMON_REPORT_FIELDS = {
     "commands used",
     "files touched",
@@ -354,6 +357,30 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             {
                 "path": "references/behavioral-evals.md",
                 "reason": "missing_behavioral_heading:## Scoring Rubric",
+            },
+            payload["failures"],
+        )
+
+    def test_validator_requires_packaging_rollout_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            packaging = candidate / "references" / "packaging.md"
+            packaging.write_text(
+                packaging.read_text(encoding="utf-8").replace(
+                    "## Dogfood Checklist",
+                    "## Rollout Checklist",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/packaging.md",
+                "reason": "missing_packaging_heading:## Dogfood Checklist",
             },
             payload["failures"],
         )
@@ -716,6 +743,43 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             ):
                 self.assertIn(required, scenario_text, scenario_id)
         self.assertIn("Result: pass", text)
+
+    def test_packaging_reference_covers_phase_7_rollout(self) -> None:
+        text = (SKILL_DIR / "references" / "packaging.md").read_text(encoding="utf-8")
+        required_phrases = (
+            "$CODEX_HOME/skills/async-research-operator/",
+            'test -n "$CODEX_HOME"',
+            "Use the async-research-operator skill. Inspect this workspace",
+            "missing CLI setup diagnosis",
+            "one bounded worker loop",
+            "one acceptance/readiness mismatch stop",
+            "Do not auto-install",
+            "Update And Uninstall",
+        )
+
+        for phrase in required_phrases:
+            self.assertIn(phrase, text)
+
+    def test_codex_dogfood_evidence_records_read_only_trial(self) -> None:
+        text = DOGFOOD_TRANSCRIPT.read_text(encoding="utf-8")
+        required_phrases = (
+            "Skill source: repository package, not installed into $CODEX_HOME",
+            "First-use prompt:",
+            "Commands used:",
+            "Files touched: none",
+            "mutations_performed: []",
+            "privacy_boundary: approval_required",
+            "research_ops: missing",
+            "Existing Coffee-Style Workspace Status",
+            "Readiness dry-run: failed",
+            "readiness-failure stop before operation",
+            "Next safe action: ask before initializing research_ops",
+            "Result: pass for read-only first-use and stop behavior",
+            "Limitations:",
+        )
+
+        for phrase in required_phrases:
+            self.assertIn(phrase, text)
 
 
 if __name__ == "__main__":

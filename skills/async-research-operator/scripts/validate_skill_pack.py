@@ -22,6 +22,7 @@ REQUIRED_FILES = (
     "references/provider-notes.md",
     "references/trigger-evals.md",
     "references/behavioral-evals.md",
+    "references/packaging.md",
     "scripts/inspect_workspace.py",
     "scripts/validate_skill_pack.py",
 )
@@ -168,6 +169,34 @@ REQUIRED_BEHAVIORAL_PHRASES = (
     "files touched",
     "caveats",
     "unresolved gaps",
+)
+REQUIRED_PACKAGING_HEADINGS = (
+    "## Install Or Reference",
+    "## First-Use Prompt",
+    "## Dogfood Checklist",
+    "## Dogfood Evidence Rules",
+    "## Update And Uninstall",
+)
+REQUIRED_PACKAGING_PHRASES = (
+    "$CODEX_HOME/skills/async-research-operator/",
+    'test -n "$CODEX_HOME"',
+    "cp -R skills/async-research-operator",
+    "restart or reload Codex",
+    "Use the async-research-operator skill. Inspect this workspace, report the current state, and recommend the next safe action without writing files.",
+    "missing CLI setup diagnosis",
+    "approved project-local install or explicit skip decision",
+    "missing `research_ops/` bootstrap diagnosis",
+    "existing coffee-style workspace status",
+    "one bounded worker loop",
+    "one review loop",
+    "one human gate stop",
+    "one deliverable maturity report",
+    "one acceptance/readiness mismatch stop",
+    "one command-capability or version-drift report",
+    "Do not auto-install",
+    "fresh-session transcript or a delivery log",
+    "If `CODEX_HOME` is empty or unknown",
+    "tests/fixtures/skill_operator/transcripts/codex_dogfood_rollout_2026-05-20.md",
 )
 
 
@@ -404,6 +433,31 @@ def validate_behavioral_evals(skill_dir: Path, failures: list[dict[str, str]]) -
             )
 
 
+def validate_packaging(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    packaging = skill_dir / "references" / "packaging.md"
+    if not packaging.is_file():
+        return
+
+    text = packaging.read_text(encoding="utf-8")
+    normalized = " ".join(text.lower().split())
+    for heading in REQUIRED_PACKAGING_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/packaging.md",
+                    "reason": f"missing_packaging_heading:{heading}",
+                }
+            )
+    for phrase in REQUIRED_PACKAGING_PHRASES:
+        if phrase.lower() not in normalized:
+            failures.append(
+                {
+                    "path": "references/packaging.md",
+                    "reason": f"missing_packaging_contract:{phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -433,6 +487,7 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_safety(skill_dir, failures)
     validate_reporting(skill_dir, failures)
     validate_behavioral_evals(skill_dir, failures)
+    validate_packaging(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 

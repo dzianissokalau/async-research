@@ -373,3 +373,91 @@ Branch: `codex/llm-operator-skill-phase-6`
 ### Next Action
 
 - Phase 6 is delivered. The next automation run should start Phase 7 on `codex/llm-operator-skill-phase-7`.
+
+## Phase 7 Dogfood Evidence - 2026-05-20
+
+Status: reviewing
+Branch: `codex/llm-operator-skill-phase-7`
+
+### Source-Package First-Use Trial
+
+- Skill source: repository package; not installed into `$CODEX_HOME`.
+- Workspace: `/Users/dzianissokalau/Documents/projects/async-research`.
+- Commands: `pwd`, `git rev-parse --is-inside-work-tree`,
+  `.venv/bin/async-research version`,
+  `.venv/bin/python skills/async-research-operator/scripts/inspect_workspace.py`,
+  and `.venv/bin/python skills/async-research-operator/scripts/inspect_workspace.py --run-read-only-checks`.
+- Result: CLI usable from project-local `.venv`, version `0.2.0a5`, no missing
+  expected workflow/console capabilities, `research_ops/` missing, privacy
+  boundary requires approval, and read-only checks skipped because no workspace
+  state exists.
+- Files touched: none by the dogfood commands.
+- Stop observed: ask before initializing `research_ops` or writing research
+  state in the framework repo.
+- Existing coffee-style workspace dogfood:
+  `.venv/bin/python skills/async-research-operator/scripts/inspect_workspace.py --workspace src/async_research_workflow/examples/coffee_pilot_deliverable_maturity --research-ops research_ops --run-read-only-checks`
+  found `research_ops/`, passed schema check, failed readiness dry-run on
+  missing operational files/data-source audit blockers, ran health/workflow
+  next/console snapshot read-only, performed no mutations, and stopped before
+  operation.
+- Evidence file:
+  `tests/fixtures/skill_operator/transcripts/codex_dogfood_rollout_2026-05-20.md`.
+
+### Limitation
+
+- This is source-package dogfood from the automation session, not an installed
+  fresh Codex skills-directory trial. The install path remains documented and
+  explicitly human-approved.
+
+## Phase 7 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-7`
+
+### Scope
+
+- Add packaging, install, validation, update, and uninstall instructions for the
+  repository-backed `async-research-operator` skill.
+- Add a first-use prompt and Codex dogfood checklist covering setup, normal
+  action loops, review, stop behavior, deliverable maturity, and drift reports.
+- Record dogfood evidence without auto-installing into `$CODEX_HOME`.
+
+### Changes
+
+- Added `references/packaging.md` with source-reference validation, explicit
+  install/update/uninstall commands, `CODEX_HOME` guards, first-use prompt,
+  dogfood checklist, and evidence rules.
+- Linked the packaging reference from `SKILL.md`.
+- Added source-package dogfood evidence under
+  `tests/fixtures/skill_operator/transcripts/codex_dogfood_rollout_2026-05-20.md`.
+- Updated `validate_skill_pack.py` and skill tests so packaging and rollout
+  requirements are enforced.
+- Advanced the roadmap header and phase table to Phase 8.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 28 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 741 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-7-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Dogfood evidence is a source-package automation-session run, not an installed
+  fresh Codex skills-directory trial. The docs make the install path explicit
+  and leave it human-approved.
+- No write-capable dogfood loop was run in this phase. The existing
+  coffee-style workspace was inspected read-only and correctly stopped on
+  readiness blockers; write loop dogfood remains a checklist item for a
+  human-approved workspace.
+
+### Next Action
+
+- Phase 7 is delivered. The next automation run should start Phase 8 on `codex/llm-operator-skill-phase-8`.

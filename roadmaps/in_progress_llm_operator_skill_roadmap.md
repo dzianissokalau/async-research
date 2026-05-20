@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
 Status: In Progress
-Current phase: Phase 7 - Packaging, install, and Codex dogfood rollout
+Current phase: Phase 8 - Cross-provider exports and remote gateway scoping
 Last updated: 2026-05-20
-Next action: Add packaging/install instructions and record Codex dogfood evidence
+Next action: Add provider portability notes and remote-gateway scoping after Codex dogfood evidence
 Blocked by: None
 
 Created: 2026-05-19
@@ -226,7 +226,7 @@ The changes below reflect the strongest review findings:
 | 4 | Delivered | Role modes and autonomy policy | Define planner, worker, reviewer, critic, synthesizer, status reporter, and maintainer modes with allowed files, independence limits, and stop rules. | The LLM can switch roles deliberately and expose weak review independence. |
 | 5 | Delivered | Reporting, dashboard alignment, and stop invariants | Define response formats, dashboard snapshot checks, artifact summaries, decision requests, progress reports, and acceptance/readiness mismatch stops. | Human-facing updates become consistent, concise, and tied to framework state. |
 | 6 | Delivered | Skill validation and behavioral evals | Add simulated workspaces, structural tests, trigger evals, and fixture-based behavior/forward tests. | The skill has regression coverage for realistic states, unsafe requests, and actual operator behavior. |
-| 7 | Not Started | Packaging, install, and Codex dogfood rollout | Add install instructions, validation command, dogfood checklist, and first real-project trial procedure. | A new Codex session can install/use the skill and pass a real workspace dogfood run. |
+| 7 | Delivered | Packaging, install, and Codex dogfood rollout | Add install instructions, validation command, dogfood checklist, and first real-project trial procedure. | A new Codex session can install/use the skill and pass a real workspace dogfood run. |
 | 8 | Not Started | Cross-provider exports and remote gateway scoping | After Codex dogfood, create Claude/API/read-only export notes and decide whether a safe remote command gateway deserves its own roadmap. | Portability is based on proven behavior, and unsupported web-only operation is not over-promised. |
 
 ## Phase 0 - Contract Review Gate
@@ -996,8 +996,6 @@ When the skill validation script exists:
 
 - Phase 2 should decide whether any helper beyond `inspect_workspace.py` and
   `validate_skill_pack.py` is justified by concrete startup or validation risk.
-- Phase 7 should pick the first real Codex dogfood workspace and record the
-  evidence in the delivery log.
 - Phase 8 should decide whether cross-provider exports are useful after Codex
   dogfood and whether any API-agent or remote command gateway deserves a
   separate future roadmap.

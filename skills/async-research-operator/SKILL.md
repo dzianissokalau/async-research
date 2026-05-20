@@ -66,5 +66,7 @@ ready without the required checks.
   candidate descriptions, and trigger examples.
 - [behavioral-evals.md](references/behavioral-evals.md): fixture scenarios,
   scoring rubric, and forward-test evidence.
+- [packaging.md](references/packaging.md): install, update, uninstall, first-use,
+  and dogfood rollout instructions.
 
 Load only the reference file needed for the current task.
