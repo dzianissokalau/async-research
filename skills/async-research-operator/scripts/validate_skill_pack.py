@@ -21,6 +21,7 @@ REQUIRED_FILES = (
     "references/reporting.md",
     "references/provider-notes.md",
     "references/trigger-evals.md",
+    "scripts/inspect_workspace.py",
     "scripts/validate_skill_pack.py",
 )
 FORBIDDEN_FILENAMES = {

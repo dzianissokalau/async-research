@@ -95,3 +95,62 @@ Branch: `codex/llm-operator-skill-phase-1`
 ### Next Action
 
 - Phase 1 is delivered. The next automation run should start Phase 2 on `codex/llm-operator-skill-phase-2`.
+
+## Phase 2 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-2`
+
+### Scope
+
+- Add the startup protocol for CLI/workspace discovery, version comparison,
+  capability probing, privacy-boundary checks, guided setup, and read-only state
+  summary.
+- Expand guided setup docs without adding automatic installs, environment
+  creation, network use, or workspace initialization.
+- Add an optional read-only `inspect_workspace.py` helper that emits JSON only.
+
+### Changes
+
+- Expanded `references/startup.md` with ordered startup checks, CLI/workspace
+  detection precedence, version and capability drift handling, privacy-boundary
+  stops, read-only check commands, helper usage, and a compact startup report.
+- Expanded `references/setup.md` with guided setup boundaries, setup source
+  order, missing CLI and missing workspace flows, approval request shape, drift
+  handling, helper usage, and setup stop conditions.
+- Added `scripts/inspect_workspace.py` to detect candidate CLI paths, repo-root
+  `.venv` commands, git/repo metadata, `research_ops/`, version drift, expected
+  command capabilities, privacy-boundary risks, setup recommendations, and
+  optional read-only check results without mutating files.
+- Updated `validate_skill_pack.py` to require the inspection helper.
+- Added tests covering helper JSON help and parse errors, missing CLI/workspace
+  diagnosis without writes, project-local and repo-root CLI detection, version
+  drift, capability gaps, explicit read-only check execution, privacy-boundary
+  warnings, and validator enforcement.
+- Advanced the roadmap header and phase table to Phase 3.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/inspect_workspace.py --help`: passed
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest discover -s tests`: passed, 726 tests
+- Final verification was rerun after roadmap, state, log, and review updates.
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 2 scope and
+  diff; no separate reviewer sub-agent was used.
+- Privacy classification is deliberately conservative for hosted remotes and
+  framework repos. It may require a human approval even for private hosted repos
+  when visibility cannot be verified locally.
+
+### Next Action
+
+- Phase 2 is delivered. The next automation run should start Phase 3 on `codex/llm-operator-skill-phase-3`.
