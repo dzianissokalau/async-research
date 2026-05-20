@@ -53,6 +53,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "register_eval_commands",
                 "register_evidence_memory_commands",
                 "register_model_routing_commands",
+                "register_scaling_commands",
                 "register_brief_commands",
                 "register_cost_commands",
                 "register_batch_commands",
@@ -100,6 +101,7 @@ class CliArchitectureTests(unittest.TestCase):
                 "eval",
                 "evidence-memory",
                 "model-routing",
+                "scaling",
                 "brief",
                 "cost",
                 "batch",
@@ -138,6 +140,31 @@ class CliArchitectureTests(unittest.TestCase):
         module_main.assert_called_once_with(
             "run_acceptance_suite",
             ["--work-dir", "/tmp/arw-acceptance", "--keep-work-dir"],
+        )
+
+    def test_scaling_assess_routes_to_public_helper(self) -> None:
+        with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+            code = cli.main(["scaling", "assess", "research_ops", "--skip-dashboard-latency", "--max-task-statuses", "10"])
+
+        self.assertEqual(cli.SUCCESS, code)
+        module_main.assert_called_once_with(
+            "scaling_state",
+            [
+                "research_ops",
+                "--max-task-statuses",
+                "10",
+                "--max-runtime-ledger-bytes",
+                "10000000",
+                "--max-eval-cases",
+                "500",
+                "--max-dashboard-ms",
+                "2000.0",
+                "--max-stale-locks",
+                "0",
+                "--stale-lock-minutes",
+                "60.0",
+                "--skip-dashboard-latency",
+            ],
         )
 
     def test_health_budget_flags_route_to_public_wrapper(self) -> None:

@@ -2,7 +2,7 @@
 
 Reviewed: 2026-05-20T18:58:56+0100
 Branch: `codex/integrated-research-runtime-eval-flywheel-phase-7`
-Roadmap: `roadmaps/in_progress_integrated_research_runtime_eval_flywheel_roadmap.md`
+Roadmap: `roadmaps/delivered_integrated_research_runtime_eval_flywheel_roadmap.md`
 
 ## Verdict
 

@@ -801,6 +801,29 @@ def run_model_routing_eval_check_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_scaling_assess_command(args: argparse.Namespace) -> int:
+    argv = [
+        str(args.ops_dir),
+        "--max-task-statuses",
+        str(args.max_task_statuses),
+        "--max-runtime-ledger-bytes",
+        str(args.max_runtime_ledger_bytes),
+        "--max-eval-cases",
+        str(args.max_eval_cases),
+        "--max-dashboard-ms",
+        str(args.max_dashboard_ms),
+        "--max-stale-locks",
+        str(args.max_stale_locks),
+        "--stale-lock-minutes",
+        str(args.stale_lock_minutes),
+    ]
+    if args.now:
+        argv.extend(["--now", args.now])
+    if args.skip_dashboard_latency:
+        argv.append("--skip-dashboard-latency")
+    return module_main("scaling_state", argv)
+
+
 def run_brief_draft_command(args: argparse.Namespace) -> int:
     return module_main(
         "research_brief",
@@ -2761,6 +2784,41 @@ def register_model_routing_commands(subparsers) -> None:
     eval_check.set_defaults(func=run_model_routing_eval_check_command)
 
 
+def register_scaling_commands(subparsers) -> None:
+    scaling = add_command(
+        subparsers,
+        "scaling",
+        help="Assess file-backed scaling friction and backend need.",
+        description=(
+            "Measure file-backed scaling friction from task count, runtime ledger size, eval artifacts, lock contention, and dashboard "
+            "snapshot latency without mutating research_ops, then recommend no backend, an optional "
+            "rebuildable index cache, or a human decision for heavier orchestration."
+        ),
+    )
+    scaling_sub = scaling.add_subparsers(dest="scaling_command", required=True)
+    assess = add_command(
+        scaling_sub,
+        "assess",
+        help="Measure scaling friction for one research_ops workspace.",
+        description=(
+            "Read research_ops files and task-local locks, time the read-only console snapshot, and "
+            "explain which source files produced each derived metric. The command never moves truth "
+            "out of research_ops."
+        ),
+        epilog="Exits 0 when the assessment is produced and 4 when the workspace path is invalid.",
+    )
+    add_required_ops(assess)
+    assess.add_argument("--now", help="Override assessment timestamp.")
+    assess.add_argument("--max-task-statuses", type=int, default=250, help="Task-status count threshold before index-cache findings are reported.")
+    assess.add_argument("--max-runtime-ledger-bytes", type=int, default=10_000_000, help="Runtime trace/evidence byte threshold.")
+    assess.add_argument("--max-eval-cases", type=int, default=500, help="Eval case threshold before sharding/index findings are reported.")
+    assess.add_argument("--max-dashboard-ms", type=float, default=2000.0, help="Dashboard snapshot latency threshold in milliseconds.")
+    assess.add_argument("--max-stale-locks", type=int, default=0, help="Allowed stale task lock count before concurrency findings are reported.")
+    assess.add_argument("--stale-lock-minutes", type=float, default=60.0, help="Lock age threshold used for stale-lock detection.")
+    assess.add_argument("--skip-dashboard-latency", action="store_true", help="Skip timing the console snapshot.")
+    assess.set_defaults(func=run_scaling_assess_command)
+
+
 def register_brief_commands(subparsers) -> None:
     brief = add_command(
         subparsers,
@@ -3871,6 +3929,7 @@ COMMAND_REGISTRARS = (
     register_eval_commands,
     register_evidence_memory_commands,
     register_model_routing_commands,
+    register_scaling_commands,
     register_brief_commands,
     register_cost_commands,
     register_batch_commands,

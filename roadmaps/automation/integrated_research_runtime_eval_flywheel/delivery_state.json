@@ -1,13 +1,13 @@
 {
-  "roadmap": "roadmaps/in_progress_integrated_research_runtime_eval_flywheel_roadmap.md",
+  "roadmap": "roadmaps/delivered_integrated_research_runtime_eval_flywheel_roadmap.md",
   "roadmap_slug": "integrated_research_runtime_eval_flywheel",
   "current_phase": 11,
-  "branch": "codex/integrated-research-runtime-eval-flywheel-phase-11",
-  "status": "not_started",
-  "review_iterations": 0,
+  "branch": "codex/integrated-research-runtime-eval-flywheel-delivered",
+  "status": "completed_pending_pause",
+  "review_iterations": 1,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 10,
+    "phase": 11,
     "commands": [
       {
         "command": "git diff --check",
@@ -19,14 +19,14 @@
         "details": "16 tests"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_docs_packaging tests.test_domain_pack_benchmarks tests.test_runtime_evals",
+        "command": ".venv/bin/python -m unittest tests.test_scaling_state_backend tests.test_cli_architecture tests.test_cli_help",
         "status": "passed",
-        "details": "17 tests"
+        "details": "22 tests"
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "787 tests"
+        "details": "792 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -37,22 +37,28 @@
         "command": ".venv/bin/python -m build",
         "status": "passed",
         "details": "sdist and wheel built"
+      },
+      {
+        "command": ".venv/bin/async-research scaling assess src/async_research_workflow/domain_packs/climate_coffee_economics/example_workspace/research_ops --now 2026-05-20T12:00:00Z",
+        "status": "passed",
+        "details": "decision repo_files_sufficient; dashboard_snapshot_ms 6.936"
       }
     ],
-    "completed_at": "2026-05-20T22:01:43+0100"
+    "completed_at": "2026-05-20T22:25:07+0100"
   },
   "last_review": {
-    "phase": 10,
-    "file": "roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-10-review-iteration-1.md",
+    "phase": 11,
+    "file": "roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-11-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-20T22:01:43+0100"
+    "completed_at": "2026-05-20T22:25:07+0100"
   },
-  "last_delivered_phase": 10,
+  "last_delivered_phase": 11,
   "blocked_reason": null,
-  "all_phases_complete": false,
+  "all_phases_complete": true,
+  "pause_instruction": "All phases are delivered. automation_update was not available in this session, so the cron automation must remain paused by honoring this completed_pending_pause state.",
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": "after_all_phases",
   "cadence": "hourly",
-  "updated_at": "2026-05-20T22:01:43+0100"
+  "updated_at": "2026-05-20T22:25:07+0100"
 }

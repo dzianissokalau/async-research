@@ -80,10 +80,11 @@ The main cost reduction comes from:
 48. [Internal Helper Boundary](./internal_helper_boundary.md)
 49. [Release-Trust Hardening Report](./release_trust_hardening_report.md)
 50. [Scaling Guidance](./scaling_guidance.md)
-51. [Worked Examples Index](./worked_examples_index.md)
-52. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
-53. [Implementation Plan](./implementation_plan.md)
-54. [Sources](./sources.md)
+51. [Scalable State Backend Decision](./scalable_state_backend_decision.md)
+52. [Worked Examples Index](./worked_examples_index.md)
+53. [Dashboard Delivery Roadmap](../../../roadmaps/delivered_dashboard_delivery_roadmap.md)
+54. [Implementation Plan](./implementation_plan.md)
+55. [Sources](./sources.md)
 
 ## Package Resources
 

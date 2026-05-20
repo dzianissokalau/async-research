@@ -1,7 +1,7 @@
 # Integrated Research Runtime And Eval Flywheel Delivery Log
 
 Append-only delivery notes for
-`roadmaps/in_progress_integrated_research_runtime_eval_flywheel_roadmap.md`.
+`roadmaps/delivered_integrated_research_runtime_eval_flywheel_roadmap.md`.
 
 ## Phase 0 - 2026-05-20
 
@@ -619,3 +619,86 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-10`
 
 - Phase 10 is delivered. The next automation run should start Phase 11 on
   `codex/integrated-research-runtime-eval-flywheel-phase-11`.
+
+## Phase 11 - 2026-05-20 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-11`
+
+### Scope
+
+- Measure scaling friction from task status files, runtime ledgers, dashboard
+  snapshot latency, task locks, parallel merge packets, and eval artifacts.
+- Decide whether repo files remain enough, whether an optional rebuildable
+  index cache is justified, or whether an external queue/read model needs a
+  human architecture decision.
+- Preserve `research_ops/` files and task-local locks as the durable audit
+  record unless measured evidence justifies a later optional backend.
+
+### Changes
+
+- Added `async-research scaling assess <research_ops>` as a read-only public
+  CLI command backed by `async_research_workflow.scripts.scaling_state`.
+- The assessor reports task status counts, task locks and stale locks, runtime
+  trace/evidence ledger counts and bytes, eval suite/run/case pressure,
+  parallel merge packet counts, and dashboard snapshot latency.
+- Backend decisions are bounded to `repo_files_sufficient`,
+  `optional_rebuildable_index_cache_candidate`, or
+  `external_queue_or_read_model_needs_human_decision`; external orchestration
+  is never selected automatically.
+- CLI output now explains the source of every derived metric, marks itself
+  read-only/unchanged, and warns when dashboard timing cannot be measured.
+- Added the Phase 11 architecture decision record and updated scaling guidance,
+  docs index, CLI help/architecture coverage, and roadmap backlog/status rows.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest tests.test_scaling_state_backend tests.test_cli_architecture tests.test_cli_help`: passed, 22 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 792 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+- `.venv/bin/async-research scaling assess src/async_research_workflow/domain_packs/climate_coffee_economics/example_workspace/research_ops --now 2026-05-20T12:00:00Z`: passed, `repo_files_sufficient`
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-11-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Phase 11 adds a measurement and decision surface, not a production queue,
+  database benchmark, or backend implementation.
+- Future external queues or shared read models still require measured
+  workspace friction and a human architecture decision.
+- Existing unrelated dirty operator-skill/version files are intentionally
+  outside this phase scope and will not be staged for the phase commit.
+- Review ran in the orchestration context after rereading scope and diff; no
+  separate reviewer sub-agent was used.
+
+### Next Action
+
+- All roadmap phases are delivered. Finalize the delivered branch, push only
+  the all-phases-complete branch, and pause the cron automation.
+
+## Final Completion - 2026-05-20
+
+Status: completed_pending_pause
+Branch: `codex/integrated-research-runtime-eval-flywheel-delivered`
+
+### Summary
+
+- All phases 0-11 in
+  `roadmaps/delivered_integrated_research_runtime_eval_flywheel_roadmap.md`
+  are marked delivered.
+- Final verification passed after Phase 11.
+- Final deep-review prompt was written for an independent LLM review.
+- `automation_update` was not available from tool discovery in this session, so
+  the automation is paused by hard-stop state:
+  `completed_pending_pause` with `all_phases_complete: true`.
+
+### Next Action
+
+- Do not start new delivery work for this automation unless a human explicitly
+  reactivates it for follow-up review findings.

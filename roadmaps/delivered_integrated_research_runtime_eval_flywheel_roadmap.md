@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
-Status: In Progress
-Current phase: Phase 11 - Optional scalable state backend
+Status: Delivered
+Current phase: All phases delivered
 Last updated: 2026-05-20
-Next action: Measure scaling friction and decide whether optional indexed state is justified
+Next action: Pause automation and run independent deep review of the delivered branch
 Blocked by: None
 
 Created: 2026-05-20
@@ -521,6 +521,36 @@ Locked decisions:
 - One domain pack does not support broad superiority claims over ChatGPT Deep
   Research or other general-purpose Deep Research-style products.
 
+## Resolved Phase 11 Optional Scalable State Backend
+
+Phase 11 is delivered as an evidence-based no-required-backend decision. Repo
+files and task-local locks remain the authoritative state backend. The system
+now provides a read-only scaling assessor:
+
+```bash
+async-research scaling assess research_ops
+```
+
+The assessor measures task status counts, runtime trace/evidence ledger size,
+eval artifact pressure, task-lock friction, parallel merge packets, and
+dashboard snapshot latency. It explains the source of every derived metric and
+chooses among:
+
+- `repo_files_sufficient`
+- `optional_rebuildable_index_cache_candidate`
+- `external_queue_or_read_model_needs_human_decision`
+
+Locked decisions:
+
+- No SQLite database, event log, external queue, or derived read model is a
+  required runtime dependency.
+- Optional caches must be rebuildable from `research_ops/` and safe to delete.
+- Unique manual decisions, task state, accepted evidence, source policy, review
+  artifacts, and human gates stay in files.
+- External queues or shared read models require a separate human architecture
+  decision backed by measured workspace friction.
+- Phase 11 does not move core truth out of `research_ops/` by default.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -536,7 +566,7 @@ Locked decisions:
 | 8 | Delivered | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
 | 9 | Delivered | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
 | 10 | Delivered | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
-| 11 | Not Started | P3 | Optional scalable state backend | Decide whether event-log, queue, or indexed state storage is needed beyond repo files. | Scaling work is justified by measured friction, not assumed upfront. |
+| 11 | Delivered | P3 | Optional scalable state backend | Decide whether event-log, queue, or indexed state storage is needed beyond repo files. | Scaling work is justified by measured friction, not assumed upfront. |
 
 ## Phase 0 - Runtime And Evaluation Contract
 
@@ -547,7 +577,7 @@ and how quality will be measured.
 
 ### Owned Files
 
-- `roadmaps/in_progress_integrated_research_runtime_eval_flywheel_roadmap.md`
+- `roadmaps/delivered_integrated_research_runtime_eval_flywheel_roadmap.md`
 - optionally `src/async_research_workflow/docs/research_runtime_contract.md`
 - optionally `src/async_research_workflow/docs/evaluation_flywheel.md`
 - `roadmaps/README.md`
@@ -1253,17 +1283,17 @@ event log, and indexed read model are needed for higher concurrency.
 
 | Priority | Improvement | Description | Impact | Status |
 | --- | --- | --- | --- | --- |
-| P0 | Evidence objects and trace ledger | Stable schemas for source snapshots, tool calls, costs, hashes, permissions, and span refs. | Makes integrated runtime auditable instead of opaque. | Not Started |
-| P0 | Clarifier and brief rewrite | Converts vague requests into bounded research briefs with audience, output maturity, source policy, and permissions. | Prevents broad, under-specified tasks from entering execution. | Not Started |
-| P0 | Minimal unified runtime adapters | One adapter interface for file, web, API, MCP, and code execution, with traces and evidence outputs. | Closes the biggest execution gap versus integrated Deep Research products. | Not Started |
-| P0 | Claim and citation verification | Maps atomic claims to evidence spans and blocks or caps unsupported claims. | Directly improves final research quality and trust. | Not Started |
-| P0 | Trace-driven eval flywheel | Builds eval cases from traces and gates future prompt/runtime changes. | Turns quality into a measured loop instead of opinion. | Not Started |
-| P1 | Prompt and model routing modernization | Slim prompts, keep hard rules in validators, and route model tiers by role. | Improves quality/cost balance with stronger models. | Not Started |
+| P0 | Evidence objects and trace ledger | Stable schemas for source snapshots, tool calls, costs, hashes, permissions, and span refs. | Makes integrated runtime auditable instead of opaque. | Delivered |
+| P0 | Clarifier and brief rewrite | Converts vague requests into bounded research briefs with audience, output maturity, source policy, and permissions. | Prevents broad, under-specified tasks from entering execution. | Delivered |
+| P0 | Minimal unified runtime adapters | One adapter interface for file, web, API, MCP, and code execution, with traces and evidence outputs. | Closes the biggest execution gap versus integrated Deep Research products. | Delivered |
+| P0 | Claim and citation verification | Maps atomic claims to evidence spans and blocks or caps unsupported claims. | Directly improves final research quality and trust. | Delivered |
+| P0 | Trace-driven eval flywheel | Builds eval cases from traces and gates future prompt/runtime changes. | Turns quality into a measured loop instead of opinion. | Delivered |
+| P1 | Prompt and model routing modernization | Slim prompts, keep hard rules in validators, and route model tiers by role. | Improves quality/cost balance with stronger models. | Delivered |
 | P1 | Hybrid API-first routing | Prefer structured APIs and authoritative data before browsing. | Improves reliability, freshness, and cost. | Delivered |
 | P1 | Structured evidence memory and targeted reflection | Adds queryable evidence and failure memory while preserving repo artifacts. | Improves longitudinal research quality. | Delivered |
-| P2 | Bounded parallel research threads | Allows controlled fan-out/fan-in for source gathering and extraction. | Improves coverage without agent-swarm risk. | Not Started |
-| P2 | Domain pack and head-to-head benchmark | Proves one vertical where the framework can beat general-purpose research products. | Creates credible external quality evidence. | Not Started |
-| P3 | Optional scalable backend | Adds indexed state only if measured friction justifies it. | Helps scale without prematurely abandoning repo-first design. | Not Started |
+| P2 | Bounded parallel research threads | Allows controlled fan-out/fan-in for source gathering and extraction. | Improves coverage without agent-swarm risk. | Delivered |
+| P2 | Domain pack and head-to-head benchmark | Proves one vertical where the framework can beat general-purpose research products. | Creates credible external quality evidence. | Delivered |
+| P3 | Optional scalable backend | Adds indexed state only if measured friction justifies it. | Helps scale without prematurely abandoning repo-first design. | Delivered |
 
 ## Suggested Delivery Order
 

@@ -41,6 +41,18 @@ Use `async-research workflow check research_ops`,
 `async-research console snapshot research_ops --json` to spot drift before
 increasing cadence.
 
+Use the Phase 11 scaling assessor when deciding whether file-backed state is
+still enough:
+
+```bash
+async-research scaling assess research_ops
+```
+
+The assessor measures task count, runtime ledger size, eval artifact pressure,
+task-lock friction, and read-only dashboard snapshot latency. It reports
+`repo_files_sufficient` by default for normal alpha workspaces and recommends an
+optional rebuildable index cache only when measured thresholds are crossed.
+
 ## When To Split Workspaces
 
 Split into separate `research_ops/` workspaces when any of these become true:
@@ -100,3 +112,6 @@ Keep large workspaces reviewable by archiving intentionally:
 
 The goal is not infinite scale. The goal is an honest, inspectable control plane
 for bounded research work.
+
+See the [Scalable State Backend Decision](./scalable_state_backend_decision.md)
+for the current Phase 11 backend decision and optional-cache boundary.
