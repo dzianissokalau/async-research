@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 6 - GPT-5.5-era prompt and model routing
+Current phase: Phase 7 - Hybrid API-first routing
 Last updated: 2026-05-20
-Next action: Modernize prompt and model routing policy against eval comparisons
+Next action: Add API-first route decisions, source preference policy, and browser fallback rules
 Blocked by: None
 
 Created: 2026-05-20
@@ -339,6 +339,43 @@ Locked decisions:
 - Console snapshots expose eval suite count, run count, latest run status,
   quality metrics, and release-policy posture as derived read-only fields.
 
+## Resolved Phase 6 GPT-5.5-Era Prompt And Model Routing
+
+Phase 6 is delivered as the provider-neutral routing and prompt-adoption gate
+for runtime-backed research roles. It keeps role posture in prompts while moving
+hard safety rules into validators, contracts, runtime permissions, claim gates,
+and eval comparison.
+
+Authoritative routing docs and schemas:
+
+- [Model Routing Policy](../src/async_research_workflow/docs/model_routing_policy.md)
+- [Model Routing Policy Schema](../src/async_research_workflow/schemas/model_routing_policy.schema.json)
+
+Locked decisions:
+
+- The canonical routing policy path is
+  `research_ops/prompts/model_routing_policy.json`.
+- `async-research model-routing init`, `validate`, `select`, and `eval-check`
+  are the public CLI surfaces for creating policies, inspecting role routes, and
+  gating candidate prompt/routing adoption.
+- The routing policy defines capability tiers rather than provider names:
+  `deterministic`, `cheap`, `standard`, `frontier`, and `human`.
+- Required routes are planner, worker, extractor, methodology reviewer, skeptic
+  reviewer, and synthesizer.
+- Hard rules are explicitly owned by validators, task contracts, runtime adapter
+  permissions, claim verification, result acceptance, deliverable maturity, and
+  runtime evals instead of prompt prose alone.
+- Candidate prompt/routing changes must retain a baseline and pass
+  `async-research model-routing eval-check` against Phase 5 eval runs before
+  adoption.
+- Eval-check adoption fails when groundedness, unsupported-claim rate, task
+  success, accepted-output rate, freshness, reproducibility, or cost per
+  accepted report regresses.
+- The provider-neutral policy validator fails closed on hard-coded proprietary
+  provider or model names.
+- Generated prompt-library prompts reference the routing policy and warn when a
+  prompt lacks that reference, but old prompt variants remain valid baselines.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -349,7 +386,7 @@ Locked decisions:
 | 3 | Delivered | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
 | 4 | Delivered | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
 | 5 | Delivered | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
-| 6 | Not Started | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
+| 6 | Delivered | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
 | 7 | Not Started | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
 | 8 | Not Started | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
 | 9 | Not Started | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |

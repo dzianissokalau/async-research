@@ -319,3 +319,59 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-5`
 
 - Phase 5 is delivered. The next automation run should start Phase 6 on
   `codex/integrated-research-runtime-eval-flywheel-phase-6`.
+
+## Phase 6 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-6`
+
+### Scope
+
+- Modernize prompt and model routing policy.
+- Move hard routing and adoption rules into validators/contracts rather than
+  prompt prose alone.
+- Add provider-neutral role routing, cost caps, fallback policy, eval adoption
+  gates, docs, and tests.
+
+### Changes
+
+- Added `model_routing.py` with public `async-research model-routing init`,
+  `validate`, `select`, and `eval-check` commands.
+- Added `model_routing_policy.schema.json` and deterministic semantic
+  validation for required roles, provider-neutral routing, hard-rule ownership,
+  role budgets, fallbacks, stop conditions, and adoption gates.
+- Added an eval adoption gate that compares candidate eval runs against retained
+  baselines and requires the candidate run to record the candidate policy id.
+- Updated generated prompt-library prompts to reference
+  `research_ops/prompts/model_routing_policy.json` and warn when prompt text
+  lacks the routing policy reference.
+- Added model routing docs, runtime eval adoption guidance, scheduler/prompt
+  routing guidance, cost-control references, package-resource coverage, CLI
+  architecture coverage, and focused offline tests.
+- Advanced the roadmap/index to Phase 7 after marking Phase 6 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 775 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-6-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- The policy validates capability tiers and adoption gates; it does not execute
+  live model calls or prove provider-specific quality without separately
+  recorded calibrated eval runs.
+- Review ran in the orchestration context after rereading the Phase 6 scope and
+  delivered diff; no separate reviewer sub-agent was used.
+
+### Next Action
+
+- Phase 6 is delivered. The next automation run should start Phase 7 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-7`.

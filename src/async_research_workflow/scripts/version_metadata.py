@@ -29,6 +29,7 @@ DEFAULT_FRAMEWORK_VERSIONS = {
     "schema_versioning": "schema_versioning_v1.0",
     "data_source_audit": "data_source_audit_v1.0",
     "escalation_policy": "escalation_policy_v1.0",
+    "model_routing": "model_routing_policy_v1.0",
 }
 
 

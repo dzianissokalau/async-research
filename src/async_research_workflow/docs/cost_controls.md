@@ -65,6 +65,16 @@ This is where costs can jump to thousands per month without producing better res
 
 ## Routing Table
 
+The default machine-readable routing policy lives at
+`research_ops/prompts/model_routing_policy.json` and can be validated with:
+
+```bash
+async-research model-routing validate research_ops/prompts/model_routing_policy.json
+```
+
+Use the table below as human-facing guidance. The JSON policy is the operational
+artifact for role budgets, fallback tiers, and adoption gates.
+
 | Stage | Default model/tool | Escalate to frontier when |
 | --- | --- | --- |
 | idea discovery | local 30B, mini model, or Batch API | top candidate will be promoted |

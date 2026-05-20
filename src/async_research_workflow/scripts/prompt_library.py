@@ -36,6 +36,7 @@ REQUIRED_PROMPT_SECTIONS = {
     "cost_and_escalation_limits": "cost and escalation",
 }
 ESCALATION_POLICY_REF = "research_ops/escalation_policy.md"
+MODEL_ROUTING_POLICY_REF = "research_ops/prompts/model_routing_policy.json"
 
 
 @dataclass(frozen=True)
@@ -262,6 +263,15 @@ fresh, when the task needs a human decision, or when source/cost gates block.
 
 Respect task budgets, source governance, and the deterministic escalation policy
 in `{ESCALATION_POLICY_REF}` before doing expensive or risky work.
+
+## Model Routing
+
+Use `{MODEL_ROUTING_POLICY_REF}` when it exists to choose the role's model tier,
+fallback, and escalation triggers. Prompt text describes posture and context
+needs; validators, task contracts, runtime permissions, claim verification, and
+eval comparisons enforce hard rules. Do not activate material prompt or routing
+changes until `async-research model-routing eval-check` passes against the
+retained baseline.
 """
     if spec.prompt_id == "planner":
         body += """
@@ -378,6 +388,14 @@ def validate_prompt_text(prompt_id: str, text: str) -> dict[str, Any]:
         )
     if len(text.strip()) < 200:
         warnings.append({"field": "body", "reason": "prompt_is_very_short"})
+    if MODEL_ROUTING_POLICY_REF.lower() not in lowered:
+        warnings.append(
+            {
+                "field": "model_routing_policy",
+                "reason": "recommended_reference_missing",
+                "expected": MODEL_ROUTING_POLICY_REF,
+            }
+        )
     return {
         "ok": not errors,
         "prompt_id": prompt_id,

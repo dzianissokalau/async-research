@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Model Routing Policy",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "policy_id",
+    "created_at",
+    "updated_at",
+    "status",
+    "provider_policy",
+    "hard_rules",
+    "adoption_gate",
+    "cost_controls",
+    "roles",
+    "known_limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "model_routing_policy_v1.0"
+      ]
+    },
+    "policy_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "candidate",
+        "active",
+        "retired"
+      ]
+    },
+    "provider_policy": {
+      "type": "string",
+      "enum": [
+        "provider_neutral"
+      ]
+    },
+    "hard_rules": {
+      "type": "object",
+      "required": [
+        "owned_by",
+        "prompt_boundary"
+      ],
+      "properties": {
+        "owned_by": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt_boundary": {
+          "type": "string"
+        }
+      }
+    },
+    "adoption_gate": {
+      "type": "object",
+      "required": [
+        "baseline_prompt_variants_retained",
+        "eval_compare_required",
+        "candidate_must_match_or_improve",
+        "quality_claims_require_eval_evidence",
+        "deep_research_comparisons"
+      ],
+      "properties": {
+        "baseline_prompt_variants_retained": {
+          "type": "boolean"
+        },
+        "eval_compare_required": {
+          "type": "boolean"
+        },
+        "candidate_must_match_or_improve": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quality_claims_require_eval_evidence": {
+          "type": "boolean"
+        },
+        "deep_research_comparisons": {
+          "type": "string"
+        }
+      }
+    },
+    "cost_controls": {
+      "type": "object",
+      "required": [
+        "default_max_api_usd",
+        "default_max_compute_usd",
+        "paid_calls_require_task_contract",
+        "role_budgets"
+      ],
+      "properties": {
+        "default_max_api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "default_max_compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "paid_calls_require_task_contract": {
+          "type": "boolean"
+        },
+        "role_budgets": {
+          "type": "object"
+        }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "required": [
+        "planner",
+        "worker",
+        "extractor",
+        "methodology_reviewer",
+        "skeptic_reviewer",
+        "synthesizer"
+      ],
+      "properties": {
+        "planner": {
+          "type": "object"
+        },
+        "worker": {
+          "type": "object"
+        },
+        "extractor": {
+          "type": "object"
+        },
+        "methodology_reviewer": {
+          "type": "object"
+        },
+        "skeptic_reviewer": {
+          "type": "object"
+        },
+        "synthesizer": {
+          "type": "object"
+        }
+      }
+    },
+    "known_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

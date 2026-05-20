@@ -53,6 +53,21 @@ async-research eval compare \
 under `research_ops/evals/runs/` when `--write` is provided. `compare` is
 read-only.
 
+For prompt or routing policy adoption, use the model-routing gate after the
+candidate run has been written:
+
+```bash
+async-research model-routing eval-check \
+  research_ops/prompts/model_routing_policy.json \
+  --baseline research_ops/evals/runs/baseline.json \
+  --candidate research_ops/evals/runs/candidate.json
+```
+
+The candidate run must record the candidate policy id in `model_routing_policy`.
+If groundedness, unsupported-claim rate, task success, accepted-output rate,
+freshness, reproducibility, or cost per accepted report regresses, adoption is
+blocked.
+
 ## Dataset Contract
 
 Each eval case records:

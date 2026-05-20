@@ -685,6 +685,58 @@ def run_eval_compare_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_model_routing_init_command(args: argparse.Namespace) -> int:
+    argv = ["init", str(args.ops_dir), "--policy-id", args.policy_id]
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    if args.write:
+        argv.append("--write")
+    if args.force:
+        argv.append("--force")
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("model_routing", argv)
+
+
+def run_model_routing_validate_command(args: argparse.Namespace) -> int:
+    argv = ["validate", str(args.policy)]
+    if args.include_policy:
+        argv.append("--include-policy")
+    return module_main("model_routing", argv)
+
+
+def run_model_routing_select_command(args: argparse.Namespace) -> int:
+    argv = [
+        "select",
+        str(args.policy),
+        "--role",
+        args.role,
+        "--task-type",
+        args.task_type,
+    ]
+    if args.claim_strength:
+        argv.extend(["--claim-strength", args.claim_strength])
+    if args.public_claims:
+        argv.append("--public-claims")
+    return module_main("model_routing", argv)
+
+
+def run_model_routing_eval_check_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "model_routing",
+        [
+            "eval-check",
+            str(args.policy),
+            "--baseline",
+            str(args.baseline),
+            "--candidate",
+            str(args.candidate),
+            "--cost-tolerance-usd",
+            str(args.cost_tolerance_usd),
+        ],
+    )
+
+
 def run_brief_draft_command(args: argparse.Namespace) -> int:
     return module_main(
         "research_brief",
@@ -2516,6 +2568,81 @@ def register_eval_commands(subparsers) -> None:
     compare.set_defaults(func=run_eval_compare_command)
 
 
+def register_model_routing_commands(subparsers) -> None:
+    routing = add_command(
+        subparsers,
+        "model-routing",
+        help="Validate provider-neutral model routing policy.",
+        description=(
+            "Manage research_ops/prompts/model_routing_policy.json, select role routes, and gate "
+            "candidate prompt or routing changes on deterministic eval comparisons."
+        ),
+    )
+    routing_sub = routing.add_subparsers(dest="model_routing_command", required=True)
+
+    init = add_command(
+        routing_sub,
+        "init",
+        help="Create a default routing policy.",
+        description=(
+            "Render a provider-neutral model routing policy under research_ops/prompts. Without "
+            "--write this previews the policy and does not mutate files."
+        ),
+        epilog="Exits 0 when the policy is valid, 3 for unsafe paths, and 4 if the bundled default policy is malformed.",
+    )
+    add_common_ops(init)
+    init.add_argument("--output", type=Path, help="Output path under research_ops/prompts.")
+    init.add_argument("--policy-id", default="repo_first_model_routing_v1", help="Stable policy id recorded in eval runs.")
+    init.add_argument("--write", action="store_true", help="Write research_ops/prompts/model_routing_policy.json.")
+    init.add_argument("--force", action="store_true", help="Replace an existing policy when writing.")
+    init.add_argument("--now", help="Override timestamps for deterministic output.")
+    init.set_defaults(func=run_model_routing_init_command)
+
+    validate_cmd = add_command(
+        routing_sub,
+        "validate",
+        help="Validate one routing policy JSON file.",
+        description="Validate schema shape, required roles, provider-neutral posture, hard-rule ownership, and adoption gates.",
+        epilog="Exits 0 when valid and 2 when schema or semantic validation fails.",
+    )
+    validate_cmd.add_argument("policy", type=Path, help="Path to model_routing_policy.json.")
+    validate_cmd.add_argument("--include-policy", action="store_true", help="Echo the validated policy in the JSON output.")
+    validate_cmd.set_defaults(func=run_model_routing_validate_command)
+
+    select = add_command(
+        routing_sub,
+        "select",
+        help="Select the route for one research role.",
+        description="Return the configured tier, budget, fallback, and escalation triggers for one role without mutating files.",
+    )
+    select.add_argument("policy", type=Path, help="Path to model_routing_policy.json.")
+    select.add_argument(
+        "--role",
+        required=True,
+        choices=("planner", "worker", "extractor", "methodology_reviewer", "skeptic_reviewer", "synthesizer"),
+    )
+    select.add_argument("--task-type", default="literature_extract", help="Task type used to report recommended escalations.")
+    select.add_argument("--claim-strength", help="Claim strength used to report recommended escalations.")
+    select.add_argument("--public-claims", action="store_true", help="Report public-claim escalation guidance.")
+    select.set_defaults(func=run_model_routing_select_command)
+
+    eval_check = add_command(
+        routing_sub,
+        "eval-check",
+        help="Gate routing adoption on eval comparison.",
+        description=(
+            "Validate the policy, compare candidate eval metrics against a baseline run, and require "
+            "the candidate run to record the policy_id before adoption is eligible."
+        ),
+        epilog="Exits 0 when candidate metrics match or improve baseline and 2 when adoption is blocked.",
+    )
+    eval_check.add_argument("policy", type=Path, help="Path to model_routing_policy.json.")
+    eval_check.add_argument("--baseline", type=Path, required=True, help="Baseline eval run JSON.")
+    eval_check.add_argument("--candidate", type=Path, required=True, help="Candidate eval run JSON.")
+    eval_check.add_argument("--cost-tolerance-usd", type=float, default=0.0, help="Allowed cost-per-accepted-report increase.")
+    eval_check.set_defaults(func=run_model_routing_eval_check_command)
+
+
 def register_brief_commands(subparsers) -> None:
     brief = add_command(
         subparsers,
@@ -3587,6 +3714,7 @@ COMMAND_REGISTRARS = (
     register_library_commands,
     register_runtime_commands,
     register_eval_commands,
+    register_model_routing_commands,
     register_brief_commands,
     register_cost_commands,
     register_batch_commands,

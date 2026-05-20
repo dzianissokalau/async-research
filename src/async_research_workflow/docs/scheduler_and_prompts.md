@@ -129,6 +129,8 @@ Every scheduled prompt should include:
 - stop conditions
 - cost and escalation limits
 - reference to `research_ops/escalation_policy.md`
+- reference to `research_ops/prompts/model_routing_policy.json` when model
+  routing is enabled
 
 Every scheduled prompt should avoid:
 
@@ -137,6 +139,38 @@ Every scheduled prompt should avoid:
 - "make it better"
 - "use your judgment freely"
 - "edit whatever is needed"
+
+## Model Routing Policy
+
+Prompt text should stay short enough to preserve role clarity. Hard safety and
+quality rules belong in deterministic validators, task contracts, runtime
+adapter permissions, claim verification, result acceptance, deliverable maturity
+checks, and eval comparisons.
+
+Use:
+
+```bash
+async-research model-routing init research_ops --write
+async-research model-routing validate research_ops/prompts/model_routing_policy.json
+```
+
+to create and validate the provider-neutral routing policy. The policy defines
+capability tiers for planner, worker, extractor, methodology reviewer, skeptic,
+and synthesizer roles without naming a required proprietary provider.
+
+Before activating a material prompt or routing change, keep the previous prompt
+variant as a baseline and run:
+
+```bash
+async-research model-routing eval-check \
+  research_ops/prompts/model_routing_policy.json \
+  --baseline research_ops/evals/runs/baseline.json \
+  --candidate research_ops/evals/runs/candidate.json
+```
+
+Do not adopt the candidate when eval comparison regresses groundedness, task
+success, accepted-output rate, freshness, reproducibility, unsupported-claim
+rate, or cost per accepted report.
 
 ## Planner Prompt
 
