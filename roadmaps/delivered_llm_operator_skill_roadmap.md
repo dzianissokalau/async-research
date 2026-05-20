@@ -1,9 +1,9 @@
 # LLM Operator Skill Roadmap
 
-Status: In Progress
-Current phase: Phase 8 - Delivered pending final closeout
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-20
-Next action: Complete final roadmap closeout and pause the delivery automation
+Next action: Final branch push and automation pause.
 Blocked by: None
 
 Created: 2026-05-19
@@ -240,7 +240,7 @@ in Phase 1.
 
 ### Owned Files
 
-- `roadmaps/in_progress_llm_operator_skill_roadmap.md`
+- `roadmaps/delivered_llm_operator_skill_roadmap.md`
 - optionally `src/async_research_workflow/docs/llm_operator_contract.md`
 - `roadmaps/README.md`
 
