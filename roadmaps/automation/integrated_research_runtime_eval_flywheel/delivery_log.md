@@ -560,3 +560,62 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-9`
 
 - Phase 9 is delivered. The next automation run should start Phase 10 on
   `codex/integrated-research-runtime-eval-flywheel-phase-10`.
+
+## Phase 10 - 2026-05-20 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-10`
+
+### Scope
+
+- Create one honest, repeatable domain pack and benchmark slice.
+- Include source policies, brief/task templates, claim gates, reviewer rubrics,
+  eval cases, example workspaces, and comparison reporting.
+- Keep benchmark claims limited to the selected domain and fixture evidence.
+
+### Changes
+
+- Added the packaged `climate_coffee_economics` domain pack with source policy,
+  preferred source classes, brief template, five benchmark task templates,
+  claim gates, reviewer rubric, eval cases, comparison reports, static
+  generic-baseline and upgraded-runtime eval runs, and an example
+  `research_ops/` fixture skeleton.
+- Added `domain_pack_path()` and package-data patterns so domain-pack Markdown,
+  JSON, CSV, and JSONL resources are included in distributions.
+- Updated eval and domain-pack docs to allow only benchmark-limited
+  head-to-head claims with explicit wins, losses, unproven areas, source
+  policies, reviewer rubrics, and human intervention points.
+- Added offline tests for domain-pack artifact presence, benchmark case
+  coverage, run-schema validity, `async-research eval compare`, package-data
+  coverage, and resource availability.
+- Advanced the roadmap/index to Phase 11 after marking Phase 10 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest tests.test_docs_packaging tests.test_domain_pack_benchmarks tests.test_runtime_evals`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 787 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-10-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- The benchmark is deterministic and offline; live source acquisition,
+  proprietary Deep Research-style outputs, and expert preference remain
+  unproven until permissioned artifacts and calibrated paired reviews are
+  recorded.
+- Existing unrelated dirty operator-skill/version files are intentionally
+  outside this phase scope and will not be staged for the phase commit.
+- Review ran in the orchestration context after rereading scope and diff; no
+  separate reviewer sub-agent was used.
+
+### Next Action
+
+- Phase 10 is delivered. The next automation run should start Phase 11 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-11`.

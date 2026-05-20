@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "brief_id": "BRIEF-CLIMATE-COFFEE-ECONOMICS",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "user_question": "Assess how climate stress could affect coffee supply, farm economics, and buyer risk over the next sourcing cycle.",
+  "clarified_objective": "Produce a bounded climate/coffee economics brief that separates sourced market facts, local/private buyer context, computed sensitivity checks, and unresolved gaps.",
+  "target_audience": "coffee sourcing and research operations leads",
+  "intended_output_maturity": "internal_draft",
+  "target_venue": "internal research memo",
+  "allowed_source_classes": [
+    "official_api",
+    "authoritative_downloadable_data",
+    "institutional_report",
+    "private_local_file",
+    "computed_artifact"
+  ],
+  "forbidden_source_classes": [
+    "unlicensed_scrape",
+    "unsourced_model_memory",
+    "live_paid_api_without_gate"
+  ],
+  "public_claims_policy": "No public claims from private/local evidence without explicit publication permission.",
+  "freshness_policy": {
+    "market_price_days": 45,
+    "weather_or_climate_days": 120,
+    "institutional_report_days": 365
+  },
+  "required_outputs": [
+    "claim table with evidence ids",
+    "source coverage table",
+    "computed sensitivity check",
+    "unsupported or stale claim list",
+    "human intervention points"
+  ],
+  "human_gates": [
+    "public release",
+    "private buyer memo reuse",
+    "paid/live source access",
+    "Deep Research-style product comparison"
+  ]
+}

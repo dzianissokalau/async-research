@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "tasks": [
+    {
+      "task_id": "TASK-7001",
+      "slug": "open-web-synthesis",
+      "task_type": "literature_extract",
+      "benchmark_category": "open_web_synthesis",
+      "objective": "Summarize public institutional evidence on coffee price and climate-risk context.",
+      "allowed_tools": [
+        "runtime:web_open",
+        "runtime:file_fetch"
+      ],
+      "allowed_source_classes": [
+        "institutional_report",
+        "authoritative_downloadable_data"
+      ],
+      "acceptance_gate": "all market and climate claims cite evidence spans or are listed as gaps"
+    },
+    {
+      "task_id": "TASK-7002",
+      "slug": "private-local-synthesis",
+      "task_type": "literature_extract",
+      "benchmark_category": "private_local_file_synthesis",
+      "objective": "Extract allowed internal buyer constraints from a redacted local memo.",
+      "allowed_tools": [
+        "runtime:file_fetch"
+      ],
+      "allowed_source_classes": [
+        "private_local_file"
+      ],
+      "acceptance_gate": "private memo evidence is marked non-public and cannot support public claims"
+    },
+    {
+      "task_id": "TASK-7003",
+      "slug": "data-api-retrieval",
+      "task_type": "data_readiness",
+      "benchmark_category": "data_api_retrieval",
+      "objective": "Retrieve mocked official price and climate indicators with route decisions.",
+      "allowed_tools": [
+        "runtime:api_query"
+      ],
+      "allowed_source_classes": [
+        "official_api"
+      ],
+      "acceptance_gate": "API route decisions and license/use metadata are present for every indicator"
+    },
+    {
+      "task_id": "TASK-7004",
+      "slug": "empirical-check",
+      "task_type": "run_analysis",
+      "benchmark_category": "empirical_check",
+      "objective": "Run a deterministic local sensitivity check linking yield stress and buyer margin risk.",
+      "allowed_tools": [
+        "runtime:file_fetch",
+        "analysis:local_script"
+      ],
+      "allowed_source_classes": [
+        "computed_artifact",
+        "authoritative_downloadable_data"
+      ],
+      "acceptance_gate": "computed claims link to input table hashes and analysis outputs"
+    },
+    {
+      "task_id": "TASK-7005",
+      "slug": "deliverable-maturity-check",
+      "task_type": "evaluate_results",
+      "benchmark_category": "deliverable_maturity_check",
+      "objective": "Decide whether the internal coffee economics memo is mature enough for external use.",
+      "allowed_tools": [
+        "read_files"
+      ],
+      "allowed_source_classes": [
+        "review_artifact",
+        "computed_artifact"
+      ],
+      "acceptance_gate": "deliverable maturity cannot advance while citations, reviewer response, or public-claim gates remain open"
+    }
+  ]
+}

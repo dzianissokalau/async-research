@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 10 - Domain packs and head-to-head benchmark
+Current phase: Phase 11 - Optional scalable state backend
 Last updated: 2026-05-20
-Next action: Package one honest domain pack and benchmark report
+Next action: Measure scaling friction and decide whether optional indexed state is justified
 Blocked by: None
 
 Created: 2026-05-20
@@ -163,8 +163,9 @@ Locked decisions:
 - Core dependency posture remains standard-library first. Provider SDKs,
   network adapters, and other external integrations belong in optional runtime
   extras or plugin adapter packages after the contracts are proven.
-- Head-to-head Deep Research-style comparison claims remain out of scope until
-  Phase 10 and must be benchmark-limited.
+- Head-to-head Deep Research-style comparison claims are allowed only inside
+  named domain packs with benchmark evidence, explicit source permissions,
+  reviewer rubrics, and clear wins, losses, and unproven areas.
 
 ## Resolved Phase 1 Evidence Objects And Trace Ledger
 
@@ -488,6 +489,38 @@ Locked decisions:
   counts, merge packet counts, and a `bounded_parallelism` grader for fixture
   cases that should trigger parallelism.
 
+## Resolved Phase 10 Domain Packs And Head-To-Head Benchmark
+
+Phase 10 is delivered as the first honest domain-pack benchmark slice. It
+selects climate/coffee economics, packages source policy, brief and task
+templates, claim gates, reviewer rubrics, eval cases, baseline/candidate runs,
+an example workspace skeleton, and comparison reports without live network
+calls, credentials, paid services, or proprietary Deep Research-style outputs.
+
+Authoritative domain-pack docs and artifacts:
+
+- [Domain Packs And Benchmarking](../src/async_research_workflow/docs/domain_packs.md)
+- [Climate Coffee Economics Domain Pack](../src/async_research_workflow/domain_packs/climate_coffee_economics/README.md)
+- [Climate Coffee Comparison Report](../src/async_research_workflow/domain_packs/climate_coffee_economics/comparison_report.md)
+- [Climate Coffee Eval Cases](../src/async_research_workflow/domain_packs/climate_coffee_economics/eval_cases.json)
+
+Locked decisions:
+
+- The first benchmark domain is `climate/coffee economics`, chosen because the
+  roadmap named it and the repository already had a coffee deliverable maturity
+  fixture to build from without external credentials.
+- Default benchmark execution is offline and fixture-backed. Live source
+  acquisition, paid APIs, credentials, and private buyer data publication
+  require explicit task-contract permission and human gates.
+- The packaged comparison may state only that the runtime-backed domain pack
+  improves deterministic metrics over the bundled generic baseline for this
+  domain fixture.
+- Proprietary Deep Research-style outputs and expert preference win rate remain
+  unproven until permissioned, dated, prompt-linked artifacts and calibrated
+  paired reviewer scores are recorded.
+- One domain pack does not support broad superiority claims over ChatGPT Deep
+  Research or other general-purpose Deep Research-style products.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -502,7 +535,7 @@ Locked decisions:
 | 7 | Delivered | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
 | 8 | Delivered | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
 | 9 | Delivered | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
-| 10 | Not Started | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
+| 10 | Delivered | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
 | 11 | Not Started | P3 | Optional scalable state backend | Decide whether event-log, queue, or indexed state storage is needed beyond repo files. | Scaling work is justified by measured friction, not assumed upfront. |
 
 ## Phase 0 - Runtime And Evaluation Contract

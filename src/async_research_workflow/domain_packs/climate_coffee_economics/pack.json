@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "domain": "climate/coffee economics",
+  "status": "benchmark_fixture",
+  "created_at": "2026-05-20T12:00:00Z",
+  "objective": "Package one repeatable climate and coffee economics research benchmark with explicit source policy, claim gates, review rubric, eval cases, and honest comparison reporting.",
+  "first_domain_decision": {
+    "selected_domain": "climate/coffee economics",
+    "decision_basis": "The roadmap listed this domain and the repository already contains a coffee deliverable maturity fixture, allowing a domain pack without external credentials or live network calls."
+  },
+  "artifacts": {
+    "source_policy": "source_policy.md",
+    "brief_template": "brief_templates/climate_coffee_supply_brief.json",
+    "task_templates": "task_templates/benchmark_tasks.json",
+    "claim_gates": "claim_gates.json",
+    "reviewer_rubric": "reviewer_rubric.md",
+    "eval_cases": "eval_cases.json",
+    "generic_baseline_run": "eval_runs/generic_baseline.json",
+    "upgraded_runtime_run": "eval_runs/upgraded_runtime.json",
+    "comparison_report_json": "comparison_report.json",
+    "comparison_report_markdown": "comparison_report.md",
+    "example_workspace": "example_workspace/research_ops/README.md"
+  },
+  "source_policy_summary": {
+    "default_live_network": false,
+    "default_paid_calls": false,
+    "default_credentials": false,
+    "default_private_publication": false,
+    "preferred_source_classes": [
+      "official_api",
+      "authoritative_downloadable_data",
+      "institutional_report",
+      "private_local_file",
+      "computed_artifact"
+    ],
+    "human_gates": [
+      "live external access",
+      "paid source or model calls",
+      "private buyer memo publication",
+      "Deep Research-style product comparison",
+      "public release claim"
+    ]
+  },
+  "benchmark_tasks": [
+    "open_web_synthesis",
+    "private_local_file_synthesis",
+    "data_api_retrieval",
+    "empirical_check",
+    "deliverable_maturity_check"
+  ],
+  "comparison_participants": {
+    "generic_async_research_baseline": {
+      "status": "included",
+      "artifact": "eval_runs/generic_baseline.json",
+      "description": "Baseline run representing generic operation without the Phase 10 domain pack, source policy, and runtime-backed claim gates."
+    },
+    "upgraded_async_research_runtime": {
+      "status": "included",
+      "artifact": "eval_runs/upgraded_runtime.json",
+      "description": "Candidate run representing the domain pack, source policy, trace-aware evals, claim gates, and deliverable maturity checks."
+    },
+    "deep_research_style_output": {
+      "status": "not_included_permission_required",
+      "description": "No proprietary or manually captured Deep Research-style output is bundled. Attach only permissioned, dated, prompt-linked artifacts before making a product comparison."
+    },
+    "human_review_baseline": {
+      "status": "rubric_only",
+      "description": "The reviewer rubric defines the calibration path, but no private reviewer preference notes are packaged."
+    }
+  },
+  "honest_claim_policy": {
+    "allowed_statement": "In the packaged climate/coffee economics fixture, the runtime-backed domain pack improves groundedness, unsupported-claim rate, accepted-output rate, freshness failures, and cost against the bundled generic baseline.",
+    "forbidden_statement": "async-research broadly beats ChatGPT Deep Research or other general-purpose Deep Research-style products.",
+    "unproven_statement": "Expert preference and proprietary Deep Research-style product comparisons remain unproven until permissioned paired outputs and calibrated reviewer scores are recorded."
+  }
+}

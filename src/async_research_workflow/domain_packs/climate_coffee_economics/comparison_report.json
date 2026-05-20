@@ -1,0 +1,90 @@
+{
+  "schema_version": "domain_pack_benchmark_report_v1.0",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "suite_id": "climate-coffee-economics-head-to-head-v1",
+  "generated_at": "2026-05-20T12:00:00Z",
+  "benchmark_scope": {
+    "domain": "climate/coffee economics",
+    "case_count": 5,
+    "source_permissions": "offline fixture snapshots and mocked official API/data routes only",
+    "live_network": false,
+    "paid_calls": false,
+    "credentials": false,
+    "private_data": "redacted local fixture only",
+    "deep_research_style_reference": "not_included_permission_required",
+    "human_review_baseline": "rubric_only"
+  },
+  "metric_summary": {
+    "generic_baseline": {
+      "grounded_claim_rate": 0.72,
+      "unsupported_claim_rate": 0.2,
+      "task_success_rate": 0.6,
+      "accepted_output_rate": 0.4,
+      "freshness_failure_rate": 0.12,
+      "stale_evidence_reuse_rate": 0.1,
+      "cost_per_accepted_report_usd": 0.12,
+      "median_latency_to_accepted_report_ms": 240000.0,
+      "reproducibility_pass_rate": 1.0,
+      "reviewer_disagreement_rate": 0.2
+    },
+    "upgraded_runtime": {
+      "grounded_claim_rate": 0.92,
+      "unsupported_claim_rate": 0.04,
+      "task_success_rate": 0.8,
+      "accepted_output_rate": 0.8,
+      "freshness_failure_rate": 0.0,
+      "stale_evidence_reuse_rate": 0.0,
+      "cost_per_accepted_report_usd": 0.09,
+      "median_latency_to_accepted_report_ms": 210000.0,
+      "reproducibility_pass_rate": 1.0,
+      "reviewer_disagreement_rate": 0.2
+    },
+    "metric_deltas": {
+      "grounded_claim_rate": 0.2,
+      "unsupported_claim_rate": -0.16,
+      "task_success_rate": 0.2,
+      "accepted_output_rate": 0.4,
+      "freshness_failure_rate": -0.12,
+      "stale_evidence_reuse_rate": -0.1,
+      "cost_per_accepted_report_usd": -0.03,
+      "median_latency_to_accepted_report_ms": -30000.0,
+      "reproducibility_pass_rate": 0.0,
+      "reviewer_disagreement_rate": 0.0
+    }
+  },
+  "preference_win_rate": {
+    "status": "not_measured",
+    "reason": "Expert preference requires permissioned paired outputs and calibrated reviewer scores. This pack records only deterministic metric deltas."
+  },
+  "wins": [
+    "Upgraded runtime improves grounded claim rate from 0.72 to 0.92.",
+    "Unsupported claim rate drops from 0.20 to 0.04.",
+    "Accepted-output rate improves from 0.40 to 0.80 while preserving reproducibility.",
+    "Freshness and stale-evidence failures drop to zero in the packaged fixture.",
+    "Cost per accepted report drops from 0.12 USD to 0.09 USD."
+  ],
+  "losses": [
+    "Reviewer disagreement is unchanged in the deterministic fixture.",
+    "The pack does not prove expert preference because no human-calibrated paired review is bundled."
+  ],
+  "unproven": [
+    "No broad comparison to ChatGPT Deep Research or other proprietary Deep Research-style products is supported.",
+    "Live source acquisition quality is unproven because the default benchmark uses offline fixtures and mocked routes.",
+    "Generalization beyond climate/coffee economics is unproven."
+  ],
+  "human_intervention_points": [
+    "Approve private buyer memo reuse before public claims.",
+    "Approve any live external API, paid source, or browser capture.",
+    "Calibrate paired reviewers before reporting expert preference win rate.",
+    "Approve any public statement comparing against named Deep Research-style products."
+  ],
+  "artifacts": {
+    "baseline_run": "eval_runs/generic_baseline.json",
+    "candidate_run": "eval_runs/upgraded_runtime.json",
+    "eval_cases": "eval_cases.json",
+    "source_policy": "source_policy.md",
+    "rubric": "reviewer_rubric.md"
+  },
+  "allowed_claim": "In this packaged climate/coffee economics fixture, the runtime-backed domain pack improves multiple deterministic metrics over the generic baseline.",
+  "forbidden_claim": "This fixture does not support broad superiority claims over general-purpose Deep Research-style products."
+}

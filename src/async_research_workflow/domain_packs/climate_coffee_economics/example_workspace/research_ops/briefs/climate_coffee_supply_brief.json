@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "brief_id": "BRIEF-7001",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "clarified_objective": "Assess climate stress, coffee supply, and buyer margin risk using only fixture sources and computed artifacts.",
+  "target_audience": "internal coffee sourcing research lead",
+  "intended_output_maturity": "internal_draft",
+  "target_venue": "internal benchmark memo",
+  "allowed_source_classes": [
+    "institutional_report",
+    "private_local_file",
+    "official_api",
+    "computed_artifact"
+  ],
+  "forbidden_source_classes": [
+    "live_paid_api_without_gate",
+    "unlicensed_scrape",
+    "unsourced_model_memory"
+  ],
+  "public_claims_policy": "fixture_only_no_public_claims",
+  "human_gates": [
+    "private_data_publication",
+    "live_external_access",
+    "deep_research_style_product_comparison"
+  ]
+}

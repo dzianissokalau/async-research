@@ -94,10 +94,14 @@ status, quality metrics, and release-policy posture under its `evals` group.
 
 ## Honest Benchmarking
 
-Head-to-head comparisons with Deep Research-style products are out of scope
-until Phase 10. When they are introduced, reports must state the domain, source
-permissions, allowed tools, benchmark cases, judging rubric, and where the
-system wins, loses, or remains unproven.
+Head-to-head comparisons are allowed only inside named domain packs with source
+permissions, allowed tools, benchmark cases, judging rubrics, run artifacts,
+and explicit wins, losses, and unproven areas. The first packaged pack is the
+[Climate Coffee Economics Domain Pack](../domain_packs/climate_coffee_economics/README.md).
+Its bundled comparison covers generic async-research versus the upgraded
+runtime-backed domain pack. Proprietary Deep Research-style outputs remain
+unproven until permissioned, dated, prompt-linked artifacts and calibrated
+reviewer scores are attached.
 
 One domain pack cannot justify broad superiority claims. The accepted claim is
 narrower: async-research should be evaluated for repeatable, auditable,

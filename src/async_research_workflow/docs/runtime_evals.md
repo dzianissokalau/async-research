@@ -122,6 +122,9 @@ claims, task success, accepted-output rate, freshness, reproducibility, or cost
 per accepted report beyond the configured tolerance.
 
 The eval surface can support narrow quality claims only when the claim cites the
-suite, baseline, candidate, metric deltas, and residual risks. Deep
-Research-style head-to-head comparisons remain out of scope until benchmark
-cases and source policies are defined for that purpose.
+suite, baseline, candidate, metric deltas, and residual risks. Domain-pack
+head-to-head reports must also cite source policies, benchmark cases, reviewer
+rubrics, wins, losses, unproven areas, and human intervention points. The
+packaged climate/coffee economics pack compares a generic async-research
+baseline with the upgraded runtime-backed workflow, but it does not include
+proprietary Deep Research-style outputs or expert preference scores.

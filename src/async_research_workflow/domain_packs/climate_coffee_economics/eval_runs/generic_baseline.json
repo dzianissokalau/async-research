@@ -1,0 +1,212 @@
+{
+  "action": "eval_run",
+  "case_results": [
+    {
+      "case_id": "EVAL-7001",
+      "checks": [
+        {
+          "name": "schema_path_hash",
+          "status": "pass"
+        },
+        {
+          "name": "groundedness",
+          "status": "pass"
+        },
+        {
+          "name": "citation_support",
+          "status": "pass"
+        },
+        {
+          "name": "task_success",
+          "status": "pass"
+        }
+      ],
+      "findings": [],
+      "metrics": {
+        "accepted_output": 0.0,
+        "cost_usd": 0.04,
+        "freshness_failure_rate": 0.2,
+        "grounded_claim_rate": 0.68,
+        "latency_ms": 220000.0,
+        "reproducibility_pass": 1.0,
+        "reviewer_disagreement": 0.0,
+        "task_success": 1.0,
+        "unsupported_claim_rate": 0.18
+      },
+      "status": "pass",
+      "task_id": "TASK-7001"
+    },
+    {
+      "case_id": "EVAL-7002",
+      "checks": [
+        {
+          "name": "schema_path_hash",
+          "status": "pass"
+        },
+        {
+          "name": "groundedness",
+          "status": "pass"
+        },
+        {
+          "name": "citation_support",
+          "status": "pass"
+        },
+        {
+          "name": "task_success",
+          "status": "pass"
+        }
+      ],
+      "findings": [],
+      "metrics": {
+        "accepted_output": 0.0,
+        "cost_usd": 0.05,
+        "freshness_failure_rate": 0.1,
+        "grounded_claim_rate": 0.62,
+        "latency_ms": 250000.0,
+        "reproducibility_pass": 1.0,
+        "reviewer_disagreement": 1.0,
+        "task_success": 0.0,
+        "unsupported_claim_rate": 0.28
+      },
+      "status": "pass",
+      "task_id": "TASK-7002"
+    },
+    {
+      "case_id": "EVAL-7003",
+      "checks": [
+        {
+          "name": "schema_path_hash",
+          "status": "pass"
+        },
+        {
+          "name": "source_routing",
+          "status": "pass"
+        },
+        {
+          "name": "cost_latency",
+          "status": "pass"
+        }
+      ],
+      "findings": [],
+      "metrics": {
+        "accepted_output": 1.0,
+        "api_first_route_rate": 0.25,
+        "browser_fallback_rate": 0.5,
+        "cost_usd": 0.06,
+        "freshness_failure_rate": 0.1,
+        "grounded_claim_rate": 0.76,
+        "latency_ms": 240000.0,
+        "reproducibility_pass": 1.0,
+        "reviewer_disagreement": 0.0,
+        "task_success": 1.0,
+        "unsupported_claim_rate": 0.16
+      },
+      "status": "pass",
+      "task_id": "TASK-7003"
+    },
+    {
+      "case_id": "EVAL-7004",
+      "checks": [
+        {
+          "name": "schema_path_hash",
+          "status": "pass"
+        },
+        {
+          "name": "groundedness",
+          "status": "pass"
+        },
+        {
+          "name": "cost_latency",
+          "status": "pass"
+        }
+      ],
+      "findings": [],
+      "metrics": {
+        "accepted_output": 1.0,
+        "cost_usd": 0.07,
+        "freshness_failure_rate": 0.1,
+        "grounded_claim_rate": 0.82,
+        "latency_ms": 260000.0,
+        "reproducibility_pass": 1.0,
+        "reviewer_disagreement": 0.0,
+        "task_success": 1.0,
+        "unsupported_claim_rate": 0.12
+      },
+      "status": "pass",
+      "task_id": "TASK-7004"
+    },
+    {
+      "case_id": "EVAL-7005",
+      "checks": [
+        {
+          "name": "schema_path_hash",
+          "status": "pass"
+        },
+        {
+          "name": "task_success",
+          "status": "pass"
+        },
+        {
+          "name": "human_review_placeholder",
+          "status": "manual_placeholder"
+        }
+      ],
+      "findings": [],
+      "metrics": {
+        "accepted_output": 0.0,
+        "cost_usd": 0.02,
+        "freshness_failure_rate": 0.1,
+        "grounded_claim_rate": 0.72,
+        "latency_ms": 230000.0,
+        "reproducibility_pass": 1.0,
+        "reviewer_disagreement": 0.0,
+        "task_success": 0.0,
+        "unsupported_claim_rate": 0.26
+      },
+      "status": "pass",
+      "task_id": "TASK-7005"
+    }
+  ],
+  "changed": false,
+  "errors": [],
+  "evaluated_at": "2026-05-20T12:00:00Z",
+  "framework_version": "runtime_eval_run_v1.0",
+  "human_calibration": {
+    "required_for": [
+      "expert_preference_win_rate",
+      "deep_research_style_product_comparison"
+    ],
+    "status": "not_included"
+  },
+  "metrics": {
+    "accepted_output_rate": 0.4,
+    "accepted_report_count": 2,
+    "api_first_route_rate": 0.25,
+    "browser_fallback_rate": 0.5,
+    "case_count": 5,
+    "cost_per_accepted_report_usd": 0.12,
+    "freshness_failure_rate": 0.12,
+    "grounded_claim_rate": 0.72,
+    "median_latency_to_accepted_report_ms": 240000.0,
+    "reproducibility_pass_rate": 1.0,
+    "reviewer_disagreement_rate": 0.2,
+    "stale_evidence_reuse_rate": 0.1,
+    "task_success_rate": 0.6,
+    "total_cost_usd": 0.24,
+    "unsupported_claim_rate": 0.2
+  },
+  "model_routing_policy": "generic_baseline_no_domain_pack",
+  "ok": true,
+  "read_only": true,
+  "residual_risks": [
+    "baseline represents a packaged generic-operation fixture, not all possible generic async-research runs",
+    "human preference and proprietary Deep Research-style outputs are not included"
+  ],
+  "run_id": "climate-coffee-generic-baseline",
+  "runtime_policy": "generic_async_research_without_runtime_domain_pack",
+  "schema_version": "1.0",
+  "status": "pass",
+  "suite_id": "climate-coffee-economics-head-to-head-v1",
+  "suite_path": "domain_packs/climate_coffee_economics/eval_cases.json",
+  "warnings": []
+}

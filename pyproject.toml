@@ -70,4 +70,8 @@ async_research_workflow = [
   "examples/**/*.csv",
   "examples/**/*.jsonl",
   "benchmarks/**/*.json",
+  "domain_packs/**/*.md",
+  "domain_packs/**/*.json",
+  "domain_packs/**/*.csv",
+  "domain_packs/**/*.jsonl",
 ]

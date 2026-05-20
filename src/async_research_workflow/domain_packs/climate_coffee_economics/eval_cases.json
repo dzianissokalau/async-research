@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "suite_id": "climate-coffee-economics-head-to-head-v1",
+  "cases": [
+    {
+      "case_id": "CCB-0001",
+      "task_id": "TASK-7001",
+      "benchmark_category": "open_web_synthesis",
+      "expected_behavior": "Public institutional claims cite source snapshots, retrieval dates, and freshness windows.",
+      "primary_metrics": [
+        "grounded_claim_rate",
+        "unsupported_claim_rate",
+        "freshness_failure_rate"
+      ]
+    },
+    {
+      "case_id": "CCB-0002",
+      "task_id": "TASK-7002",
+      "benchmark_category": "private_local_file_synthesis",
+      "expected_behavior": "Private buyer memo details remain non-public and are separated from market-wide claims.",
+      "primary_metrics": [
+        "unsupported_claim_rate",
+        "accepted_output_rate",
+        "human_intervention_points"
+      ]
+    },
+    {
+      "case_id": "CCB-0003",
+      "task_id": "TASK-7003",
+      "benchmark_category": "data_api_retrieval",
+      "expected_behavior": "Mocked official API routes are preferred over browser fallback and include route decisions.",
+      "primary_metrics": [
+        "api_first_route_rate",
+        "browser_fallback_rate",
+        "cost_per_accepted_report_usd"
+      ]
+    },
+    {
+      "case_id": "CCB-0004",
+      "task_id": "TASK-7004",
+      "benchmark_category": "empirical_check",
+      "expected_behavior": "Numeric sensitivity claims link to deterministic input and output artifacts.",
+      "primary_metrics": [
+        "reproducibility_pass_rate",
+        "grounded_claim_rate",
+        "task_success_rate"
+      ]
+    },
+    {
+      "case_id": "CCB-0005",
+      "task_id": "TASK-7005",
+      "benchmark_category": "deliverable_maturity_check",
+      "expected_behavior": "The deliverable is not promoted past internal draft until maturity gates and reviewer response rows are closed.",
+      "primary_metrics": [
+        "accepted_output_rate",
+        "reviewer_disagreement_rate",
+        "human_intervention_points"
+      ]
+    }
+  ]
+}

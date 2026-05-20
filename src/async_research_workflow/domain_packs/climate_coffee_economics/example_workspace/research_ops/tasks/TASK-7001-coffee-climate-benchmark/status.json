@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "id": "TASK-7001",
+  "title": "Coffee climate economics benchmark synthesis",
+  "type": "literature_extract",
+  "status": "ready_for_worker",
+  "previous_status": "planned",
+  "last_transition_reason": "domain_pack_fixture",
+  "priority": 2,
+  "revision_count": 0,
+  "max_revisions": 1,
+  "revision_limit_hit": false,
+  "allowed_paths": [
+    "research_ops/briefs/**",
+    "research_ops/sources/**",
+    "research_ops/tasks/TASK-7001-coffee-climate-benchmark/**",
+    "research_ops/runtime/**",
+    "research_ops/evals/**"
+  ],
+  "allowed_tools": [
+    "runtime:file_fetch",
+    "runtime:api_query"
+  ],
+  "allow_browsing": false,
+  "allow_code_execution": false,
+  "allow_network": false,
+  "max_minutes": 30,
+  "max_turns": 6,
+  "model_tier": "benchmark_fixture",
+  "requires_human": false,
+  "human_gate_reason": null,
+  "budget": {
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0
+  },
+  "runtime_permissions": {
+    "max_calls": 5,
+    "max_api_usd": 0.0,
+    "max_compute_usd": 0.0,
+    "allowed_domains": [],
+    "allowed_api_names": [
+      "fixture_coffee_indicators"
+    ],
+    "allow_credentials": false,
+    "allow_paid_calls": false
+  },
+  "research_brief_ref": "research_ops/briefs/climate_coffee_supply_brief.json",
+  "review_policy": {
+    "tier": 2,
+    "required_reviewers": [
+      "primary",
+      "skeptic"
+    ],
+    "panel_required": true,
+    "human_required_for_acceptance": false
+  },
+  "result": {
+    "claim_strength": null,
+    "key_finding": null,
+    "followup_count": 0
+  }
+}

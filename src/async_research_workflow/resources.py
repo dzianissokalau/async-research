@@ -33,5 +33,9 @@ def examples_path(*parts: str):
     return package_root().joinpath("examples", *parts)
 
 
+def domain_pack_path(*parts: str):
+    return package_root().joinpath("domain_packs", *parts)
+
+
 def console_static_path(*parts: str):
     return package_root().joinpath("console", "static", *parts)

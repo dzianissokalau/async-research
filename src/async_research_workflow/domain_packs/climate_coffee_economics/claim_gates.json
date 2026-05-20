@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "domain_pack_id": "climate_coffee_economics_v1",
+  "claim_gate_policy": {
+    "material_claims_require_evidence_refs": true,
+    "numeric_claims_require_computed_or_source_table_artifact": true,
+    "private_local_claims_require_publication_gate": true,
+    "stale_market_price_days": 45,
+    "stale_climate_indicator_days": 120,
+    "unsupported_claim_max_rate": 0.05,
+    "minimum_grounded_claim_rate": 0.9,
+    "maximum_claim_strength_without_human_review": "moderate"
+  },
+  "blocked_claim_patterns": [
+    "broad superiority over Deep Research-style products",
+    "publication-ready policy recommendation from fixture-only evidence",
+    "causal climate impact claim without empirical or cited support",
+    "private buyer behavior generalized to the market"
+  ],
+  "required_review_findings": [
+    "unsupported material claims",
+    "stale source reuse",
+    "private/public boundary ambiguity",
+    "missing license/use metadata",
+    "human intervention points"
+  ]
+}

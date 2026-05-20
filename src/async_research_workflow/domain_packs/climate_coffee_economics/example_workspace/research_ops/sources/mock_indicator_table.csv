@@ -1,0 +1,4 @@
+indicator,period,value,unit,source_id,license_or_use_policy
+arabica_price_index,2026-04,1.42,index,DS-CC-0003,fixture-only
+rainfall_stress_score,2026-Q1,0.31,index,DS-CC-0004,fixture-only
+buyer_margin_sensitivity,fixture,0.18,index,DS-CC-0005,fixture-only
