@@ -496,3 +496,67 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-8`
 
 - Phase 8 is delivered. The next automation run should start Phase 9 on
   `codex/integrated-research-runtime-eval-flywheel-phase-9`.
+
+## Phase 9 - 2026-05-20 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-9`
+
+### Scope
+
+- Add planner-controlled bounded parallel research for source gathering and
+  literature extraction style fan-out.
+- Enforce task-contract parallel permissions, branch budgets, branch-specific
+  allowed paths, deterministic merge requirements, and lock/concurrency checks.
+- Emit branch lineage on runtime traces and evidence objects while preserving
+  task-state, review, claim-verification, result-acceptance, and human gates.
+- Add runtime validation, eval metrics, offline fixtures, docs, and schemas for
+  parallel and non-parallel cases.
+
+### Changes
+
+- Runtime requests now support `mode: "parallel_research"` only when
+  `runtime_permissions.parallel_research` explicitly enables bounded fan-out.
+- Parallel plan validation fails closed for unsupported branch shapes, missing
+  planner control, missing deterministic review packets, invalid merge paths,
+  unsafe branch IDs, source path escapes, budget/call-count overruns, direct
+  acceptance, and gate-skip flags.
+- Successful parallel execution tags trace/evidence rows with
+  `parallel_branch` metadata and writes one Markdown merge packet under
+  `research_ops/runtime/parallel_merges/`.
+- Runtime validation and evals now report parallel branch, trace, and merge
+  packet counts, and eval runs include a deterministic `bounded_parallelism`
+  grader.
+- Added bounded parallel research docs, task status schema fields, eval schema
+  coverage, package-resource coverage, CLI help updates, and planner prompt
+  guidance.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 783 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-9-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Live external provider fan-out remains future adapter work; default coverage
+  is deterministic and offline.
+- Merge packets are review context only and still depend on downstream claim
+  verification, review, result acceptance, deliverable maturity, and human
+  gates.
+- Existing unrelated dirty operator-skill/version files are intentionally
+  outside this phase scope and will not be staged for the phase commit.
+- Review ran in the orchestration context after rereading scope and diff; no
+  separate reviewer sub-agent was used.
+
+### Next Action
+
+- Phase 9 is delivered. The next automation run should start Phase 10 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-10`.

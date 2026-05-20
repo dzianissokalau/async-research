@@ -10,6 +10,7 @@ import fnmatch
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import re
 import time
 from typing import Any, Iterable
 from urllib.parse import urlparse
@@ -46,6 +47,15 @@ SOURCE_PREFERENCE_POLICY = (
 )
 SOURCE_CLASS_RANK = {source_class: index for index, source_class in enumerate(SOURCE_PREFERENCE_POLICY)}
 BROWSER_FALLBACK_REASONS = {"api_unavailable", "api_incomplete", "human_context_required"}
+PARALLEL_RESEARCH_MODE = "parallel_research"
+PARALLEL_BRANCH_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,48}$")
+PARALLEL_RESEARCH_SHAPES = {
+    "source_gathering",
+    "literature_extraction",
+    "market_map_slice",
+    "policy_jurisdiction_comparison",
+    "data_source_profiling",
+}
 MOCK_SOURCE_PROFILES: dict[str, dict[str, Any]] = {
     "statistical_api": {
         "adapter_types": {"api_query"},
@@ -72,6 +82,7 @@ MOCK_SOURCE_PROFILES: dict[str, dict[str, Any]] = {
 TRACE_LEDGER = Path("runtime") / "traces.jsonl"
 EVIDENCE_LEDGER = Path("runtime") / "evidence_objects.jsonl"
 SNAPSHOTS_DIR = Path("runtime") / "snapshots"
+PARALLEL_MERGES_DIR = Path("runtime") / "parallel_merges"
 
 
 def print_json(payload: dict[str, Any]) -> None:
@@ -82,10 +93,19 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def issue(reason: str, message: str, *, field: str | None = None, actual: Any = None) -> dict[str, Any]:
+def issue(
+    reason: str,
+    message: str,
+    *,
+    field: str | None = None,
+    expected: Any = None,
+    actual: Any = None,
+) -> dict[str, Any]:
     payload = {"reason": reason, "message": message}
     if field is not None:
         payload["field"] = field
+    if expected is not None:
+        payload["expected"] = expected
     if actual is not None:
         payload["actual"] = actual
     return payload
@@ -876,6 +896,268 @@ def domain_allowed(host: str, allowed_domains: list[Any]) -> bool:
     return False
 
 
+def parallel_permissions(context: RuntimeContext) -> dict[str, Any]:
+    parallel = context.runtime_permissions.get("parallel_research")
+    return parallel if isinstance(parallel, dict) else {}
+
+
+def parallel_plan(request: dict[str, Any]) -> dict[str, Any]:
+    plan = request.get("parallel_plan")
+    return plan if isinstance(plan, dict) else {}
+
+
+def is_parallel_request(request: dict[str, Any]) -> bool:
+    return request.get("mode") == PARALLEL_RESEARCH_MODE
+
+
+def branch_id_valid(value: Any) -> bool:
+    return isinstance(value, str) and bool(PARALLEL_BRANCH_ID_RE.match(value.strip()))
+
+
+def clean_branch_id(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def parallel_branch_for_call(call: dict[str, Any], plan_branches: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    branch_id = clean_branch_id(call.get("branch_id") or call.get("parallel_branch_id"))
+    branch_shape = str(call.get("branch_shape") or "").strip()
+    if not branch_id and not branch_shape:
+        return {}
+    branch_plan = (plan_branches or {}).get(branch_id, {})
+    return {
+        "branch_id": branch_id,
+        "branch_shape": branch_shape or str(branch_plan.get("branch_shape") or ""),
+        "branch_title": str(call.get("branch_title") or branch_plan.get("branch_title") or branch_id),
+        "merge_role": "source_branch",
+        "no_direct_acceptance": True,
+    }
+
+
+def branch_rows(plan: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    rows = plan.get("branches")
+    if not isinstance(rows, list):
+        return {}, [issue("parallel_branches_missing", "parallel_plan.branches must list each planned branch", field="parallel_plan.branches")]
+    by_id: dict[str, dict[str, Any]] = {}
+    findings: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            findings.append(issue("invalid_parallel_branch", "parallel_plan.branches entries must be objects", field=f"parallel_plan.branches[{index}]"))
+            continue
+        branch_id = clean_branch_id(row.get("branch_id"))
+        if not branch_id_valid(branch_id):
+            findings.append(
+                issue(
+                    "invalid_parallel_branch_id",
+                    "parallel branch ids must be short filesystem-safe labels",
+                    field=f"parallel_plan.branches[{index}].branch_id",
+                    actual=row.get("branch_id"),
+                )
+            )
+            continue
+        if branch_id in by_id:
+            findings.append(issue("duplicate_parallel_branch_id", "parallel branch ids must be unique", field=f"parallel_plan.branches[{index}].branch_id", actual=branch_id))
+            continue
+        by_id[branch_id] = row
+    return by_id, findings
+
+
+def source_refs_for_call(ops_dir: Path, call: dict[str, Any]) -> list[str]:
+    values: list[Any] = []
+    if "source_path" in call:
+        values.append(call.get("source_path"))
+    source_paths = call.get("source_paths")
+    if isinstance(source_paths, list):
+        values.extend(source_paths)
+    refs: list[str] = []
+    for value in values:
+        _path, ref = workspace_path(ops_dir, value)
+        if ref is not None:
+            refs.append(ref)
+    return refs
+
+
+def path_inside_parallel_merge_dir(ops_dir: Path, ref: str) -> bool:
+    path, normalized_ref = workspace_path(ops_dir, ref)
+    return (
+        path is not None
+        and normalized_ref is not None
+        and normalized_ref.startswith("research_ops/runtime/parallel_merges/")
+        and normalized_ref.endswith(".md")
+    )
+
+
+def parallel_merge_ref(request: dict[str, Any], context: RuntimeContext) -> str:
+    plan = parallel_plan(request)
+    raw_ref = plan.get("merge_output_path")
+    if isinstance(raw_ref, str) and raw_ref.strip():
+        return raw_ref.strip()
+    return f"research_ops/runtime/parallel_merges/{context.task_id}-parallel-merge.md"
+
+
+def task_lock_owner(context: RuntimeContext) -> dict[str, Any]:
+    owner_path = context.status_path.parent / "LOCK" / "owner.json"
+    try:
+        payload = json.loads(owner_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def parallel_lock_findings(plan: dict[str, Any], policy: dict[str, Any], context: RuntimeContext) -> list[dict[str, Any]]:
+    if policy.get("require_task_lock") is not True:
+        return []
+    owner = task_lock_owner(context)
+    if not owner:
+        return [issue("task_lock_required", "parallel research requires an active task-local LOCK owned by the coordinator", field="runtime_permissions.parallel_research.require_task_lock")]
+    coordinator = str(plan.get("coordinator_id") or "").strip()
+    if coordinator and owner.get("owner") != coordinator:
+        return [
+            issue(
+                "task_lock_owner_mismatch",
+                "parallel research coordinator must match the active task lock owner",
+                field="parallel_plan.coordinator_id",
+                expected=owner.get("owner"),
+                actual=coordinator,
+            )
+        ]
+    return []
+
+
+def parallel_request_findings(request: dict[str, Any], context: RuntimeContext, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not is_parallel_request(request):
+        return []
+
+    findings: list[dict[str, Any]] = []
+    policy = parallel_permissions(context)
+    plan = parallel_plan(request)
+    if not policy or policy.get("enabled") is not True:
+        return [issue("parallel_research_not_allowed", "task contract must enable runtime_permissions.parallel_research before parallel runtime requests run", field=RUNTIME_PERMISSIONS_KEY)]
+    if not isinstance(request.get("parallel_plan"), dict):
+        findings.append(issue("parallel_plan_missing", "parallel_research mode requires a parallel_plan object", field="parallel_plan"))
+    if plan.get("planner_controlled") is not True:
+        findings.append(issue("parallel_not_planner_controlled", "parallel_plan.planner_controlled must be true", field="parallel_plan.planner_controlled"))
+    if str(plan.get("merge_strategy") or "") != "deterministic_review_packet":
+        findings.append(issue("parallel_merge_strategy_invalid", "parallel_plan.merge_strategy must be deterministic_review_packet", field="parallel_plan.merge_strategy"))
+    if plan.get("review_packet_required") is not True:
+        findings.append(issue("parallel_review_packet_required", "parallel requests must require a single reviewer packet", field="parallel_plan.review_packet_required"))
+    if policy.get("merge_required") is not True:
+        findings.append(issue("parallel_merge_required", "runtime_permissions.parallel_research.merge_required must be true", field="runtime_permissions.parallel_research.merge_required"))
+    if policy.get("no_direct_acceptance") is not True:
+        findings.append(issue("parallel_direct_acceptance_not_blocked", "runtime_permissions.parallel_research.no_direct_acceptance must be true", field="runtime_permissions.parallel_research.no_direct_acceptance"))
+
+    max_branches = integer_value(policy.get("max_parallel_branches"))
+    if max_branches is None or max_branches < 2:
+        findings.append(issue("max_parallel_branches_missing", "parallel research requires max_parallel_branches >= 2", field="runtime_permissions.parallel_research.max_parallel_branches"))
+        max_branches = 0
+    per_branch_max_calls = integer_value(policy.get("per_branch_max_calls"))
+    if per_branch_max_calls is None or per_branch_max_calls < 1:
+        findings.append(issue("per_branch_max_calls_missing", "parallel research requires per_branch_max_calls >= 1", field="runtime_permissions.parallel_research.per_branch_max_calls"))
+        per_branch_max_calls = 0
+    per_branch_max_api = numeric_value(policy.get("per_branch_max_api_usd"))
+    per_branch_max_compute = numeric_value(policy.get("per_branch_max_compute_usd"))
+    if per_branch_max_api is None:
+        findings.append(issue("per_branch_api_budget_missing", "parallel research requires per_branch_max_api_usd", field="runtime_permissions.parallel_research.per_branch_max_api_usd"))
+        per_branch_max_api = 0.0
+    if per_branch_max_compute is None:
+        findings.append(issue("per_branch_compute_budget_missing", "parallel research requires per_branch_max_compute_usd", field="runtime_permissions.parallel_research.per_branch_max_compute_usd"))
+        per_branch_max_compute = 0.0
+
+    allowed_shapes_raw = policy.get("allowed_shapes")
+    allowed_shapes = {item for item in allowed_shapes_raw if isinstance(item, str)} if isinstance(allowed_shapes_raw, list) else set()
+    if not allowed_shapes or not allowed_shapes <= PARALLEL_RESEARCH_SHAPES:
+        findings.append(
+            issue(
+                "parallel_allowed_shapes_invalid",
+                "runtime_permissions.parallel_research.allowed_shapes must name supported parallel research shapes",
+                field="runtime_permissions.parallel_research.allowed_shapes",
+                actual=allowed_shapes_raw,
+            )
+        )
+        allowed_shapes = set()
+
+    merge_ref = parallel_merge_ref(request, context)
+    if not path_inside_parallel_merge_dir(context.ops_dir, merge_ref):
+        findings.append(
+            issue(
+                "parallel_merge_path_invalid",
+                "parallel merge packets must be Markdown files under research_ops/runtime/parallel_merges/",
+                field="parallel_plan.merge_output_path",
+                actual=merge_ref,
+            )
+        )
+
+    plan_branches, branch_findings = branch_rows(plan)
+    findings.extend(branch_findings)
+    call_branch_ids: set[str] = set()
+    calls_by_branch: dict[str, list[dict[str, Any]]] = {}
+    branch_api_costs: dict[str, float] = {}
+    branch_compute_costs: dict[str, float] = {}
+    for index, call in enumerate(calls):
+        branch_id = clean_branch_id(call.get("branch_id") or call.get("parallel_branch_id"))
+        branch_shape = str(call.get("branch_shape") or "").strip()
+        if not branch_id_valid(branch_id):
+            findings.append(issue("parallel_call_branch_missing", "parallel calls must include a valid branch_id", field=f"calls[{index}].branch_id", actual=call.get("branch_id")))
+            continue
+        call_branch_ids.add(branch_id)
+        calls_by_branch.setdefault(branch_id, []).append(call)
+        branch = plan_branches.get(branch_id)
+        if branch is None:
+            findings.append(issue("parallel_call_branch_not_planned", "each parallel call branch_id must appear in parallel_plan.branches", field=f"calls[{index}].branch_id", actual=branch_id))
+        if branch_shape not in allowed_shapes:
+            findings.append(issue("parallel_shape_not_allowed", "parallel call branch_shape is not allowed by task contract", field=f"calls[{index}].branch_shape", actual=branch_shape))
+        if branch is not None and branch_shape and str(branch.get("branch_shape") or "") != branch_shape:
+            findings.append(issue("parallel_branch_shape_mismatch", "call branch_shape must match the planned branch shape", field=f"calls[{index}].branch_shape", expected=branch.get("branch_shape"), actual=branch_shape))
+        if call.get("accept_as_evidence") is True or call.get("acceptance_status") is not None:
+            findings.append(issue("parallel_direct_acceptance_blocked", "parallel branch calls cannot request direct acceptance", field=f"calls[{index}].accept_as_evidence"))
+        for unsafe_flag in ("skip_review", "skip_claim_verification", "skip_human_gate"):
+            if call.get(unsafe_flag) is True:
+                findings.append(issue("parallel_gate_skip_blocked", "parallel branch calls cannot skip review, claim verification, or human gates", field=f"calls[{index}].{unsafe_flag}"))
+        if branch is not None:
+            allowed_paths = branch.get("allowed_paths")
+            if not isinstance(allowed_paths, list) or not allowed_paths:
+                findings.append(issue("parallel_branch_allowed_paths_missing", "each planned parallel branch must declare allowed_paths", field=f"parallel_plan.branches[{branch_id}].allowed_paths"))
+            else:
+                for source_ref in source_refs_for_call(context.ops_dir, call):
+                    if not allowed_path(source_ref, allowed_paths):
+                        findings.append(
+                            issue(
+                                "parallel_branch_source_path_not_allowed",
+                                "parallel call source_path must be inside the branch-specific allowed_paths",
+                                field=f"calls[{index}].source_path",
+                                actual=source_ref,
+                            )
+                        )
+            branch_budget = branch.get("budget") if isinstance(branch.get("budget"), dict) else {}
+            branch_api_limit = numeric_value(branch_budget.get("max_api_usd"))
+            branch_compute_limit = numeric_value(branch_budget.get("max_compute_usd"))
+            if branch_api_limit is None or branch_api_limit > per_branch_max_api:
+                findings.append(issue("parallel_branch_api_budget_invalid", "branch max_api_usd must be present and not exceed the per-branch policy", field=f"parallel_plan.branches[{branch_id}].budget.max_api_usd", actual=branch_budget.get("max_api_usd")))
+            if branch_compute_limit is None or branch_compute_limit > per_branch_max_compute:
+                findings.append(issue("parallel_branch_compute_budget_invalid", "branch max_compute_usd must be present and not exceed the per-branch policy", field=f"parallel_plan.branches[{branch_id}].budget.max_compute_usd", actual=branch_budget.get("max_compute_usd")))
+        cost = evidence_cost(call)
+        branch_api_costs[branch_id] = branch_api_costs.get(branch_id, 0.0) + cost["api_usd"]
+        branch_compute_costs[branch_id] = branch_compute_costs.get(branch_id, 0.0) + cost["compute_usd"]
+
+    if len(call_branch_ids) < 2:
+        findings.append(issue("parallel_branch_count_too_low", "parallel_research mode requires at least two planned branches", field="calls"))
+    if max_branches and len(call_branch_ids) > max_branches:
+        findings.append(issue("parallel_branch_count_exceeded", "parallel request exceeds max_parallel_branches", field="calls", actual=len(call_branch_ids)))
+    for branch_id, branch_calls in calls_by_branch.items():
+        if per_branch_max_calls and len(branch_calls) > per_branch_max_calls:
+            findings.append(issue("parallel_branch_call_count_exceeded", "parallel branch exceeds per_branch_max_calls", field=f"branches.{branch_id}.calls", actual=len(branch_calls)))
+        branch = plan_branches.get(branch_id)
+        branch_budget = branch.get("budget") if isinstance(branch, dict) and isinstance(branch.get("budget"), dict) else {}
+        branch_api_limit = numeric_value(branch_budget.get("max_api_usd"))
+        branch_compute_limit = numeric_value(branch_budget.get("max_compute_usd"))
+        if branch_api_limit is not None and branch_api_costs.get(branch_id, 0.0) > branch_api_limit:
+            findings.append(issue("parallel_branch_api_budget_exceeded", "parallel branch exceeds its API budget", field=f"branches.{branch_id}.estimated_cost.api_usd", actual=round(branch_api_costs.get(branch_id, 0.0), 6)))
+        if branch_compute_limit is not None and branch_compute_costs.get(branch_id, 0.0) > branch_compute_limit:
+            findings.append(issue("parallel_branch_compute_budget_exceeded", "parallel branch exceeds its compute budget", field=f"branches.{branch_id}.estimated_cost.compute_usd", actual=round(branch_compute_costs.get(branch_id, 0.0), 6)))
+
+    findings.extend(parallel_lock_findings(plan, policy, context))
+    return findings
+
+
 def cost_findings(call: dict[str, Any]) -> list[dict[str, Any]]:
     cost = call.get("estimated_cost")
     if cost is None:
@@ -974,8 +1256,9 @@ def request_findings(request: dict[str, Any], context: RuntimeContext, calls: li
         findings.append(issue("api_budget_exceeded", "runtime request exceeds API budget", field="estimated_cost.api_usd", actual=api_cost))
     if compute_cost > compute_limit:
         findings.append(issue("compute_budget_exceeded", "runtime request exceeds compute budget", field="estimated_cost.compute_usd", actual=compute_cost))
-    if request.get("mode") not in {None, "vertical_slice", "single_task"}:
-        findings.append(issue("unsupported_request_mode", "runtime request mode must be omitted, vertical_slice, or single_task", field="mode", actual=request.get("mode")))
+    if request.get("mode") not in {None, "vertical_slice", "single_task", PARALLEL_RESEARCH_MODE}:
+        findings.append(issue("unsupported_request_mode", "runtime request mode must be omitted, vertical_slice, single_task, or parallel_research", field="mode", actual=request.get("mode")))
+    findings.extend(parallel_request_findings(request, context, calls))
     return findings
 
 
@@ -1031,6 +1314,170 @@ def summarize_call(
     return payload
 
 
+def markdown_cell(value: Any) -> str:
+    return str(value if value is not None else "").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def bullet_rows(values: Any, fallback: str) -> list[str]:
+    if not isinstance(values, list) or not values:
+        return [f"- {fallback}"]
+    rows = [f"- {markdown_cell(value)}" for value in values if str(value).strip()]
+    return rows or [f"- {fallback}"]
+
+
+def parallel_execution_summary(
+    request: dict[str, Any],
+    calls: list[dict[str, Any]],
+    *,
+    merge_ref: str | None,
+    merge_written: bool,
+) -> dict[str, Any]:
+    if not is_parallel_request(request):
+        return {}
+    branch_ids = sorted(
+        {
+            clean_branch_id(call.get("branch_id") or call.get("parallel_branch_id"))
+            for call in calls
+            if branch_id_valid(clean_branch_id(call.get("branch_id") or call.get("parallel_branch_id")))
+        }
+    )
+    shapes = sorted({str(call.get("branch_shape") or "").strip() for call in calls if str(call.get("branch_shape") or "").strip()})
+    return {
+        "parallel_mode": True,
+        "parallel_branch_count": len(branch_ids),
+        "parallel_branch_ids": branch_ids,
+        "parallel_shapes": shapes,
+        "parallel_merge_packet": merge_ref,
+        "parallel_merge_packet_count": 1 if merge_written else 0,
+    }
+
+
+def build_parallel_merge_packet(
+    request: dict[str, Any],
+    context: RuntimeContext,
+    calls: list[dict[str, Any]],
+    call_summaries: list[dict[str, Any]],
+    evidence_rows: list[dict[str, Any]],
+    merge_ref: str,
+) -> str:
+    plan = parallel_plan(request)
+    plan_branches, _findings = branch_rows(plan)
+    summaries_by_branch: dict[str, list[dict[str, Any]]] = {}
+    evidence_by_branch: dict[str, list[dict[str, Any]]] = {}
+    for summary in call_summaries:
+        branch = summary.get("parallel_branch") if isinstance(summary.get("parallel_branch"), dict) else {}
+        branch_id = clean_branch_id(branch.get("branch_id"))
+        if branch_id:
+            summaries_by_branch.setdefault(branch_id, []).append(summary)
+    for evidence in evidence_rows:
+        branch = evidence.get("parallel_branch") if isinstance(evidence.get("parallel_branch"), dict) else {}
+        branch_id = clean_branch_id(branch.get("branch_id"))
+        if branch_id:
+            evidence_by_branch.setdefault(branch_id, []).append(evidence)
+
+    branch_ids = sorted(set(summaries_by_branch) | set(evidence_by_branch) | set(plan_branches))
+    lock_owner = task_lock_owner(context)
+    lines = [
+        f"# Parallel Research Merge Packet - {context.task_id}",
+        "",
+        f"- Task: `{context.task_id}`",
+        f"- Coordinator: `{markdown_cell(plan.get('coordinator_id') or 'unrecorded')}`",
+        f"- Merge strategy: `{markdown_cell(plan.get('merge_strategy') or 'deterministic_review_packet')}`",
+        f"- Merge path: `{merge_ref}`",
+        f"- Concurrency key: `{markdown_cell(parallel_permissions(context).get('concurrency_key') or plan.get('concurrency_key') or 'unrecorded')}`",
+        f"- Active task lock owner: `{markdown_cell(lock_owner.get('owner') or 'not_required_or_not_recorded')}`",
+        f"- Direct acceptance from branch outputs: `blocked`",
+        "",
+        "## Branch Summary",
+        "",
+        "| Branch | Shape | Calls | Evidence IDs | Branch title |",
+        "| --- | --- | ---: | --- | --- |",
+    ]
+    for branch_id in branch_ids:
+        branch = plan_branches.get(branch_id, {})
+        summaries = summaries_by_branch.get(branch_id, [])
+        evidence_ids = [
+            str(evidence.get("evidence_id"))
+            for evidence in evidence_by_branch.get(branch_id, [])
+            if evidence.get("evidence_id")
+        ]
+        shape = branch.get("branch_shape") or next(
+            (
+                summary.get("parallel_branch", {}).get("branch_shape")
+                for summary in summaries
+                if isinstance(summary.get("parallel_branch"), dict)
+            ),
+            "",
+        )
+        title = branch.get("branch_title") or branch_id
+        lines.append(
+            f"| `{markdown_cell(branch_id)}` | {markdown_cell(shape)} | {len(summaries)} | {markdown_cell(', '.join(evidence_ids) or 'none')} | {markdown_cell(title)} |"
+        )
+
+    lines.extend([
+        "",
+        "## Evidence Coverage",
+        "",
+        "| Branch | Evidence ID | Source title | Source URI | Snapshot |",
+        "| --- | --- | --- | --- | --- |",
+    ])
+    for branch_id in branch_ids:
+        for evidence in evidence_by_branch.get(branch_id, []):
+            lines.append(
+                "| "
+                f"`{markdown_cell(branch_id)}` | `{markdown_cell(evidence.get('evidence_id'))}` | "
+                f"{markdown_cell(evidence.get('source_title'))} | {markdown_cell(evidence.get('source_uri'))} | "
+                f"`{markdown_cell(evidence.get('snapshot_path'))}` |"
+            )
+    if not any(evidence_by_branch.values()):
+        lines.append("| none | none | none | none | none |")
+
+    lines.extend([
+        "",
+        "## Contradictions",
+        "",
+        *bullet_rows(plan.get("contradictions"), "No contradictions recorded by the branch merge; reviewer must still check claim verification."),
+        "",
+        "## Unresolved Gaps",
+        "",
+        *bullet_rows(plan.get("unresolved_gaps"), "No unresolved gaps recorded by the planner-controlled merge."),
+        "",
+        "## Reviewer Packet",
+        "",
+        "- Inspect every referenced evidence object and snapshot before using branch output.",
+        "- Run claim verification before result acceptance or deliverable maturity gates.",
+        "- Treat this merge packet as review context only; it does not accept evidence, claims, or task state.",
+        "- Preserve human gates for public claims, credentials, paid calls, private data, and unsafe source use.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def attach_parallel_metadata(
+    request: dict[str, Any],
+    call: dict[str, Any],
+    outcome: AdapterOutcome,
+    trace: dict[str, Any] | None,
+    *,
+    merge_ref: str | None,
+) -> dict[str, Any]:
+    if not is_parallel_request(request):
+        return {}
+    plan_branches, _findings = branch_rows(parallel_plan(request))
+    metadata = parallel_branch_for_call(call, plan_branches)
+    if not metadata:
+        return {}
+    if merge_ref:
+        metadata["merge_packet_path"] = merge_ref
+    for evidence in outcome.evidence_objects:
+        evidence["parallel_branch"] = dict(metadata)
+    if trace is not None:
+        trace["parallel_branch"] = dict(metadata)
+        if merge_ref and merge_ref not in trace["artifact_paths"]:
+            trace["artifact_paths"].append(merge_ref)
+    return metadata
+
+
 def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now: str | None = None) -> tuple[int, dict[str, Any]]:
     load_code, request, context, load_errors = load_runtime_request(ops_dir, request_path)
     if load_code != SUCCESS or request is None or context is None:
@@ -1046,6 +1493,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
         context.now = now
     calls: list[dict[str, Any]] = list(request["calls"])
     global_findings = request_findings(request, context, calls)
+    merge_ref = parallel_merge_ref(request, context) if is_parallel_request(request) else None
     if execute and not context.runtime_write_allowed():
         global_findings.append(issue("runtime_write_path_not_allowed", "task allowed_paths must include research_ops/runtime/** for runtime execution", field="allowed_paths", actual=context.allowed_paths))
         return VALIDATION_FAILED, {
@@ -1063,6 +1511,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
                 "trace_count": 0,
                 "evidence_object_count": 0,
                 "snapshot_count": 0,
+                **parallel_execution_summary(request, calls, merge_ref=merge_ref, merge_written=False),
             },
             "calls": [],
             "errors": global_findings,
@@ -1072,6 +1521,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
     evidence_rows: list[dict[str, Any]] = []
     snapshot_writes: list[tuple[str, str]] = []
     blocked_count = 0
+    merge_written = False
 
     for index, call in enumerate(calls):
         adapter_type = str(call.get("adapter_type") or "")
@@ -1102,12 +1552,39 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
         trace = None
         if execute:
             trace = adapter.to_trace(call, context, outcome, route=route)
+        parallel_metadata = attach_parallel_metadata(
+            request,
+            call,
+            outcome,
+            trace,
+            merge_ref=merge_ref,
+        )
+        if execute:
             traces.append(trace)
             evidence_rows.extend(adapter.to_evidence_objects(outcome))
             snapshot_writes.extend(outcome.snapshot_writes)
-        call_summaries.append(summarize_call(index, adapter, outcome, trace=trace, route=route))
+        summary = summarize_call(index, adapter, outcome, trace=trace, route=route)
+        if parallel_metadata:
+            summary["parallel_branch"] = parallel_metadata
+        call_summaries.append(summary)
 
     if execute:
+        merge_write: tuple[Path, str] | None = None
+        if is_parallel_request(request) and blocked_count == 0 and not global_findings and merge_ref is not None:
+            merge_path, _normalized_ref = workspace_path(context.ops_dir, merge_ref)
+            if merge_path is None:
+                return MALFORMED, {
+                    "ok": False,
+                    "action": "runtime_execute",
+                    "ops_dir": str(ops_dir),
+                    "request_path": str(request_path),
+                    "changed": False,
+                    "errors": [issue("invalid_parallel_merge_path", "parallel merge path resolved outside research_ops", actual=merge_ref)],
+                }
+            merge_write = (
+                merge_path,
+                build_parallel_merge_packet(request, context, calls, call_summaries, evidence_rows, merge_ref),
+            )
         for snapshot_ref, text in snapshot_writes:
             snapshot_path, _ = workspace_path(context.ops_dir, snapshot_ref)
             if snapshot_path is None:
@@ -1121,10 +1598,16 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
                 }
             snapshot_path.parent.mkdir(parents=True, exist_ok=True)
             snapshot_path.write_text(text, encoding="utf-8")
+        if merge_write is not None:
+            merge_path, merge_text = merge_write
+            merge_path.parent.mkdir(parents=True, exist_ok=True)
+            merge_path.write_text(merge_text, encoding="utf-8")
+            merge_written = True
         append_jsonl(context.ops_dir / EVIDENCE_LEDGER, evidence_rows)
         append_jsonl(context.ops_dir / TRACE_LEDGER, traces)
 
     ok = blocked_count == 0 and not global_findings
+    parallel_summary = parallel_execution_summary(request, calls, merge_ref=merge_ref, merge_written=merge_written)
     payload = {
         "ok": ok,
         "action": "runtime_execute" if execute else "runtime_dry_run",
@@ -1146,6 +1629,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
             "trace_count": len(traces),
             "evidence_object_count": len(evidence_rows),
             "snapshot_count": len(snapshot_writes),
+            **parallel_summary,
         },
         "calls": call_summaries,
         "errors": global_findings,
@@ -1154,7 +1638,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run bounded runtime adapter dry-runs or executions.")
+    parser = argparse.ArgumentParser(description="Run bounded runtime adapter dry-runs, executions, or parallel research merge flows.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     dry_run = subparsers.add_parser("dry-run", help="Preview runtime adapter calls without writing artifacts.")

@@ -78,6 +78,41 @@ def write_runtime_task(ops_dir: Path, *, allow_network: bool = True) -> Path:
     return task_dir
 
 
+def enable_parallel_research(task_dir: Path, *, coordinator: str = "planner-fixture") -> None:
+    status_path = task_dir / "status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    status["allowed_tools"] = ["runtime:file_fetch", "runtime:file_search"]
+    status["allow_network"] = False
+    status["runtime_permissions"] = {
+        "max_calls": 4,
+        "max_api_usd": 0.0,
+        "max_compute_usd": 0.0,
+        "allowed_api_names": [],
+        "allowed_domains": [],
+        "allow_credentials": False,
+        "allow_paid_calls": False,
+        "parallel_research": {
+            "enabled": True,
+            "max_parallel_branches": 2,
+            "per_branch_max_calls": 2,
+            "per_branch_max_api_usd": 0.0,
+            "per_branch_max_compute_usd": 0.0,
+            "allowed_shapes": ["source_gathering", "literature_extraction"],
+            "merge_required": True,
+            "no_direct_acceptance": True,
+            "require_task_lock": True,
+            "concurrency_key": "runtime-parallel-fixture",
+        },
+    }
+    status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    lock_dir = task_dir / "LOCK"
+    lock_dir.mkdir()
+    (lock_dir / "owner.json").write_text(
+        json.dumps({"owner": coordinator, "task_dir": str(task_dir)}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def init_vertical_slice(root: Path, *, allow_network: bool = True) -> tuple[Path, Path]:
     ops_dir = root / "research_ops"
     code, payload = run_cli_json(["init", ops_dir, "--template", "generic", "--force"])
@@ -91,6 +126,69 @@ def init_vertical_slice(root: Path, *, allow_network: bool = True) -> tuple[Path
     briefs_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(FIXTURE / "research_brief.json", briefs_dir / "research_brief.json")
     return ops_dir, task_dir
+
+
+def write_parallel_request(root: Path, *, unsafe: dict | None = None) -> Path:
+    request = {
+        "mode": "parallel_research",
+        "task_id": "TASK-1001",
+        "parallel_plan": {
+            "planner_controlled": True,
+            "coordinator_id": "planner-fixture",
+            "merge_strategy": "deterministic_review_packet",
+            "review_packet_required": True,
+            "merge_output_path": "research_ops/runtime/parallel_merges/TASK-1001-runtime-merge.md",
+            "branches": [
+                {
+                    "branch_id": "source-a",
+                    "branch_shape": "source_gathering",
+                    "branch_title": "Source A gathering",
+                    "allowed_paths": ["research_ops/sources/source-a.md"],
+                    "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                },
+                {
+                    "branch_id": "source-b",
+                    "branch_shape": "source_gathering",
+                    "branch_title": "Source B gathering",
+                    "allowed_paths": ["research_ops/sources/source-b.md"],
+                    "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                },
+            ],
+            "contradictions": ["No fixture contradiction recorded."],
+            "unresolved_gaps": ["Reviewer should confirm source freshness before acceptance."],
+        },
+        "calls": [
+            {
+                "adapter_type": "file_fetch",
+                "branch_id": "source-a",
+                "branch_shape": "source_gathering",
+                "source_path": "research_ops/sources/source-a.md",
+                "source_title": "Parallel source A",
+                "license_or_use_policy": "fixture-only",
+                "selector": "file:full",
+            },
+            {
+                "adapter_type": "file_fetch",
+                "branch_id": "source-b",
+                "branch_shape": "source_gathering",
+                "source_path": "research_ops/sources/source-b.md",
+                "source_title": "Parallel source B",
+                "license_or_use_policy": "fixture-only",
+                "selector": "file:full",
+            },
+        ],
+    }
+    if unsafe:
+        for key, value in unsafe.items():
+            if key == "call":
+                request["calls"][0].update(value)
+            elif key == "policy":
+                request["parallel_plan"].update(value)
+            else:
+                request[key] = value
+    request_path = root / "parallel_request.json"
+    request_path.write_text(json.dumps(request, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return request_path
 
 
 class RuntimeAdapterTests(unittest.TestCase):
@@ -262,6 +360,93 @@ class RuntimeAdapterTests(unittest.TestCase):
             blocked_code, blocked_run = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
             self.assertEqual(2, blocked_code, blocked_run)
             self.assertEqual("browser_fallback_reason_missing", blocked_run["calls"][0]["error"]["code"])
+
+    def test_parallel_research_executes_bounded_branches_and_writes_merge_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir, task_dir = init_vertical_slice(root, allow_network=False)
+            enable_parallel_research(task_dir)
+            (ops_dir / "sources" / "source-a.md").write_text("A source supports branch A.\n", encoding="utf-8")
+            (ops_dir / "sources" / "source-b.md").write_text("B source supports branch B.\n", encoding="utf-8")
+            request_path = write_parallel_request(root)
+
+            dry_code, dry_run = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+
+            self.assertEqual(cli.SUCCESS, dry_code, dry_run)
+            self.assertFalse(dry_run["changed"])
+            self.assertTrue(dry_run["summary"]["parallel_mode"])
+            self.assertEqual(2, dry_run["summary"]["parallel_branch_count"])
+            self.assertEqual(
+                "research_ops/runtime/parallel_merges/TASK-1001-runtime-merge.md",
+                dry_run["summary"]["parallel_merge_packet"],
+            )
+
+            execute_code, executed = run_cli_json(["runtime", "execute", ops_dir, "--request", request_path, "--now", NOW])
+
+            self.assertEqual(cli.SUCCESS, execute_code, executed)
+            self.assertTrue(executed["changed"])
+            self.assertEqual(2, executed["summary"]["trace_count"])
+            self.assertEqual(2, executed["summary"]["evidence_object_count"])
+            self.assertEqual(1, executed["summary"]["parallel_merge_packet_count"])
+            self.assertEqual("source-a", executed["calls"][0]["parallel_branch"]["branch_id"])
+            merge_packet = ops_dir / "runtime" / "parallel_merges" / "TASK-1001-runtime-merge.md"
+            self.assertTrue(merge_packet.is_file())
+            merge_text = merge_packet.read_text(encoding="utf-8")
+            self.assertIn("## Branch Summary", merge_text)
+            self.assertIn("## Reviewer Packet", merge_text)
+            self.assertIn("Direct acceptance from branch outputs: `blocked`", merge_text)
+
+            validate_code, validated = run_cli_json(["runtime", "validate", ops_dir])
+            self.assertEqual(cli.SUCCESS, validate_code, validated)
+            self.assertEqual(2, validated["summary"]["parallel_branch_count"])
+            self.assertEqual(2, validated["summary"]["parallel_trace_count"])
+            self.assertEqual(1, validated["summary"]["parallel_merge_packet_count"])
+
+            evidence_rows = [
+                json.loads(line)
+                for line in (ops_dir / "runtime" / "evidence_objects.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual({"source-a", "source-b"}, {row["parallel_branch"]["branch_id"] for row in evidence_rows})
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+
+    def test_parallel_research_fails_closed_without_task_contract_permission(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir, _task_dir = init_vertical_slice(root, allow_network=False)
+            (ops_dir / "sources" / "source-a.md").write_text("A source.\n", encoding="utf-8")
+            (ops_dir / "sources" / "source-b.md").write_text("B source.\n", encoding="utf-8")
+            request_path = write_parallel_request(root)
+
+            code, payload = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+
+            self.assertEqual(2, code, payload)
+            self.assertFalse(payload["changed"])
+            self.assertEqual("parallel_research_not_allowed", payload["calls"][0]["error"]["code"])
+
+    def test_parallel_research_rejects_branch_path_escape_and_gate_skips(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir, task_dir = init_vertical_slice(root, allow_network=False)
+            enable_parallel_research(task_dir)
+            (ops_dir / "sources" / "source-a.md").write_text("A source.\n", encoding="utf-8")
+            (ops_dir / "sources" / "source-b.md").write_text("B source.\n", encoding="utf-8")
+            request_path = write_parallel_request(
+                root,
+                unsafe={
+                    "call": {
+                        "source_path": "research_ops/sources/source-b.md",
+                        "skip_claim_verification": True,
+                    }
+                },
+            )
+
+            code, payload = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+
+            self.assertEqual(2, code, payload)
+            reasons = {error["reason"] for error in payload["errors"]}
+            self.assertIn("parallel_branch_source_path_not_allowed", reasons)
+            self.assertIn("parallel_gate_skip_blocked", reasons)
 
     def test_malformed_estimated_cost_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

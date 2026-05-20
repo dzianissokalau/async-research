@@ -142,3 +142,27 @@ Runtime requests are single-task JSON files:
 The request is not accepted evidence. It is only an execution instruction that
 must produce valid runtime traces and evidence objects before review can use
 the results.
+
+## Bounded Parallel Requests
+
+Phase 9 adds `mode: "parallel_research"` for planner-controlled source
+gathering and extraction. The task contract must explicitly enable
+`runtime_permissions.parallel_research` with `max_parallel_branches`,
+`per_branch_max_calls`, per-branch budgets, allowed branch shapes,
+`merge_required=true`, and `no_direct_acceptance=true`.
+
+Supported branch shapes are `source_gathering`, `literature_extraction`,
+`market_map_slice`, `policy_jurisdiction_comparison`, and
+`data_source_profiling`. Every call must include `branch_id` and
+`branch_shape`, and the source paths for that branch must stay inside the
+branch-specific `parallel_plan.branches[].allowed_paths`.
+
+When configured with `require_task_lock=true`, the request `coordinator_id`
+must match the task-local `LOCK/owner.json` owner. Runtime adapters only check
+this lock; they do not acquire, release, or override it.
+
+A successful parallel execution writes exactly one merge packet under
+`research_ops/runtime/parallel_merges/`. Traces and evidence objects are tagged
+with `parallel_branch`, but branch output remains review context only. It
+cannot mark evidence accepted, skip claim verification, bypass review, or
+replace human gates.

@@ -193,6 +193,7 @@
                     "groundedness",
                     "citation_support",
                     "source_routing",
+                    "bounded_parallelism",
                     "task_success",
                     "cost_latency",
                     "human_review_placeholder"

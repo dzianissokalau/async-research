@@ -220,6 +220,39 @@ def write_route_task(
     return task_dir
 
 
+def enable_parallel_policy(task_dir: Path) -> None:
+    status_path = task_dir / "status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    status["allowed_tools"] = ["runtime:file_fetch"]
+    status["allow_network"] = False
+    status["allowed_paths"].append("research_ops/sources/**")
+    status["runtime_permissions"] = {
+        "max_calls": 4,
+        "max_api_usd": 0.0,
+        "max_compute_usd": 0.0,
+        "allowed_domains": [],
+        "allowed_api_names": [],
+        "allow_credentials": False,
+        "allow_paid_calls": False,
+        "parallel_research": {
+            "enabled": True,
+            "max_parallel_branches": 2,
+            "per_branch_max_calls": 2,
+            "per_branch_max_api_usd": 0.0,
+            "per_branch_max_compute_usd": 0.0,
+            "allowed_shapes": ["literature_extraction"],
+            "merge_required": True,
+            "no_direct_acceptance": True,
+            "require_task_lock": True,
+            "concurrency_key": "runtime-eval-parallel",
+        },
+    }
+    status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    lock_dir = task_dir / "LOCK"
+    lock_dir.mkdir()
+    write_json(lock_dir / "owner.json", {"owner": "planner-eval", "task_dir": str(task_dir)})
+
+
 def execute_runtime_request(ops_dir: Path, root: Path, name: str, request: dict) -> dict:
     request_path = root / f"{name}.json"
     write_json(request_path, request)
@@ -449,6 +482,123 @@ class RuntimeEvalTests(unittest.TestCase):
             write_json(suite_path, built["suite"])
             run_code, run = run_cli_json(["eval", "run", suite_path, "--run-id", "route-run", "--now", NOW])
             self.assertEqual(cli.SUCCESS, run_code, run)
+            self.assertEqual("pass", run["status"])
+
+    def test_parallel_eval_cases_distinguish_triggered_and_single_threaded_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = root / "research_ops"
+            code, payload = run_cli_json(["init", ops_dir, "--template", "generic", "--force"])
+            self.assertEqual(cli.SUCCESS, code, payload)
+            sources_dir = ops_dir / "sources"
+            sources_dir.mkdir(parents=True, exist_ok=True)
+            (sources_dir / "parallel-a.md").write_text("Parallel branch A evidence.\n", encoding="utf-8")
+            (sources_dir / "parallel-b.md").write_text("Parallel branch B evidence.\n", encoding="utf-8")
+            (sources_dir / "single.md").write_text("Single threaded evidence.\n", encoding="utf-8")
+
+            parallel_task = write_route_task(
+                ops_dir,
+                "TASK-5201",
+                "parallel-lit",
+                allowed_tools=["runtime:file_fetch"],
+                allow_network=False,
+                allow_browsing=False,
+                max_calls=4,
+            )
+            enable_parallel_policy(parallel_task)
+            execute_runtime_request(
+                ops_dir,
+                root,
+                "parallel_literature",
+                {
+                    "mode": "parallel_research",
+                    "task_id": "TASK-5201",
+                    "parallel_plan": {
+                        "planner_controlled": True,
+                        "coordinator_id": "planner-eval",
+                        "merge_strategy": "deterministic_review_packet",
+                        "review_packet_required": True,
+                        "merge_output_path": "research_ops/runtime/parallel_merges/TASK-5201-merge.md",
+                        "branches": [
+                            {
+                                "branch_id": "lit-a",
+                                "branch_shape": "literature_extraction",
+                                "branch_title": "Literature A",
+                                "allowed_paths": ["research_ops/sources/parallel-a.md"],
+                                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                            },
+                            {
+                                "branch_id": "lit-b",
+                                "branch_shape": "literature_extraction",
+                                "branch_title": "Literature B",
+                                "allowed_paths": ["research_ops/sources/parallel-b.md"],
+                                "budget": {"max_api_usd": 0.0, "max_compute_usd": 0.0},
+                            },
+                        ],
+                    },
+                    "calls": [
+                        {
+                            "adapter_type": "file_fetch",
+                            "branch_id": "lit-a",
+                            "branch_shape": "literature_extraction",
+                            "source_path": "research_ops/sources/parallel-a.md",
+                            "source_title": "Parallel A",
+                            "license_or_use_policy": "fixture-only",
+                        },
+                        {
+                            "adapter_type": "file_fetch",
+                            "branch_id": "lit-b",
+                            "branch_shape": "literature_extraction",
+                            "source_path": "research_ops/sources/parallel-b.md",
+                            "source_title": "Parallel B",
+                            "license_or_use_policy": "fixture-only",
+                        },
+                    ],
+                },
+            )
+
+            write_route_task(
+                ops_dir,
+                "TASK-5202",
+                "single-lit",
+                allowed_tools=["runtime:file_fetch"],
+                allow_network=False,
+                allow_browsing=False,
+            )
+            execute_runtime_request(
+                ops_dir,
+                root,
+                "single_literature",
+                {
+                    "mode": "single_task",
+                    "task_id": "TASK-5202",
+                    "calls": [
+                        {
+                            "adapter_type": "file_fetch",
+                            "source_path": "research_ops/sources/single.md",
+                            "source_title": "Single source",
+                            "license_or_use_policy": "fixture-only",
+                        }
+                    ],
+                },
+            )
+
+            build_code, built = run_cli_json(["eval", "build-from-traces", ops_dir, "--suite-id", "parallel-suite", "--write", "--now", NOW])
+            self.assertEqual(cli.SUCCESS, build_code, built)
+            cases_by_task = {case["task_id"]: case for case in built["suite"]["cases"]}
+            self.assertEqual(1.0, cases_by_task["TASK-5201"]["metrics"]["parallel_triggered"])
+            self.assertEqual(2, cases_by_task["TASK-5201"]["metrics"]["parallel_branch_count"])
+            self.assertEqual(1, cases_by_task["TASK-5201"]["metrics"]["parallel_merge_packet_count"])
+            self.assertTrue(cases_by_task["TASK-5201"]["expected_behavior"]["parallel_merge_required"])
+            self.assertEqual(0.0, cases_by_task["TASK-5202"]["metrics"]["parallel_triggered"])
+            self.assertFalse(cases_by_task["TASK-5202"]["expected_behavior"]["parallel_merge_required"])
+            self.assertEqual(1, built["suite"]["metrics"]["parallel_triggered_case_count"])
+
+            suite_path = Path(built["suite_path"])
+            run_code, run = run_cli_json(["eval", "run", suite_path, "--run-id", "parallel-run", "--now", NOW])
+            self.assertEqual(cli.SUCCESS, run_code, run)
+            checks = {check["name"]: check for check in run["case_results"][0]["checks"]}
+            self.assertEqual("pass", checks["bounded_parallelism"]["status"])
             self.assertEqual("pass", run["status"])
 
     def test_eval_run_fails_when_snapshot_hash_no_longer_matches_suite(self) -> None:

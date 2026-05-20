@@ -483,6 +483,18 @@ def summary_from_entries(
         for route in route_decisions
         if isinstance(route.get("browser_fallback"), dict) and route["browser_fallback"].get("used") is True
     )
+    parallel_branches = {
+        str(branch.get("branch_id"))
+        for entry in trace_entries
+        for branch in [entry.payload.get("parallel_branch")]
+        if isinstance(branch, dict) and branch.get("branch_id")
+    }
+    parallel_merge_packets = {
+        str(path)
+        for entry in trace_entries
+        for path in (entry.payload.get("artifact_paths") or [])
+        if isinstance(path, str) and path.startswith("research_ops/runtime/parallel_merges/")
+    }
     return {
         "runtime_trace_count": len(trace_entries),
         "evidence_object_count": len(evidence_entries),
@@ -491,6 +503,9 @@ def summary_from_entries(
         "unsupported_or_stale_evidence_count": len(unsupported_or_stale_ids),
         "route_decision_count": len(route_decisions),
         "browser_fallback_count": browser_fallback_count,
+        "parallel_branch_count": len(parallel_branches),
+        "parallel_trace_count": sum(1 for entry in trace_entries if isinstance(entry.payload.get("parallel_branch"), dict)),
+        "parallel_merge_packet_count": len(parallel_merge_packets),
         "latest_runtime_errors": latest_runtime_errors(trace_entries),
         "validation_error_count": len(errors),
         "warning_count": len(warnings),

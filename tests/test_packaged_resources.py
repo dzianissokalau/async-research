@@ -136,6 +136,7 @@ class PackagedResourceTests(unittest.TestCase):
             ("docs", "knowledge_library_contract.md"),
             ("docs", "runtime_artifacts.md"),
             ("docs", "runtime_evals.md"),
+            ("docs", "bounded_parallel_research.md"),
             ("docs", "research_brief_contract.md"),
             ("docs", "model_routing_policy.md"),
             ("docs", "structured_evidence_memory.md"),

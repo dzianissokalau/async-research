@@ -225,6 +225,97 @@
     "allow_network": {
       "type": "boolean"
     },
+    "runtime_permissions": {
+      "type": "object",
+      "properties": {
+        "max_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_api_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_compute_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "allowed_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_api_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_mcp_servers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allow_credentials": {
+          "type": "boolean"
+        },
+        "allow_paid_calls": {
+          "type": "boolean"
+        },
+        "parallel_research": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_parallel_branches": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 12
+            },
+            "per_branch_max_calls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "per_branch_max_api_usd": {
+              "type": "number",
+              "minimum": 0
+            },
+            "per_branch_max_compute_usd": {
+              "type": "number",
+              "minimum": 0
+            },
+            "allowed_shapes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "source_gathering",
+                  "literature_extraction",
+                  "market_map_slice",
+                  "policy_jurisdiction_comparison",
+                  "data_source_profiling"
+                ]
+              }
+            },
+            "merge_required": {
+              "type": "boolean"
+            },
+            "no_direct_acceptance": {
+              "type": "boolean"
+            },
+            "require_task_lock": {
+              "type": "boolean"
+            },
+            "concurrency_key": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
     "max_minutes": {
       "type": "integer",
       "minimum": 1,

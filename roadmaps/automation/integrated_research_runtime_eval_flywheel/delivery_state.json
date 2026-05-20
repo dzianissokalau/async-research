@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_integrated_research_runtime_eval_flywheel_roadmap.md",
   "roadmap_slug": "integrated_research_runtime_eval_flywheel",
-  "current_phase": 9,
-  "branch": "codex/integrated-research-runtime-eval-flywheel-phase-9",
+  "current_phase": 10,
+  "branch": "codex/integrated-research-runtime-eval-flywheel-phase-10",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 8,
+    "phase": 9,
     "commands": [
       {
         "command": "git diff --check",
@@ -21,7 +21,7 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "779 tests"
+        "details": "783 tests"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -34,20 +34,20 @@
         "details": "sdist and wheel built"
       }
     ],
-    "completed_at": "2026-05-20T20:12:00+0100"
+    "completed_at": "2026-05-20T21:28:08+0100"
   },
   "last_review": {
-    "phase": 8,
-    "file": "roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-8-review-iteration-1.md",
+    "phase": 9,
+    "file": "roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-9-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-20T20:12:00+0100"
+    "completed_at": "2026-05-20T21:28:08+0100"
   },
-  "last_delivered_phase": 8,
+  "last_delivered_phase": 9,
   "blocked_reason": null,
   "all_phases_complete": false,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": "after_all_phases",
   "cadence": "hourly",
-  "updated_at": "2026-05-20T20:12:00+0100"
+  "updated_at": "2026-05-20T21:28:08+0100"
 }

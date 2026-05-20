@@ -322,6 +322,7 @@ class DocumentationReferenceTests(unittest.TestCase):
         research_brief = PACKAGE_ROOT / "docs" / "research_brief_contract.md"
         eval_contract = PACKAGE_ROOT / "docs" / "evaluation_flywheel.md"
         evidence_memory = PACKAGE_ROOT / "docs" / "structured_evidence_memory.md"
+        bounded_parallel = PACKAGE_ROOT / "docs" / "bounded_parallel_research.md"
         docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
         runtime_text = runtime_contract.read_text(encoding="utf-8")
         artifact_text = runtime_artifacts.read_text(encoding="utf-8")
@@ -329,12 +330,14 @@ class DocumentationReferenceTests(unittest.TestCase):
         brief_text = research_brief.read_text(encoding="utf-8")
         eval_text = eval_contract.read_text(encoding="utf-8")
         evidence_memory_text = evidence_memory.read_text(encoding="utf-8")
+        bounded_parallel_text = bounded_parallel.read_text(encoding="utf-8")
         runtime_normalized = " ".join(runtime_text.split())
         artifact_normalized = " ".join(artifact_text.split())
         adapter_normalized = " ".join(adapter_text.split())
         brief_normalized = " ".join(brief_text.split())
         eval_normalized = " ".join(eval_text.split())
         evidence_memory_normalized = " ".join(evidence_memory_text.split())
+        bounded_parallel_normalized = " ".join(bounded_parallel_text.split())
         failures: list[str] = []
 
         for snippet in [
@@ -344,6 +347,7 @@ class DocumentationReferenceTests(unittest.TestCase):
             "[Runtime Adapters](./runtime_adapters.md)",
             "[Evaluation Flywheel](./evaluation_flywheel.md)",
             "[Structured Evidence Memory And Targeted Reflection](./structured_evidence_memory.md)",
+            "[Bounded Parallel Research Threads](./bounded_parallel_research.md)",
         ]:
             if snippet not in docs_index:
                 failures.append(f"docs/README.md missing {snippet}")
@@ -438,6 +442,9 @@ class DocumentationReferenceTests(unittest.TestCase):
             "mocked-only in Phase 3",
             "does not perform live network, credentialed, or paid calls",
             "without changing task state",
+            "mode: \"parallel_research\"",
+            "parallel_branch",
+            "research_ops/runtime/parallel_merges/",
         ]:
             if " ".join(snippet.split()) not in adapter_normalized:
                 failures.append(f"runtime_adapters.md missing {snippet}")
@@ -469,6 +476,20 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if " ".join(snippet.split()) not in evidence_memory_normalized:
                 failures.append(f"structured_evidence_memory.md missing {snippet}")
+
+        for snippet in [
+            "runtime_permissions.parallel_research",
+            "max_parallel_branches",
+            "per_branch_max_calls",
+            "require_task_lock",
+            "parallel_plan",
+            "branch_id",
+            "research_ops/runtime/parallel_merges/",
+            "bounded_parallelism",
+            "Branches do not own task state",
+        ]:
+            if " ".join(snippet.split()) not in bounded_parallel_normalized and " ".join(snippet.split()) not in runtime_normalized:
+                failures.append(f"bounded parallel docs missing {snippet}")
 
         self.assertEqual([], failures)
 

@@ -2541,7 +2541,8 @@ def register_runtime_commands(subparsers) -> None:
         help="Preview bounded runtime adapter calls.",
         description=(
             "Read a runtime request JSON file, load the task contract, and report planned local or mocked "
-            "adapter calls without writing traces, evidence objects, snapshots, or task state."
+            "adapter calls, including bounded parallel_research requests, without writing traces, evidence "
+            "objects, snapshots, merge packets, or task state."
         ),
         epilog="Exits 0 when every requested adapter is permitted, 2 when task-contract policy blocks a call, and 3 or 4 for malformed inputs.",
     )
@@ -2557,7 +2558,7 @@ def register_runtime_commands(subparsers) -> None:
         description=(
             "Run standard-library local adapters or explicit mock external adapters, then write runtime "
             "traces, source route decisions, evidence objects, and snapshots under research_ops/runtime "
-            "without changing task state."
+            "and bounded parallel merge packets when requested, without changing task state."
         ),
         epilog="Exits 0 when all calls execute, 2 when policy blocks a call, and never performs live network or paid calls in the core runtime.",
     )

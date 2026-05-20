@@ -166,6 +166,27 @@ cases where an API is unavailable, incomplete, or needed for human-facing
 context, and it still requires task-contract browsing/network/domain
 permission plus snapshot evidence.
 
+## Bounded Parallel Research
+
+Phase 9 allows `mode: "parallel_research"` only when the planner and task
+contract explicitly bound the fan-out. Supported branch shapes are source
+gathering, literature extraction, market-map slices, jurisdiction comparisons,
+and data-source profiling.
+
+The task contract must set `runtime_permissions.parallel_research.enabled`,
+`max_parallel_branches`, `per_branch_max_calls`, per-branch budgets,
+`allowed_shapes`, `merge_required`, and `no_direct_acceptance`. The request must
+include `parallel_plan.planner_controlled=true`, branch-specific allowed paths,
+and a deterministic merge strategy. Optional `require_task_lock=true` checks the
+existing task-local `LOCK/owner.json` so runtime fan-out cannot race another
+worker.
+
+Branch traces and evidence objects may record `parallel_branch` lineage, but
+parallel outputs still merge into one Markdown review packet under
+`research_ops/runtime/parallel_merges/`. That packet is not accepted evidence.
+Claim verification, review, result acceptance, deliverable maturity, and human
+gates remain mandatory.
+
 ## Human Gates
 
 The runtime must stop for a human decision when a requested action involves:

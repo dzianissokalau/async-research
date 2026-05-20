@@ -300,6 +300,37 @@ def route_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def trace_parallel_branch(trace: dict[str, Any]) -> dict[str, Any]:
+    branch = trace.get("parallel_branch")
+    return branch if isinstance(branch, dict) else {}
+
+
+def parallel_merge_packet_paths(traces: list[dict[str, Any]]) -> list[str]:
+    paths: set[str] = set()
+    for trace in traces:
+        artifact_paths = trace.get("artifact_paths")
+        if not isinstance(artifact_paths, list):
+            continue
+        for path in artifact_paths:
+            if isinstance(path, str) and path.startswith("research_ops/runtime/parallel_merges/"):
+                paths.add(path)
+    return sorted(paths)
+
+
+def parallel_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
+    branches = [trace_parallel_branch(trace) for trace in traces if trace_parallel_branch(trace)]
+    branch_ids = sorted({str(branch.get("branch_id")) for branch in branches if branch.get("branch_id")})
+    shapes = sorted({str(branch.get("branch_shape")) for branch in branches if branch.get("branch_shape")})
+    merge_paths = parallel_merge_packet_paths(traces)
+    return {
+        "parallel_triggered": 1.0 if len(branch_ids) >= 2 else 0.0,
+        "parallel_branch_count": len(branch_ids),
+        "parallel_trace_count": len(branches),
+        "parallel_shape_count": len(shapes),
+        "parallel_merge_packet_count": len(merge_paths),
+    }
+
+
 def evidence_stale(evidence: dict[str, Any]) -> bool:
     freshness = evidence.get("freshness_status") if isinstance(evidence.get("freshness_status"), dict) else {}
     return str(freshness.get("status") or "").lower() == "stale"
@@ -384,6 +415,7 @@ def case_metrics(
         "reproducibility_pass": 1.0,
     }
     metrics.update(route_metrics(traces))
+    metrics.update(parallel_metrics(traces))
     return metrics
 
 
@@ -400,6 +432,8 @@ def aggregate_metrics(metrics_rows: list[dict[str, Any]]) -> dict[str, Any]:
     route_decision_count = sum(integer(row.get("route_decision_count")) for row in metrics_rows)
     api_first_route_count = sum(integer(row.get("api_first_route_count")) for row in metrics_rows)
     browser_fallback_count = sum(integer(row.get("browser_fallback_count")) for row in metrics_rows)
+    parallel_trace_count = sum(integer(row.get("parallel_trace_count")) for row in metrics_rows)
+    parallel_merge_packet_count = sum(integer(row.get("parallel_merge_packet_count")) for row in metrics_rows)
     return {
         "case_count": case_count,
         "grounded_claim_rate": ratio(grounded_claims, total_claims, empty_value=1.0),
@@ -418,6 +452,9 @@ def aggregate_metrics(metrics_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "hybrid_route_case_count": sum(1 for row in metrics_rows if numeric(row.get("hybrid_route")) >= 1.0),
         "api_first_route_rate": ratio(api_first_route_count, route_decision_count, empty_value=0.0),
         "browser_fallback_rate": ratio(browser_fallback_count, route_decision_count, empty_value=0.0),
+        "parallel_triggered_case_count": sum(1 for row in metrics_rows if numeric(row.get("parallel_triggered")) >= 1.0),
+        "parallel_trace_count": parallel_trace_count,
+        "parallel_merge_packet_count": parallel_merge_packet_count,
         "total_cost_usd": total_cost,
         "accepted_report_count": accepted_count,
     }
@@ -465,10 +502,15 @@ def case_from_task(
         artifact_paths["result_acceptance"] = ref_for_path(ops_dir, result_acceptance_path)
     if aggregate_path is not None and aggregate_path.is_file():
         artifact_paths["review_aggregate"] = ref_for_path(ops_dir, aggregate_path)
+    merge_paths = parallel_merge_packet_paths(traces)
+    if merge_paths:
+        artifact_paths["parallel_merge_packets"] = merge_paths
     known_limitations = [
         "automated graders check trace, evidence, citation, cost, and acceptance artifacts only",
         "subjective expert preference requires a separately recorded human-calibrated rubric",
     ]
+    if metrics.get("parallel_triggered"):
+        known_limitations.append("parallel branch outputs remain review context until claim verification and result acceptance pass")
     if not claim_report:
         known_limitations.append("no claim-verification artifact was available for this case")
     return {
@@ -487,9 +529,12 @@ def case_from_task(
             "reproducibility_required": True,
             "route_decisions_required": True,
             "browser_fallback_must_be_governed": True,
+            "parallel_merge_required": bool(metrics.get("parallel_triggered")),
+            "parallel_review_required": bool(metrics.get("parallel_triggered")),
             "stop_conditions": [
                 "no live network, paid calls, or credentials during default eval run",
                 "human-calibrated rubric graders must be marked separately",
+                "parallel branch output cannot skip claim verification, review, result acceptance, or human gates",
             ],
         },
         "gold_or_reference_evidence": [evidence_reference(evidence) for evidence in evidence_rows],
@@ -503,6 +548,7 @@ def case_from_task(
                 "groundedness",
                 "citation_support",
                 "source_routing",
+                "bounded_parallelism",
                 "task_success",
                 "cost_latency",
                 "human_review_placeholder",
@@ -758,6 +804,34 @@ def grade_case(case: dict[str, Any], source_ops_dir: Path | None) -> dict[str, A
         }
     )
     automated_failures.extend(route_findings)
+
+    parallel_required = expected.get("parallel_merge_required") is True
+    parallel_findings: list[dict[str, Any]] = []
+    if parallel_required:
+        if integer(metrics.get("parallel_branch_count")) < 2:
+            parallel_findings.append(issue("parallel_branch_count_too_low", "parallel eval cases require at least two bounded branches"))
+        if integer(metrics.get("parallel_merge_packet_count")) < 1:
+            parallel_findings.append(issue("parallel_merge_packet_missing", "parallel eval cases require one reviewable merge packet"))
+        artifacts = case.get("artifacts") if isinstance(case.get("artifacts"), dict) else {}
+        merge_paths = artifacts.get("parallel_merge_packets") if isinstance(artifacts.get("parallel_merge_packets"), list) else []
+        if not merge_paths:
+            parallel_findings.append(issue("parallel_merge_artifact_missing", "parallel eval case must record merge packet artifact paths"))
+        elif source_ops_dir is not None:
+            for path in merge_paths:
+                resolved = workspace_path(source_ops_dir, path)
+                if resolved is None or not resolved.is_file():
+                    parallel_findings.append(issue("parallel_merge_artifact_missing", "parallel merge packet path is missing or outside research_ops", path=path))
+    checks.append(
+        {
+            "name": "bounded_parallelism",
+            "status": "pass" if not parallel_findings else "fail",
+            "parallel_required": parallel_required,
+            "parallel_branch_count": integer(metrics.get("parallel_branch_count")),
+            "parallel_merge_packet_count": integer(metrics.get("parallel_merge_packet_count")),
+            "findings": parallel_findings,
+        }
+    )
+    automated_failures.extend(parallel_findings)
 
     accepted_required = expected.get("accepted_output_required") is True
     task_success = numeric(metrics.get("task_success"))

@@ -92,6 +92,13 @@ route pattern, and cost. A hybrid route can only support a quality or cost claim
 when the eval case shows the relevant metric delta and records the residual
 risk.
 
+Phase 9 eval cases distinguish single-threaded runtime requests from bounded
+parallel research requests. Parallel cases record branch count, parallel trace
+count, merge packet count, and `parallel_triggered`. The `bounded_parallelism`
+grader requires at least two branch-tagged traces plus one merge packet under
+`research_ops/runtime/parallel_merges/`; it still leaves claim verification,
+review, result acceptance, and human gates outside the runtime adapter.
+
 ## Automated Graders
 
 Default graders are deterministic:
@@ -101,6 +108,7 @@ Default graders are deterministic:
 - unsupported claim rate
 - citation support and freshness
 - source routing and browser fallback governance
+- bounded parallelism and merge-packet presence
 - accepted-output and task-success gates
 - cost and latency accounting
 

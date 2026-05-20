@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 9 - Bounded parallel research threads
+Current phase: Phase 10 - Domain packs and head-to-head benchmark
 Last updated: 2026-05-20
-Next action: Add planner-controlled fan-out policy, merge requirements, and concurrency gates
+Next action: Package one honest domain pack and benchmark report
 Blocked by: None
 
 Created: 2026-05-20
@@ -449,6 +449,45 @@ Locked decisions:
   result acceptance, deliverable maturity, claim verification, and task state
   remain the acceptance sources of truth.
 
+## Resolved Phase 9 Bounded Parallel Research Threads
+
+Phase 9 is delivered as a deterministic, planner-controlled parallel research
+slice. It allows bounded fan-out for source gathering and extraction while
+keeping task state, review, claim verification, and human gates outside runtime
+adapter control.
+
+Authoritative parallel research docs and schemas:
+
+- [Bounded Parallel Research Threads](../src/async_research_workflow/docs/bounded_parallel_research.md)
+- [Research Runtime Contract](../src/async_research_workflow/docs/research_runtime_contract.md)
+- [Runtime Adapters](../src/async_research_workflow/docs/runtime_adapters.md)
+- [Runtime Evals](../src/async_research_workflow/docs/runtime_evals.md)
+- [Task Status Schema](../src/async_research_workflow/schemas/task_status.schema.json)
+- [Runtime Eval Suite Schema](../src/async_research_workflow/schemas/runtime_eval_suite.schema.json)
+
+Locked decisions:
+
+- Runtime requests may use `mode: "parallel_research"` only when
+  `runtime_permissions.parallel_research.enabled=true` is present in the task
+  contract.
+- Supported branch shapes are `source_gathering`,
+  `literature_extraction`, `market_map_slice`,
+  `policy_jurisdiction_comparison`, and `data_source_profiling`.
+- Parallel requests must include a planner-controlled `parallel_plan` with a
+  deterministic review-packet merge strategy, branch-specific allowed paths,
+  branch budgets, and at least two valid branch IDs.
+- Branches are bounded by global runtime limits, branch call counts,
+  branch-specific API/compute budgets, branch source paths, and optional
+  task-local `LOCK/owner.json` coordinator checks.
+- Runtime traces and evidence objects are tagged with `parallel_branch`
+  lineage, but branch output cannot request direct acceptance, skip review,
+  skip claim verification, or bypass human gates.
+- Successful parallel execution writes exactly one Markdown merge packet under
+  `research_ops/runtime/parallel_merges/`; the packet is review context only.
+- Runtime validation and eval reports expose parallel branch counts, trace
+  counts, merge packet counts, and a `bounded_parallelism` grader for fixture
+  cases that should trigger parallelism.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -462,7 +501,7 @@ Locked decisions:
 | 6 | Delivered | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
 | 7 | Delivered | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
 | 8 | Delivered | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
-| 9 | Not Started | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
+| 9 | Delivered | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
 | 10 | Not Started | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
 | 11 | Not Started | P3 | Optional scalable state backend | Decide whether event-log, queue, or indexed state storage is needed beyond repo files. | Scaling work is justified by measured friction, not assumed upfront. |
 
