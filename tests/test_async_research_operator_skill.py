@@ -178,6 +178,30 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
             payload["failures"],
         )
 
+    def test_validator_requires_command_recipe_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            candidate = Path(temp_dir) / "async-research-operator"
+            shutil.copytree(SKILL_DIR, candidate)
+            recipes = candidate / "references" / "command-recipes.md"
+            recipes.write_text(
+                recipes.read_text(encoding="utf-8").replace(
+                    "## Recipe 6 - Worker Loop",
+                    "## Worker Loop",
+                ),
+                encoding="utf-8",
+            )
+
+            code, payload = run_validator(candidate)
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            {
+                "path": "references/command-recipes.md",
+                "reason": "missing_recipe_heading:## Recipe 6 - Worker Loop",
+            },
+            payload["failures"],
+        )
+
     def test_validator_rejects_forbidden_clutter_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"

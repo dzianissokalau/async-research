@@ -154,3 +154,57 @@ Branch: `codex/llm-operator-skill-phase-2`
 ### Next Action
 
 - Phase 2 is delivered. The next automation run should start Phase 3 on `codex/llm-operator-skill-phase-3`.
+
+## Phase 3 - 2026-05-20
+
+Status: delivered
+Branch: `codex/llm-operator-skill-phase-3`
+
+### Scope
+
+- Replace the placeholder command recipe reference with exact public CLI
+  sequences for setup and common operator workflows.
+- Distinguish read-only, preview/dry-run, and write-capable actions.
+- Add stop conditions and a command capability table aligned with startup
+  probing.
+
+### Changes
+
+- Expanded `references/command-recipes.md` with recipes for status-only checks,
+  guided framework setup, new workspace setup, idea capture and promotion,
+  manual task creation, worker execution, review, human gates, foundation
+  proposals, deliverable maturity, and maintenance.
+- Added per-recipe read-only/preview vs write-capable command classification,
+  dry-run-before-write sequences, mutation notes, and stop conditions.
+- Added command capability table coverage for setup, workflow, queue/console,
+  idea, task creation, worker, review/decision, foundation proposal,
+  deliverable, and maintenance areas.
+- Updated `validate_skill_pack.py` and skill tests so required recipe sections,
+  capability rows, and safety phrases are validated.
+- Advanced the roadmap header and phase table to Phase 4.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 15 tests
+- `.venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py`: passed
+- `.venv/bin/python -m unittest tests.test_async_research_operator_skill`: passed, 14 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 727 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- Final verification was rerun after the review wording fix.
+
+### Review
+
+- Review file: `roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 3 scope and
+  diff; no separate reviewer sub-agent was used.
+- Phase 6 still owns fixture-based behavior tests and forward-test transcripts
+  for real operator behavior beyond structural recipe validation.
+
+### Next Action
+
+- Phase 3 is delivered. The next automation run should start Phase 4 on `codex/llm-operator-skill-phase-4`.

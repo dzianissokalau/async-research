@@ -32,6 +32,32 @@ FORBIDDEN_FILENAMES = {
 }
 REQUIRED_FRONTMATTER_KEYS = ("name", "description")
 REFERENCE_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)]+)\)")
+REQUIRED_RECIPE_HEADINGS = (
+    "## Command Capability Probe",
+    "## Recipe 1 - Status-Only Check",
+    "## Recipe 2 - Guided Framework Setup",
+    "## Recipe 3 - New Workspace Setup",
+    "## Recipe 4 - Idea Capture And Promotion",
+    "## Recipe 5 - Manual Or LLM Task Creation",
+    "## Recipe 6 - Worker Loop",
+    "## Recipe 7 - Review Loop",
+    "## Recipe 8 - Human Gate Handling",
+    "## Recipe 9 - Foundation Proposal Loop",
+    "## Recipe 10 - Deliverable Maturity Loop",
+    "## Recipe 11 - Maintenance Loop",
+    "## Command Capability Table",
+)
+REQUIRED_CAPABILITY_ROWS = (
+    "| Framework setup |",
+    "| Workspace setup |",
+    "| `workflow next/status` |",
+    "| `idea capture/promote` |",
+    "| `worker-start/complete` |",
+    "| `review` / `decision` |",
+    "| Foundation proposals |",
+    "| `deliverable` |",
+    "| Maintenance |",
+)
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], list[str]]:
@@ -138,6 +164,45 @@ def validate_trigger_evals(skill_dir: Path, failures: list[dict[str, str]]) -> N
         failures.append({"path": "references/trigger-evals.md", "reason": "too_few_should_not_trigger_examples"})
 
 
+def validate_command_recipes(skill_dir: Path, failures: list[dict[str, str]]) -> None:
+    command_recipes = skill_dir / "references" / "command-recipes.md"
+    if not command_recipes.is_file():
+        return
+
+    text = command_recipes.read_text(encoding="utf-8")
+    for heading in REQUIRED_RECIPE_HEADINGS:
+        if heading not in text:
+            failures.append(
+                {
+                    "path": "references/command-recipes.md",
+                    "reason": f"missing_recipe_heading:{heading}",
+                }
+            )
+    for row in REQUIRED_CAPABILITY_ROWS:
+        if row not in text:
+            failures.append(
+                {
+                    "path": "references/command-recipes.md",
+                    "reason": f"missing_capability_row:{row}",
+                }
+            )
+    for required_phrase in (
+        "--dry-run",
+        "--write",
+        "Stop conditions:",
+        "Mutates:",
+        "Read-only",
+        "Write-capable",
+    ):
+        if required_phrase not in text:
+            failures.append(
+                {
+                    "path": "references/command-recipes.md",
+                    "reason": f"missing_recipe_safety_phrase:{required_phrase}",
+                }
+            )
+
+
 def section(text: str, heading: str) -> str:
     start = text.find(heading)
     if start == -1:
@@ -162,6 +227,7 @@ def validate(skill_dir: Path) -> dict[str, object]:
     validate_skill_md(skill_dir, failures)
     validate_openai_yaml(skill_dir, failures)
     validate_trigger_evals(skill_dir, failures)
+    validate_command_recipes(skill_dir, failures)
 
     return {"ok": not failures, "skill_dir": str(skill_dir), "failures": failures}
 

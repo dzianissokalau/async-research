@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_llm_operator_skill_roadmap.md",
   "roadmap_slug": "llm_operator_skill",
-  "current_phase": 3,
-  "branch": "codex/llm-operator-skill-phase-3",
+  "current_phase": 4,
+  "branch": "codex/llm-operator-skill-phase-4",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": 2,
+    "phase": 3,
     "commands": [
       {
         "command": "git diff --check",
@@ -19,33 +19,39 @@
         "details": "15 tests"
       },
       {
-        "command": ".venv/bin/python skills/async-research-operator/scripts/inspect_workspace.py --help",
-        "status": "passed"
-      },
-      {
         "command": ".venv/bin/python skills/async-research-operator/scripts/validate_skill_pack.py",
         "status": "passed"
       },
       {
+        "command": ".venv/bin/python -m unittest tests.test_async_research_operator_skill",
+        "status": "passed",
+        "details": "14 tests"
+      },
+      {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "details": "726 tests"
+        "details": "727 tests"
+      },
+      {
+        "command": ".venv/bin/async-research acceptance-suite",
+        "status": "passed",
+        "details": "15 checks"
       }
     ],
-    "completed_at": "2026-05-20T01:31:18+01:00"
+    "completed_at": "2026-05-20T02:30:02+01:00"
   },
   "last_review": {
-    "phase": 2,
-    "file": "roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-2-review-iteration-1.md",
+    "phase": 3,
+    "file": "roadmaps/automation/llm_operator_skill/reviews/llm-operator-skill-phase-3-review-iteration-1.md",
     "verdict": "delivered",
-    "completed_at": "2026-05-20T01:29:27+01:00"
+    "completed_at": "2026-05-20T02:29:09+01:00"
   },
-  "last_delivered_phase": 2,
+  "last_delivered_phase": 3,
   "blocked_reason": null,
   "all_phases_complete": false,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": "after_all_phases",
   "cadence": "hourly",
-  "updated_at": "2026-05-20T01:31:18+01:00"
+  "updated_at": "2026-05-20T02:30:02+01:00"
 }
