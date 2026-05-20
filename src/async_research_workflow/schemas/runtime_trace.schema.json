@@ -162,6 +162,101 @@
           ]
         }
       }
+    },
+    "route_decision": {
+      "type": "object",
+      "required": [
+        "selected_adapter",
+        "selected_source_class",
+        "rejected_alternatives",
+        "reason",
+        "cost_estimate",
+        "freshness_expectation",
+        "license_or_use_policy_note",
+        "browser_fallback"
+      ],
+      "properties": {
+        "selected_adapter": {
+          "type": "string",
+          "enum": [
+            "web_search",
+            "web_open",
+            "file_search",
+            "file_fetch",
+            "mcp_search",
+            "mcp_fetch",
+            "api_query",
+            "code_execute"
+          ]
+        },
+        "selected_tool": {
+          "type": "string"
+        },
+        "selected_source_class": {
+          "type": "string",
+          "enum": [
+            "official_api",
+            "authoritative_downloadable_data",
+            "official_page",
+            "reputable_third_party_database",
+            "general_web_page",
+            "user_provided_source"
+          ]
+        },
+        "source_preference_rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_preference_policy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rejected_alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "pattern": ".+"
+        },
+        "cost_estimate": {
+          "type": "object"
+        },
+        "freshness_expectation": {},
+        "license_or_use_policy_note": {
+          "type": "string"
+        },
+        "browser_fallback": {
+          "type": "object",
+          "required": [
+            "used",
+            "allowed_by_task_contract",
+            "snapshot_required",
+            "governance"
+          ],
+          "properties": {
+            "used": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "allowed_by_task_contract": {
+              "type": "boolean"
+            },
+            "snapshot_required": {
+              "type": "boolean"
+            },
+            "governance": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   }
 }

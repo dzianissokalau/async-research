@@ -192,6 +192,7 @@
                     "schema_path_hash",
                     "groundedness",
                     "citation_support",
+                    "source_routing",
                     "task_success",
                     "cost_latency",
                     "human_review_placeholder"

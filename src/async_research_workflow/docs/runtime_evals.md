@@ -74,6 +74,7 @@ Each eval case records:
 
 - `case_id`
 - `source_trace_ids`
+- `source_route_decisions`
 - `input_brief`
 - `expected_behavior`
 - `gold_or_reference_evidence`
@@ -84,6 +85,13 @@ Each eval case records:
 The suite also records runtime policy, model-routing policy, release policy,
 and whether human calibration is included.
 
+Phase 7 eval cases compare API-only, browser-only, and hybrid source routing
+without live network calls. Case metrics include route decision count,
+API-first route count, browser fallback count, hybrid-route markers, source
+route pattern, and cost. A hybrid route can only support a quality or cost claim
+when the eval case shows the relevant metric delta and records the residual
+risk.
+
 ## Automated Graders
 
 Default graders are deterministic:
@@ -92,6 +100,7 @@ Default graders are deterministic:
 - grounded claim rate
 - unsupported claim rate
 - citation support and freshness
+- source routing and browser fallback governance
 - accepted-output and task-success gates
 - cost and latency accounting
 

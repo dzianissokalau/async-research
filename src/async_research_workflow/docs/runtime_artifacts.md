@@ -68,8 +68,13 @@ must treat those objects as unsupported until the policy is resolved.
 
 Runtime traces use `schemas/runtime_trace.schema.json`. Each row records the
 task, adapter type, concrete tool name, redacted input and output summaries,
-artifact paths, return code, duration, token use, cost, and any structured
-error.
+artifact paths, return code, duration, token use, cost, any structured error,
+and optional route-decision metadata.
+
+Phase 7 traces include `route_decision` so reviewers and evals can see why an
+official API, downloadable dataset, official page, search endpoint, browser
+fallback, private connector, or user-provided source was chosen. Browser
+fallback rows must record the fallback reason and snapshot requirement.
 
 Traces are audit rows and eval inputs. They are not task-state transitions, and
 they are not a substitute for human decisions in `decisions.md`.
@@ -96,3 +101,7 @@ Phase 5 runtime evals use the same ledgers as fixture inputs. Eval suites live
 under `research_ops/evals/` and compare quality changes without moving evidence
 acceptance or task-state authority out of the original runtime, review, and
 result-acceptance artifacts.
+
+Phase 7 route decisions become eval inputs too. The summary reports route
+decision and browser-fallback counts while preserving the original trace and
+evidence ledgers as the source of truth.

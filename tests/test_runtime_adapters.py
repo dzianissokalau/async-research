@@ -108,6 +108,8 @@ class RuntimeAdapterTests(unittest.TestCase):
             self.assertFalse(dry_run["changed"])
             self.assertTrue(dry_run["read_only"])
             self.assertEqual(2, dry_run["summary"]["call_count"])
+            self.assertEqual("official_api", dry_run["calls"][1]["route_decision"]["selected_source_class"])
+            self.assertEqual("mock_statistical_api", dry_run["calls"][1]["tool_name"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
             execute_code, executed = run_cli_json(["runtime", "execute", ops_dir, "--request", request_path, "--now", NOW])
@@ -119,11 +121,17 @@ class RuntimeAdapterTests(unittest.TestCase):
             self.assertEqual(2, executed["summary"]["evidence_object_count"])
             self.assertEqual(["EVID-000001"], executed["calls"][0]["evidence_ids"])
             self.assertEqual(["EVID-000002"], executed["calls"][1]["evidence_ids"])
+            self.assertEqual("api_query", executed["calls"][1]["route_decision"]["selected_adapter"])
+            self.assertEqual(
+                "official_page",
+                executed["calls"][1]["route_decision"]["rejected_alternatives"][0]["source_class"],
+            )
 
             validate_code, validated = run_cli_json(["runtime", "validate", ops_dir])
             self.assertEqual(cli.SUCCESS, validate_code, validated)
             self.assertEqual(2, validated["summary"]["runtime_trace_count"])
             self.assertEqual(2, validated["summary"]["evidence_object_count"])
+            self.assertEqual(2, validated["summary"]["route_decision_count"])
             self.assertEqual(0, validated["summary"]["unsupported_or_stale_evidence_count"])
 
             snapshot_code, snapshot = run_cli_json(["console", "snapshot", ops_dir, "--json", "--now", NOW])
@@ -191,6 +199,69 @@ class RuntimeAdapterTests(unittest.TestCase):
             self.assertFalse(dry_run["changed"])
             self.assertEqual("blocked", dry_run["calls"][0]["status"])
             self.assertEqual("mock_response_required", dry_run["calls"][0]["error"]["code"])
+
+    def test_browser_fallback_requires_reason_and_preserves_governance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir, _task_dir = init_vertical_slice(root, allow_network=True)
+            status_path = ops_dir / "tasks" / "TASK-1001-runtime-vertical-slice" / "status.json"
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["allowed_tools"] = ["runtime:web_open"]
+            status["allow_browsing"] = True
+            status["budget"]["max_api_usd"] = 0.01
+            status["runtime_permissions"]["max_api_usd"] = 0.01
+            status["runtime_permissions"]["allowed_domains"] = ["example.org"]
+            status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            request_path = root / "browser_fallback_request.json"
+            request = {
+                "mode": "vertical_slice",
+                "task_id": "TASK-1001",
+                "calls": [
+                    {
+                        "adapter_type": "web_open",
+                        "source_uri": "https://example.org/report",
+                        "domain": "example.org",
+                        "source_class": "official_page",
+                        "source_profile": "document_repository",
+                        "browser_fallback_reason": "api_incomplete",
+                        "route_reason": "The official page supplies narrative context missing from the API.",
+                        "route_alternatives": [
+                            {
+                                "adapter_type": "api_query",
+                                "source_class": "official_api",
+                                "rejection_reason": "The API omits the narrative context required by the brief.",
+                            }
+                        ],
+                        "estimated_cost": {"api_usd": 0.0, "compute_usd": 0.0, "tokens": 0},
+                        "mock_response": {
+                            "source_uri": "https://example.org/report",
+                            "source_title": "Example official report",
+                            "license_or_use_policy": "fixture-only",
+                            "content": "official browser fallback snapshot\n",
+                        },
+                    }
+                ],
+            }
+            request_path.write_text(json.dumps(request, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            dry_code, dry_run = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+            self.assertEqual(cli.SUCCESS, dry_code, dry_run)
+            fallback = dry_run["calls"][0]["route_decision"]["browser_fallback"]
+            self.assertTrue(fallback["used"])
+            self.assertTrue(fallback["allowed_by_task_contract"])
+            self.assertTrue(fallback["snapshot_required"])
+
+            execute_code, executed = run_cli_json(["runtime", "execute", ops_dir, "--request", request_path, "--now", NOW])
+            self.assertEqual(cli.SUCCESS, execute_code, executed)
+            validate_code, validated = run_cli_json(["runtime", "validate", ops_dir])
+            self.assertEqual(cli.SUCCESS, validate_code, validated)
+            self.assertEqual(1, validated["summary"]["browser_fallback_count"])
+
+            del request["calls"][0]["browser_fallback_reason"]
+            request_path.write_text(json.dumps(request, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            blocked_code, blocked_run = run_cli_json(["runtime", "dry-run", ops_dir, "--request", request_path, "--now", NOW])
+            self.assertEqual(2, blocked_code, blocked_run)
+            self.assertEqual("browser_fallback_reason_missing", blocked_run["calls"][0]["error"]["code"])
 
     def test_malformed_estimated_cost_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -56,7 +56,7 @@ Missing permission data fails closed. A blocked execution may write a trace with
 
 ## Implemented Adapters
 
-The Phase 3 core package remains standard-library first:
+The core package remains standard-library first:
 
 - `file_fetch` reads a permitted text file under `research_ops/` and snapshots
   it as a runtime evidence object.
@@ -65,9 +65,43 @@ The Phase 3 core package remains standard-library first:
 - `code_execute` runs only deterministic built-in summary operations:
   `word_count`, `line_count`, and `sha256`.
 - `web_search`, `web_open`, `mcp_search`, `mcp_fetch`, and `api_query` are
-  mocked-only in Phase 3. They require explicit task-contract permission and a
-  `mock_response`; the core package does not perform live network,
-  credentialed, or paid calls.
+  mocked-only in the core package. They require explicit task-contract
+  permission and a `mock_response`; the core package does not perform live
+  network, credentialed, or paid calls.
+  They remain mocked-only in Phase 3's original sense unless an optional
+  adapter package explicitly supplies a governed live implementation later.
+
+## Source Preference Policy
+
+Phase 7 records a route decision for every runtime call. The route policy
+prefers source classes in this order:
+
+1. `official_api`
+2. `authoritative_downloadable_data`
+3. `official_page`
+4. `reputable_third_party_database`
+5. `general_web_page`
+6. `user_provided_source`
+
+Each trace includes `route_decision.selected_adapter`,
+`route_decision.rejected_alternatives`, `route_decision.reason`,
+`route_decision.cost_estimate`, `route_decision.freshness_expectation`,
+`route_decision.license_or_use_policy_note`, and
+`route_decision.browser_fallback`.
+
+Mock external adapters can label common source profiles without adding
+production integrations:
+
+- `statistical_api` for structured statistical API fixtures
+- `document_repository` for official document or downloadable-data fixtures
+- `search_endpoint` for reputable search endpoint fixtures
+- `private_mcp_source` for private MCP-like source fixtures
+
+Browser routes require `browser_fallback_reason` with one of
+`api_unavailable`, `api_incomplete`, or `human_context_required`. They still
+must satisfy `allow_browsing`, `allow_network`, `allowed_domains`,
+`mock_response`, and snapshot evidence requirements, so fallback browsing does
+not bypass source governance.
 
 ## Request Shape
 
@@ -86,6 +120,15 @@ Runtime requests are single-task JSON files:
     {
       "adapter_type": "api_query",
       "api_name": "fixture_stats",
+      "source_profile": "statistical_api",
+      "source_class": "official_api",
+      "route_alternatives": [
+        {
+          "adapter_type": "web_open",
+          "source_class": "official_page",
+          "rejection_reason": "The API is complete and lower cost."
+        }
+      ],
       "mock_response": {
         "source_uri": "mock://fixture_stats/runtime",
         "source_title": "Mock API fixture",

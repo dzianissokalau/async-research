@@ -142,9 +142,29 @@ locations and validators; this minimum trace shape is fixed for implementation.
 | `token_usage` | Token usage by model role/provider, or `null` when not applicable. |
 | `cost` | Cost estimate or final cost for the action. |
 | `error` | Structured error or `null`; must include fail-closed permission blockers. |
+| `route_decision` | Source-route rationale with selected adapter, rejected alternatives, cost estimate, freshness expectation, license/use note, and browser fallback status. |
 
 Trace rows are an audit ledger and an eval source. They are not a hidden state
 machine and must not be the only place where a human decision is stored.
+
+## API-First Source Routing
+
+Phase 7 adds a source preference policy for adapter routing. When multiple
+routes can satisfy the same brief, the runtime should prefer:
+
+1. official API
+2. authoritative downloadable data
+3. official page
+4. reputable third-party database
+5. general web page
+6. user-provided source
+
+Every executed or blocked adapter trace records the selected adapter, rejected
+alternatives, route reason, cost estimate, freshness expectation, license or
+use-policy note, and browser fallback status. Browsing remains a fallback for
+cases where an API is unavailable, incomplete, or needed for human-facing
+context, and it still requires task-contract browsing/network/domain
+permission plus snapshot evidence.
 
 ## Human Gates
 

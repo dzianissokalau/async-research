@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 7 - Hybrid API-first routing
+Current phase: Phase 8 - Structured evidence memory and targeted reflection
 Last updated: 2026-05-20
-Next action: Add API-first route decisions, source preference policy, and browser fallback rules
+Next action: Add queryable evidence state, contradiction links, failure classes, and targeted critic routing
 Blocked by: None
 
 Created: 2026-05-20
@@ -376,6 +376,43 @@ Locked decisions:
 - Generated prompt-library prompts reference the routing policy and warn when a
   prompt lacks that reference, but old prompt variants remain valid baselines.
 
+## Resolved Phase 7 Hybrid API-First Routing
+
+Phase 7 is delivered as an offline, policy-first route-decision slice. It adds
+source preference classes, route rationale metadata on runtime traces, mock
+source profiles for common external classes, browser fallback governance, and
+route-aware eval fixtures without adding live production integrations.
+
+Authoritative routing docs and schemas:
+
+- [Research Runtime Contract](../src/async_research_workflow/docs/research_runtime_contract.md)
+- [Runtime Adapters](../src/async_research_workflow/docs/runtime_adapters.md)
+- [Runtime Artifacts](../src/async_research_workflow/docs/runtime_artifacts.md)
+- [Runtime Evals](../src/async_research_workflow/docs/runtime_evals.md)
+- [Runtime Trace Schema](../src/async_research_workflow/schemas/runtime_trace.schema.json)
+- [Runtime Eval Suite Schema](../src/async_research_workflow/schemas/runtime_eval_suite.schema.json)
+
+Locked decisions:
+
+- Source preference order is `official_api`,
+  `authoritative_downloadable_data`, `official_page`,
+  `reputable_third_party_database`, `general_web_page`, then
+  `user_provided_source`.
+- Every runtime adapter trace emitted by the core runtime records
+  `route_decision` with selected adapter, selected source class, rejected
+  alternatives, reason, cost estimate, freshness expectation, license/use note,
+  and browser fallback status.
+- Mock source profiles cover `statistical_api`, `document_repository`,
+  `search_endpoint`, and `private_mcp_source` without making live network calls.
+- Browser routes require `browser_fallback_reason` set to `api_unavailable`,
+  `api_incomplete`, or `human_context_required`, plus the existing browsing,
+  network, allowed-domain, mock-response, and snapshot evidence gates.
+- Runtime validation reports route decision and browser fallback counts, and it
+  fails closed if web route metadata contradicts browser fallback requirements.
+- Runtime eval suites include source-route decisions, source-routing grader
+  checks, API-only/browser-only/hybrid fixture patterns, and route metrics that
+  can show cost improvement only within the recorded fixture evidence.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -387,7 +424,7 @@ Locked decisions:
 | 4 | Delivered | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
 | 5 | Delivered | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
 | 6 | Delivered | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
-| 7 | Not Started | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
+| 7 | Delivered | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
 | 8 | Not Started | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |
 | 9 | Not Started | P2 | Bounded parallel research threads | Allow planner-controlled source-gathering or literature-extraction fan-out with deterministic merge and review. | Parallelism improves coverage without uncontrolled swarms or hidden writes. |
 | 10 | Not Started | P2 | Domain packs and head-to-head benchmark | Package one domain-specific runtime/eval pack and compare against baseline Deep Research-style outputs. | The framework has evidence of where it can beat general-purpose research products. |
@@ -1114,7 +1151,7 @@ event log, and indexed read model are needed for higher concurrency.
 | P0 | Claim and citation verification | Maps atomic claims to evidence spans and blocks or caps unsupported claims. | Directly improves final research quality and trust. | Not Started |
 | P0 | Trace-driven eval flywheel | Builds eval cases from traces and gates future prompt/runtime changes. | Turns quality into a measured loop instead of opinion. | Not Started |
 | P1 | Prompt and model routing modernization | Slim prompts, keep hard rules in validators, and route model tiers by role. | Improves quality/cost balance with stronger models. | Not Started |
-| P1 | Hybrid API-first routing | Prefer structured APIs and authoritative data before browsing. | Improves reliability, freshness, and cost. | Not Started |
+| P1 | Hybrid API-first routing | Prefer structured APIs and authoritative data before browsing. | Improves reliability, freshness, and cost. | Delivered |
 | P1 | Structured evidence memory and targeted reflection | Adds queryable evidence and failure memory while preserving repo artifacts. | Improves longitudinal research quality. | Not Started |
 | P2 | Bounded parallel research threads | Allows controlled fan-out/fan-in for source gathering and extraction. | Improves coverage without agent-swarm risk. | Not Started |
 | P2 | Domain pack and head-to-head benchmark | Proves one vertical where the framework can beat general-purpose research products. | Creates credible external quality evidence. | Not Started |

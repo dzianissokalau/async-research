@@ -152,6 +152,83 @@ def init_eval_workspace(root: Path) -> tuple[Path, Path]:
     return ops_dir, task_dir
 
 
+def write_route_task(
+    ops_dir: Path,
+    task_id: str,
+    slug: str,
+    *,
+    allowed_tools: list[str],
+    allow_network: bool,
+    allow_browsing: bool,
+    allowed_domains: list[str] | None = None,
+    allowed_api_names: list[str] | None = None,
+    max_calls: int = 1,
+    budget_usd: float = 0.0,
+) -> Path:
+    task_dir = ops_dir / "tasks" / f"{task_id}-{slug}"
+    status = {
+        "schema_version": "1.0",
+        "id": task_id,
+        "title": f"Routing eval {slug}",
+        "type": "literature_extract",
+        "status": "accepted",
+        "previous_status": "panel_review",
+        "last_transition_reason": "routing_eval_fixture",
+        "priority": 2,
+        "revision_count": 0,
+        "max_revisions": 1,
+        "revision_limit_hit": False,
+        "allowed_paths": [
+            f"research_ops/tasks/{task_id}-{slug}/**",
+            "research_ops/runtime/**",
+            "research_ops/sources/**",
+        ],
+        "allowed_tools": allowed_tools,
+        "allow_browsing": allow_browsing,
+        "allow_code_execution": False,
+        "allow_network": allow_network,
+        "max_minutes": 10,
+        "requires_human": False,
+        "budget": {"max_api_usd": budget_usd, "max_compute_usd": 0.0},
+        "human_gate_reason": None,
+        "runtime_permissions": {
+            "max_calls": max_calls,
+            "max_api_usd": budget_usd,
+            "max_compute_usd": 0.0,
+            "allowed_domains": allowed_domains or [],
+            "allowed_api_names": allowed_api_names or [],
+            "allow_credentials": False,
+            "allow_paid_calls": budget_usd > 0,
+        },
+        "result": {
+            "claim_strength": "suggestive",
+            "key_finding": f"Routing eval {slug} produced auditable evidence.",
+        },
+    }
+    write_json(task_dir / "status.json", status)
+    write_json(
+        task_dir / "review_panel" / "aggregate.json",
+        {
+            "aggregate_decision": "accepted",
+            "aggregate_claim_strength": "suggestive",
+            "tier": 1,
+            "required_reviewers": ["primary"],
+            "reviews": [{"reviewer_role": "primary", "decision": "accept", "claim_strength": "suggestive"}],
+            "disagreements": ["none"],
+        },
+    )
+    return task_dir
+
+
+def execute_runtime_request(ops_dir: Path, root: Path, name: str, request: dict) -> dict:
+    request_path = root / f"{name}.json"
+    write_json(request_path, request)
+    code, payload = run_cli_json(["runtime", "execute", ops_dir, "--request", request_path, "--now", NOW])
+    if code != cli.SUCCESS:
+        raise AssertionError(payload)
+    return payload
+
+
 class RuntimeEvalTests(unittest.TestCase):
     def test_build_run_compare_and_dashboard_from_fixture_traces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -180,6 +257,9 @@ class RuntimeEvalTests(unittest.TestCase):
             self.assertEqual(1, suite["case_count"])
             self.assertEqual(["TRACE-000001"], suite["cases"][0]["source_trace_ids"])
             self.assertEqual(["EVID-000001"], suite["cases"][0]["expected_behavior"]["required_evidence_ids"])
+            self.assertEqual(1, suite["cases"][0]["metrics"]["route_decision_count"])
+            self.assertEqual("local_or_private", suite["cases"][0]["metrics"]["source_route_pattern"])
+            self.assertEqual("source_routing", suite["cases"][0]["grader"]["checks"][3])
             self.assertEqual([], [error.to_dict() for error in validate(suite, load_json(schema_path("runtime_eval_suite.schema.json")))])
             suite_path = Path(built["suite_path"])
             self.assertTrue(suite_path.is_file())
@@ -191,6 +271,9 @@ class RuntimeEvalTests(unittest.TestCase):
             self.assertEqual(1.0, run["metrics"]["grounded_claim_rate"])
             self.assertEqual(0.0, run["metrics"]["unsupported_claim_rate"])
             self.assertEqual(1.0, run["metrics"]["accepted_output_rate"])
+            self.assertEqual(1, run["metrics"]["route_decision_count"])
+            check_names = [check["name"] for check in run["case_results"][0]["checks"]]
+            self.assertIn("source_routing", check_names)
             self.assertEqual([], [error.to_dict() for error in validate(run, load_json(schema_path("runtime_eval_run.schema.json")))])
             run_path = ops_dir / "evals" / "runs" / "fixture-run.json"
             self.assertTrue(run_path.is_file())
@@ -205,6 +288,168 @@ class RuntimeEvalTests(unittest.TestCase):
             self.assertEqual(1, snapshot["evals"]["run_count"])
             self.assertEqual("pass", snapshot["evals"]["latest_run"]["status"])
             self.assertEqual(1.0, snapshot["evals"]["metrics"]["grounded_claim_rate"])
+
+    def test_build_from_traces_compares_api_browser_and_hybrid_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ops_dir = root / "research_ops"
+            code, payload = run_cli_json(["init", ops_dir, "--template", "generic", "--force"])
+            self.assertEqual(cli.SUCCESS, code, payload)
+
+            write_route_task(
+                ops_dir,
+                "TASK-5101",
+                "api-only",
+                allowed_tools=["runtime:api_query"],
+                allow_network=True,
+                allow_browsing=False,
+                allowed_api_names=["fixture_stats"],
+            )
+            execute_runtime_request(
+                ops_dir,
+                root,
+                "api_only_route",
+                {
+                    "mode": "single_task",
+                    "task_id": "TASK-5101",
+                    "calls": [
+                        {
+                            "adapter_type": "api_query",
+                            "api_name": "fixture_stats",
+                            "source_profile": "statistical_api",
+                            "source_class": "official_api",
+                            "route_reason": "Official API has the complete fixture metric.",
+                            "license_or_use_policy": "fixture-only",
+                            "mock_response": {
+                                "source_uri": "mock://fixture_stats/api-only",
+                                "source_title": "Fixture stats API",
+                                "license_or_use_policy": "fixture-only",
+                                "content": "metric=42\n",
+                            },
+                        }
+                    ],
+                },
+            )
+
+            write_route_task(
+                ops_dir,
+                "TASK-5102",
+                "browser-only",
+                allowed_tools=["runtime:web_open"],
+                allow_network=True,
+                allow_browsing=True,
+                allowed_domains=["example.org"],
+                budget_usd=0.02,
+            )
+            execute_runtime_request(
+                ops_dir,
+                root,
+                "browser_only_route",
+                {
+                    "mode": "single_task",
+                    "task_id": "TASK-5102",
+                    "calls": [
+                        {
+                            "adapter_type": "web_open",
+                            "source_uri": "https://example.org/report",
+                            "domain": "example.org",
+                            "source_class": "official_page",
+                            "source_profile": "document_repository",
+                            "browser_fallback_reason": "api_unavailable",
+                            "route_reason": "No structured endpoint is available for this fixture.",
+                            "estimated_cost": {"api_usd": 0.02, "compute_usd": 0.0, "tokens": 0},
+                            "license_or_use_policy": "fixture-only",
+                            "mock_response": {
+                                "source_uri": "https://example.org/report",
+                                "source_title": "Browser fixture report",
+                                "license_or_use_policy": "fixture-only",
+                                "content": "browser route evidence\n",
+                            },
+                        }
+                    ],
+                },
+            )
+
+            write_route_task(
+                ops_dir,
+                "TASK-5103",
+                "hybrid",
+                allowed_tools=["runtime:api_query", "runtime:web_open"],
+                allow_network=True,
+                allow_browsing=True,
+                allowed_domains=["example.org"],
+                allowed_api_names=["fixture_stats"],
+                max_calls=2,
+                budget_usd=0.01,
+            )
+            execute_runtime_request(
+                ops_dir,
+                root,
+                "hybrid_route",
+                {
+                    "mode": "single_task",
+                    "task_id": "TASK-5103",
+                    "calls": [
+                        {
+                            "adapter_type": "api_query",
+                            "api_name": "fixture_stats",
+                            "source_profile": "statistical_api",
+                            "source_class": "official_api",
+                            "route_reason": "Use structured metrics from the official API first.",
+                            "license_or_use_policy": "fixture-only",
+                            "mock_response": {
+                                "source_uri": "mock://fixture_stats/hybrid",
+                                "source_title": "Fixture stats API",
+                                "license_or_use_policy": "fixture-only",
+                                "content": "metric=42\n",
+                            },
+                        },
+                        {
+                            "adapter_type": "web_open",
+                            "source_uri": "https://example.org/context",
+                            "domain": "example.org",
+                            "source_class": "official_page",
+                            "source_profile": "document_repository",
+                            "browser_fallback_reason": "human_context_required",
+                            "route_reason": "Use the official page only for interpretive context.",
+                            "route_alternatives": [
+                                {
+                                    "adapter_type": "api_query",
+                                    "source_class": "official_api",
+                                    "rejection_reason": "The API answered metrics but not the contextual note.",
+                                }
+                            ],
+                            "estimated_cost": {"api_usd": 0.01, "compute_usd": 0.0, "tokens": 0},
+                            "license_or_use_policy": "fixture-only",
+                            "mock_response": {
+                                "source_uri": "https://example.org/context",
+                                "source_title": "Hybrid context page",
+                                "license_or_use_policy": "fixture-only",
+                                "content": "hybrid contextual evidence\n",
+                            },
+                        },
+                    ],
+                },
+            )
+
+            build_code, built = run_cli_json(["eval", "build-from-traces", ops_dir, "--suite-id", "route-suite", "--now", NOW])
+            self.assertEqual(cli.SUCCESS, build_code, built)
+            cases_by_pattern = {case["metrics"]["source_route_pattern"]: case for case in built["suite"]["cases"]}
+            self.assertIn("api_only", cases_by_pattern)
+            self.assertIn("browser_only", cases_by_pattern)
+            self.assertIn("hybrid", cases_by_pattern)
+            self.assertLess(
+                cases_by_pattern["hybrid"]["metrics"]["cost_usd"],
+                cases_by_pattern["browser_only"]["metrics"]["cost_usd"],
+            )
+            self.assertEqual(1, built["suite"]["metrics"]["hybrid_route_case_count"])
+            self.assertEqual(2, built["suite"]["metrics"]["browser_fallback_count"])
+
+            suite_path = ops_dir / "evals" / "route-suite.json"
+            write_json(suite_path, built["suite"])
+            run_code, run = run_cli_json(["eval", "run", suite_path, "--run-id", "route-run", "--now", NOW])
+            self.assertEqual(cli.SUCCESS, run_code, run)
+            self.assertEqual("pass", run["status"])
 
     def test_eval_run_fails_when_snapshot_hash_no_longer_matches_suite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

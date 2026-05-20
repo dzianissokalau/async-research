@@ -8,14 +8,26 @@
       "source_path": "research_ops/sources/runtime-source.md",
       "source_title": "Runtime Adapter Fixture Source",
       "license_or_use_policy": "fixture-only",
+      "source_class": "user_provided_source",
+      "route_reason": "Local fixture source is user-provided evidence for the vertical slice.",
       "input_summary": "Fetch the local fixture source for runtime evidence."
     },
     {
       "adapter_type": "api_query",
       "api_name": "fixture_stats",
+      "source_profile": "statistical_api",
+      "source_class": "official_api",
       "source_title": "Mock Runtime API Fixture",
       "license_or_use_policy": "fixture-only",
       "input_summary": "Read mocked API fixture metrics without a live network call.",
+      "route_reason": "The structured statistical API is complete for the fixture metric.",
+      "route_alternatives": [
+        {
+          "adapter_type": "web_open",
+          "source_class": "official_page",
+          "rejection_reason": "The mocked official API is lower cost and complete for the requested metric."
+        }
+      ],
       "mock_response": {
         "source_uri": "mock://fixture_stats/runtime",
         "source_title": "Mock Runtime API Fixture",

@@ -36,6 +36,38 @@ MCP_ADAPTERS = {"mcp_search", "mcp_fetch"}
 LOCAL_ADAPTERS = {"file_search", "file_fetch", "code_execute"}
 EXTERNAL_ADAPTERS = NETWORK_CAPABLE_ADAPTERS
 RUNTIME_PERMISSIONS_KEY = "runtime_permissions"
+SOURCE_PREFERENCE_POLICY = (
+    "official_api",
+    "authoritative_downloadable_data",
+    "official_page",
+    "reputable_third_party_database",
+    "general_web_page",
+    "user_provided_source",
+)
+SOURCE_CLASS_RANK = {source_class: index for index, source_class in enumerate(SOURCE_PREFERENCE_POLICY)}
+BROWSER_FALLBACK_REASONS = {"api_unavailable", "api_incomplete", "human_context_required"}
+MOCK_SOURCE_PROFILES: dict[str, dict[str, Any]] = {
+    "statistical_api": {
+        "adapter_types": {"api_query"},
+        "source_class": "official_api",
+        "tool_name": "mock_statistical_api",
+    },
+    "document_repository": {
+        "adapter_types": {"api_query", "mcp_fetch", "web_open"},
+        "source_class": "authoritative_downloadable_data",
+        "tool_name": "mock_document_repository",
+    },
+    "search_endpoint": {
+        "adapter_types": {"api_query", "web_search"},
+        "source_class": "reputable_third_party_database",
+        "tool_name": "mock_search_endpoint",
+    },
+    "private_mcp_source": {
+        "adapter_types": {"mcp_search", "mcp_fetch"},
+        "source_class": "user_provided_source",
+        "tool_name": "mock_private_mcp_source",
+    },
+}
 
 TRACE_LEDGER = Path("runtime") / "traces.jsonl"
 EVIDENCE_LEDGER = Path("runtime") / "evidence_objects.jsonl"
@@ -293,6 +325,7 @@ class RuntimeAdapter:
             "read_only": True,
             "local": self.local,
             "mocked_only": self.supports_mock,
+            "source_preference_policy": list(SOURCE_PREFERENCE_POLICY),
         }
 
     def dry_run(self, call: dict[str, Any], context: RuntimeContext) -> AdapterOutcome:
@@ -311,7 +344,14 @@ class RuntimeAdapter:
     def execute(self, call: dict[str, Any], context: RuntimeContext) -> AdapterOutcome:
         raise NotImplementedError
 
-    def to_trace(self, call: dict[str, Any], context: RuntimeContext, outcome: AdapterOutcome) -> dict[str, Any]:
+    def to_trace(
+        self,
+        call: dict[str, Any],
+        context: RuntimeContext,
+        outcome: AdapterOutcome,
+        *,
+        route: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         return {
             "schema_version": "1.0",
             "framework_version": "runtime_trace_v1.0",
@@ -332,6 +372,7 @@ class RuntimeAdapter:
             },
             "cost": trace_cost(call),
             "error": outcome.error,
+            "route_decision": route or route_decision(call, self, context),
         }
 
     def to_evidence_objects(self, outcome: AdapterOutcome) -> list[dict[str, Any]]:
@@ -496,9 +537,20 @@ class MockExternalAdapter(RuntimeAdapter):
     local = False
     supports_mock = True
 
-    def __init__(self, adapter_type: str) -> None:
+    def __init__(self, adapter_type: str, source_profile: str | None = None) -> None:
         self.adapter_type = adapter_type
-        self.tool_name = f"mock_{adapter_type}"
+        profile = mock_source_profile(adapter_type, source_profile)
+        self.source_profile = source_profile if profile is not None else None
+        self.tool_name = str(profile.get("tool_name")) if profile is not None else f"mock_{adapter_type}"
+
+    def capabilities(self) -> dict[str, Any]:
+        payload = super().capabilities()
+        payload["mock_source_profiles"] = sorted(
+            name
+            for name, profile in MOCK_SOURCE_PROFILES.items()
+            if self.adapter_type in profile["adapter_types"]
+        )
+        return payload
 
     def execute(self, call: dict[str, Any], context: RuntimeContext) -> AdapterOutcome:
         started = time.monotonic()
@@ -575,7 +627,220 @@ def freshness_status(call: dict[str, Any], context: RuntimeContext) -> dict[str,
     return {"status": "current", "checked_at": context.now, "basis": "runtime adapter execution"}
 
 
-def adapter_for(adapter_type: str) -> RuntimeAdapter | None:
+def normalized_source_class(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    source_class = value.strip()
+    return source_class if source_class in SOURCE_CLASS_RANK else None
+
+
+def mock_source_profile(adapter_type: str, profile_name: Any) -> dict[str, Any] | None:
+    if not isinstance(profile_name, str):
+        return None
+    profile = MOCK_SOURCE_PROFILES.get(profile_name.strip())
+    if profile is None or adapter_type not in profile["adapter_types"]:
+        return None
+    return profile
+
+
+def source_class_for_call(call: dict[str, Any], adapter_type: str) -> str:
+    source_class = normalized_source_class(call.get("source_class"))
+    if source_class is not None:
+        return source_class
+    profile = mock_source_profile(adapter_type, call.get("source_profile"))
+    if profile is not None:
+        return str(profile["source_class"])
+    if adapter_type == "api_query":
+        return "official_api"
+    if adapter_type == "web_open":
+        return "official_page" if call.get("official_source") else "general_web_page"
+    if adapter_type == "web_search":
+        return "general_web_page"
+    if adapter_type in MCP_ADAPTERS:
+        return "user_provided_source"
+    if adapter_type in LOCAL_ADAPTERS:
+        return "user_provided_source"
+    return "general_web_page"
+
+
+def normalized_route_alternatives(call: dict[str, Any]) -> list[dict[str, Any]]:
+    alternatives = call.get("route_alternatives")
+    if not isinstance(alternatives, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for alternative in alternatives:
+        if not isinstance(alternative, dict):
+            continue
+        adapter_type = str(alternative.get("adapter_type") or "")
+        source_class = normalized_source_class(alternative.get("source_class")) or source_class_for_call(
+            alternative,
+            adapter_type,
+        )
+        reason = str(alternative.get("rejection_reason") or alternative.get("reason") or "").strip()
+        rows.append(
+            {
+                "adapter_type": adapter_type,
+                "source_class": source_class,
+                "reason": reason,
+                "cost_estimate": evidence_cost(alternative),
+                "freshness_expectation": alternative.get("freshness_expectation") or "",
+                "license_or_use_policy_note": str(alternative.get("license_or_use_policy") or ""),
+            }
+        )
+    return rows
+
+
+def route_reason(call: dict[str, Any], adapter_type: str, source_class: str) -> str:
+    explicit = str(call.get("route_reason") or call.get("selection_reason") or "").strip()
+    if explicit:
+        return explicit
+    if adapter_type in WEB_ADAPTERS:
+        fallback_reason = str(call.get("browser_fallback_reason") or call.get("fallback_reason") or "").strip()
+        if fallback_reason:
+            return f"browser fallback: {fallback_reason}"
+    if source_class in {"official_api", "authoritative_downloadable_data"}:
+        return "highest-preference structured source available for this request"
+    return "selected by task-contract source policy and available adapter permissions"
+
+
+def rejected_alternatives(call: dict[str, Any], selected_source_class: str) -> list[dict[str, Any]]:
+    selected_rank = SOURCE_CLASS_RANK[selected_source_class]
+    rows: list[dict[str, Any]] = []
+    for alternative in normalized_route_alternatives(call):
+        reason = alternative["reason"]
+        alternative_rank = SOURCE_CLASS_RANK.get(str(alternative["source_class"]), len(SOURCE_PREFERENCE_POLICY))
+        if not reason:
+            reason = (
+                "lower-preference than selected route"
+                if selected_rank <= alternative_rank
+                else "higher-preference route unavailable, incomplete, or gated for this request"
+            )
+        rows.append({**alternative, "reason": reason})
+    return rows
+
+
+def browser_fallback(call: dict[str, Any], adapter_type: str, context: RuntimeContext) -> dict[str, Any]:
+    used = adapter_type in WEB_ADAPTERS
+    reason = str(call.get("browser_fallback_reason") or call.get("fallback_reason") or "").strip()
+    domain = str(call.get("domain") or "")
+    source_uri = str(call.get("source_uri") or "")
+    if not domain and source_uri:
+        domain = urlparse(source_uri).hostname or ""
+    allowed_domains = context.runtime_permissions.get("allowed_domains")
+    domain_permitted = (
+        isinstance(allowed_domains, list)
+        and bool(domain)
+        and domain_allowed(domain, allowed_domains)
+    )
+    allowed_by_contract = bool(context.task_status.get("allow_browsing")) and bool(context.task_status.get("allow_network")) and domain_permitted
+    return {
+        "used": used,
+        "reason": reason if used else "not_browser_route",
+        "allowed_by_task_contract": allowed_by_contract if used else False,
+        "snapshot_required": used,
+        "governance": (
+            "web routes still require allow_browsing, allow_network, allowed_domains, mock_response, "
+            "and runtime snapshot evidence"
+        )
+        if used
+        else "not_applicable",
+    }
+
+
+def route_decision(call: dict[str, Any], adapter: RuntimeAdapter, context: RuntimeContext) -> dict[str, Any]:
+    source_class = source_class_for_call(call, adapter.adapter_type)
+    freshness = freshness_status(call, context)
+    license_note = str(call.get("license_or_use_policy") or "")
+    mock_response = call.get("mock_response")
+    if not license_note and isinstance(mock_response, dict):
+        license_note = str(mock_response.get("license_or_use_policy") or "")
+    return {
+        "selected_adapter": adapter.adapter_type,
+        "selected_tool": adapter.tool_name,
+        "selected_source_class": source_class,
+        "source_preference_rank": SOURCE_CLASS_RANK[source_class] + 1,
+        "source_preference_policy": list(SOURCE_PREFERENCE_POLICY),
+        "rejected_alternatives": rejected_alternatives(call, source_class),
+        "reason": route_reason(call, adapter.adapter_type, source_class),
+        "cost_estimate": evidence_cost(call),
+        "freshness_expectation": call.get("freshness_expectation")
+        or {
+            "status": freshness.get("status"),
+            "basis": freshness.get("basis"),
+        },
+        "license_or_use_policy_note": license_note or "unknown",
+        "browser_fallback": browser_fallback(call, adapter.adapter_type, context),
+    }
+
+
+def route_policy_findings(call: dict[str, Any], adapter_type: str) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    if "source_class" in call and normalized_source_class(call.get("source_class")) is None:
+        findings.append(
+            issue(
+                "unsupported_source_class",
+                "source_class must be one of the source preference policy classes",
+                field="source_class",
+                actual=call.get("source_class"),
+            )
+        )
+    profile_name = call.get("source_profile")
+    if profile_name is not None and mock_source_profile(adapter_type, profile_name) is None:
+        findings.append(
+            issue(
+                "unsupported_source_profile",
+                "source_profile is not supported for this adapter type",
+                field="source_profile",
+                actual=profile_name,
+            )
+        )
+    alternatives = call.get("route_alternatives")
+    if alternatives is not None and not isinstance(alternatives, list):
+        findings.append(issue("invalid_route_alternatives", "route_alternatives must be a list when present", field="route_alternatives"))
+        return findings
+    selected_source_class = source_class_for_call(call, adapter_type)
+    selected_rank = SOURCE_CLASS_RANK[selected_source_class]
+    for index, alternative in enumerate(alternatives or []):
+        if not isinstance(alternative, dict):
+            findings.append(issue("invalid_route_alternative", "route_alternatives entries must be objects", field=f"route_alternatives[{index}]"))
+            continue
+        alternative_class = normalized_source_class(alternative.get("source_class"))
+        if "source_class" in alternative and alternative_class is None:
+            findings.append(
+                issue(
+                    "unsupported_route_alternative_source_class",
+                    "route alternative source_class must be one of the source preference policy classes",
+                    field=f"route_alternatives[{index}].source_class",
+                    actual=alternative.get("source_class"),
+                )
+            )
+            continue
+        alternative_class = alternative_class or source_class_for_call(alternative, str(alternative.get("adapter_type") or ""))
+        alternative_rank = SOURCE_CLASS_RANK.get(alternative_class, len(SOURCE_PREFERENCE_POLICY))
+        reason = str(alternative.get("rejection_reason") or alternative.get("reason") or "").strip()
+        if alternative_rank < selected_rank and not reason:
+            findings.append(
+                issue(
+                    "source_preference_rejection_missing",
+                    "higher-preference route alternatives require a rejection reason",
+                    field=f"route_alternatives[{index}].rejection_reason",
+                )
+            )
+    if adapter_type in WEB_ADAPTERS:
+        fallback_reason = str(call.get("browser_fallback_reason") or call.get("fallback_reason") or "").strip()
+        if fallback_reason not in BROWSER_FALLBACK_REASONS:
+            findings.append(
+                issue(
+                    "browser_fallback_reason_missing",
+                    "browser routes require a fallback reason: api_unavailable, api_incomplete, or human_context_required",
+                    field="browser_fallback_reason",
+                    actual=fallback_reason,
+                )
+            )
+    return findings
+
+
+def adapter_for(adapter_type: str, call: dict[str, Any] | None = None) -> RuntimeAdapter | None:
     if adapter_type == "file_fetch":
         return FileFetchAdapter()
     if adapter_type == "file_search":
@@ -583,7 +848,8 @@ def adapter_for(adapter_type: str) -> RuntimeAdapter | None:
     if adapter_type == "code_execute":
         return CodeExecuteAdapter()
     if adapter_type in EXTERNAL_ADAPTERS:
-        return MockExternalAdapter(adapter_type)
+        profile = call.get("source_profile") if isinstance(call, dict) else None
+        return MockExternalAdapter(adapter_type, source_profile=profile if isinstance(profile, str) else None)
     return None
 
 
@@ -645,6 +911,7 @@ def policy_findings(call: dict[str, Any], context: RuntimeContext) -> list[dict[
     if adapter_type not in ADAPTER_TYPES:
         return [issue("unsupported_adapter_type", "runtime call adapter_type is not supported", field="adapter_type", actual=adapter_type)]
     findings.extend(cost_findings(call))
+    findings.extend(route_policy_findings(call, str(adapter_type)))
     allowed_tools = context.task_status.get("allowed_tools")
     tools = allowed_tools if isinstance(allowed_tools, list) else []
     if adapter_type not in tools and f"runtime:{adapter_type}" not in tools:
@@ -656,7 +923,7 @@ def policy_findings(call: dict[str, Any], context: RuntimeContext) -> list[dict[
     if adapter_type == "code_execute" and not bool(context.task_status.get("allow_code_execution")):
         findings.append(issue("code_execution_not_allowed", "code_execute requires allow_code_execution=true", field="allow_code_execution", actual=context.task_status.get("allow_code_execution")))
     if adapter_type in EXTERNAL_ADAPTERS and not isinstance(call.get("mock_response"), dict):
-        findings.append(issue("mock_response_required", "external adapters are mocked-only in Phase 3 and require mock_response", field="mock_response"))
+        findings.append(issue("mock_response_required", "external adapters are mocked-only and require mock_response", field="mock_response"))
     permissions = context.runtime_permissions
     if call.get("requires_credentials") and not permissions.get("allow_credentials"):
         findings.append(issue("credentials_not_allowed", "credential use requires runtime_permissions.allow_credentials=true", field=RUNTIME_PERMISSIONS_KEY))
@@ -745,6 +1012,7 @@ def summarize_call(
     outcome: AdapterOutcome,
     *,
     trace: dict[str, Any] | None,
+    route: dict[str, Any],
 ) -> dict[str, Any]:
     payload = {
         "index": index,
@@ -754,6 +1022,7 @@ def summarize_call(
         "output_summary": outcome.output_summary,
         "artifact_paths": outcome.artifact_paths,
         "evidence_ids": [row.get("evidence_id") for row in outcome.evidence_objects],
+        "route_decision": route,
     }
     if trace is not None:
         payload["trace_id"] = trace.get("trace_id")
@@ -806,7 +1075,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
 
     for index, call in enumerate(calls):
         adapter_type = str(call.get("adapter_type") or "")
-        adapter = adapter_for(adapter_type)
+        adapter = adapter_for(adapter_type, call)
         if adapter is None:
             outcome = blocked("unsupported_adapter_type", "runtime call adapter_type is not supported")
             blocked_count += 1
@@ -818,6 +1087,7 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
                 "error": outcome.error,
             })
             continue
+        route = route_decision(call, adapter, context)
         findings = [*global_findings, *policy_findings(call, context)]
         if findings:
             first = findings[0]
@@ -831,11 +1101,11 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
             outcome = adapter.dry_run(call, context)
         trace = None
         if execute:
-            trace = adapter.to_trace(call, context, outcome)
+            trace = adapter.to_trace(call, context, outcome, route=route)
             traces.append(trace)
             evidence_rows.extend(adapter.to_evidence_objects(outcome))
             snapshot_writes.extend(outcome.snapshot_writes)
-        call_summaries.append(summarize_call(index, adapter, outcome, trace=trace))
+        call_summaries.append(summarize_call(index, adapter, outcome, trace=trace, route=route))
 
     if execute:
         for snapshot_ref, text in snapshot_writes:
@@ -864,7 +1134,12 @@ def run_runtime_request(ops_dir: Path, request_path: Path, *, execute: bool, now
         "schema_version": "runtime_adapters_v1.0",
         "changed": execute and bool(traces or evidence_rows or snapshot_writes),
         "read_only": not execute,
-        "adapter_capabilities": [adapter_for(adapter_type).capabilities() for adapter_type in sorted(ADAPTER_TYPES) if adapter_for(adapter_type) is not None],
+        "adapter_capabilities": [
+            adapter.capabilities()
+            for adapter_type in sorted(ADAPTER_TYPES)
+            for adapter in [adapter_for(adapter_type)]
+            if adapter is not None
+        ],
         "summary": {
             "call_count": len(calls),
             "blocked_call_count": blocked_count,

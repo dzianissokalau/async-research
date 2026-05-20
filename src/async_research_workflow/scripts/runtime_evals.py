@@ -48,6 +48,8 @@ LOWER_IS_BETTER = {
     "stale_evidence_reuse_rate",
     "cost_per_accepted_report_usd",
 }
+API_FIRST_SOURCE_CLASSES = {"official_api", "authoritative_downloadable_data"}
+WEB_ADAPTERS = {"web_search", "web_open"}
 
 
 def utc_now() -> str:
@@ -254,6 +256,50 @@ def trace_tokens(trace: dict[str, Any]) -> int:
     return integer(usage.get("total_tokens"))
 
 
+def trace_route_decision(trace: dict[str, Any]) -> dict[str, Any]:
+    route = trace.get("route_decision")
+    return route if isinstance(route, dict) else {}
+
+
+def route_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
+    route_decisions = [trace_route_decision(trace) for trace in traces if trace_route_decision(trace)]
+    api_first_count = sum(
+        1
+        for route in route_decisions
+        if str(route.get("selected_source_class") or "") in API_FIRST_SOURCE_CLASSES
+    )
+    browser_count = sum(
+        1
+        for trace in traces
+        if trace.get("adapter_type") in WEB_ADAPTERS
+        or (
+            isinstance(trace_route_decision(trace).get("browser_fallback"), dict)
+            and trace_route_decision(trace)["browser_fallback"].get("used") is True
+        )
+    )
+    browser_fallback_count = sum(
+        1
+        for route in route_decisions
+        if isinstance(route.get("browser_fallback"), dict) and route["browser_fallback"].get("used") is True
+    )
+    if api_first_count and browser_count:
+        pattern = "hybrid"
+    elif api_first_count:
+        pattern = "api_only"
+    elif browser_count:
+        pattern = "browser_only"
+    else:
+        pattern = "local_or_private"
+    return {
+        "route_decision_count": len(route_decisions),
+        "api_first_route_count": api_first_count,
+        "browser_route_count": browser_count,
+        "browser_fallback_count": browser_fallback_count,
+        "hybrid_route": 1.0 if pattern == "hybrid" else 0.0,
+        "source_route_pattern": pattern,
+    }
+
+
 def evidence_stale(evidence: dict[str, Any]) -> bool:
     freshness = evidence.get("freshness_status") if isinstance(evidence.get("freshness_status"), dict) else {}
     return str(freshness.get("status") or "").lower() == "stale"
@@ -317,7 +363,7 @@ def case_metrics(
     stale_evidence_count = sum(1 for evidence in evidence_rows if evidence_stale(evidence))
     unsupported_evidence_count = sum(1 for evidence in evidence_rows if evidence_unsupported(evidence))
     accepted_output = 1.0 if accepted else 0.0
-    return {
+    metrics = {
         "trace_count": len(traces),
         "evidence_object_count": len(evidence_rows),
         "claim_count": claim_count,
@@ -337,6 +383,8 @@ def case_metrics(
         "reviewer_disagreement": 1.0 if reviewer_disagreement else 0.0,
         "reproducibility_pass": 1.0,
     }
+    metrics.update(route_metrics(traces))
+    return metrics
 
 
 def aggregate_metrics(metrics_rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -349,6 +397,9 @@ def aggregate_metrics(metrics_rows: list[dict[str, Any]]) -> dict[str, Any]:
     accepted_count = sum(1 for row in metrics_rows if numeric(row.get("accepted_output")) >= 1.0)
     total_cost = round(sum(numeric(row.get("cost_usd")) for row in metrics_rows), 6)
     accepted_latencies = [numeric(row.get("latency_ms")) for row in metrics_rows if numeric(row.get("accepted_output")) >= 1.0]
+    route_decision_count = sum(integer(row.get("route_decision_count")) for row in metrics_rows)
+    api_first_route_count = sum(integer(row.get("api_first_route_count")) for row in metrics_rows)
+    browser_fallback_count = sum(integer(row.get("browser_fallback_count")) for row in metrics_rows)
     return {
         "case_count": case_count,
         "grounded_claim_rate": ratio(grounded_claims, total_claims, empty_value=1.0),
@@ -361,6 +412,12 @@ def aggregate_metrics(metrics_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "stale_evidence_reuse_rate": ratio(stale_evidence, evidence_count, empty_value=0.0),
         "reviewer_disagreement_rate": ratio(sum(numeric(row.get("reviewer_disagreement")) for row in metrics_rows), case_count, empty_value=0.0),
         "reproducibility_pass_rate": ratio(sum(numeric(row.get("reproducibility_pass")) for row in metrics_rows), case_count, empty_value=0.0),
+        "route_decision_count": route_decision_count,
+        "api_first_route_count": api_first_route_count,
+        "browser_fallback_count": browser_fallback_count,
+        "hybrid_route_case_count": sum(1 for row in metrics_rows if numeric(row.get("hybrid_route")) >= 1.0),
+        "api_first_route_rate": ratio(api_first_route_count, route_decision_count, empty_value=0.0),
+        "browser_fallback_rate": ratio(browser_fallback_count, route_decision_count, empty_value=0.0),
         "total_cost_usd": total_cost,
         "accepted_report_count": accepted_count,
     }
@@ -428,12 +485,15 @@ def case_from_task(
             "max_unsupported_claim_rate": 0.0,
             "max_freshness_failure_rate": 0.0,
             "reproducibility_required": True,
+            "route_decisions_required": True,
+            "browser_fallback_must_be_governed": True,
             "stop_conditions": [
                 "no live network, paid calls, or credentials during default eval run",
                 "human-calibrated rubric graders must be marked separately",
             ],
         },
         "gold_or_reference_evidence": [evidence_reference(evidence) for evidence in evidence_rows],
+        "source_route_decisions": [trace_route_decision(trace) for trace in traces if trace_route_decision(trace)],
         "grader": {
             "type": "composite",
             "automated": True,
@@ -442,6 +502,7 @@ def case_from_task(
                 "schema_path_hash",
                 "groundedness",
                 "citation_support",
+                "source_routing",
                 "task_success",
                 "cost_latency",
                 "human_review_placeholder",
@@ -671,6 +732,32 @@ def grade_case(case: dict[str, Any], source_ops_dir: Path | None) -> dict[str, A
         automated_failures.append(issue("unsupported_claim_rate_exceeded", "unsupported claim rate exceeds the eval case threshold"))
     if freshness_rate > max_freshness:
         automated_failures.append(issue("freshness_failure_rate_exceeded", "freshness failure rate exceeds the eval case threshold"))
+
+    route_decisions = case.get("source_route_decisions") if isinstance(case.get("source_route_decisions"), list) else []
+    route_required = expected.get("route_decisions_required") is True
+    route_findings: list[dict[str, Any]] = []
+    source_trace_count = len(case.get("source_trace_ids") if isinstance(case.get("source_trace_ids"), list) else [])
+    if route_required and integer(metrics.get("route_decision_count")) < source_trace_count:
+        route_findings.append(issue("route_decision_missing", "each runtime trace must explain its source route decision"))
+    for route in route_decisions:
+        if not isinstance(route, dict):
+            continue
+        fallback = route.get("browser_fallback")
+        if isinstance(fallback, dict) and fallback.get("used") is True:
+            if fallback.get("allowed_by_task_contract") is not True:
+                route_findings.append(issue("browser_fallback_ungoverned", "browser fallback must be allowed by the task contract"))
+            if fallback.get("snapshot_required") is not True:
+                route_findings.append(issue("browser_fallback_snapshot_missing", "browser fallback must require snapshot evidence"))
+    checks.append(
+        {
+            "name": "source_routing",
+            "status": "pass" if not route_findings else "fail",
+            "route_decision_count": integer(metrics.get("route_decision_count")),
+            "source_route_pattern": metrics.get("source_route_pattern"),
+            "findings": route_findings,
+        }
+    )
+    automated_failures.extend(route_findings)
 
     accepted_required = expected.get("accepted_output_required") is True
     task_success = numeric(metrics.get("task_success"))

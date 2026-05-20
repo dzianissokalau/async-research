@@ -375,3 +375,61 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-6`
 
 - Phase 6 is delivered. The next automation run should start Phase 7 on
   `codex/integrated-research-runtime-eval-flywheel-phase-7`.
+
+## Phase 7 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-7`
+
+### Scope
+
+- Add API-first source preference policy and route-decision trace fields.
+- Add mocked source profiles for statistical API, document repository, search
+  endpoint, and private MCP-like routes.
+- Keep browser fallback governed by task-contract browsing, network, domain,
+  mock-response, and snapshot requirements.
+- Add route-aware eval cases comparing API-only, browser-only, and hybrid
+  behavior.
+
+### Changes
+
+- Runtime adapter execution now emits `route_decision` metadata on dry-run
+  summaries and runtime traces, including selected adapter, selected source
+  class, rejected alternatives, route reason, cost estimate, freshness
+  expectation, license/use note, and browser fallback status.
+- External mock adapters now expose source profiles without adding live
+  provider integrations or dependencies.
+- Runtime validation summarizes route decision and browser fallback counts and
+  fails closed when web trace fallback metadata contradicts browser snapshot
+  requirements.
+- Runtime eval suites now carry source-route decisions, source-routing grader
+  checks, API-first/browser-fallback metrics, and offline API-only,
+  browser-only, and hybrid fixture coverage.
+- Runtime docs, trace schema, eval schema, CLI text, and roadmap locked
+  decisions were updated for Phase 7.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 777 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-7-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Live production API/browser integrations remain future optional adapter work;
+  the core package still uses offline mocks.
+- Source profiles are fixture-level routing hints, not provider SDKs.
+- Review ran in the orchestration context after rereading scope and diff; no
+  separate reviewer sub-agent was used.
+
+### Next Action
+
+- Phase 7 is delivered. The next automation run should start Phase 8 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-8`.

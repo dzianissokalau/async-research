@@ -2492,9 +2492,10 @@ def register_runtime_commands(subparsers) -> None:
         help="Execute permitted local or mocked runtime adapter calls.",
         description=(
             "Run standard-library local adapters or explicit mock external adapters, then write runtime "
-            "traces, evidence objects, and snapshots under research_ops/runtime without changing task state."
+            "traces, source route decisions, evidence objects, and snapshots under research_ops/runtime "
+            "without changing task state."
         ),
-        epilog="Exits 0 when all calls execute, 2 when policy blocks a call, and never performs live network or paid calls in Phase 3.",
+        epilog="Exits 0 when all calls execute, 2 when policy blocks a call, and never performs live network or paid calls in the core runtime.",
     )
     add_required_ops(execute_cmd)
     execute_cmd.add_argument("--request", required=True, type=Path, help="Runtime request JSON file.")

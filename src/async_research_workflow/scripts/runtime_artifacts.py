@@ -31,6 +31,7 @@ EVIDENCE_SCHEMA_NAME = "runtime_evidence_object.schema.json"
 TRACE_SCHEMA_NAME = "runtime_trace.schema.json"
 NO_VALUE_MARKERS = {"", "unknown", "missing", "none", "n/a", "na", "todo", "tbd"}
 TRACE_SUCCESS_CODES = {"0", "success", "ok", "dry_run", "blocked_by_policy"}
+WEB_ADAPTERS = {"web_search", "web_open"}
 
 
 @dataclass
@@ -367,6 +368,49 @@ def validate_trace_entry(entry: LedgerEntry, ops_dir: Path, schema: dict[str, An
             errors,
             must_exist=False,
         )
+    route = entry.payload.get("route_decision")
+    if isinstance(route, dict):
+        if route.get("selected_adapter") != entry.payload.get("adapter_type"):
+            errors.append(
+                issue(
+                    "error",
+                    "route_selected_adapter_mismatch",
+                    entry.path,
+                    "route_decision.selected_adapter must match adapter_type",
+                    line_number=entry.line_number,
+                    trace_id=entry.payload.get("trace_id"),
+                    field="route_decision.selected_adapter",
+                    expected=entry.payload.get("adapter_type"),
+                    actual=route.get("selected_adapter"),
+                )
+            )
+        fallback = route.get("browser_fallback")
+        if entry.payload.get("adapter_type") in WEB_ADAPTERS:
+            if not isinstance(fallback, dict) or fallback.get("used") is not True:
+                errors.append(
+                    issue(
+                        "error",
+                        "browser_fallback_not_recorded",
+                        entry.path,
+                        "web adapter traces must record browser_fallback.used=true",
+                        line_number=entry.line_number,
+                        trace_id=entry.payload.get("trace_id"),
+                        field="route_decision.browser_fallback.used",
+                    )
+                )
+            elif fallback.get("snapshot_required") is not True:
+                errors.append(
+                    issue(
+                        "error",
+                        "browser_fallback_snapshot_not_required",
+                        entry.path,
+                        "browser fallback traces must require a runtime snapshot when used as evidence",
+                        line_number=entry.line_number,
+                        trace_id=entry.payload.get("trace_id"),
+                        field="route_decision.browser_fallback.snapshot_required",
+                        actual=fallback.get("snapshot_required"),
+                    )
+                )
 
 
 def evidence_is_unsupported(payload: dict[str, Any]) -> bool:
@@ -429,12 +473,24 @@ def summary_from_entries(
         for entry in evidence_entries
         if evidence_is_stale(entry.payload) or evidence_is_unsupported(entry.payload)
     }
+    route_decisions = [
+        entry.payload.get("route_decision")
+        for entry in trace_entries
+        if isinstance(entry.payload.get("route_decision"), dict)
+    ]
+    browser_fallback_count = sum(
+        1
+        for route in route_decisions
+        if isinstance(route.get("browser_fallback"), dict) and route["browser_fallback"].get("used") is True
+    )
     return {
         "runtime_trace_count": len(trace_entries),
         "evidence_object_count": len(evidence_entries),
         "unsupported_evidence_count": unsupported_count,
         "stale_evidence_count": stale_count,
         "unsupported_or_stale_evidence_count": len(unsupported_or_stale_ids),
+        "route_decision_count": len(route_decisions),
+        "browser_fallback_count": browser_fallback_count,
         "latest_runtime_errors": latest_runtime_errors(trace_entries),
         "validation_error_count": len(errors),
         "warning_count": len(warnings),
