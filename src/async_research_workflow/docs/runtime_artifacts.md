@@ -91,3 +91,8 @@ result-acceptance gates say so.
 Phase 4 claim and citation verification uses these same evidence objects and
 snapshots to map explicit claims to source spans before accepted or
 publication-oriented outputs can rely on them.
+
+Phase 5 runtime evals use the same ledgers as fixture inputs. Eval suites live
+under `research_ops/evals/` and compare quality changes without moving evidence
+acceptance or task-state authority out of the original runtime, review, and
+result-acceptance artifacts.

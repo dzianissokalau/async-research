@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Runtime Eval Suite",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "suite_id",
+    "built_at",
+    "source_ops_dir",
+    "runtime_policy",
+    "model_routing_policy",
+    "human_calibration",
+    "release_policy",
+    "case_count",
+    "metrics",
+    "cases",
+    "known_limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "runtime_eval_suite_v1.0"
+      ]
+    },
+    "suite_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "built_at": {
+      "type": "string"
+    },
+    "source_ops_dir": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "runtime_policy": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "model_routing_policy": {
+      "type": "string",
+      "pattern": ".+"
+    },
+    "human_calibration": {
+      "type": "object"
+    },
+    "release_policy": {
+      "type": "object",
+      "required": [
+        "baseline_required",
+        "regressions_block_release",
+        "quality_claims_require_eval_evidence",
+        "deep_research_comparisons"
+      ],
+      "properties": {
+        "baseline_required": {
+          "type": "boolean"
+        },
+        "regressions_block_release": {
+          "type": "boolean"
+        },
+        "quality_claims_require_eval_evidence": {
+          "type": "boolean"
+        },
+        "deep_research_comparisons": {
+          "type": "string"
+        }
+      }
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "source_trace_ids",
+          "input_brief",
+          "expected_behavior",
+          "gold_or_reference_evidence",
+          "grader",
+          "metrics",
+          "known_limitations"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^EVAL-[0-9]{4,6}$"
+          },
+          "task_id": {
+            "type": "string",
+            "pattern": "^TASK-[0-9]{4}$"
+          },
+          "source_trace_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^TRACE-[0-9]{6}$"
+            }
+          },
+          "source_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^EVID-[0-9]{6}$"
+            }
+          },
+          "input_brief": {
+            "type": "object"
+          },
+          "expected_behavior": {
+            "type": "object",
+            "required": [
+              "accepted_output_required",
+              "claim_verification_required",
+              "required_evidence_ids",
+              "min_grounded_claim_rate",
+              "max_unsupported_claim_rate",
+              "max_freshness_failure_rate",
+              "reproducibility_required"
+            ]
+          },
+          "gold_or_reference_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "evidence_id",
+                "source_uri",
+                "content_hash",
+                "snapshot_path",
+                "span_refs"
+              ],
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "pattern": "^EVID-[0-9]{6}$"
+                },
+                "source_uri": {
+                  "type": "string"
+                },
+                "content_hash": {
+                  "type": "string"
+                },
+                "snapshot_path": {
+                  "type": "string",
+                  "pattern": "^research_ops/(?!.*\\.\\.).+"
+                },
+                "span_refs": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "grader": {
+            "type": "object",
+            "required": [
+              "type",
+              "automated",
+              "human_calibrated",
+              "checks"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "automated": {
+                "type": "boolean"
+              },
+              "human_calibrated": {
+                "type": "boolean"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "schema_path_hash",
+                    "groundedness",
+                    "citation_support",
+                    "task_success",
+                    "cost_latency",
+                    "human_review_placeholder"
+                  ]
+                }
+              }
+            }
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "known_limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifacts": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "known_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

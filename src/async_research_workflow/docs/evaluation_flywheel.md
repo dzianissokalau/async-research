@@ -3,8 +3,8 @@
 Created: 2026-05-20
 
 This contract defines how runtime traces and evidence objects become repeatable
-evals. It is a Phase 0 design artifact only; Phase 5 owns dataset schemas,
-grader implementations, dashboard metrics, and release gates.
+evals. Phase 5 implements the first deterministic eval surface in
+[Runtime Evals](./runtime_evals.md).
 
 ## Evaluation Boundary
 
@@ -81,6 +81,17 @@ Phase 5 should enforce this release posture:
 - preserve old prompt/runtime variants as baselines until the candidate matches
   or improves groundedness, task success, and cost within documented limits.
 
+Implemented commands:
+
+```bash
+async-research eval build-from-traces research_ops --write
+async-research eval run research_ops/evals/runtime-trace-suite.json --write
+async-research eval compare research_ops/evals/runs/baseline.json research_ops/evals/runs/candidate.json
+```
+
+The console snapshot exposes read-only eval suite count, run count, latest run
+status, quality metrics, and release-policy posture under its `evals` group.
+
 ## Honest Benchmarking
 
 Head-to-head comparisons with Deep Research-style products are out of scope
@@ -92,4 +103,3 @@ One domain pack cannot justify broad superiority claims. The accepted claim is
 narrower: async-research should be evaluated for repeatable, auditable,
 domain-specific research programs where private data, reproducibility,
 freshness, cost discipline, and review independence matter.
-

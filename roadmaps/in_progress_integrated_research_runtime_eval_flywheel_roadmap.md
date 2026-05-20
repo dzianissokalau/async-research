@@ -1,9 +1,9 @@
 # Integrated Research Runtime And Eval Flywheel Roadmap
 
 Status: In Progress
-Current phase: Phase 5 - Trace-driven eval flywheel
+Current phase: Phase 6 - GPT-5.5-era prompt and model routing
 Last updated: 2026-05-20
-Next action: Build trace-driven eval dataset schema, graders, comparison commands, dashboard metrics, and release policy
+Next action: Modernize prompt and model routing policy against eval comparisons
 Blocked by: None
 
 Created: 2026-05-20
@@ -308,6 +308,37 @@ Locked decisions:
 - The verifier remains an offline deterministic gate; it does not promise
   perfect truth verification or enforce formal bibliography style.
 
+## Resolved Phase 5 Trace-Driven Eval Flywheel
+
+Phase 5 is delivered as the first deterministic offline eval flywheel for
+runtime-backed research. It adds eval suite/run schemas, build/run/compare
+commands, dashboard metrics, starter eval locations, release-policy checks, and
+fixture coverage without requiring paid live model calls or optimizing prompts
+automatically.
+
+Authoritative eval docs and schemas:
+
+- [Runtime Evals](../src/async_research_workflow/docs/runtime_evals.md)
+- [Runtime Eval Suite Schema](../src/async_research_workflow/schemas/runtime_eval_suite.schema.json)
+- [Runtime Eval Run Schema](../src/async_research_workflow/schemas/runtime_eval_run.schema.json)
+
+Locked decisions:
+
+- Eval artifacts live under `research_ops/evals/`, with run reports under
+  `research_ops/evals/runs/`.
+- `async-research eval build-from-traces` builds suites from runtime traces,
+  evidence objects, task status, review aggregates, result acceptance, and
+  claim-verification artifacts; it is read-only unless `--write` is supplied.
+- `async-research eval run` executes deterministic schema/path/hash,
+  groundedness, citation-support, task-success, and cost/latency graders.
+- `async-research eval compare` is read-only and blocks candidate releases when
+  groundedness, unsupported-claim rate, task success, accepted-output rate,
+  freshness, reproducibility, or cost per accepted report regress beyond policy.
+- Human preference and subjective rubric graders remain explicit placeholders
+  until calibrated reviewer data is attached.
+- Console snapshots expose eval suite count, run count, latest run status,
+  quality metrics, and release-policy posture as derived read-only fields.
+
 ## Phased Plan
 
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
@@ -317,7 +348,7 @@ Locked decisions:
 | 2 | Delivered | P0 | Clarifier and research brief rewrite | Add a pre-planning stage for clarifying questions, scope decisions, output target, source policy, and rewritten executable brief. | Ambiguous research requests are turned into bounded task briefs before planning. |
 | 3 | Delivered | P0 | Minimal unified runtime adapters | Implement a narrow adapter interface for web, file, API, MCP, and code tools, with read-only defaults and trace emission. | One vertical-slice research task can call tools and write evidence objects without bespoke glue. |
 | 4 | Delivered | P0 | Claim and citation verification | Extract claims, map them to evidence spans, verify citation provenance, and block or cap unsupported claims. | Review cannot accept source-grounded outputs with unmapped or unsupported material claims. |
-| 5 | Not Started | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
+| 5 | Delivered | P0 | Trace-driven eval flywheel | Turn runtime traces into fixture datasets, graders, regression commands, and dashboard metrics. | Quality changes can be evaluated against repeatable traces before release. |
 | 6 | Not Started | P1 | GPT-5.5-era prompt and model routing | Slim prompts, move brittle rules into validators, and define planner/workhorse/critic routing policies. | The framework uses stronger models where they matter and cheaper paths where they are enough. |
 | 7 | Not Started | P1 | Hybrid API-first routing | Prefer structured APIs where available, browse where necessary, and record source selection rationale. | Runtime chooses reliable machine interfaces before expensive or fragile browsing. |
 | 8 | Not Started | P1 | Structured evidence memory and targeted reflection | Add queryable evidence state, contradiction links, failure classes, and targeted critic routing. | Accepted memory becomes machine-queryable without replacing repo artifacts as truth. |

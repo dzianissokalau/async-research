@@ -31,6 +31,7 @@ from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import runtime_artifacts
+from async_research_workflow.scripts import runtime_evals
 from async_research_workflow.scripts import schedule_manifest
 from async_research_workflow.scripts import update_accepted_outputs_index
 from async_research_workflow.scripts import validate_transition
@@ -2210,6 +2211,10 @@ def runtime_snapshot(ops_dir: Path) -> dict[str, Any]:
     }
 
 
+def evals_snapshot(ops_dir: Path) -> dict[str, Any]:
+    return runtime_evals.evals_snapshot(ops_dir)
+
+
 def dashboard_summaries(ops_dir: Path, now: datetime) -> dict[str, Any]:
     return {
         "ideas": guarded_dashboard(
@@ -2294,6 +2299,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     sources = source_snapshot(ops_dir, current, dashboards["data"]) if workspace_ready else unavailable("ops_dir_missing", "sources are unavailable until research_ops exists", ops_dir)
     runs = runs_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runs are unavailable until research_ops exists", ops_dir)
     runtime = runtime_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runtime is unavailable until research_ops exists", ops_dir)
+    evals = evals_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "evals are unavailable until research_ops exists", ops_dir)
     lifecycle = lifecycle_snapshot(ops_dir, tasks, accepted_outputs, delivered_projects, health, sources) if workspace_ready else unavailable(
         "ops_dir_missing",
         "lifecycle is unavailable until research_ops exists",
@@ -2311,7 +2317,10 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     if runtime.get("available") is not False:
         warnings.extend(runtime.get("warnings", []))
         warnings.extend(runtime.get("errors", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, lifecycle, deliverables, *dashboards.values()]))
+    if evals.get("available") is not False:
+        warnings.extend(evals.get("warnings", []))
+        warnings.extend(evals.get("errors", []))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, lifecycle, deliverables, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2341,6 +2350,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "lifecycle": lifecycle,
         "runs": runs,
         "runtime": runtime,
+        "evals": evals,
         "warnings": warnings,
     }
 

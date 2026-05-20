@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Async Research Runtime Eval Run",
+  "type": "object",
+  "required": [
+    "ok",
+    "schema_version",
+    "framework_version",
+    "action",
+    "run_id",
+    "suite_id",
+    "suite_path",
+    "evaluated_at",
+    "status",
+    "runtime_policy",
+    "model_routing_policy",
+    "human_calibration",
+    "metrics",
+    "case_results",
+    "residual_risks",
+    "errors",
+    "warnings",
+    "changed",
+    "read_only"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "framework_version": {
+      "type": "string",
+      "enum": [
+        "runtime_eval_run_v1.0"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "eval_run"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "suite_id": {
+      "type": "string"
+    },
+    "suite_path": {
+      "type": "string"
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "runtime_policy": {
+      "type": "string"
+    },
+    "model_routing_policy": {
+      "type": "string"
+    },
+    "human_calibration": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "case_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "status",
+          "metrics",
+          "checks",
+          "findings"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "residual_risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "read_only": {
+      "type": "boolean"
+    }
+  }
+}

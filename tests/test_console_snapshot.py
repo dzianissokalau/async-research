@@ -37,6 +37,7 @@ SNAPSHOT_GROUPS = {
     "lifecycle",
     "runs",
     "runtime",
+    "evals",
     "warnings",
 }
 
@@ -204,6 +205,8 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(0, payload["runtime"]["evidence_object_count"])
             self.assertEqual(0, payload["runtime"]["trace_count"])
             self.assertEqual(0, payload["runtime"]["unsupported_or_stale_evidence_count"])
+            self.assertEqual(0, payload["evals"]["suite_count"])
+            self.assertEqual(0, payload["evals"]["run_count"])
             lifecycle = payload["lifecycle"]
             self.assertEqual("available", lifecycle["status"])
             self.assertEqual(10, lifecycle["station_count"])

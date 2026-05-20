@@ -269,3 +269,53 @@ Branch: `codex/integrated-research-runtime-eval-flywheel-phase-4`
 
 - Phase 4 is delivered. The next automation run should start Phase 5 on
   `codex/integrated-research-runtime-eval-flywheel-phase-5`.
+
+## Phase 5 - 2026-05-20
+
+Status: delivered
+Branch: `codex/integrated-research-runtime-eval-flywheel-phase-5`
+
+### Scope
+
+- Add trace-driven eval dataset schema, build/run/compare commands, automated
+  graders, dashboard quality metrics, release policy, and fixture traces.
+
+### Changes
+
+- Added `runtime_evals.py` with `eval build-from-traces`, `eval run`, and
+  `eval compare` support.
+- Added runtime eval suite/run schemas, release-policy fields, deterministic
+  grader outputs, metric deltas, and residual-risk reporting.
+- Added console snapshot `evals` metrics for suite count, run count, latest run
+  status, quality metrics, and release policy.
+- Added starter `research_ops/evals/` locations and runtime eval documentation.
+- Added offline fixture tests for suite building, grader execution, comparison
+  regression blocking, dashboard visibility, and output path safety.
+- Advanced the roadmap/index to Phase 6 after marking Phase 5 delivered.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 16 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 770 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- `.venv/bin/python -m build`: passed, sdist and wheel built
+
+### Review
+
+- Review file: `roadmaps/automation/integrated_research_runtime_eval_flywheel/reviews/integrated-research-runtime-eval-flywheel-phase-5-review-iteration-1.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- Review ran in the orchestration context after rereading the Phase 5 scope and
+  delivered diff; no separate reviewer sub-agent was used.
+- Expert preference and subjective task-success rubrics remain explicit
+  placeholders until human-calibrated eval data is recorded.
+- The eval flywheel is deterministic and offline; it does not yet benchmark live
+  model quality or optimize prompts automatically.
+
+### Next Action
+
+- Phase 5 is delivered. The next automation run should start Phase 6 on
+  `codex/integrated-research-runtime-eval-flywheel-phase-6`.

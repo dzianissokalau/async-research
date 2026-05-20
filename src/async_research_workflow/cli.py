@@ -644,6 +644,47 @@ def run_runtime_adapter_execute_command(args: argparse.Namespace) -> int:
     return module_main("runtime_adapters", argv)
 
 
+def run_eval_build_from_traces_command(args: argparse.Namespace) -> int:
+    argv = ["build-from-traces", str(args.ops_dir), "--suite-id", args.suite_id]
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    if args.write:
+        argv.append("--write")
+    if args.now:
+        argv.extend(["--now", args.now])
+    if args.runtime_policy:
+        argv.extend(["--runtime-policy", args.runtime_policy])
+    if args.model_routing_policy:
+        argv.extend(["--model-routing-policy", args.model_routing_policy])
+    return module_main("runtime_evals", argv)
+
+
+def run_eval_run_command(args: argparse.Namespace) -> int:
+    argv = ["run", str(args.eval_suite)]
+    if args.run_id:
+        argv.extend(["--run-id", args.run_id])
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    if args.write:
+        argv.append("--write")
+    if args.now:
+        argv.extend(["--now", args.now])
+    return module_main("runtime_evals", argv)
+
+
+def run_eval_compare_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "runtime_evals",
+        [
+            "compare",
+            str(args.baseline),
+            str(args.candidate),
+            "--cost-tolerance-usd",
+            str(args.cost_tolerance_usd),
+        ],
+    )
+
+
 def run_brief_draft_command(args: argparse.Namespace) -> int:
     return module_main(
         "research_brief",
@@ -2409,6 +2450,72 @@ def register_runtime_commands(subparsers) -> None:
     execute_cmd.set_defaults(func=run_runtime_adapter_execute_command)
 
 
+def register_eval_commands(subparsers) -> None:
+    eval_cmd = add_command(
+        subparsers,
+        "eval",
+        help="Build, run, and compare trace-driven runtime eval suites.",
+        description=(
+            "Build trace-driven runtime eval suites from runtime traces, evidence objects, claim "
+            "verification, result acceptance, costs, and review artifacts, then produce offline "
+            "release comparison reports."
+        ),
+    )
+    eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
+
+    build = add_command(
+        eval_sub,
+        "build-from-traces",
+        help="Build an eval suite from fixture runtime traces.",
+        description=(
+            "Read research_ops/runtime traces and evidence objects, collect task acceptance and claim "
+            "verification artifacts, and produce a deterministic eval dataset. Without --write this is read-only."
+        ),
+        epilog="Exits 0 when at least one trace-backed eval case is built, 2 for invalid runtime artifacts, and 3 or 4 for unsafe inputs.",
+    )
+    add_required_ops(build)
+    build.add_argument("--suite-id", default="runtime-trace-suite", help="Stable eval suite id.")
+    build.add_argument("--output", type=Path, help="Output JSON path under research_ops/evals.")
+    build.add_argument("--write", action="store_true", help="Write the suite JSON under research_ops/evals.")
+    build.add_argument("--now", help="Override built_at timestamp for deterministic output.")
+    build.add_argument("--runtime-policy", default="runtime_policy_v1.0", help="Runtime policy label recorded in the suite.")
+    build.add_argument("--model-routing-policy", default="model_routing_unset", help="Model-routing policy label recorded in the suite.")
+    build.set_defaults(func=run_eval_build_from_traces_command)
+
+    run = add_command(
+        eval_sub,
+        "run",
+        help="Run deterministic graders for one eval suite.",
+        description=(
+            "Run deterministic graders for the eval suite: schema/path/hash, groundedness, "
+            "citation-support, task-success, and cost/latency checks without network, credentials, "
+            "paid calls, or prompt optimization."
+        ),
+        epilog="Exits 0 when automated graders pass and 2 when an eval case regresses or cannot reproduce.",
+    )
+    run.add_argument("eval_suite", type=Path, help="Eval suite JSON file.")
+    run.add_argument("--run-id", help="Stable run id for deterministic output.")
+    run.add_argument("--output", type=Path, help="Output JSON path under research_ops/evals/runs.")
+    run.add_argument("--write", action="store_true", help="Write the eval run JSON under research_ops/evals/runs.")
+    run.add_argument("--now", help="Override evaluated_at timestamp for deterministic output.")
+    run.set_defaults(func=run_eval_run_command)
+
+    compare = add_command(
+        eval_sub,
+        "compare",
+        help="Compare candidate eval metrics against a baseline run.",
+        description=(
+            "Compare candidate eval metrics against a baseline run and report pass/fail, metric "
+            "deltas, residual risks, and release-policy blockers."
+        ),
+        epilog="Exits 0 when candidate metrics do not regress and 2 when release-policy checks fail.",
+    )
+    compare.add_argument("baseline", type=Path, help="Baseline eval run JSON.")
+    compare.add_argument("candidate", type=Path, help="Candidate eval run JSON.")
+    compare.add_argument("--cost-tolerance-usd", type=float, default=0.0, help="Allowed cost-per-accepted-report increase.")
+    compare.set_defaults(func=run_eval_compare_command)
+
+
 def register_brief_commands(subparsers) -> None:
     brief = add_command(
         subparsers,
@@ -3479,6 +3586,7 @@ COMMAND_REGISTRARS = (
     register_data_commands,
     register_library_commands,
     register_runtime_commands,
+    register_eval_commands,
     register_brief_commands,
     register_cost_commands,
     register_batch_commands,
