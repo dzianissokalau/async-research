@@ -19,9 +19,12 @@ required.
 
 Version `0.3.0a1` is a visible alpha with the durable Idea Catalog, promotion
 write mode, data-foundation readiness surfaces, Knowledge Library / Research
-Foundations surfaces, hypothesis-testing contracts, and local operator
-dashboard included. The core safety, package-resource, and dashboard hardening
-checks are green. Treat the CLI as suitable for careful dogfooding, not broad
+Foundations surfaces, hypothesis-testing contracts, a read-only-by-default
+research runtime, trace/evidence ledgers, claim/citation verification,
+trace-driven evals, provider-neutral model routing, one honest domain-pack
+benchmark, scaling assessment, and the local operator dashboard included. The
+core safety, package-resource, dashboard, runtime, eval, and packaging checks
+are green. Treat the CLI as suitable for careful dogfooding, not broad
 promotion.
 
 The package is currently intended for GitHub install and real-project testing
@@ -29,6 +32,12 @@ before PyPI publication.
 
 For release-trust context, read the packaged
 [Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md),
+[Research runtime contract](src/async_research_workflow/docs/research_runtime_contract.md),
+[Runtime artifacts](src/async_research_workflow/docs/runtime_artifacts.md),
+[Claim and citation verification](src/async_research_workflow/docs/claim_citation_verification.md),
+[Runtime evals](src/async_research_workflow/docs/runtime_evals.md),
+[Model routing policy](src/async_research_workflow/docs/model_routing_policy.md),
+[Domain packs](src/async_research_workflow/docs/domain_packs.md),
 [Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md), and
 [Worked examples index](src/async_research_workflow/docs/worked_examples_index.md).
 These docs distinguish local verification from release authority: passing tests
@@ -87,6 +96,13 @@ Plain English version:
 8. `async-research deliverable check` decides whether a paper, memo, or report
    is ready for its declared maturity. Task-level `accepted` means internally
    valid evidence, not publication-ready prose.
+
+Research-runtime work follows the same rule. Runtime adapters can produce trace
+rows, route decisions, source snapshots, and `EVID-*` evidence objects only
+inside `research_ops/`, and external or paid capabilities stay blocked unless a
+task contract explicitly permits them. A runtime evidence object is not accepted
+evidence until review, claim/citation verification, and result-acceptance gates
+say so.
 
 ## Install
 
@@ -167,6 +183,12 @@ research_ops/
   deliverables/
     deliverable_manifest.json
     deliverable_manifest.md
+  runtime/
+    README.md
+    snapshots/
+  evals/
+    README.md
+    runs/
   data/
     data_catalog.md
     data_access.md
@@ -199,6 +221,11 @@ The important rule is that durable state lives in files. Agents should not rely
 on private chat context to know what happened before. `data_source_audit.md`
 remains the source-governance register; `data/` holds the human-readable
 readiness inventory, access notes, join map, gaps, and profile contract.
+`runtime/` stores adapter traces, evidence objects, source route decisions, and
+snapshots when bounded runtime execution is allowed. `evals/` stores
+trace-derived suites and deterministic eval runs. Derived memory and routing
+policy files are rebuilt from these repo files instead of replacing them as the
+source of truth.
 
 The canonical library path is `research_ops/library/`. `library/` is separate
 from accepted-output memory. It stores durable background context: `LIT-*`
@@ -341,6 +368,9 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research workflow worker-complete <task-dir>` | Validate non-empty worker output, move the task to `awaiting_review`, and release `LOCK/` when present. | Task `status.json`, `worker_output.md`, task-local lock state, and matching workspace path. | Task `status.json`; removes task-local `LOCK/` on successful release. |
 | `async-research workflow advance <task-dir> --dry-run` | Dry-run the canonical post-worker task loop and skip mutating follow-on steps. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | JSON to stdout only. |
 | `async-research workflow advance <task-dir>` | Run review aggregation with review-start support, accepted-memory refresh, revalidation schedule, surface update/validate, and health. | Workspace state, task status, reviews, worker output, surfaces, and accepted memory. | `review_panel/`, task `status.json`, ledgers, accepted-memory files, operator surfaces, and health outputs as produced by the underlying commands. |
+| `async-research brief draft research_ops --question "<question>" --write` | Draft a bounded `research_brief.json` before planning ambiguous research work. | Command flags and optional `briefs/source_request.md`. | `briefs/research_brief.json`; without `--write`, JSON to stdout only. |
+| `async-research brief validate research_ops/briefs/research_brief.json` | Check output target, audience, source policy, permissions, budget caps, unresolved questions, and human gates. | One research brief JSON file. | JSON to stdout only. |
+| `async-research brief apply research_ops research_ops/briefs/research_brief.json --dry-run` | Preview task creation from a validated brief. | Research brief and workspace task ids. | JSON to stdout only; Phase 2 apply is intentionally dry-run only. |
 | `async-research queue discovery-gate research_ops --max-active 10` | Decide whether scheduled discovery should run or skip because active task capacity is full. | `tasks/*/status.json`. | JSON to stdout only; read-only. |
 | `async-research queue list research_ops` | List task-board rows and queue counts, optionally filtered by group or status. | Dashboard task snapshot, task status files, locks, transition validation, and task-local file metadata when requested. | JSON to stdout only; read-only. |
 | `async-research prompts init research_ops --dry-run` | Preview or create the repo-backed prompt library. | Existing `research_ops/prompts/` files. | With `--dry-run`, JSON to stdout only; without it, missing prompt Markdown files, drafts, `versions.json`, and `history.jsonl`. |
@@ -366,6 +396,19 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research library inspect-proposals research_ops <proposal-source>` | Inspect `foundation_update_proposal_v1` library proposals before guarded apply. | A task directory, `worker_output.md`, JSON proposal artifact, or proposal artifact directory plus knowledge library files. | JSON to stdout only; read-only and never mutates `research_ops/`. |
 | `async-research library apply-proposals research_ops <proposal-source> --dry-run` | Preview accepted library proposal writes and emit a preflight hash. | Proposal source, accepted task/review proof, and target library files. | JSON to stdout only; dry-run is the default and never mutates `research_ops/`. |
 | `async-research library apply-proposals research_ops <proposal-source> --write --preflight-hash <hash>` | Apply accepted library proposals under lock after matching dry-run. | Proposal source, accepted task/review proof, preflight hash, lock, and target library files. | `research_ops/library/*.md`; rolls back if `library validate` fails. |
+| `async-research runtime validate research_ops` | Validate runtime trace and evidence ledgers. | `runtime/evidence_objects.jsonl`, `runtime/traces.jsonl`, snapshots, hashes, task links, and permission metadata. | JSON to stdout only. |
+| `async-research runtime summary research_ops` | Summarize runtime trace counts, evidence counts, stale or unsupported evidence, and latest runtime errors. | Runtime ledgers and validation findings. | JSON to stdout only. |
+| `async-research runtime inspect-evidence research_ops EVID-000001` | Inspect one runtime evidence object and related traces without accepting it as evidence. | Runtime evidence and trace ledgers. | JSON to stdout only. |
+| `async-research runtime dry-run research_ops --request runtime-request.json` | Preview bounded local or mocked adapter calls against task-contract permissions. | Runtime request JSON, task contract, source policy, and workspace paths. | JSON to stdout only; no traces, evidence, snapshots, task state, or merge packets are written. |
+| `async-research runtime execute research_ops --request runtime-request.json` | Execute permitted standard-library local or explicit mock adapter calls. | Runtime request JSON, task contract, local fixture inputs, and source policy. | Runtime traces, source route decisions, evidence objects, snapshots, and bounded parallel merge packets when requested; never writes task state. |
+| `async-research evidence-memory update research_ops --dry-run` | Build the structured evidence-memory index from accepted evidence, runtime evidence, claim verification, deliverables, and targeted reflections. | Accepted memory, runtime ledgers, claim verification artifacts, deliverable links, and reflection records. | JSON to stdout with `--dry-run`; otherwise `memory/evidence_memory_index.json`. |
+| `async-research evidence-memory query research_ops --contradictions-only` | Query derived evidence memory and targeted reflections before reuse. | `memory/evidence_memory_index.json` and reflection records. | JSON to stdout only. |
+| `async-research model-routing init research_ops --write` | Create a provider-neutral model routing policy under `prompts/`. | Packaged default policy and existing prompt files. | `prompts/model_routing_policy.json`; without `--write`, JSON to stdout only. |
+| `async-research model-routing validate research_ops/prompts/model_routing_policy.json` | Validate required roles, provider-neutral posture, hard-rule ownership, and adoption gates. | One routing policy JSON file. | JSON to stdout only. |
+| `async-research model-routing select research_ops/prompts/model_routing_policy.json --role planner --task-type literature_extract` | Return the configured route for one role and task type. | Routing policy JSON. | JSON to stdout only. |
+| `async-research model-routing eval-check research_ops/prompts/model_routing_policy.json --baseline <run> --candidate <run>` | Gate routing adoption on deterministic eval comparison. | Routing policy and two eval run JSON files. | JSON to stdout only. |
+| `async-research reflection record <task-dir> --failure-class source_quality --trigger-condition "<when>" --affected-stage review --mitigation "<fix>" --anti-context "<future note>" --review-evidence <path> --dry-run` | Record a bounded failure-class reflection for future targeted anti-context. | Task status and review evidence under `research_ops/`. | JSON to stdout with `--dry-run`; otherwise `reflections/targeted_reflections.jsonl`. |
+| `async-research scaling assess research_ops` | Measure file-backed scaling friction without moving truth out of `research_ops/`. | Task statuses, runtime ledger sizes, eval artifacts, locks, dashboard snapshot timing, and source-file provenance. | JSON to stdout only; read-only. |
 | `async-research idea catalog init research_ops --dry-run` | Preview or add missing durable idea catalog starter files. | Existing `research_ops/ideas/` files. | JSON to stdout; with `--write`, only missing `ideas/idea_catalog.md` and `ideas/prioritization.md`. |
 | `async-research idea catalog validate research_ops` | Validate durable idea catalog state. | Canonical `ideas/IDEA-*.json`, generated Markdown projections, schema, refs, and lifecycle gates. | JSON to stdout only; read-only. |
 | `async-research idea catalog list research_ops --status candidate` | List canonical catalog records. | `ideas/IDEA-*.json` plus generated projection warnings. | JSON to stdout only; read-only. |
@@ -476,6 +519,17 @@ async-research data dashboard research_ops --use-case experiment_planning
 async-research data inspect-proposals research_ops research_ops/tasks/TASK-0001-data-readiness
 async-research data apply-proposals research_ops research_ops/tasks/TASK-0001-data-readiness --dry-run
 async-research data apply-proposals research_ops research_ops/tasks/TASK-0001-data-readiness --write --preflight-hash <hash>
+async-research brief draft research_ops --question "What should this research task answer?" --write
+async-research brief validate research_ops/briefs/research_brief.json
+async-research brief apply research_ops research_ops/briefs/research_brief.json --dry-run
+async-research runtime validate research_ops
+async-research runtime summary research_ops
+async-research runtime dry-run research_ops --request runtime-request.json
+async-research evidence-memory update research_ops --dry-run
+async-research evidence-memory query research_ops --query "source caveat"
+async-research model-routing init research_ops --write
+async-research model-routing validate research_ops/prompts/model_routing_policy.json
+async-research scaling assess research_ops
 async-research experiment validate <worker-output> --ops-dir research_ops --task-dir <task-dir>
 async-research analysis dashboard research_ops
 async-research analysis reviewer-packet research_ops <analysis-run-dir>
@@ -500,7 +554,9 @@ The permanent internal helpers are `validate_json_artifact`,
 artifact-specific gates such as `schema-check`, `exploration validate`,
 `idea validate`, `experiment validate`, `result-acceptance`, `decision`,
 `revision`, `review draft`, `review submit`, `review aggregate`, and
-`metrics append/summarize/operational`.
+`metrics append/summarize/operational`. Runtime and eval-era public surfaces
+include `brief`, `runtime`, `eval`, `evidence-memory`, `model-routing`,
+`reflection record`, and `scaling assess`.
 
 See the [internal helper boundary](src/async_research_workflow/docs/internal_helper_boundary.md)
 for the maintained public/internal split.
@@ -557,6 +613,7 @@ specific diagnostic.
 | `workflow worker-start` | `0` dry-run validation passed or the task lock/status transition was written. | `2` task lock is held or stale-lock takeover failed; `4` missing task, task/workspace mismatch, malformed state, wrong current status, transition validation failure, or write failure. |
 | `workflow worker-complete` | `0` dry-run validation passed or the task was moved to `awaiting_review` and lock release succeeded. | `3` lock owner mismatch without `--force-release`; `4` missing task, task/workspace mismatch, malformed state, wrong current status, missing/empty `worker_output.md`, transition validation failure, or write failure. If status was written but lock release fails, JSON sets `partial_mutation: true` and returns the lock helper code. |
 | `workflow advance` | `0` dry-run checks passed or the canonical post-worker sequence completed; readiness warning `2` is reported as a warning but does not fail the orchestration. | `4` missing task, task/workspace mismatch, or malformed state; otherwise returns the first failed subcommand code. If a later step fails after an earlier mutating step succeeded, JSON sets `partial_mutation: true`. |
+| `brief draft`, `brief validate`, and `brief apply` | `0` brief drafted, validated, or dry-run task plan printed. | `2` clarification or human gates block planning; `3` unsafe apply request such as missing required `--dry-run`; `4` malformed brief or workspace input. |
 | `source init` | `0` source register exists or was initialized. | No command-specific nonzero return from the backing script. |
 | `source upsert` | `0` source row written. | `2` register validation failed; `3` invalid source id, date, or freshness window; `4` malformed register. |
 | `source validate`, `source freshness`, `source check-experiment`, `source check-claim`, and `source explain` | `0` source register passes, report is clean, or cited sources are allowed. | `2` validation, freshness, source-readiness, or source-allowance failure; `3` invalid request; `4` malformed register or artifact. |
@@ -576,7 +633,12 @@ specific diagnostic.
 | `metrics append` | `0` snapshot appended. | `2` invalid request; `4` malformed workspace state. |
 | `metrics summarize` | `0` metrics summary printed or written. | No command-specific nonzero return from the backing script. |
 | `metrics operational` | `0` operational read model printed. | `3` invalid `--now`; `4` workspace missing or not a directory. Malformed or schema-invalid task statuses are warning rows so dashboard/digest consumers still get a partial read model. Partial or malformed cost coverage renders per-output cost as `unavailable`. |
+| `runtime validate`, `runtime summary`, `runtime inspect-evidence`, `runtime dry-run`, and `runtime execute` | `0` runtime artifacts are valid, summarized, inspectable, permitted, or executed through local/mock adapters. | `2` schema, hash, freshness, task-contract, or permission validation failed; `3` missing evidence id, unsafe path, or malformed request; `4` missing or malformed workspace inputs. Core runtime never performs live network or paid calls. |
 | `eval build-from-traces`, `eval run`, and `eval compare` | `0` suite built, graders passed, or comparison passed. | `2` invalid runtime artifacts, failed grader, or candidate regression; `3` unsafe output or invalid JSON path; `4` malformed workspace, suite, or run schema. |
+| `evidence-memory update` and `evidence-memory query` | `0` derived memory index was built or queried. | `2` schema or derived-memory validation failed; `3` unsafe output path; `4` missing workspace. |
+| `model-routing init`, `model-routing validate`, `model-routing select`, and `model-routing eval-check` | `0` policy preview/write, validation, route selection, or eval gate passed. | `2` policy validation failed or candidate routing regressed; `3` unsafe policy path or invalid request; `4` bundled default policy or policy input is malformed. |
+| `reflection record` | `0` reflection was validated or recorded. | `2` invalid reflection record, unsafe task path, or missing review evidence. |
+| `scaling assess` | `0` scaling assessment produced. | `4` workspace path is invalid. |
 | `accepted update`, `accepted revalidation`, and `accepted check-duplicate` | `0` index/report/check succeeded. `check-duplicate` is advisory and reports duplicate risk in JSON. | `2` invalid accepted-memory state; `4` malformed input. |
 | `accepted check-memory-use` | `0` artifact does not cite stale accepted memory, or `--allow-stale` was set. | `2` stale accepted-memory reuse; `4` malformed input. |
 | `anti-context build` | `0` anti-context generated. | `2` invalid request such as a missing title. |
@@ -628,10 +690,20 @@ clean environment, and reruns installed CLI smokes.
 - [Package docs index](src/async_research_workflow/docs/README.md)
 - [Workflow blueprint](src/async_research_workflow/docs/workflow_blueprint.md)
 - [Task contracts](src/async_research_workflow/docs/task_contracts.md)
+- [Research brief contract](src/async_research_workflow/docs/research_brief_contract.md)
+- [Research runtime contract](src/async_research_workflow/docs/research_runtime_contract.md)
+- [Runtime artifacts](src/async_research_workflow/docs/runtime_artifacts.md)
+- [Runtime adapters](src/async_research_workflow/docs/runtime_adapters.md)
+- [Claim and citation verification](src/async_research_workflow/docs/claim_citation_verification.md)
+- [Runtime evals](src/async_research_workflow/docs/runtime_evals.md)
+- [Structured evidence memory](src/async_research_workflow/docs/structured_evidence_memory.md)
+- [Model routing policy](src/async_research_workflow/docs/model_routing_policy.md)
+- [Domain packs](src/async_research_workflow/docs/domain_packs.md)
 - [Idea catalog contract](src/async_research_workflow/docs/idea_catalog_contract.md)
 - [Operational readiness runbook](src/async_research_workflow/docs/operational_readiness_runbook.md)
 - [Release-trust hardening report](src/async_research_workflow/docs/release_trust_hardening_report.md)
 - [Scaling guidance](src/async_research_workflow/docs/scaling_guidance.md)
+- [Scalable state backend decision](src/async_research_workflow/docs/scalable_state_backend_decision.md)
 - [Worked examples index](src/async_research_workflow/docs/worked_examples_index.md)
 - [Generic starter README](src/async_research_workflow/templates/generic_research_ops_starter/research_ops/README.md)
 - [Real-estate worked example README](src/async_research_workflow/templates/research_ops_starter/research_ops/README.md)
