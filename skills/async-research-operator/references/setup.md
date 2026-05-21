@@ -59,7 +59,7 @@ asks for it, restate the scope and risks before proceeding.
 
 ## Version And Capability Drift
 
-The skill is authored against `async-research-workflow==0.2.0a5`. A different
+The skill is authored against `async-research-workflow==0.3.0a1`. A different
 detected version is not an automatic refusal, but it must be surfaced before
 operation.
 

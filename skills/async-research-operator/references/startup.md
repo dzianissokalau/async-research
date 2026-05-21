@@ -31,7 +31,7 @@ install, initialize, or mutate anything.
    - after approved setup actions, restart CLI detection from step 4
 6. Run `async-research version`.
 7. Compare the detected version to the supported range
-   `async-research-workflow==0.2.0a5`. Report version drift and continue only
+   `async-research-workflow==0.3.0a1`. Report version drift and continue only
    after probing command capabilities.
 8. Run `async-research --help` and probe top-level command capabilities. Probe
    nested help for recipe-critical commands such as `workflow next` and

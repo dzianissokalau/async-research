@@ -128,7 +128,7 @@ sequence:
 
 ```bash
 python -m venv .venv
-.venv/bin/python -m pip install async-research-workflow==0.2.0a5
+.venv/bin/python -m pip install async-research-workflow==0.3.0a1
 .venv/bin/async-research version
 .venv/bin/async-research --help
 ```
@@ -143,7 +143,7 @@ Stop conditions:
 - credentials, paid services, private package indexes, or external accounts are
   required
 - install or version checks fail
-- the detected version drifts from `async-research-workflow==0.2.0a5` and a
+- the detected version drifts from `async-research-workflow==0.3.0a1` and a
   recipe-critical command is missing
 - the user requests a global install without acknowledging the broader scope
 

@@ -89,7 +89,7 @@ def transcript_section(text: str, scenario_id: str) -> str:
 def write_fake_async_research_cli(
     workspace: Path,
     *,
-    version: str = "0.2.0a5",
+    version: str = "0.3.0a1",
     include_snapshot_help: bool = True,
 ) -> Path:
     cli = workspace / ".venv" / "bin" / "async-research"

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-SUPPORTED_VERSION = "0.2.0a5"
+SUPPORTED_VERSION = "0.3.0a1"
 SUPPORTED_RANGE = f"async-research-workflow=={SUPPORTED_VERSION}"
 EXPECTED_TOP_LEVEL_COMMANDS = (
     "version",

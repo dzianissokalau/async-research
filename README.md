@@ -17,7 +17,7 @@ required.
 
 ## Status
 
-Version `0.2.0a5` is a visible alpha with the durable Idea Catalog, promotion
+Version `0.3.0a1` is a visible alpha with the durable Idea Catalog, promotion
 write mode, data-foundation readiness surfaces, Knowledge Library / Research
 Foundations surfaces, hypothesis-testing contracts, and local operator
 dashboard included. The core safety, package-resource, and dashboard hardening
