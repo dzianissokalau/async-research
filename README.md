@@ -43,7 +43,43 @@ For release-trust context, read the packaged
 These docs distinguish local verification from release authority: passing tests
 does not publish to PyPI, create a GitHub release, or approve public claims.
 
-## How The Loop Works
+## Integrated Runtime Architecture
+
+The integrated runtime/eval roadmap target is the top-level architecture. The
+runtime is still bounded by task contracts and local/mock adapters in the core
+package: live network, private data, credentials, paid services, and public
+claims require explicit permission or a human gate.
+
+```mermaid
+flowchart TD
+    A["User question or recurring brief"] --> B["Clarifier"]
+    B --> C["Research brief rewrite"]
+    C --> D["Planner"]
+    D --> E["Runtime router"]
+
+    E --> F["Web search/open"]
+    E --> G["File search"]
+    E --> H["MCP/private data"]
+    E --> I["Structured API adapters"]
+    E --> J["Code sandbox/analysis"]
+
+    F --> K["Evidence normalizer"]
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+
+    K --> L["Claim and citation verifier"]
+    L --> M["Worker output or draft"]
+    M --> N["Review panel"]
+    N --> O["Result acceptance"]
+    O --> P["Accepted memory and freshness"]
+    O --> Q["Trace store and eval dataset"]
+    Q --> R["Prompt/policy/model routing improvements"]
+    R --> D
+```
+
+## Core Task Loop
 
 The workflow is a durable research conveyor belt. Agents and humans read and
 write files in `research_ops/`; CLI commands validate those files and keep the
@@ -51,6 +87,10 @@ control surfaces current. The core loop accepts or rejects bounded task
 outputs. Deliverable maturity is a separate layer: an accepted task can become
 evidence for a paper or memo, but it does not by itself make that deliverable
 shareable, working-paper-ready, or submission-ready.
+
+This lower-level loop is the file-backed governance path that the runtime
+architecture feeds into after evidence is normalized and written as a bounded
+worker output or draft.
 
 ```mermaid
 flowchart LR
