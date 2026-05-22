@@ -142,6 +142,29 @@ function setBadge(readiness) {
   badge.textContent = readiness && readiness.verdict ? readiness.verdict : "unavailable";
 }
 
+function modeBadgeClass(mode) {
+  const value = mode && mode.available === false ? "invalid" : mode && mode.mode;
+  if (value === "autonomous" || value === "publication_guarded") {
+    return "badge warn";
+  }
+  if (value === "supervised") {
+    return "badge good";
+  }
+  if (value === "invalid") {
+    return "badge bad";
+  }
+  return "badge neutral";
+}
+
+function setModeBadge(mode) {
+  const badge = el("mode-badge");
+  if (!badge) {
+    return;
+  }
+  badge.className = modeBadgeClass(mode);
+  badge.textContent = statusLabel((mode || {}).mode || (mode || {}).status);
+}
+
 function resultBadgeClass(result) {
   if (!result) {
     return "badge neutral";
@@ -176,6 +199,8 @@ function renderMetrics(snapshot) {
   const delivered = snapshot.delivered_projects || {};
   const deliverables = snapshot.deliverables || {};
   const deliverableSummary = deliverables.summary || {};
+  const mode = snapshot.interaction_mode || {};
+  const autoDecisions = snapshot.auto_decisions || {};
   const rejected = snapshot.rejected_results || {};
   const cost = snapshot.cost || {};
   const readiness = snapshot.readiness || {};
@@ -185,10 +210,12 @@ function renderMetrics(snapshot) {
   const warnings = snapshot.warnings || [];
   const grid = el("dashboard");
   grid.replaceChildren(
+    metric("Mode", statusLabel(mode.mode || mode.status), `${asNumber(((mode.auto_decision_policy || {}).enabled || []).length)} auto routes`),
     metric("Readiness", statusLabel(readiness.verdict || readiness.status), readiness.next_step),
     metric("Health", statusLabel(health.verdict || health.status), health.next_step),
     metric("Active tasks", (tasks.active || []).length, `${asNumber(tasks.total)} total tasks`),
     metric("Blocked tasks", (tasks.blocked || []).length, `${asNumber(decisions.open_count)} human decisions`),
+    metric("Auto-decisions", asNumber(autoDecisions.count), `${asNumber(autoDecisions.invalid_row_count)} audit gaps`),
     metric("Delivered projects", asNumber((delivered.summary || {}).project_count || accepted.count), `${asNumber((delivered.summary || {}).accepted_count)} accepted outputs`),
     metric("Deliverables", asNumber(deliverables.count), `${asNumber(deliverableSummary.target_ready_count)} ready / ${asNumber(deliverableSummary.blocked_count)} blocked`),
     metric("Rejected results", asNumber(rejected.count), "recent rejected ledger rows"),
@@ -679,6 +706,18 @@ function sourceBlockerGuidance(task) {
   return panel;
 }
 
+function taskModePolicyText(task) {
+  const policy = (task && task.mode_policy) || {};
+  if (!policy.applicable) {
+    return "not applicable";
+  }
+  const category = policy.gate_category || compactTextList(policy.gate_categories, "uncategorized");
+  if (policy.can_auto_resolve) {
+    return `auto-resolvable / ${valueOrUnavailable(policy.policy_action)} / ${valueOrUnavailable(category)} -> ${statusLabel(policy.target_status)}`;
+  }
+  return `human required / ${valueOrUnavailable(policy.reason)} / ${valueOrUnavailable(category)}`;
+}
+
 function decisionTaskCard(task) {
   const card = document.createElement("article");
   card.className = "decision-card";
@@ -731,6 +770,7 @@ function renderTaskDetail(rows) {
     detailField("Revision", `${valueOrUnavailable(task.revision_count)} of ${valueOrUnavailable(task.max_revisions)}`),
     detailField("Lock", (task.lock_state || {}).locked ? ((task.lock_state || {}).stale ? "stale" : "locked") : "unlocked"),
     detailField("Transition", (task.transition_validation || {}).valid ? "valid" : valueOrUnavailable((task.transition_validation || {}).reason)),
+    detailField("Mode Policy", taskModePolicyText(task)),
     detailField("Human Gate", task.human_gate_reason),
     detailField("Last Transition", task.last_transition_reason),
     detailField("Allowed Paths", task.allowed_paths || []),
@@ -1496,6 +1536,7 @@ function lifecycleStationCard(station, index) {
   fields.replaceChildren(
     detailField("Owner / Runner", station.owner_runner),
     detailField("Current Task", station.active_task ? `${valueOrUnavailable(station.active_task.task_id)} / ${statusLabel(station.active_task.status)}` : "none"),
+    detailField("Mode Policy", station.active_task ? taskModePolicyText(station.active_task) : "not applicable"),
     detailField("Next", station.next_recommended_task),
     detailField("Summary", station.summary)
   );
@@ -1529,6 +1570,137 @@ function renderLifecycle(snapshot) {
   el("lifecycle-map").replaceChildren(
     ...(stations.length ? stations.map(lifecycleStationCard) : [empty("Lifecycle is unavailable until the workspace is initialized.")])
   );
+}
+
+function modeAction(id) {
+  return (((state.actions || {}).mode_actions || []).find((action) => action.id === id)) || { id, label: id };
+}
+
+function modePolicyRows(mode) {
+  const interrupt = mode.interrupt_policy || {};
+  const autoPolicy = mode.auto_decision_policy || {};
+  return [
+    record(
+      "Current mode",
+      `${statusLabel(mode.mode || mode.status)} / risk ${valueOrUnavailable(mode.risk_tolerance)}`,
+      mode.defaulted ? "manual-compatible default is in effect" : valueOrUnavailable(mode.source)
+    ),
+    record(
+      "Interrupts",
+      `${asNumber(interrupt.hard_stop_count)} hard stops / ${asNumber(interrupt.routine_interrupt_count)} routine interrupts`,
+      compactTextList(interrupt.interrupt_only_for, "none")
+    ),
+    record(
+      "Automatic decision policy",
+      `${asNumber(autoPolicy.enabled_count)} enabled / auto audit ${autoPolicy.write_auto_decisions ? "on" : "off"}`,
+      compactTextList(autoPolicy.enabled, "none")
+    ),
+  ];
+}
+
+function modeControls(mode) {
+  const controls = document.createElement("div");
+  controls.className = "mode-control-row";
+  const action = modeAction("mode_set");
+  const validate = modeAction("mode_validate");
+  const select = document.createElement("select");
+  select.id = "mode-select";
+  select.className = "select";
+  const modes = action.available_modes || (mode.controls || {}).available_modes || ["manual", "guided", "supervised", "autonomous", "publication_guarded"];
+  modes.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = statusLabel(value);
+    select.append(option);
+  });
+  select.value = mode.mode || "manual";
+  const validateButton = document.createElement("button");
+  validateButton.className = "button secondary";
+  validateButton.type = "button";
+  validateButton.textContent = state.runningAction === "mode_validate" ? "Validating" : "Validate";
+  validateButton.disabled = Boolean(state.runningAction);
+  validateButton.addEventListener("click", () => runModeValidate(validate));
+  const switchButton = document.createElement("button");
+  switchButton.className = "button";
+  switchButton.type = "button";
+  switchButton.textContent = state.runningAction === "mode_set" ? "Switching" : "Switch Mode";
+  switchButton.disabled = Boolean(state.runningAction);
+  switchButton.addEventListener("click", () => runModeSet(action, select.value));
+  const command = document.createElement("code");
+  command.className = "action-command mode-command";
+  command.textContent = String(action.command_template || "async-research mode set <ops_dir> --mode <mode>").replace("<mode>", select.value);
+  select.addEventListener("change", () => {
+    command.textContent = String(action.command_template || "async-research mode set <ops_dir> --mode <mode>").replace("<mode>", select.value);
+  });
+  controls.append(select, validateButton, switchButton, command);
+  return controls;
+}
+
+function progressionPolicyRows(lifecycle) {
+  const effects = lifecycle.mode_effects || {};
+  const rows = [
+    record(
+      "Current stage",
+      `${valueOrUnavailable((effects.current_stage || {}).label)} / ${statusLabel((effects.current_stage || {}).status)}`,
+      statusLabel(effects.progression_label)
+    ),
+    record(
+      "Blocked stage",
+      `${valueOrUnavailable((effects.blocked_stage || {}).label)} / ${statusLabel((effects.blocked_stage || {}).status)}`,
+      `${asNumber(effects.policy_blocked_gate_count)} policy-blocked / ${asNumber(effects.hard_stop_count)} hard stop`
+    ),
+  ];
+  const next = effects.next_automatic_action;
+  if (next) {
+    rows.push(record(
+      `Next automatic action ${valueOrUnavailable(next.task_id)}`,
+      `${valueOrUnavailable(next.policy_action)} -> ${statusLabel(next.target_status)}`,
+      valueOrUnavailable((next.command || {}).command)
+    ));
+  }
+  (effects.auto_resolvable_gates || []).slice(0, 3).forEach((gate) => {
+    rows.push(record(
+      `Auto-resolvable ${valueOrUnavailable(gate.task_id)}`,
+      `${valueOrUnavailable(gate.station_label)} / ${valueOrUnavailable(gate.gate_category)}`,
+      valueOrUnavailable(gate.instruction || (gate.command || {}).command)
+    ));
+  });
+  (effects.policy_blocked_gates || []).slice(0, 3).forEach((gate) => {
+    rows.push(record(
+      `Policy blocked ${valueOrUnavailable(gate.task_id)}`,
+      `${valueOrUnavailable(gate.station_label)} / ${valueOrUnavailable(gate.gate_category)}`,
+      valueOrUnavailable(gate.reason || gate.instruction)
+    ));
+  });
+  return rows;
+}
+
+function autoDecisionRecord(row) {
+  return record(
+    `${valueOrUnavailable(row.item_id)} - ${valueOrUnavailable(row.decision)}`,
+    `${statusLabel(row.mode)} / ${valueOrUnavailable(row.policy_version)} / confidence ${valueOrUnavailable(row.confidence)}`,
+    `${valueOrUnavailable(row.reason)} / ${valueOrUnavailable(row.related_artifacts)}`
+  );
+}
+
+function renderAutonomy(snapshot) {
+  const mode = snapshot.interaction_mode || {};
+  const autoDecisions = snapshot.auto_decisions || {};
+  const lifecycle = snapshot.lifecycle || {};
+  const effects = lifecycle.mode_effects || {};
+  el("autonomy-mode").textContent = statusLabel(mode.mode || mode.status);
+  el("autonomy-summary").replaceChildren(
+    metric("Mode", statusLabel(mode.mode || mode.status), `risk ${valueOrUnavailable(mode.risk_tolerance)}`),
+    metric("Auto-Resolvable Gates", asNumber(effects.auto_resolvable_gate_count), "ready for policy action"),
+    metric("Policy Blocked Gates", asNumber(effects.policy_blocked_gate_count), `${asNumber(effects.hard_stop_count)} hard stops`),
+    metric("Auto-Decisions Logged", asNumber(autoDecisions.count), `${asNumber(autoDecisions.invalid_row_count)} audit gaps`)
+  );
+  el("mode-policy").replaceChildren(...modePolicyRows(mode));
+  el("mode-controls").replaceChildren(modeControls(mode));
+  el("progression-policy").replaceChildren(...progressionPolicyRows(lifecycle));
+  el("auto-decision-total").textContent = asNumber(autoDecisions.count);
+  renderList("auto-decision-feed", autoDecisions.recent_rows, "No auto-decision rows logged.", autoDecisionRecord);
+  renderFoundationLinks("auto-decision-links", autoDecisions.links);
 }
 
 function deliverableReadinessClass(row) {
@@ -2010,7 +2182,9 @@ function render(snapshot, actionsCatalog) {
   state.actions = actionsCatalog;
   el("workspace-path").textContent = snapshot.ops_dir || "research_ops";
   setBadge(snapshot.readiness);
+  setModeBadge(snapshot.interaction_mode);
   renderMetrics(snapshot);
+  renderAutonomy(snapshot);
   renderLifecycle(snapshot);
   renderDeliverables(snapshot);
   renderSetup(snapshot, actionsCatalog);
@@ -2111,6 +2285,78 @@ async function runAction(action) {
   } finally {
     state.runningAction = null;
     renderSetup(state.snapshot || {}, state.actions || {});
+  }
+}
+
+async function runModeValidate(action) {
+  if (state.runningAction) {
+    return;
+  }
+  state.runningAction = action.id;
+  renderAutonomy(state.snapshot || {});
+  try {
+    const { result } = await postAction({ action: action.id });
+    state.results[action.id] = result;
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderAutonomy(state.snapshot || {});
+  }
+}
+
+async function runModeSet(action, mode) {
+  if (state.runningAction) {
+    return;
+  }
+  const payload = { action: action.id, mode };
+  state.runningAction = action.id;
+  renderAutonomy(state.snapshot || {});
+  try {
+    let { response, result } = await postAction(payload);
+    if (response.status === 409 && result.reason === "confirmation_required") {
+      const confirmed = window.confirm(`${result.command}\n\n${result.message}`);
+      if (!confirmed) {
+        showResult({
+          label: action.label,
+          command: result.command,
+          exit_code: "cancelled",
+          status: "failed",
+          stdout: "",
+          stderr: "",
+          next_step: "Mode switch cancelled before files changed.",
+        });
+        return;
+      }
+      payload.confirm = result.confirmation_token;
+      ({ result } = await postAction(payload));
+    }
+    state.results[`${action.id}:${mode}`] = result;
+    showResult(result);
+    await refresh();
+  } catch (error) {
+    showResult({
+      label: action.label,
+      command: action.command_template,
+      exit_code: "unavailable",
+      status: "failed",
+      stdout: "",
+      stderr: error.message || String(error),
+      next_step: "Check that the local console server is still running.",
+    });
+  } finally {
+    state.runningAction = null;
+    renderAutonomy(state.snapshot || {});
   }
 }
 

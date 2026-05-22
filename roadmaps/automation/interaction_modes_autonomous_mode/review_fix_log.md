@@ -115,3 +115,42 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-4`
 
 - Next run should start Phase 5 from
   `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.
+
+## Phase 5 - 2026-05-22 - Review Iteration 1
+
+Status: needs-fix
+Branch: `codex/interaction-modes-autonomous-mode-phase-5`
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-1.md`
+- Verdict: needs-fix
+
+### Finding Disposition
+
+- [P1] hard-stop precedence in progression mode effects: fixed in iteration 2.
+
+### Next Action
+
+- Rerun required verification and review Phase 5 after the fix.
+
+## Phase 5 - 2026-05-22 - Review Iteration 2
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-5`
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-2.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings remain.
+
+### Next Action
+
+- Next run should start Phase 6 from
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.

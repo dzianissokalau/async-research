@@ -349,3 +349,69 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-4`
 ### Next Action
 
 - Next automation run should deliver Phase 5 - Dashboard And Operator UX.
+
+## Phase 5 - 2026-05-22 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-5`
+
+### Scope
+
+- Expose interaction mode, interrupt policy, auto-decision feed, progression
+  mode effects, and guarded mode controls in the local console dashboard.
+- Preserve existing mode policy, transition validation, audit logging,
+  hard-stop behavior, and manual decision actions.
+
+### Changes
+
+- Added read-only console snapshot fields for mode interrupt policy,
+  auto-decision audit rows, task-level mode policy evaluation, and lifecycle
+  `mode_effects`.
+- Added guarded dashboard actions for `mode_validate` and confirmed
+  `mode_set`; mode switching delegates to the existing CLI config writer and
+  never mutates task state.
+- Added an Autonomy dashboard section with mode indicator, interrupt policy,
+  mode controls, progression policy status, and recent auto-decisions.
+- Added regression coverage for auto-decision feed/link surfacing, mode-policy
+  task rows, guarded mode actions, static resources, and lifecycle hard-stop
+  precedence.
+- Advanced the roadmap current phase to Phase 6 after delivered review.
+
+### Tests And Verification
+
+- `.venv/bin/python -m py_compile src/async_research_workflow/console/snapshot.py src/async_research_workflow/console/actions.py`: passed
+- `node --check src/async_research_workflow/console/static/app.js`: passed
+- `.venv/bin/python -m unittest tests.test_console_snapshot`: passed, 30 tests
+- `.venv/bin/python -m unittest tests.test_console_actions`: passed, 26 tests
+- `.venv/bin/python -m unittest tests.test_console_server`: passed, 17 tests
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 818 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+- Local browser smoke at `http://127.0.0.1:8765`: passed; Autonomy panel,
+  mode badge, mode controls, progression policy, and auto-decision feed
+  rendered with zero console errors.
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-2.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- [P1] hard-stop precedence in progression mode effects: fixed.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- Final screenshot retry timed out in the browser bridge after post-fix smoke
+  DOM verification passed; the earlier Phase 5 screenshot remains at
+  `/private/tmp/async-research-phase5-smoke/dashboard-autonomy.png`.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 5 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 6 - Tests And Autonomous
+  Simulations.

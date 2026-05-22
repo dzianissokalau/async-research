@@ -31,12 +31,15 @@ from async_research_workflow.scripts import evidence_memory
 from async_research_workflow.scripts import health_check
 from async_research_workflow.scripts import interaction_mode
 from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts import needs_human_policy
 from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import runtime_artifacts
 from async_research_workflow.scripts import runtime_evals
 from async_research_workflow.scripts import schedule_manifest
 from async_research_workflow.scripts import update_accepted_outputs_index
 from async_research_workflow.scripts import validate_transition
+from async_research_workflow.scripts.decision_log import auto_decision_row_errors
+from async_research_workflow.scripts.decision_log import read_auto_decisions
 from async_research_workflow.scripts.decision_log import read_decisions
 
 
@@ -381,6 +384,78 @@ def command_hint(label: str, argv: list[str]) -> dict[str, str]:
 
 def limited(rows: list[dict[str, Any]], limit: int = RECENT_LIMIT) -> list[dict[str, Any]]:
     return rows[:limit]
+
+
+def related_artifact_links(ops_dir: Path, value: Any) -> list[dict[str, Any]]:
+    links: list[dict[str, Any]] = []
+    for item in normalize_list_value(value):
+        path = Path(item)
+        if not path.is_absolute() and item.startswith("research_ops/"):
+            path = Path(*Path(item).parts[1:])
+        links.append(artifact_link(ops_dir, path.name or "Artifact", path))
+    return links[:RECENT_LIMIT]
+
+
+def auto_decision_display_row(ops_dir: Path, row: dict[str, str]) -> dict[str, Any]:
+    errors = auto_decision_row_errors(row)
+    return {
+        "date": row.get("date", ""),
+        "item_id": row.get("item_id", ""),
+        "mode": row.get("mode", ""),
+        "policy_version": row.get("policy_version", ""),
+        "decision": row.get("decision", ""),
+        "target_status": row.get("target_status", ""),
+        "reason": row.get("reason", ""),
+        "confidence": row.get("confidence", ""),
+        "actor": row.get("actor", ""),
+        "related_artifacts": row.get("related_artifacts", ""),
+        "artifact_links": related_artifact_links(ops_dir, row.get("related_artifacts")),
+        "audit_complete": not errors,
+        "audit_errors": errors,
+    }
+
+
+def auto_decisions_snapshot(ops_dir: Path) -> dict[str, Any]:
+    path = ops_dir / "auto_decisions.md"
+    warnings: list[dict[str, Any]] = []
+    try:
+        rows = read_auto_decisions(path)
+    except (OSError, UnicodeDecodeError) as exc:
+        return unavailable(
+            "auto_decision_log_unreadable",
+            "auto-decision log could not be read",
+            path,
+            str(exc),
+        )
+    display_rows = [auto_decision_display_row(ops_dir, row) for row in rows]
+    invalid_rows = [row for row in display_rows if not row["audit_complete"]]
+    if invalid_rows:
+        warnings.append(
+            issue(
+                "warning",
+                "auto_decision_audit_incomplete",
+                "one or more auto-decision rows are missing required audit fields",
+                path,
+                {"invalid_row_count": len(invalid_rows)},
+            )
+        )
+    return {
+        "available": True,
+        "status": "available" if path.exists() else "missing",
+        "path": str(path),
+        "exists": path.exists(),
+        "count": len(rows),
+        "recent_rows": display_rows[-RECENT_LIMIT:],
+        "invalid_row_count": len(invalid_rows),
+        "summary": {
+            "by_mode": count_values(display_rows, lambda row: row.get("mode")),
+            "by_decision": count_values(display_rows, lambda row: row.get("decision")),
+            "by_target_status": count_values(display_rows, lambda row: row.get("target_status")),
+            "audit_complete": len(invalid_rows) == 0,
+        },
+        "links": [artifact_link(ops_dir, "Auto-decision log", path)],
+        "warnings": warnings,
+    }
 
 
 def safe_read_json(path: Path) -> dict[str, Any]:
@@ -877,6 +952,58 @@ def transition_summary(payload: dict[str, Any], status_path: Path) -> dict[str, 
     }
 
 
+def task_mode_policy(ops_dir: Path, task_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("status") != "needs_human":
+        return {
+            "applicable": False,
+            "status": "not_applicable",
+            "reason": "task_not_needs_human",
+            "can_auto_resolve": False,
+            "human_required": False,
+        }
+    try:
+        result = needs_human_policy.evaluate_policy(ops_dir, task_dir, payload)
+    except Exception as exc:
+        return {
+            "applicable": True,
+            "status": "unavailable",
+            "reason": "mode_policy_unavailable",
+            "message": str(exc),
+            "can_auto_resolve": False,
+            "human_required": True,
+        }
+    can_auto_resolve = result.get("can_auto_resolve") is True
+    status = "auto_resolvable" if can_auto_resolve else "human_required"
+    return {
+        "applicable": True,
+        "status": status,
+        "policy_version": result.get("policy_version"),
+        "mode": result.get("mode"),
+        "risk_tolerance": result.get("risk_tolerance"),
+        "can_auto_resolve": can_auto_resolve,
+        "human_required": result.get("human_required") is not False,
+        "reason": result.get("reason"),
+        "decision": result.get("decision"),
+        "target_status": result.get("target_status"),
+        "policy_action": result.get("policy_action"),
+        "instruction": result.get("instruction"),
+        "required_auto_decision": result.get("required_auto_decision"),
+        "actor": result.get("actor"),
+        "confidence": result.get("confidence"),
+        "gate_category": result.get("gate_category"),
+        "gate_categories": result.get("gate_categories", []),
+        "gate_trigger": result.get("gate_trigger"),
+        "hard_stop_categories": result.get("hard_stop_categories", []),
+        "interrupt_only_for": result.get("interrupt_only_for", []),
+        "auto_resolve_command": command_hint(
+            "Auto-resolve by policy",
+            ["async-research", "decision", "auto-resolve-task", str(ops_dir), str(task_dir)],
+        )
+        if can_auto_resolve
+        else None,
+    }
+
+
 def status_validation_entry(status_path: Path, malformed_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
     issue_record = malformed_by_path.get(str(status_path))
     if issue_record is None:
@@ -929,6 +1056,7 @@ def task_row(ops_dir: Path, item: dict[str, Any], now: datetime, malformed_by_pa
         "allowed_next_statuses": transition["allowed_next_statuses"],
         "status_validation": status_validation_entry(status_path, malformed_by_path),
         "transition_validation": transition,
+        "mode_policy": task_mode_policy(ops_dir, task_dir, payload),
         "lock_state": task_lock_state(task_dir, now),
         "files": files,
         "explainability": task_explainability(ops_dir, task_dir, payload, files),
@@ -988,6 +1116,13 @@ def malformed_task_row(item: dict[str, Any], now: datetime, ops_dir: Path | None
             "previous_status": None,
             "status": "invalid",
             "allowed_next_statuses": [],
+        },
+        "mode_policy": {
+            "applicable": False,
+            "status": "not_applicable",
+            "reason": "invalid_task_status",
+            "can_auto_resolve": False,
+            "human_required": False,
         },
         "lock_state": task_lock_state(task_dir, now)
         if task_dir is not None
@@ -1381,6 +1516,14 @@ def deliverables_snapshot(ops_dir: Path) -> dict[str, Any]:
 
 def interaction_mode_snapshot(ops_dir: Path) -> dict[str, Any]:
     result = interaction_mode.inspect_mode_config(ops_dir)
+    config = result.get("config") if isinstance(result.get("config"), dict) else {}
+    interrupt_policy = config.get("interrupt_policy") if isinstance(config.get("interrupt_policy"), dict) else {}
+    auto_decisions = config.get("auto_decisions") if isinstance(config.get("auto_decisions"), dict) else {}
+    audit = config.get("audit") if isinstance(config.get("audit"), dict) else {}
+    interrupt_only_for = interrupt_policy.get("interrupt_only_for") if isinstance(interrupt_policy.get("interrupt_only_for"), list) else []
+    hard_stops = list(interaction_mode.HARD_STOP_INTERRUPT_CATEGORIES)
+    routine_interrupts = [category for category in interrupt_only_for if category not in hard_stops]
+    enabled_auto_decisions = sorted(key for key, value in auto_decisions.items() if value is True)
     payload = {
         "available": result.get("ok") is True,
         "status": "available" if result.get("ok") is True else "invalid",
@@ -1391,6 +1534,27 @@ def interaction_mode_snapshot(ops_dir: Path) -> dict[str, Any]:
         "source": result.get("source", result.get("reason")),
         "path": result.get("path"),
         "summary": result.get("summary", {}),
+        "interrupt_policy": {
+            "allow_interrupts": interrupt_policy.get("allow_interrupts"),
+            "interrupt_only_for": interrupt_only_for,
+            "hard_stops": hard_stops,
+            "routine_interrupts": routine_interrupts,
+            "hard_stop_count": len(hard_stops),
+            "routine_interrupt_count": len(routine_interrupts),
+        },
+        "auto_decision_policy": {
+            "enabled": enabled_auto_decisions,
+            "enabled_count": len(enabled_auto_decisions),
+            "audit": audit,
+            "write_decisions": audit.get("write_decisions"),
+            "write_auto_decisions": audit.get("write_auto_decisions"),
+            "explain_auto_decisions": audit.get("explain_auto_decisions"),
+        },
+        "controls": {
+            "available_modes": list(interaction_mode.INTERACTION_MODES),
+            "validate_action": "mode_validate",
+            "switch_action": "mode_set",
+        },
         "warnings": result.get("warnings", []),
         "errors": result.get("errors", []),
     }
@@ -2022,12 +2186,16 @@ def lifecycle_blockers_for_station(station_id: str, tasks: list[dict[str, Any]],
     for task in tasks:
         if not lifecycle_is_blocked_task(task):
             continue
+        policy = task.get("mode_policy") if isinstance(task.get("mode_policy"), dict) else {}
         blockers.append(
             {
                 "reason": str(task.get("human_gate_reason") or task.get("last_transition_reason") or task.get("status") or "blocked"),
                 "task_id": task.get("task_id"),
                 "status": task.get("status"),
                 "task_dir": task.get("task_dir"),
+                "mode_policy_status": policy.get("status"),
+                "mode_policy_reason": policy.get("reason"),
+                "gate_category": policy.get("gate_category"),
             }
         )
     if station_id == "source_data":
@@ -2065,7 +2233,93 @@ def lifecycle_task_summary(task: dict[str, Any] | None) -> dict[str, Any] | None
         "type": task.get("type"),
         "requires_human": task.get("requires_human"),
         "task_dir": task.get("task_dir"),
+        "mode_policy": task.get("mode_policy", {}),
         "files": task.get("files", [])[:RECENT_LIMIT],
+    }
+
+
+def lifecycle_policy_gate_row(station: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
+    policy = task.get("mode_policy") if isinstance(task.get("mode_policy"), dict) else {}
+    return {
+        "station_id": station.get("id"),
+        "station_label": station.get("label"),
+        "task_id": task.get("task_id"),
+        "title": task.get("title"),
+        "task_dir": task.get("task_dir"),
+        "status": task.get("status"),
+        "gate_category": policy.get("gate_category"),
+        "gate_categories": policy.get("gate_categories", []),
+        "gate_trigger": policy.get("gate_trigger"),
+        "policy_status": policy.get("status"),
+        "policy_action": policy.get("policy_action"),
+        "decision": policy.get("decision"),
+        "target_status": policy.get("target_status"),
+        "reason": policy.get("reason"),
+        "instruction": policy.get("instruction"),
+        "hard_stop_categories": policy.get("hard_stop_categories", []),
+        "command": policy.get("auto_resolve_command"),
+    }
+
+
+def lifecycle_mode_effects(
+    stations: list[dict[str, Any]],
+    tasks_by_station: dict[str, list[dict[str, Any]]],
+    mode: dict[str, Any],
+    auto_decisions: dict[str, Any],
+    current: dict[str, Any] | None,
+) -> dict[str, Any]:
+    auto_resolvable: list[dict[str, Any]] = []
+    policy_blocked: list[dict[str, Any]] = []
+    hard_stops: list[dict[str, Any]] = []
+    policy_sequence: list[dict[str, Any]] = []
+    stations_by_id = {str(station.get("id")): station for station in stations}
+    for station_id, tasks in tasks_by_station.items():
+        station = stations_by_id.get(station_id, {"id": station_id, "label": station_id})
+        for task in tasks:
+            policy = task.get("mode_policy") if isinstance(task.get("mode_policy"), dict) else {}
+            if policy.get("applicable") is not True:
+                continue
+            row = lifecycle_policy_gate_row(station, task)
+            if policy.get("can_auto_resolve") is True:
+                auto_resolvable.append(row)
+                policy_sequence.append({"kind": "auto_resolvable", **row})
+            else:
+                policy_blocked.append(row)
+                policy_sequence.append({"kind": "policy_blocked", **row})
+            if policy.get("hard_stop_categories"):
+                hard_stops.append(row)
+    blocked_stage = next((station for station in stations if station.get("status") == "blocked"), None)
+    first_policy_gate = policy_sequence[0] if policy_sequence else None
+    next_auto = first_policy_gate if first_policy_gate and first_policy_gate.get("kind") == "auto_resolvable" else None
+    if next_auto:
+        progression_label = "automatic_action_available"
+    elif first_policy_gate or blocked_stage:
+        progression_label = "blocked_by_policy_or_state"
+    else:
+        progression_label = "no_policy_blocker"
+    return {
+        "mode": mode.get("mode"),
+        "risk_tolerance": mode.get("risk_tolerance"),
+        "current_stage": {
+            "id": current.get("id") if current else None,
+            "label": current.get("label") if current else None,
+            "status": current.get("status") if current else None,
+        },
+        "blocked_stage": {
+            "id": blocked_stage.get("id") if blocked_stage else None,
+            "label": blocked_stage.get("label") if blocked_stage else None,
+            "status": blocked_stage.get("status") if blocked_stage else None,
+        },
+        "progression_label": progression_label,
+        "next_automatic_action": next_auto,
+        "auto_resolvable_gate_count": len(auto_resolvable),
+        "auto_resolvable_gates": auto_resolvable[:RECENT_LIMIT],
+        "policy_blocked_gate_count": len(policy_blocked),
+        "policy_blocked_gates": policy_blocked[:RECENT_LIMIT],
+        "hard_stop_count": len(hard_stops),
+        "hard_stops": hard_stops[:RECENT_LIMIT],
+        "auto_resolved_gate_count": auto_decisions.get("count", 0),
+        "recent_auto_resolutions": auto_decisions.get("recent_rows", []),
     }
 
 
@@ -2088,6 +2342,8 @@ def lifecycle_snapshot(
     delivered_projects: dict[str, Any],
     health: dict[str, Any],
     sources: dict[str, Any],
+    mode: dict[str, Any],
+    auto_decisions: dict[str, Any],
 ) -> dict[str, Any]:
     tasks_by_station = lifecycle_task_rows(tasks)
     outputs_by_station = lifecycle_output_rows(delivered_projects)
@@ -2148,6 +2404,7 @@ def lifecycle_snapshot(
         "current_station_id": current.get("id") if current else None,
         "current_station_label": current.get("label") if current else None,
         "next_action": (current.get("next_command") or {}).get("command") if current else "",
+        "mode_effects": lifecycle_mode_effects(stations, tasks_by_station, mode, auto_decisions, current),
         "stations": stations,
     }
 
@@ -2332,8 +2589,9 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     human_decisions, human_decision_warnings = human_decisions_snapshot(ops_dir, tasks["human"])
     accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir, current)
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
-    deliverables = deliverables_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "deliverables are unavailable until research_ops exists", ops_dir)
     mode = interaction_mode_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "interaction mode is unavailable until research_ops exists", ops_dir)
+    auto_decisions = auto_decisions_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "auto decisions are unavailable until research_ops exists", ops_dir)
+    deliverables = deliverables_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "deliverables are unavailable until research_ops exists", ops_dir)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current, tasks.get("all", []))
     prompts = prompts_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "prompts are unavailable until research_ops exists", ops_dir)
@@ -2349,7 +2607,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     runtime = runtime_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "runtime is unavailable until research_ops exists", ops_dir)
     evals = evals_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "evals are unavailable until research_ops exists", ops_dir)
     structured_memory = evidence_memory_snapshot(ops_dir, current) if workspace_ready else unavailable("ops_dir_missing", "evidence memory is unavailable until research_ops exists", ops_dir)
-    lifecycle = lifecycle_snapshot(ops_dir, tasks, accepted_outputs, delivered_projects, health, sources) if workspace_ready else unavailable(
+    lifecycle = lifecycle_snapshot(ops_dir, tasks, accepted_outputs, delivered_projects, health, sources, mode, auto_decisions) if workspace_ready else unavailable(
         "ops_dir_missing",
         "lifecycle is unavailable until research_ops exists",
         ops_dir,
@@ -2369,6 +2627,8 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     else:
         warnings.extend(mode.get("warnings", []))
         warnings.extend(mode.get("errors", []))
+    if auto_decisions.get("available") is not False:
+        warnings.extend(auto_decisions.get("warnings", []))
     if runtime.get("available") is not False:
         warnings.extend(runtime.get("warnings", []))
         warnings.extend(runtime.get("errors", []))
@@ -2378,7 +2638,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     if structured_memory.get("available") is not False:
         warnings.extend(structured_memory.get("warnings", []))
         warnings.extend(structured_memory.get("errors", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, structured_memory, lifecycle, deliverables, mode, *dashboards.values()]))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, structured_memory, lifecycle, deliverables, mode, auto_decisions, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2397,6 +2657,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "delivered_projects": delivered_projects,
         "deliverables": deliverables,
         "interaction_mode": mode,
+        "auto_decisions": auto_decisions,
         "rejected_results": rejected_results,
         "cost": cost,
         "sources": sources,

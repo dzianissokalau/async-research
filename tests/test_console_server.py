@@ -90,11 +90,13 @@ class ConsoleServerTests(unittest.TestCase):
                     self.assertEqual(HTTPStatus.OK, response.status)
                     self.assertIn("text/html", response.headers["Content-Type"])
                     self.assertIn(b"Async Research Console", body)
+                    self.assertIn(b"Autonomy", body)
 
                 with urllib.request.urlopen(f"{base_url}/app.js", timeout=5) as response:
                     body = response.read()
                     self.assertEqual(HTTPStatus.OK, response.status)
                     self.assertIn(b"renderOperations", body)
+                    self.assertIn(b"renderAutonomy", body)
 
                 with urllib.request.urlopen(f"{base_url}/api/snapshot?now={NOW}", timeout=5) as response:
                     payload = json.loads(response.read().decode("utf-8"))
@@ -133,16 +135,19 @@ class ConsoleServerTests(unittest.TestCase):
             self.assertEqual(HTTPStatus.OK, status)
             self.assertIn("text/html", media_type)
             self.assertIn(b"Async Research Console", body)
+            self.assertIn(b"Autonomy", body)
 
             status, media_type, body = server.response_for_get("/styles.css", ops_dir)
             self.assertEqual(HTTPStatus.OK, status)
             self.assertIn("text/css", media_type)
             self.assertIn(b".app-shell", body)
+            self.assertIn(b".autonomy-layout", body)
 
             status, media_type, body = server.response_for_get("/app.js", ops_dir)
             self.assertEqual(HTTPStatus.OK, status)
             self.assertIn("javascript", media_type)
             self.assertIn(b"/api/snapshot", body)
+            self.assertIn(b"renderAutonomy", body)
 
             status, media_type, body = server.response_for_get(f"/api/snapshot?now={NOW}", ops_dir)
             self.assertEqual(HTTPStatus.OK, status)

@@ -18,6 +18,7 @@
         </div>
         <nav class="nav-list">
           <a href="#dashboard" class="nav-link active">Dashboard</a>
+          <a href="#autonomy" class="nav-link">Autonomy</a>
           <a href="#lifecycle" class="nav-link">Lifecycle</a>
           <a href="#deliverables" class="nav-link">Deliverables</a>
           <a href="#setup" class="nav-link">Setup</a>
@@ -40,6 +41,7 @@
             <p id="workspace-path" class="muted">Loading workspace...</p>
           </div>
           <div class="topbar-actions">
+            <span id="mode-badge" class="badge neutral">Mode</span>
             <span id="readiness-badge" class="badge neutral">Loading</span>
             <label class="auto-refresh-control" for="auto-refresh-toggle">
               <input id="auto-refresh-toggle" type="checkbox">
@@ -57,6 +59,37 @@
         </header>
 
         <section id="dashboard" class="metric-grid" aria-label="Dashboard summary"></section>
+
+        <section id="autonomy" class="section-band">
+          <div class="section-heading">
+            <h2>Autonomy</h2>
+            <span id="autonomy-mode" class="section-count">Loading</span>
+          </div>
+          <div id="autonomy-summary" class="outcome-summary"></div>
+          <div class="autonomy-layout">
+            <div class="autonomy-panel">
+              <div class="subsection-heading">
+                <h3>Mode And Interrupt Policy</h3>
+              </div>
+              <div id="mode-policy" class="record-list"></div>
+              <div id="mode-controls" class="mode-controls"></div>
+            </div>
+            <div class="autonomy-panel">
+              <div class="subsection-heading">
+                <h3>Progression Policy</h3>
+              </div>
+              <div id="progression-policy" class="record-list"></div>
+            </div>
+            <div class="autonomy-panel">
+              <div class="subsection-heading">
+                <h3>Auto-Decisions</h3>
+                <span id="auto-decision-total" class="section-count">0</span>
+              </div>
+              <div id="auto-decision-feed" class="record-list"></div>
+              <div id="auto-decision-links" class="file-list"></div>
+            </div>
+          </div>
+        </section>
 
         <section id="lifecycle" class="section-band">
           <div class="section-heading">

@@ -118,6 +118,13 @@ class ConsoleActionTests(unittest.TestCase):
         self.assertIn("decision_approve_budget", decision_actions)
         self.assertIn("async-research decision resolve-task", decision_actions["decision_resume"]["command_template"])
         self.assertTrue(decision_actions["decision_resume"]["requires_confirmation"])
+        mode_actions = {item["id"]: item for item in catalog["mode_actions"]}
+        self.assertIn("mode_validate", mode_actions)
+        self.assertIn("mode_set", mode_actions)
+        self.assertIn("async-research mode validate", mode_actions["mode_validate"]["command_template"])
+        self.assertIn("async-research mode set", mode_actions["mode_set"]["command_template"])
+        self.assertIn("autonomous", mode_actions["mode_set"]["available_modes"])
+        self.assertTrue(mode_actions["mode_set"]["requires_confirmation"])
         prompt_actions = {item["id"]: item for item in catalog["prompt_actions"]}
         self.assertIn("prompts_init", prompt_actions)
         self.assertIn("prompt_save_draft", prompt_actions)
@@ -228,6 +235,49 @@ class ConsoleActionTests(unittest.TestCase):
                         json.loads(result["stdout"])
                     except json.JSONDecodeError:
                         self.fail(f"{action_id} stdout should be JSON: {result['stdout']}")
+
+    def test_mode_actions_validate_and_switch_with_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = Path(tmp) / "research_ops"
+            _, init_result = actions.run_action(
+                "init",
+                ops_dir,
+                {
+                    "template": "generic",
+                    "confirm": actions.init_confirmation_token(ops_dir, "generic"),
+                },
+            )
+            self.assertTrue(init_result["ok"], init_result)
+
+            status, validation = actions.run_action("mode_validate", ops_dir, {})
+            self.assertEqual(200, status)
+            self.assertTrue(validation["ok"], validation)
+            self.assertFalse(validation["changed"])
+            self.assertIn("async-research mode validate", validation["command"])
+
+            status, blocked = actions.run_action("mode_set", ops_dir, {"mode": "autonomous"})
+            self.assertEqual(409, status)
+            self.assertEqual("confirmation_required", blocked["reason"])
+            self.assertFalse(blocked["changed"])
+
+            status, invalid = actions.run_action("mode_set", ops_dir, {"mode": "unsafe"})
+            self.assertEqual(400, status)
+            self.assertEqual("unsupported_mode", invalid["reason"])
+
+            status, result = actions.run_action(
+                "mode_set",
+                ops_dir,
+                {
+                    "mode": "autonomous",
+                    "confirm": actions.mode_confirmation_token("autonomous"),
+                },
+            )
+            self.assertEqual(200, status, result)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["changed"])
+            self.assertIn("async-research mode set", result["command"])
+            config = json.loads((ops_dir / "interaction_mode.json").read_text(encoding="utf-8"))
+            self.assertEqual("autonomous", config["mode"])
 
     def test_non_init_action_requires_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,16 +1,39 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 5 - Dashboard And Operator UX",
+  "current_phase": "Phase 6 - Tests And Autonomous Simulations",
   "branch": null,
   "status": "ready_for_next_run",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "Phase 4 - Workflow Integration",
+    "phase": "Phase 5 - Dashboard And Operator UX",
     "status": "passed",
-    "verified_at": "2026-05-22T11:20:52Z",
+    "verified_at": "2026-05-22T12:25:04Z",
     "commands": [
+      {
+        "command": ".venv/bin/python -m py_compile src/async_research_workflow/console/snapshot.py src/async_research_workflow/console/actions.py",
+        "status": "passed"
+      },
+      {
+        "command": "node --check src/async_research_workflow/console/static/app.js",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_console_snapshot",
+        "status": "passed",
+        "summary": "Ran 30 tests in 0.976s"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_console_actions",
+        "status": "passed",
+        "summary": "Ran 26 tests in 0.645s"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_console_server",
+        "status": "passed",
+        "summary": "Ran 17 tests in 0.787s"
+      },
       {
         "command": "git diff --check",
         "status": "passed"
@@ -18,24 +41,29 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "summary": "Ran 17 tests in 0.271s"
+        "summary": "Ran 17 tests in 0.301s"
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "summary": "Ran 815 tests in 25.351s"
+        "summary": "Ran 818 tests in 25.199s"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
         "status": "passed",
         "summary": "15 checks passed"
+      },
+      {
+        "command": "local browser smoke at http://127.0.0.1:8765",
+        "status": "passed",
+        "summary": "Autonomy panel, mode controls, progression policy, and auto-decision feed rendered with zero console errors"
       }
     ]
   },
-  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-4-review-iteration-1.md",
+  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-2.md",
   "last_review_verdict": "delivered",
-  "last_delivered_phase": "Phase 4 - Workflow Integration",
-  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-4",
+  "last_delivered_phase": "Phase 5 - Dashboard And Operator UX",
+  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-5",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
@@ -46,5 +74,5 @@
   "automation_status": "PAUSED",
   "model": "gpt-5.5",
   "reasoning_effort": "xhigh",
-  "updated_at": "2026-05-22T11:20:52Z"
+  "updated_at": "2026-05-22T12:25:04Z"
 }

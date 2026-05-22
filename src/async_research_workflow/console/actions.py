@@ -18,6 +18,7 @@ from typing import Any
 from async_research_workflow import cli
 from async_research_workflow.console.snapshot import workspace_snapshot
 from async_research_workflow.resources import schema_path
+from async_research_workflow.scripts import interaction_mode
 from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import schedule_manifest
 from async_research_workflow.scripts.decision_log import has_decision
@@ -84,6 +85,17 @@ class ScheduleActionSpec:
     requires_confirmation: bool = False
     recovery_advice: str = "Review schedule validation errors, then update the manifest before retrying."
     success_next_step: str = "Refresh the schedule list."
+
+
+@dataclass(frozen=True)
+class ModeActionSpec:
+    action_id: str
+    label: str
+    description: str
+    mutates: bool
+    requires_confirmation: bool = False
+    recovery_advice: str = "Review interaction mode validation errors before changing autonomy settings."
+    success_next_step: str = "Refresh the dashboard and review the autonomy panel."
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
@@ -206,6 +218,25 @@ SCHEDULE_ACTION_SPECS: dict[str, ScheduleActionSpec] = {
         action_id="schedule_disable",
         label="Disable Intent",
         description="Mark one schedule job as disabled and record the reason.",
+    ),
+}
+
+
+MODE_ACTION_SPECS: dict[str, ModeActionSpec] = {
+    "mode_validate": ModeActionSpec(
+        action_id="mode_validate",
+        label="Validate Mode",
+        description="Validate interaction_mode.json and hard-stop safeguards without mutating workspace files.",
+        mutates=False,
+        success_next_step="Mode policy is valid. Refresh the autonomy panel.",
+    ),
+    "mode_set": ModeActionSpec(
+        action_id="mode_set",
+        label="Switch Mode",
+        description="Write a conservative interaction_mode.json for the selected authority level.",
+        mutates=True,
+        requires_confirmation=True,
+        success_next_step="Mode switched. Refresh readiness, workflow next, and the autonomy panel.",
     ),
 }
 
@@ -592,6 +623,34 @@ def schedule_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
     ]
 
 
+def mode_action_catalog(ops_dir: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "mode_validate",
+            "label": MODE_ACTION_SPECS["mode_validate"].label,
+            "description": MODE_ACTION_SPECS["mode_validate"].description,
+            "command_template": command_string(["mode", "validate", str(ops_dir)]),
+            "mutates": False,
+            "requires_confirmation": False,
+            "status": "available" if ops_dir.exists() else "blocked_missing_workspace",
+        },
+        {
+            "id": "mode_set",
+            "label": MODE_ACTION_SPECS["mode_set"].label,
+            "description": MODE_ACTION_SPECS["mode_set"].description,
+            "command_template": command_string(["mode", "set", str(ops_dir), "--mode", "<mode>"]),
+            "mutates": True,
+            "requires_confirmation": True,
+            "available_modes": list(interaction_mode.INTERACTION_MODES),
+            "confirmation_tokens": {
+                mode: mode_confirmation_token(mode)
+                for mode in interaction_mode.INTERACTION_MODES
+            },
+            "status": "available" if ops_dir.exists() else "blocked_missing_workspace",
+        },
+    ]
+
+
 def init_spec(template: str) -> ActionSpec:
     command = ("init", "{ops_dir}") if template == "generic" else ("init", "{ops_dir}", "--template", template)
     return ActionSpec(
@@ -649,6 +708,7 @@ def action_catalog(ops_dir: Path) -> dict[str, Any]:
         "actions": actions,
         "task_actions": task_action_catalog(),
         "decision_actions": decision_action_catalog(ops_dir),
+        "mode_actions": mode_action_catalog(ops_dir),
         "prompt_actions": prompt_action_catalog(ops_dir),
         "schedule_actions": schedule_action_catalog(ops_dir),
     }
@@ -968,6 +1028,10 @@ def schedule_http_status(code: int) -> int:
     if code in SCHEDULE_CONFLICT_EXIT_CODES:
         return 409
     return 500
+
+
+def mode_confirmation_token(mode: str) -> str:
+    return f"mode:set:{mode}"
 
 
 def run_prompt_action(spec: PromptActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -1341,6 +1405,82 @@ def run_decision_action(spec: DecisionActionSpec, ops_dir: Path, request: dict[s
     return 200, result
 
 
+def mode_action_command(spec: ModeActionSpec, ops_dir: Path, request: dict[str, Any]) -> list[str]:
+    if spec.action_id == "mode_validate":
+        return ["mode", "validate", str(ops_dir)]
+    mode = clean_required_text(request, "mode")
+    return ["mode", "set", str(ops_dir), "--mode", mode]
+
+
+def run_mode_action(spec: ModeActionSpec, ops_dir: Path, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if not ops_dir.is_dir():
+        return 409, {
+            "ok": False,
+            "reason": "ops_dir_missing",
+            "message": "Initialize research_ops before changing interaction mode.",
+            "read_only": True,
+            "changed": False,
+        }
+    mode = clean_required_text(request, "mode")
+    if spec.action_id == "mode_set":
+        if mode not in interaction_mode.INTERACTION_MODES:
+            return 400, {
+                "ok": False,
+                "reason": "unsupported_mode",
+                "message": f"Unsupported interaction mode: {mode or 'missing'}",
+                "allowed_modes": list(interaction_mode.INTERACTION_MODES),
+                "read_only": True,
+                "changed": False,
+            }
+        token = mode_confirmation_token(mode)
+        if request.get("confirm") != token:
+            return 409, {
+                "ok": False,
+                "reason": "confirmation_required",
+                "message": "Confirm the mode switch before writing interaction_mode.json.",
+                "confirmation_token": token,
+                "command": command_string(mode_action_command(spec, ops_dir, request)),
+                "read_only": True,
+                "changed": False,
+            }
+    elif spec.action_id != "mode_validate":
+        return 404, {
+            "ok": False,
+            "reason": "unknown_mode_action",
+            "message": f"Unknown mode action: {spec.action_id}",
+            "read_only": True,
+            "changed": False,
+        }
+
+    argv = mode_action_command(spec, ops_dir, request)
+    started_at = utc_timestamp()
+    start = time.monotonic()
+    exit_code, stdout, stderr = run_cli_command(argv)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    parsed_stdout = parse_stdout_json(stdout)
+    status = exit_status(exit_code, (0,))
+    return (200 if exit_code == 0 else 409), {
+        "ok": status != "failed",
+        "status": status,
+        "action": spec.action_id,
+        "label": spec.label,
+        "mutates": spec.mutates,
+        "command": command_string(argv),
+        "argv": ["async-research", *argv],
+        "exit_code": exit_code,
+        "stdout": stdout,
+        "stderr": stderr,
+        "parsed_stdout": parsed_stdout,
+        "started_at": started_at,
+        "finished_at": utc_timestamp(),
+        "elapsed_ms": elapsed_ms,
+        "next_step": spec.success_next_step if exit_code == 0 else spec.recovery_advice,
+        "read_only": not spec.mutates,
+        "changed": bool(spec.mutates and exit_code == 0 and ((parsed_stdout or {}).get("changed") is not False)),
+        "mode": mode or (parsed_stdout or {}).get("mode"),
+    }
+
+
 def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
     request = payload or {}
     task_spec = TASK_ACTION_SPECS.get(action_id)
@@ -1355,6 +1495,9 @@ def run_action(action_id: str, ops_dir: Path, payload: dict[str, Any] | None = N
     decision_spec = DECISION_ACTION_SPECS.get(action_id)
     if decision_spec is not None:
         return run_decision_action(decision_spec, ops_dir, request)
+    mode_spec = MODE_ACTION_SPECS.get(action_id)
+    if mode_spec is not None:
+        return run_mode_action(mode_spec, ops_dir, request)
     if action_id == "init":
         template = str(request.get("template") or "generic")
         if template not in cli.TEMPLATES:

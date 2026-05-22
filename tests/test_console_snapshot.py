@@ -26,6 +26,7 @@ SNAPSHOT_GROUPS = {
     "delivered_projects",
     "deliverables",
     "interaction_mode",
+    "auto_decisions",
     "rejected_results",
     "cost",
     "sources",
@@ -273,6 +274,135 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertFalse(payload["interaction_mode"]["available"])
             self.assertEqual("invalid", payload["interaction_mode"]["status"])
             self.assertTrue(any("interaction modes must allow human interrupts" in item["message"] for item in payload["warnings"]))
+
+    def test_snapshot_surfaces_mode_policy_and_auto_decision_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, mode_payload = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode_payload)
+            task_dir = write_task_status(
+                ops_dir,
+                "TASK-1005",
+                "needs_human",
+                requires_human=True,
+                task_type="data_readiness",
+                title="Autonomous source caveat revision",
+            )
+            status_path = task_dir / "status.json"
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["human_gate"] = {
+                "policy_version": "test",
+                "trigger": "high_confidence_weak_evidence",
+                "gate_category": "quality_uncertainty",
+                "gate_categories": ["quality_uncertainty"],
+                "triggered_at": NOW,
+                "severity": "medium",
+                "reason": "Evidence needs a bounded quality revision.",
+                "required_human_decision": "revise before accepting",
+                "available_decisions": ["resume", "pause", "reject"],
+                "default_safe_action": "pause",
+                "retry_behavior": "rerun after policy decision",
+                "ledger_update_behavior": "record an auto-decision row",
+            }
+            write_json(status_path, status)
+            (ops_dir / "auto_decisions.md").write_text(
+                "\n".join(
+                    [
+                        "| date | item_id | mode | policy_version | decision | target_status | reason | confidence | actor | related_artifacts |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        f"| {NOW} | TASK-1004 | autonomous | mode_needs_human_policy_v1.0 | resume | ready_for_worker | bounded revision | high | async-research-mode-policy | tasks/{task_dir.name}/status.json |",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertEqual("autonomous", payload["interaction_mode"]["mode"])
+            self.assertIn("credentials_missing", payload["interaction_mode"]["interrupt_policy"]["hard_stops"])
+            self.assertIn("allow_revision", payload["interaction_mode"]["auto_decision_policy"]["enabled"])
+            auto_decisions = payload["auto_decisions"]
+            self.assertEqual(1, auto_decisions["count"])
+            self.assertTrue(auto_decisions["summary"]["audit_complete"])
+            self.assertEqual("TASK-1004", auto_decisions["recent_rows"][0]["item_id"])
+            self.assertTrue(auto_decisions["recent_rows"][0]["artifact_links"][0]["viewer_allowed"])
+            task = next(row for row in payload["tasks"]["all"] if row["task_id"] == "TASK-1005")
+            policy = task["mode_policy"]
+            self.assertTrue(policy["applicable"])
+            self.assertEqual("auto_resolvable", policy["status"])
+            self.assertTrue(policy["can_auto_resolve"])
+            self.assertEqual("quality_uncertainty", policy["gate_category"])
+            self.assertIn("decision auto-resolve-task", policy["auto_resolve_command"]["command"])
+            effects = payload["lifecycle"]["mode_effects"]
+            self.assertEqual("automatic_action_available", effects["progression_label"])
+            self.assertEqual(1, effects["auto_resolvable_gate_count"])
+            self.assertEqual("TASK-1005", effects["next_automatic_action"]["task_id"])
+
+    def test_lifecycle_mode_effects_do_not_skip_earlier_hard_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, mode_payload = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode_payload)
+            hard_stop_dir = write_task_status(
+                ops_dir,
+                "TASK-1006",
+                "needs_human",
+                requires_human=True,
+                task_type="admin",
+                title="Credentials approval required",
+            )
+            hard_stop_status = json.loads((hard_stop_dir / "status.json").read_text(encoding="utf-8"))
+            hard_stop_status["human_gate"] = {
+                "policy_version": "test",
+                "trigger": "credentials_missing",
+                "gate_category": "credentials_missing",
+                "gate_categories": ["credentials_missing"],
+                "triggered_at": NOW,
+                "severity": "high",
+                "reason": "Credential approval is required.",
+                "required_human_decision": "provide credentials",
+                "available_decisions": ["pause"],
+                "default_safe_action": "pause",
+                "retry_behavior": "rerun after credential approval",
+                "ledger_update_behavior": "record the human decision",
+            }
+            write_json(hard_stop_dir / "status.json", hard_stop_status)
+            auto_dir = write_task_status(
+                ops_dir,
+                "TASK-1007",
+                "needs_human",
+                requires_human=True,
+                task_type="data_readiness",
+                title="Bounded quality revision",
+            )
+            auto_status = json.loads((auto_dir / "status.json").read_text(encoding="utf-8"))
+            auto_status["human_gate"] = {
+                "policy_version": "test",
+                "trigger": "high_confidence_weak_evidence",
+                "gate_category": "quality_uncertainty",
+                "gate_categories": ["quality_uncertainty"],
+                "triggered_at": NOW,
+                "severity": "medium",
+                "reason": "Evidence needs a bounded quality revision.",
+                "required_human_decision": "revise before accepting",
+                "available_decisions": ["resume", "pause", "reject"],
+                "default_safe_action": "pause",
+                "retry_behavior": "rerun after policy decision",
+                "ledger_update_behavior": "record an auto-decision row",
+            }
+            write_json(auto_dir / "status.json", auto_status)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            effects = payload["lifecycle"]["mode_effects"]
+            self.assertEqual("blocked_by_policy_or_state", effects["progression_label"])
+            self.assertIsNone(effects["next_automatic_action"])
+            self.assertEqual(1, effects["hard_stop_count"])
+            self.assertEqual(1, effects["auto_resolvable_gate_count"])
+            self.assertEqual("TASK-1006", effects["policy_blocked_gates"][0]["task_id"])
 
     def test_snapshot_surfaces_malformed_task_status_as_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
