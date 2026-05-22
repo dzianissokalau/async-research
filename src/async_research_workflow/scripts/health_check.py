@@ -21,7 +21,7 @@ from async_research_workflow.scripts.check_schema_versions import (
 )
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts.data_source_audit import source_governance_report
-from async_research_workflow.scripts import knowledge_library
+from async_research_workflow.scripts import knowledge_library, needs_human_policy
 from async_research_workflow.scripts.analysis_surface import analysis_dashboard_report
 from async_research_workflow.scripts.update_accepted_outputs_index import memory_decay_report
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
@@ -223,6 +223,30 @@ def status_counts(statuses: list[dict[str, Any]]) -> dict[str, int]:
 
 def active_status_items(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [item for item in statuses if item["payload"].get("status") in NONTERMINAL_STATUSES]
+
+
+def mode_policy_needs_human_routes(statuses: list[dict[str, Any]], ops_dir: Path) -> list[dict[str, Any]]:
+    routes: list[dict[str, Any]] = []
+    for item in statuses:
+        payload = item["payload"]
+        if payload.get("status") != "needs_human":
+            continue
+        resolution = needs_human_policy.evaluate_policy(ops_dir, item["task_dir"], payload)
+        routes.append(
+            {
+                "task_id": payload.get("id", item["task_dir"].name),
+                "task_dir": str(item["task_dir"]),
+                "status_path": str(item["status_path"]),
+                "can_auto_resolve": resolution.get("can_auto_resolve") is True,
+                "human_required": resolution.get("human_required") is True,
+                "mode": resolution.get("mode"),
+                "gate_category": resolution.get("gate_category"),
+                "policy_reason": resolution.get("reason"),
+                "target_status": resolution.get("target_status"),
+                "policy_action": resolution.get("policy_action"),
+            }
+        )
+    return routes
 
 
 def idea_library_refs(ops_dir: Path, idea_id: str) -> list[str]:
@@ -498,6 +522,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     schema = load_status_schema(args.status_schema)
     statuses, malformed = load_task_statuses(tasks_dir, schema)
     counts = status_counts(statuses)
+    mode_policy_routes = mode_policy_needs_human_routes(statuses, ops_dir)
+    mode_policy_auto_resolvable = [item for item in mode_policy_routes if item.get("can_auto_resolve") is True]
+    mode_policy_human_required = [item for item in mode_policy_routes if item.get("can_auto_resolve") is not True]
     stale = scan_stale_locks(tasks_dir, args.stale_lock_minutes)
     revision_breaches = revision_limit_breaches(statuses)
     stuck = stuck_tasks(statuses, args.stuck_days, args.in_progress_stuck_hours, now)
@@ -522,12 +549,21 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         add_alert(alerts, "warning", "stale_locks", f"{len(stale)} stale lock(s) detected", stale)
     if queue_depth > args.queue_depth_threshold:
         add_alert(alerts, "warning", "queue_depth", f"queue depth {queue_depth} exceeds threshold {args.queue_depth_threshold}")
-    if counts.get("needs_human", 0) > args.needs_human_threshold:
+    if len(mode_policy_human_required) > args.needs_human_threshold:
         add_alert(
             alerts,
             "warning",
             "needs_human_overload",
-            f"needs_human count {counts.get('needs_human', 0)} exceeds threshold {args.needs_human_threshold}",
+            f"human-required needs_human count {len(mode_policy_human_required)} exceeds threshold {args.needs_human_threshold}",
+            mode_policy_human_required,
+        )
+    if mode_policy_auto_resolvable:
+        add_alert(
+            alerts,
+            "warning",
+            "mode_policy_auto_resolvable_needs_human",
+            f"{len(mode_policy_auto_resolvable)} needs_human task(s) can be auto-resolved by interaction-mode policy",
+            mode_policy_auto_resolvable,
         )
     if counts.get("in_progress", 0) > args.in_progress_threshold:
         add_alert(
@@ -751,6 +787,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "alerts": alerts,
         "checks": {
             "status_counts": counts,
+            "mode_policy_needs_human_routes": mode_policy_routes,
             "queue_depth": queue_depth,
             "discovery_inbox_count": discovery_count,
             "stale_locks": stale,

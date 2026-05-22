@@ -21,6 +21,7 @@ from async_research_workflow.scripts.check_schema_versions import (
     DEFAULT_SCHEMA_VERSION,
     scan_schema_versions,
 )
+from async_research_workflow.scripts import needs_human_policy
 from async_research_workflow.scripts.data_foundations import data_foundation_report
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts.analysis_surface import analysis_dashboard_report
@@ -165,6 +166,34 @@ def needs_human_tasks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
     return tasks
+
+
+def mode_policy_needs_human_routes(statuses: list[dict[str, Any]], ops_dir: Path) -> list[dict[str, Any]]:
+    routes: list[dict[str, Any]] = []
+    for item in statuses:
+        payload = item["payload"]
+        if payload.get("status") != "needs_human":
+            continue
+        resolution = needs_human_policy.evaluate_policy(ops_dir, item["task_dir"], payload)
+        routes.append(
+            {
+                "task_id": payload.get("id", item["task_dir"].name),
+                "task_dir": str(item["task_dir"]),
+                "status_path": str(item["status_path"]),
+                "status": payload.get("status"),
+                "human_gate_reason": payload.get("human_gate_reason"),
+                "can_auto_resolve": resolution.get("can_auto_resolve") is True,
+                "human_required": resolution.get("human_required") is True,
+                "mode": resolution.get("mode"),
+                "gate_category": resolution.get("gate_category"),
+                "gate_categories": resolution.get("gate_categories", []),
+                "policy_reason": resolution.get("reason"),
+                "target_status": resolution.get("target_status"),
+                "policy_action": resolution.get("policy_action"),
+                "resolution": resolution,
+            }
+        )
+    return routes
 
 
 def source_governance_applies(payload: dict[str, Any]) -> bool:
@@ -721,14 +750,34 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         )
 
     needs_human = needs_human_tasks(statuses)
-    if needs_human:
+    mode_policy_routes = mode_policy_needs_human_routes(statuses, ops_dir)
+    auto_resolvable_human = [item for item in mode_policy_routes if item.get("can_auto_resolve") is True]
+    blocking_human = [item for item in mode_policy_routes if item.get("can_auto_resolve") is not True]
+    legacy_requires_human = [
+        item
+        for item in needs_human
+        if item.get("status") != "needs_human"
+        or not any(route.get("status_path") == item.get("status_path") for route in mode_policy_routes)
+    ]
+    human_blockers = blocking_human + legacy_requires_human
+    if human_blockers:
         human.append(
             issue(
                 "error",
                 "unresolved_needs_human",
-                f"{len(needs_human)} task(s) require human decision",
-                needs_human,
-                "resolve needs_human tasks or explicitly pause/reject them before scheduling workers",
+                f"{len(human_blockers)} task(s) require human decision under the current interaction mode",
+                human_blockers,
+                "resolve needs_human tasks explicitly or switch to a policy-backed mode before scheduling workers",
+            )
+        )
+    if auto_resolvable_human:
+        warnings.append(
+            issue(
+                "warning",
+                "mode_policy_auto_resolvable_needs_human",
+                f"{len(auto_resolvable_human)} needs_human task(s) can be auto-resolved by interaction-mode policy",
+                auto_resolvable_human,
+                "run async-research workflow next to inspect the audited auto-resolution command",
             )
         )
 
@@ -911,6 +960,7 @@ def build_gate_report(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "active_task_count": len(active),
             "review_queue_count": len(review_queue),
             "needs_human_tasks": needs_human,
+            "mode_policy_needs_human_routes": mode_policy_routes,
             "stale_locks": stale_locks,
             "duplicate_active_tasks": duplicates,
             "malformed_status_files": malformed,

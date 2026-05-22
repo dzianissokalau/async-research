@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from async_research_workflow import cli
-from async_research_workflow.scripts import workflow_orchestrator
+from async_research_workflow.scripts import autonomy_readiness_gate, workflow_orchestrator
 from async_research_workflow.scripts.version_metadata import apply_default_versions
 
 
@@ -49,6 +49,7 @@ class WorkflowOrchestratorTests(unittest.TestCase):
         previous_status: str | None = "in_progress",
         requires_human: bool = False,
         human_gate_reason: str | None = None,
+        human_gate: dict | None = None,
         result: dict | None = None,
     ) -> Path:
         task_id = task_name[:9]
@@ -83,6 +84,7 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             },
             "requires_human": requires_human,
             "human_gate_reason": human_gate_reason,
+            "human_gate": human_gate,
             "budget": {
                 "max_api_usd": 0,
                 "max_compute_usd": 0,
@@ -96,6 +98,22 @@ class WorkflowOrchestratorTests(unittest.TestCase):
         }
         write_json(task_dir / "status.json", apply_default_versions(status))
         return task_dir
+
+    def structured_gate(self, category: str = "quality_uncertainty", trigger: str = "fixture_quality_gate") -> dict:
+        return {
+            "policy_version": "test_gate_v1.0",
+            "trigger": trigger,
+            "gate_category": category,
+            "gate_categories": [category],
+            "triggered_at": NOW,
+            "severity": "high" if category == "external_publication_approval" else "medium",
+            "reason": f"fixture {category}",
+            "required_human_decision": "choose whether the task can continue",
+            "available_decisions": ["resume", "request_revision", "pause", "reject"],
+            "default_safe_action": "request a bounded revision before acceptance",
+            "retry_behavior": "rerun policy evaluation after resolution",
+            "ledger_update_behavior": "record decisions.md and auto_decisions.md before status mutation",
+        }
 
     def write_review(self, task_dir: Path, decision: str, claim_strength: str = "suggestive") -> None:
         write_json(
@@ -280,6 +298,59 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertEqual("needs_human", payload["status"])
             self.assertIn("decision resolve-task", payload["next_legal_commands"][0]["command"])
             self.assertIn("--dry-run", payload["next_legal_commands"][0]["command"])
+
+    def test_status_recommends_mode_policy_auto_resolution_when_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, mode = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode)
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9142-auto-status",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="fixture quality uncertainty",
+                human_gate=self.structured_gate("quality_uncertainty"),
+            )
+
+            code, payload = run_cli_json(["workflow", "status", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["mode_policy"]["can_auto_resolve"])
+            self.assertEqual("autonomous", payload["mode_policy"]["mode"])
+            self.assertEqual("Preview mode-policy auto-resolution", payload["next_legal_commands"][0]["label"])
+            self.assertEqual(f"async-research decision auto-resolve-task {ops_dir} {task_dir} --dry-run", payload["next_legal_commands"][0]["command"])
+            self.assertEqual(f"async-research decision auto-resolve-task {ops_dir} {task_dir}", payload["next_legal_commands"][1]["command"])
+
+    def test_next_changes_human_gate_recommendation_by_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9143-mode-next",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="fixture quality uncertainty",
+                human_gate=self.structured_gate("quality_uncertainty"),
+            )
+
+            code, mode = run_cli_json(["mode", "set", ops_dir, "--mode", "manual"])
+            self.assertEqual(cli.SUCCESS, code, mode)
+            code, manual = run_cli_json(["workflow", "next", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, manual)
+            self.assertEqual("needs_human", manual["recommendation"]["category"])
+            self.assertIn("decision resolve-task", manual["recommendation"]["command"])
+
+            code, mode = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode)
+            code, autonomous = run_cli_json(["workflow", "next", ops_dir])
+            self.assertEqual(cli.SUCCESS, code, autonomous)
+            self.assertEqual("mode_policy_auto_resolution", autonomous["recommendation"]["category"])
+            self.assertEqual("TASK-9143", autonomous["recommendation"]["task"]["task_id"])
+            self.assertEqual(f"async-research decision auto-resolve-task {ops_dir} {task_dir} --dry-run", autonomous["recommendation"]["command"])
+            self.assertFalse(autonomous["recommendation"]["mutates"])
 
     def test_status_refuses_schema_invalid_status_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -995,7 +1066,68 @@ class WorkflowOrchestratorTests(unittest.TestCase):
             self.assertEqual("needs_human", status["status"])
             self.assertTrue(status["requires_human"])
             self.assertIn("human_gate_opened_at", status)
+            self.assertEqual("review_disagreement", status["human_gate"]["gate_category"])
+            self.assertEqual("reviewer_requested_human", status["human_gate"]["trigger"])
             self.assert_step_status(payload, "surface_update", "ok")
+
+    def test_advance_auto_resolves_policy_backed_needs_human_with_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, mode = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode)
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9144-auto-advance",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="fixture quality uncertainty",
+                human_gate=self.structured_gate("quality_uncertainty"),
+            )
+
+            code, payload = run_cli_json(["workflow", "advance", task_dir])
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("workflow_auto_resolved", payload["action"])
+            self.assert_step_status(payload, "mode_policy_auto_resolve", "ok")
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("ready_for_worker", status["status"])
+            self.assertFalse(status["requires_human"])
+            self.assertEqual("mode_policy_auto_bounded_revision", status["last_transition_reason"])
+            self.assertEqual("autonomous", status["auto_resolution"]["mode"])
+            decisions = (ops_dir / "decisions.md").read_text(encoding="utf-8")
+            auto_decisions = (ops_dir / "auto_decisions.md").read_text(encoding="utf-8")
+            self.assertIn("async-research-mode-policy", decisions)
+            self.assertIn("TASK-9144", auto_decisions)
+            self.assertIn("mode_needs_human_policy_v1.0", auto_decisions)
+
+    def test_advance_preserves_publication_gate_as_human_required_in_autonomous_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            code, mode = run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            self.assertEqual(cli.SUCCESS, code, mode)
+            task_dir = self.write_task(
+                ops_dir,
+                "TASK-9145-publication-stop",
+                status_value="needs_human",
+                previous_status="panel_review",
+                requires_human=True,
+                human_gate_reason="publication approval required",
+                human_gate=self.structured_gate("external_publication_approval", "publication_approval_required"),
+            )
+
+            code, payload = run_cli_json(["workflow", "advance", task_dir])
+
+            self.assertEqual(autonomy_readiness_gate.HUMAN_REQUIRED, code, payload)
+            self.assertFalse(payload["ok"])
+            self.assertEqual("readiness_dry_run", payload["failed_step"])
+            blocker = payload["steps"][1]["stdout_json"]["blockers"][0]
+            self.assertEqual("unresolved_needs_human", blocker["check"])
+            self.assertEqual("hard_stop_category_requires_human", blocker["details"][0]["policy_reason"])
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual("needs_human", status["status"])
+            self.assertNotIn("TASK-9145", (ops_dir / "auto_decisions.md").read_text(encoding="utf-8"))
 
     def test_advance_routes_rejected_and_reports_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

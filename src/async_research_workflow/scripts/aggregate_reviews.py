@@ -398,6 +398,56 @@ def mark_claim_strength_current(result: dict[str, Any], claim_strength: str) -> 
     result["claim_strength_policy"] = CLAIM_STRENGTH_POLICY
 
 
+def human_gate_category_for_route(reason: str, status: dict[str, Any], reviews: list[dict[str, Any]]) -> str:
+    if reason == "revision_limit_exceeded":
+        return "revision_limit_reached"
+    if reason == "human_gate_required_before_acceptance":
+        return "external_publication_approval"
+    if reason in {"reviewer_requested_human", "aggregation_rule_fell_through"}:
+        return "review_disagreement"
+    if any(review.get("claim_strength") == "strong" for review in reviews):
+        return "external_publication_approval"
+    if status.get("requires_human") is True:
+        return "quality_uncertainty"
+    return "review_disagreement"
+
+
+def structured_human_gate(reason: str, status: dict[str, Any], reviews: list[dict[str, Any]], transition_time: str) -> dict[str, Any]:
+    category = human_gate_category_for_route(reason, status, reviews)
+    if category == "external_publication_approval":
+        available_decisions = ["approve", "reject", "request_revision", "pause"]
+        default_safe_action = "pause until explicit publication or high-stakes acceptance approval is recorded"
+    elif category == "revision_limit_reached":
+        available_decisions = ["pause", "reject"]
+        default_safe_action = "pause instead of resetting revision limits automatically"
+    else:
+        available_decisions = ["resume", "request_revision", "pause", "reject"]
+        default_safe_action = "route disputed or uncertain output through bounded revision before acceptance"
+    return {
+        "policy_version": "review_aggregation_human_gate_v1.0",
+        "trigger": reason,
+        "gate_category": category,
+        "gate_categories": [category],
+        "triggered_at": transition_time,
+        "severity": "high" if category == "external_publication_approval" else "medium",
+        "reason": reason,
+        "required_human_decision": "decide whether the reviewed output can continue, needs revision, should pause, or should be rejected",
+        "available_decisions": available_decisions,
+        "default_safe_action": default_safe_action,
+        "retry_behavior": "rerun review aggregation after the gate is resolved or after bounded revision completes",
+        "ledger_update_behavior": "record the decision in decisions.md; mode-policy auto-resolution must also append auto_decisions.md",
+        "details": [
+            {
+                "reviewer_role": review.get("reviewer_role"),
+                "decision": review.get("decision"),
+                "claim_strength": review.get("claim_strength"),
+                "confidence": review.get("confidence"),
+            }
+            for review in reviews
+        ],
+    }
+
+
 def update_status(
     status: dict[str, Any],
     route: str,
@@ -405,6 +455,7 @@ def update_status(
     human_gate_required: bool,
     tier: int,
     claim_strength: str,
+    reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     updated = dict(status)
     updated.setdefault("schema_version", SCHEMA_VERSION)
@@ -424,10 +475,12 @@ def update_status(
     updated["updated_at"] = transition_time
 
     if human_gate_required or route == "needs_human":
+        review_rows = reviews or []
         updated["requires_human"] = True
         updated["human_gate_opened_at"] = transition_time
         if not updated.get("human_gate_reason"):
             updated["human_gate_reason"] = reason
+        updated["human_gate"] = structured_human_gate(reason, status, review_rows, transition_time)
 
     result = dict(updated.get("result") or {})
     recommendation = {
@@ -618,7 +671,7 @@ def aggregate_reviews(task_dir: Path, dry_run: bool, record_review_start: bool =
         updated_status = apply_default_versions(dict(base_status))
         normalize_revision_fields(updated_status, tier)
     else:
-        updated_status = update_status(mutable_status, route, reason, human_gate_required, tier, aggregate_claim_strength)
+        updated_status = update_status(mutable_status, route, reason, human_gate_required, tier, aggregate_claim_strength, ordered_reviews)
 
     aggregate = {
         "schema_version": SCHEMA_VERSION,

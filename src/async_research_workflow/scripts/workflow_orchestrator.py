@@ -18,7 +18,7 @@ from typing import Any, Iterable, Sequence
 
 from async_research_workflow.console import snapshot as console_snapshot
 from async_research_workflow.resources import schema_path
-from async_research_workflow.scripts import check_schema_versions, task_lock, validate_transition
+from async_research_workflow.scripts import check_schema_versions, needs_human_policy, task_lock, validate_transition
 from async_research_workflow.scripts.aggregate_reviews import (
     CLAIM_STRENGTH_ORDER,
     REVIEWER_ROLES,
@@ -439,6 +439,12 @@ def human_gate_report(status: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def mode_policy_report(ops_dir: Path, task_dir: Path, status: dict[str, Any] | None) -> dict[str, Any] | None:
+    if status is None or status.get("status") != "needs_human":
+        return None
+    return needs_human_policy.evaluate_policy(ops_dir, task_dir, status)
+
+
 def revision_report(status: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "revision_count": None if status is None else status.get("revision_count"),
@@ -531,6 +537,7 @@ def next_legal_commands(
     lock_state: dict[str, Any],
     worker_output: dict[str, Any],
     reviews: dict[str, Any],
+    mode_policy: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     if status is None or not status_validation.get("valid") or not transition.get("valid"):
         return [
@@ -591,6 +598,36 @@ def next_legal_commands(
 
     commands: list[dict[str, Any]] = []
     if current_status == "needs_human" or status.get("requires_human") is True:
+        if isinstance(mode_policy, dict) and mode_policy.get("can_auto_resolve") is True:
+            commands.append(
+                command_hint(
+                    "Preview mode-policy auto-resolution",
+                    [
+                        "async-research",
+                        "decision",
+                        "auto-resolve-task",
+                        str(ops_dir),
+                        str(task_dir),
+                        "--dry-run",
+                    ],
+                    "current interaction mode allows this structured gate to resolve without interrupting the operator",
+                )
+            )
+            commands.append(
+                command_hint(
+                    "Apply mode-policy auto-resolution",
+                    [
+                        "async-research",
+                        "decision",
+                        "auto-resolve-task",
+                        str(ops_dir),
+                        str(task_dir),
+                    ],
+                    "write decisions.md and auto_decisions.md audit rows, validate the transition, then update status.json",
+                    priority=2,
+                )
+            )
+            return commands
         commands.append(
             command_hint(
                 "Preview human resolution",
@@ -821,6 +858,7 @@ def inferred_command_mutates(command: str) -> bool:
         ("async-research", "workflow", "worker-start"),
         ("async-research", "workflow", "worker-complete"),
         ("async-research", "decision", "resolve-task"),
+        ("async-research", "decision", "auto-resolve-task"),
         ("async-research", "revision", "request"),
         ("async-research", "accepted", "revalidation"),
         ("async-research", "surface", "update"),
@@ -931,13 +969,18 @@ def workflow_next_actions(ops_dir: Path, snapshot: dict[str, Any], schema_report
         report = task_status_report_for_row(human_task, ops_dir, stale_minutes)
         command = first_status_command(report)
         if command is not None:
+            policy = report.get("mode_policy") if isinstance(report, dict) and isinstance(report.get("mode_policy"), dict) else None
+            category = "mode_policy_auto_resolution" if policy and policy.get("can_auto_resolve") is True else "needs_human"
             actions.append(
                 workspace_action_from_command(
-                    "needs_human",
+                    category,
                     command,
                     20,
                     task=task_identity(human_task),
-                    details={"human_gate": report.get("human_gate") if isinstance(report, dict) else None},
+                    details={
+                        "human_gate": report.get("human_gate") if isinstance(report, dict) else None,
+                        "mode_policy": policy,
+                    },
                 )
             )
         else:
@@ -1246,6 +1289,26 @@ def route_next_step(decision: str | None, dry_run: bool, stopped: bool) -> str:
     return "workflow sequence completed"
 
 
+def auto_resolution_next_step(results: Sequence[dict[str, Any]], dry_run: bool, stopped: bool) -> str:
+    if stopped:
+        return "fix the failed subcommand or resolve the human gate explicitly before retrying workflow advance"
+    if dry_run:
+        return "rerun without --dry-run to write audited mode-policy decision rows and update task status"
+    for result in results:
+        if result.get("name") != "mode_policy_auto_resolve":
+            continue
+        stdout_json = result.get("stdout_json")
+        if isinstance(stdout_json, dict):
+            status = stdout_json.get("status")
+            if status == "ready_for_worker":
+                return "run async-research workflow worker-start for the resumed task"
+            if status == "paused":
+                return "inspect the paused task and continue with another safe workflow action"
+            if status == "rejected":
+                return "inspect rejected task evidence and continue with workflow next"
+    return "mode-policy auto-resolution completed"
+
+
 def check_steps(ops_dir: Path) -> list[WorkflowStep]:
     return [
         WorkflowStep(
@@ -1355,6 +1418,65 @@ def advance_steps(task_dir: Path, ops_dir: Path, dry_run: bool) -> list[Workflow
     ]
 
 
+def auto_resolution_steps(task_dir: Path, ops_dir: Path, dry_run: bool) -> list[WorkflowStep]:
+    auto_argv = ["auto-resolve-task", str(ops_dir), str(task_dir)]
+    auto_command = ["async-research", "decision", "auto-resolve-task", str(ops_dir), str(task_dir)]
+    health_argv = [str(ops_dir)]
+    health_command = ["async-research", "health", str(ops_dir)]
+    if dry_run:
+        auto_argv.append("--dry-run")
+        auto_command.append("--dry-run")
+        health_argv.append("--dry-run")
+        health_command.append("--dry-run")
+    return [
+        WorkflowStep(
+            name="schema_check",
+            command=["async-research", "schema-check", str(ops_dir)],
+            module_name="check_schema_versions",
+            argv=[str(ops_dir)],
+            mutates=False,
+        ),
+        WorkflowStep(
+            name="readiness_dry_run",
+            command=["async-research", "readiness", str(ops_dir), "--dry-run"],
+            module_name="autonomy_readiness_gate",
+            argv=[str(ops_dir), "--dry-run"],
+            mutates=False,
+            warning_only_exit_codes=frozenset({READINESS_WARNINGS}),
+        ),
+        WorkflowStep(
+            name="mode_policy_auto_resolve",
+            command=auto_command,
+            module_name="human_decision_log",
+            argv=auto_argv,
+            mutates=not dry_run,
+        ),
+        WorkflowStep(
+            name="surface_update",
+            command=["async-research", "surface", "update", str(ops_dir)],
+            module_name="human_review_surface",
+            argv=["update", str(ops_dir)],
+            mutates=True,
+            runs_in_dry_run=False,
+        ),
+        WorkflowStep(
+            name="surface_validate",
+            command=["async-research", "surface", "validate", str(ops_dir)],
+            module_name="human_review_surface",
+            argv=["validate", str(ops_dir)],
+            mutates=False,
+            runs_in_dry_run=False,
+        ),
+        WorkflowStep(
+            name="health",
+            command=health_command,
+            module_name="health_check",
+            argv=health_argv,
+            mutates=not dry_run,
+        ),
+    ]
+
+
 def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> dict[str, Any]:
     status, status_validation = load_status_for_report(task_dir)
     status_path = task_dir / "status.json"
@@ -1366,6 +1488,7 @@ def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> 
     revisions = revision_report(status)
     result = result_report(status)
     claim_strength_preflight = claim_strength_preflight_report(task_dir, status, reviews)
+    policy = mode_policy_report(ops_dir, task_dir, status)
     commands = next_legal_commands(
         task_dir,
         ops_dir,
@@ -1375,6 +1498,7 @@ def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> 
         lock_state,
         worker_output,
         reviews,
+        policy,
     )
     ok = bool(status_validation.get("valid")) and bool(transition.get("valid"))
     return {
@@ -1395,6 +1519,7 @@ def build_status_report(task_dir: Path, ops_dir: Path, stale_minutes: float) -> 
         "worker_output": worker_output,
         "reviews": reviews,
         "human_gate": human_gate,
+        "mode_policy": policy,
         "revisions": revisions,
         "result": result,
         "claim_strength_preflight": claim_strength_preflight,
@@ -1447,6 +1572,7 @@ def build_next_report(ops_dir: Path, stale_minutes: float) -> dict[str, Any]:
         "changed": False,
         "priority_order": [
             "malformed_state",
+            "mode_policy_auto_resolution",
             "needs_human",
             "active_lock",
             "stale_lock",
@@ -2019,6 +2145,28 @@ def run_advance(args: argparse.Namespace) -> int:
     status, _status_validation = load_status_for_report(task_dir)
     preflight_reviews = review_files_report(task_dir, status)
     claim_strength_preflight = claim_strength_preflight_report(task_dir, status, preflight_reviews)
+    if isinstance(status, dict) and status.get("status") == "needs_human":
+        steps = auto_resolution_steps(task_dir, ops_dir, args.dry_run)
+        results, failed = run_steps(steps, dry_run=args.dry_run)
+        ok = failed is None
+        partial_mutation = failed is not None and partial_mutation_occurred(results)
+        print_json(
+            {
+                "ok": ok,
+                "action": "workflow_auto_resolve_dry_run" if args.dry_run else "workflow_auto_resolved",
+                "ops_dir": str(ops_dir),
+                "task_dir": str(task_dir),
+                "dry_run": args.dry_run,
+                "plan": plan_summary(steps, dry_run=args.dry_run),
+                "steps": results,
+                "stopped": failed is not None,
+                "failed_step": None if failed is None else failed["name"],
+                "partial_mutation": partial_mutation,
+                "claim_strength_preflight": claim_strength_preflight,
+                "next_step": auto_resolution_next_step(results, args.dry_run, failed is not None),
+            }
+        )
+        return SUCCESS if failed is None else int(failed["exit_code"] or VALIDATION_FAILED)
     steps = advance_steps(task_dir, ops_dir, args.dry_run)
     results, failed = run_steps(steps, dry_run=args.dry_run)
     decision = aggregate_decision_from(results)

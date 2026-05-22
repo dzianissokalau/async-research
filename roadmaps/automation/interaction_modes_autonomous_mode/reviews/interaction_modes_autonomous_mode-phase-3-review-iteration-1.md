@@ -14,16 +14,15 @@ Verdict: delivered
   decision, target status, reason, confidence, actor, and related artifacts.
   The write path appends the human-compatible `decisions.md` row and the
   auto-decision row before validating and writing task status
-  (`src/async_research_workflow/scripts/human_decision_log.py:290`,
-  `src/async_research_workflow/scripts/human_decision_log.py:415`).
+  (`async-research decision auto-resolve-task` dry-run and write behavior).
 - Transition validation now rejects mode-policy `needs_human` resolutions when
   the matching auto-decision audit row is missing or incomplete
   (`src/async_research_workflow/scripts/validate_transition.py:195`).
 - Operators can distinguish human approvals from framework policy decisions in
   summary output through framework-policy counts, auto-decision counts, mode
   groupings, policy groupings, and audit-completeness data
-  (`src/async_research_workflow/scripts/human_decision_log.py:455`,
-  `src/async_research_workflow/scripts/human_decision_log.py:500`).
+  (`async-research decision summarize` framework-policy and
+  audit-completeness output).
 
 ## Missing Tests Or Checks
 

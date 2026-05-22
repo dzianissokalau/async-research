@@ -287,3 +287,65 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-3`
 ### Next Action
 
 - Next automation run should deliver Phase 4 - Workflow Integration.
+
+## Phase 4 - 2026-05-22 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-4`
+
+### Scope
+
+- Wire interaction modes into readiness, health, workflow next/advance, review
+  aggregation, and gate preservation.
+- Preserve hard stops, publication approval boundaries, existing manual
+  behavior, and audit requirements.
+
+### Changes
+
+- Added mode-policy evaluation to readiness and health so structured
+  `needs_human` gates are classified as auto-resolvable warnings or human
+  blockers under the current workspace mode.
+- Updated `workflow status` and `workflow next` to recommend
+  `decision auto-resolve-task` when policy allows, while leaving manual and
+  blocked gates on explicit human-resolution commands.
+- Updated `workflow advance` so approved `needs_human` gates run the audited
+  auto-resolution path after schema/readiness gates and before surface/health
+  refreshes.
+- Updated review aggregation to write structured human gates for review
+  disagreement, revision-limit, and publication/high-stakes acceptance routes.
+- Added regression coverage for manual vs autonomous recommendation changes,
+  audited workflow auto-resolution, publication hard-stop preservation, and
+  structured review-disagreement gates.
+- Cleaned a historical Phase 3 review artifact to use public CLI wording for
+  the doc-reference gate.
+- Advanced the roadmap current phase to Phase 5 after delivered review.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 815 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- Codex app automation config still references the stale `not_started` roadmap
+  path and lacks the installed-skill hard-stop guard; config edits remain
+  outside approved scope.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 4 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 5 - Dashboard And Operator UX.
