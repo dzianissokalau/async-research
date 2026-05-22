@@ -2256,7 +2256,7 @@ def register_decision_commands(subparsers) -> None:
         subparsers,
         "decision",
         help="Append, check, resolve, auto-resolve, or summarize decisions.",
-        description="Manage the append-only decisions.md audit trail for human and mode-policy gates.",
+        description="Manage append-only decisions.md and auto_decisions.md audit trails for human and mode-policy gates.",
     )
     decision_sub = decision.add_subparsers(dest="decision_command", required=True)
     append = add_command(
@@ -2298,7 +2298,8 @@ def register_decision_commands(subparsers) -> None:
         help="Resolve a needs_human task when mode policy allows it.",
         description=(
             "Evaluate the current interaction mode and structured human_gate, then resolve the task with "
-            "a framework-policy decision row only when the route is allowed. Use --dry-run to explain the policy result without writing."
+            "framework-policy decisions.md and auto_decisions.md rows only when the route is allowed. "
+            "Use --dry-run to explain the policy result without writing."
         ),
     )
     add_required_ops(auto_resolve)
@@ -2310,8 +2311,8 @@ def register_decision_commands(subparsers) -> None:
     summarize = add_command(
         decision_sub,
         "summarize",
-        help="Summarize human decisions for calibration.",
-        description="Summarize decision rows by decision, reason, and approver, optionally writing Markdown.",
+        help="Summarize human and auto decisions for calibration.",
+        description="Summarize human and auto-decision rows by decision, reason, actor, mode, and policy, optionally writing Markdown.",
     )
     add_common_ops(summarize)
     summarize.add_argument("--month", help="Only include decision rows whose date starts with YYYY-MM.")

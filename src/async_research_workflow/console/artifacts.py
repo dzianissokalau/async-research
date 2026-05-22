@@ -22,6 +22,7 @@ ROOT_MARKDOWN_FILES = {
     "README.md",
     "accepted_outputs_index.md",
     "accepted_memory.md",
+    "auto_decisions.md",
     "data_source_audit.md",
     "decisions.md",
     "daily_status.md",

@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, Iterable, Optional, Set
 
+from async_research_workflow.scripts.decision_log import has_auto_decision
 from async_research_workflow.scripts.decision_log import has_decision
 
 
@@ -81,6 +82,18 @@ HUMAN_RESOLUTION_DECISIONS = {
     "approve_data_use",
     "override",
 }
+AUTO_RESOLUTION_REQUIRED_FIELDS = {
+    "policy_version",
+    "mode",
+    "gate_category",
+    "policy_action",
+    "decision",
+    "target_status",
+    "actor",
+    "reason",
+    "confidence",
+    "applied_at",
+}
 
 
 def resolve_status_path(path: Path) -> Path:
@@ -105,8 +118,19 @@ def infer_decisions_path(status_path: Path) -> Optional[Path]:
     return None
 
 
+def infer_auto_decisions_path(decision_log_path: Optional[Path]) -> Optional[Path]:
+    if decision_log_path is None:
+        return None
+    return decision_log_path.with_name("auto_decisions.md")
+
+
 def human_decision_required(previous: Any, status: Any) -> bool:
     return previous == "needs_human" and status in ALLOWED.get("needs_human", set())
+
+
+def auto_decision_required(payload: Dict[str, Any]) -> bool:
+    reason = payload.get("last_transition_reason")
+    return isinstance(reason, str) and reason.startswith("mode_policy_auto_")
 
 
 def validate_payload(
@@ -168,6 +192,45 @@ def validate_payload(
             result["reason"] = "missing_human_decision"
             result["required_decisions"] = sorted(HUMAN_RESOLUTION_DECISIONS)
             return INVALID_TRANSITION, result
+        if auto_decision_required(payload):
+            resolution = payload.get("auto_resolution")
+            result["auto_decision_required"] = True
+            auto_decisions_path = infer_auto_decisions_path(decisions_path)
+            result["auto_decisions_path"] = str(auto_decisions_path) if auto_decisions_path is not None else None
+            if not isinstance(resolution, dict):
+                result["reason"] = "missing_auto_resolution"
+                return MALFORMED, result
+            missing = sorted(
+                field
+                for field in AUTO_RESOLUTION_REQUIRED_FIELDS
+                if not str(resolution.get(field, "") or "").strip()
+            )
+            if missing:
+                result["reason"] = "incomplete_auto_resolution"
+                result["missing_fields"] = missing
+                return MALFORMED, result
+            if auto_decisions_path is None:
+                result["reason"] = "missing_auto_decision_log_path"
+                return MALFORMED, result
+            if not has_auto_decision(
+                auto_decisions_path,
+                task_id,
+                policy_version=str(resolution.get("policy_version")),
+                decision=str(resolution.get("decision")),
+                target_status=str(resolution.get("target_status")),
+                actor=str(resolution.get("actor")),
+                mode=str(resolution.get("mode")),
+            ):
+                result["reason"] = "missing_auto_decision"
+                result["required_auto_decision"] = {
+                    "item_id": task_id,
+                    "policy_version": resolution.get("policy_version"),
+                    "decision": resolution.get("decision"),
+                    "target_status": resolution.get("target_status"),
+                    "actor": resolution.get("actor"),
+                    "mode": resolution.get("mode"),
+                }
+                return INVALID_TRANSITION, result
 
     result.update({"ok": True, "reason": "valid_transition"})
     return SUCCESS, result

@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import decision_log
 from async_research_workflow.scripts import validate_transition
 
 
@@ -148,14 +149,53 @@ class NeedsHumanPolicyTests(unittest.TestCase):
             self.assertEqual(cli.SUCCESS, code, payload)
             self.assertEqual("auto_resolved", payload["action"])
             self.assertEqual("async-research-mode-policy", payload["decision"]["approver"])
+            self.assertEqual(str(ops_dir / "auto_decisions.md"), payload["auto_decisions"])
+            self.assertEqual("autonomous", payload["auto_decision"]["mode"])
+            self.assertEqual("mode_needs_human_policy_v1.0", payload["auto_decision"]["policy_version"])
+            self.assertEqual("ready_for_worker", payload["auto_decision"]["target_status"])
+            self.assertEqual("high", payload["auto_decision"]["confidence"])
             self.assertIn("mode_needs_human_policy_v1.0", payload["decision"]["reason"])
             status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
             self.assertEqual("ready_for_worker", status["status"])
             self.assertFalse(status["requires_human"])
             self.assertEqual("mode_policy_auto_bounded_revision", status["last_transition_reason"])
             self.assertEqual("quality_uncertainty", status["auto_resolution"]["gate_category"])
+            self.assertEqual("high", status["auto_resolution"]["confidence"])
+            auto_rows = decision_log.read_auto_decisions(ops_dir / "auto_decisions.md")
+            self.assertEqual(1, len(auto_rows))
+            self.assertEqual("TASK-9002", auto_rows[0]["item_id"])
+            self.assertEqual("async-research-mode-policy", auto_rows[0]["actor"])
+            self.assertIn(str(task_dir / "status.json"), auto_rows[0]["related_artifacts"])
             transition_code, transition = validate_transition.validate_payload(status, decisions_path=ops_dir / "decisions.md")
             self.assertEqual(validate_transition.SUCCESS, transition_code, transition)
+
+            summary_code, summary = run_cli_json(["decision", "summarize", ops_dir, "--month", "2026-05"])
+            self.assertEqual(cli.SUCCESS, summary_code, summary)
+            self.assertEqual(1, summary["framework_policy_decision_count"])
+            self.assertEqual(1, summary["auto_decision_count"])
+            self.assertEqual({"autonomous": 1}, summary["by_mode"])
+            self.assertTrue(summary["audit_completeness"]["ok"])
+
+    def test_auto_resolution_transition_requires_matching_auto_decision_audit_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            run_cli_json(["mode", "set", ops_dir, "--mode", "autonomous"])
+            task_dir = write_needs_human_task(
+                ops_dir,
+                "TASK-9004",
+                trigger="high_confidence_weak_evidence",
+                gate_category="quality_uncertainty",
+                available_decisions=["request_revision", "pause", "reject"],
+            )
+            code, payload = run_cli_json(["decision", "auto-resolve-task", ops_dir, task_dir, "--date", NOW])
+            self.assertEqual(cli.SUCCESS, code, payload)
+            (ops_dir / "auto_decisions.md").unlink()
+
+            status = json.loads((task_dir / "status.json").read_text(encoding="utf-8"))
+            transition_code, transition = validate_transition.validate_payload(status, decisions_path=ops_dir / "decisions.md")
+
+            self.assertEqual(validate_transition.INVALID_TRANSITION, transition_code, transition)
+            self.assertEqual("missing_auto_decision", transition["reason"])
 
     def test_autonomous_mode_does_not_auto_resolve_hard_stop_category(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

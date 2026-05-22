@@ -227,3 +227,63 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-2`
 ### Next Action
 
 - Next automation run should deliver Phase 3 - Auto-Decision Audit Trail.
+
+## Phase 3 - 2026-05-22 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-3`
+
+### Scope
+
+- Add durable, append-only audit rows for framework-made auto decisions.
+- Link auto decisions to task status, interaction mode, policy version, actor,
+  confidence, target status, reason, and artifacts.
+- Add summary support that distinguishes human approvals from framework policy
+  decisions and reports auto-audit completeness.
+- Preserve Phase 4 workflow-wide mode invocation for the next phase.
+
+### Changes
+
+- Added `research_ops/auto_decisions.md` starter ledgers for packaged starter
+  workspaces.
+- Extended decision-log helpers with auto-decision row parsing, appending,
+  matching, and completeness checks.
+- Updated `async-research decision auto-resolve-task` to dry-run and write a
+  complete auto-decision row alongside the existing framework-policy
+  `decisions.md` row before status mutation.
+- Updated transition validation so `mode_policy_auto_*` `needs_human`
+  resolutions require a matching complete `auto_decisions.md` row.
+- Updated `async-research decision summarize` to include human/framework counts,
+  auto-decision counts, mode/policy/status groupings, and audit-completeness
+  output.
+- Updated docs, CLI help, console artifact allow-listing, packaged resource
+  coverage, and mode-policy tests.
+- Advanced the roadmap current phase to Phase 4 after delivered review.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 811 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- Workflow-wide automatic use of mode policy remains Phase 4 scope.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 3 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 4 - Workflow Integration.

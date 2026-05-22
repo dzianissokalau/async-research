@@ -1,15 +1,15 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 3 - Auto-Decision Audit Trail",
+  "current_phase": "Phase 4 - Workflow Integration",
   "branch": null,
   "status": "ready_for_next_run",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "Phase 2 - Mode-Aware `needs_human` Policy",
+    "phase": "Phase 3 - Auto-Decision Audit Trail",
     "status": "passed",
-    "verified_at": "2026-05-22T09:19:39Z",
+    "verified_at": "2026-05-22T10:16:01Z",
     "commands": [
       {
         "command": "git diff --check",
@@ -18,12 +18,12 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "summary": "Ran 17 tests in 0.317s"
+        "summary": "Ran 17 tests in 0.294s"
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "summary": "Ran 810 tests in 24.267s"
+        "summary": "Ran 811 tests in 23.745s"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -32,10 +32,10 @@
       }
     ]
   },
-  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-2-review-iteration-1.md",
+  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-3-review-iteration-1.md",
   "last_review_verdict": "delivered",
-  "last_delivered_phase": "Phase 2 - Mode-Aware `needs_human` Policy",
-  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-2",
+  "last_delivered_phase": "Phase 3 - Auto-Decision Audit Trail",
+  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-3",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
@@ -46,5 +46,5 @@
   "automation_status": "PAUSED",
   "model": "gpt-5.5",
   "reasoning_effort": "xhigh",
-  "updated_at": "2026-05-22T09:19:39Z"
+  "updated_at": "2026-05-22T10:16:01Z"
 }

@@ -14,12 +14,15 @@ from typing import Any, Iterable, Optional
 from async_research_workflow.resources import schema_path
 from async_research_workflow.scripts.decision_log import (
     DECISIONS,
+    append_auto_decision,
     append_decision,
+    auto_decision_row_errors,
     has_decision,
     normalize_related_artifacts,
+    read_auto_decisions,
     read_decisions,
 )
-from async_research_workflow.scripts.needs_human_policy import evaluate_policy
+from async_research_workflow.scripts.needs_human_policy import POLICY_ACTOR, evaluate_policy
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 from async_research_workflow.scripts.validate_transition import ALLOWED, validate_payload
 from async_research_workflow.scripts.version_metadata import apply_default_versions
@@ -77,6 +80,10 @@ def print_json(payload: dict[str, Any]) -> None:
 
 def decisions_path(ops_dir: Path) -> Path:
     return ops_dir / "decisions.md"
+
+
+def auto_decisions_path(ops_dir: Path) -> Path:
+    return ops_dir / "auto_decisions.md"
 
 
 def resolve_task_dir(path: Path) -> Path:
@@ -280,9 +287,37 @@ def auto_resolution_row(args: argparse.Namespace, resolution: dict[str, Any], it
     }
 
 
+def auto_decision_audit_row(
+    args: argparse.Namespace,
+    resolution: dict[str, Any],
+    item_id: str,
+    target_status: str,
+    decision_log_path: Path,
+) -> dict[str, Any]:
+    related_artifacts = list(args.related_artifact or [])
+    task_dir = Path(str(resolution.get("task_dir") or ""))
+    if task_dir:
+        related_artifacts.append(str(task_dir / "status.json"))
+    related_artifacts.append(str(args.ops_dir / "interaction_mode.json"))
+    related_artifacts.append(str(decision_log_path))
+    return {
+        "date": args.date or iso_now(),
+        "item_id": item_id,
+        "mode": resolution["mode"],
+        "policy_version": resolution["policy_version"],
+        "decision": resolution["decision"],
+        "target_status": target_status,
+        "reason": resolution["audit_reason"],
+        "confidence": resolution.get("confidence", "high"),
+        "actor": resolution["actor"],
+        "related_artifacts": normalize_related_artifacts(related_artifacts),
+    }
+
+
 def run_auto_resolve_task(args: argparse.Namespace) -> int:
     task_dir = resolve_task_dir(args.task_dir)
     path = decisions_path(args.ops_dir)
+    auto_path = auto_decisions_path(args.ops_dir)
     try:
         status = load_status(task_dir)
     except ValueError as exc:
@@ -321,12 +356,32 @@ def run_auto_resolve_task(args: argparse.Namespace) -> int:
         "target_status": new_status,
         "actor": resolution["actor"],
         "reason": resolution["audit_reason"],
+        "confidence": resolution.get("confidence", "high"),
+        "related_artifacts": normalize_related_artifacts(
+            [str(task_dir / "status.json"), str(args.ops_dir / "interaction_mode.json")]
+        ),
+        "auto_decision_log": str(auto_path),
         "applied_at": updated["updated_at"],
     }
     if new_status in {"ready_for_worker", "paused", "rejected"}:
         updated["human_gate_reason"] = None
 
     row = auto_resolution_row(args, resolution, task_id)
+    row["date"] = updated["updated_at"]
+    auto_row = auto_decision_audit_row(args, resolution, task_id, new_status, path)
+    auto_row["date"] = updated["updated_at"]
+    auto_errors = auto_decision_row_errors(auto_row)
+    if auto_errors:
+        print_json(
+            {
+                "ok": False,
+                "reason": "auto_decision_audit_row_invalid",
+                "errors": auto_errors,
+                "task_dir": str(task_dir),
+                "resolution": resolution,
+            }
+        )
+        return VALIDATION_FAILED
     schema_code, schema_errors = validate_status_schema(updated)
     if schema_code != SUCCESS:
         print_json(
@@ -348,7 +403,9 @@ def run_auto_resolve_task(args: argparse.Namespace) -> int:
         "previous_status": status.get("status"),
         "status": new_status,
         "decisions": str(path),
+        "auto_decisions": str(auto_path),
         "decision": row,
+        "auto_decision": auto_row,
         "resolution": resolution,
     }
     if args.dry_run:
@@ -356,6 +413,7 @@ def run_auto_resolve_task(args: argparse.Namespace) -> int:
         return SUCCESS
 
     append_decision(path, row)
+    append_auto_decision(auto_path, auto_row)
     code, errors = validate_status(updated, path)
     if code != SUCCESS:
         print_json(
@@ -380,22 +438,92 @@ def month_matches(value: str, month: Optional[str]) -> bool:
     return value.startswith(month)
 
 
-def summarize_rows(rows: list[dict[str, str]]) -> dict[str, Any]:
+def count_by(rows: list[dict[str, str]], field: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(field, "unknown") or "unknown"
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def actor_type(row: dict[str, str]) -> str:
+    if row.get("approver") == POLICY_ACTOR:
+        return "framework_policy"
+    return "human"
+
+
+def audit_completeness(decision_rows: list[dict[str, str]], auto_rows: list[dict[str, str]]) -> dict[str, Any]:
+    errors: list[dict[str, Any]] = []
+    framework_rows = [row for row in decision_rows if row.get("approver") == POLICY_ACTOR]
+    for row in framework_rows:
+        matches = [
+            auto_row
+            for auto_row in auto_rows
+            if auto_row.get("item_id") == row.get("item_id") and auto_row.get("decision") == row.get("decision")
+        ]
+        if not matches:
+            errors.append(
+                {
+                    "item_id": row.get("item_id"),
+                    "decision": row.get("decision"),
+                    "reason": "missing_auto_decision_row",
+                }
+            )
+            continue
+        for index, auto_row in enumerate(matches):
+            row_errors = auto_decision_row_errors(auto_row)
+            if row_errors:
+                errors.append(
+                    {
+                        "item_id": auto_row.get("item_id"),
+                        "decision": auto_row.get("decision"),
+                        "auto_row_index": index,
+                        "reason": "incomplete_auto_decision_row",
+                        "errors": row_errors,
+                    }
+                )
+    for index, auto_row in enumerate(auto_rows):
+        row_errors = auto_decision_row_errors(auto_row)
+        if row_errors:
+            errors.append(
+                {
+                    "item_id": auto_row.get("item_id"),
+                    "decision": auto_row.get("decision"),
+                    "auto_row_index": index,
+                    "reason": "incomplete_auto_decision_row",
+                    "errors": row_errors,
+                }
+            )
+    return {"ok": not errors, "errors": errors}
+
+
+def summarize_rows(rows: list[dict[str, str]], auto_rows: list[dict[str, str]]) -> dict[str, Any]:
     by_decision: dict[str, int] = {}
     by_reason: dict[str, int] = {}
     by_approver: dict[str, int] = {}
+    by_actor_type: dict[str, int] = {}
     for row in rows:
         decision = row.get("decision", "unknown") or "unknown"
         reason = row.get("reason", "unknown") or "unknown"
         approver = row.get("approver", "unknown") or "unknown"
+        actor = actor_type(row)
         by_decision[decision] = by_decision.get(decision, 0) + 1
         by_reason[reason] = by_reason.get(reason, 0) + 1
         by_approver[approver] = by_approver.get(approver, 0) + 1
+        by_actor_type[actor] = by_actor_type.get(actor, 0) + 1
     return {
         "decision_count": len(rows),
+        "human_decision_count": by_actor_type.get("human", 0),
+        "framework_policy_decision_count": by_actor_type.get("framework_policy", 0),
+        "auto_decision_count": len(auto_rows),
         "by_decision": dict(sorted(by_decision.items())),
         "by_reason": dict(sorted(by_reason.items())),
         "by_approver": dict(sorted(by_approver.items())),
+        "by_actor_type": dict(sorted(by_actor_type.items())),
+        "by_mode": count_by(auto_rows, "mode"),
+        "by_policy_version": count_by(auto_rows, "policy_version"),
+        "by_target_status": count_by(auto_rows, "target_status"),
+        "audit_completeness": audit_completeness(rows, auto_rows),
     }
 
 
@@ -403,7 +531,9 @@ def markdown_summary(report: dict[str, Any]) -> str:
     lines = [
         f"# Human Decision Summary: {report['month']}",
         "",
-        f"Decision rows: {report['decision_count']}",
+        f"Human decision rows: {report['human_decision_count']}",
+        f"Framework policy rows: {report['framework_policy_decision_count']}",
+        f"Auto-decision audit rows: {report['auto_decision_count']}",
         "",
         "## By Decision",
         "",
@@ -416,6 +546,13 @@ def markdown_summary(report: dict[str, Any]) -> str:
     lines.extend(["", "## By Approver", ""])
     for key, value in report["by_approver"].items():
         lines.append(f"- {key}: {value}")
+    lines.extend(["", "## By Mode", ""])
+    for key, value in report["by_mode"].items():
+        lines.append(f"- {key}: {value}")
+    lines.extend(["", "## Auto Audit Completeness", ""])
+    lines.append(f"- ok: {str(report['audit_completeness']['ok']).lower()}")
+    for error in report["audit_completeness"]["errors"]:
+        lines.append(f"- {error.get('item_id', 'unknown')}: {error.get('reason', 'unknown')}")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -428,12 +565,15 @@ def atomic_write_text(path: Path, text: str) -> None:
 
 def run_summarize(args: argparse.Namespace) -> int:
     path = decisions_path(args.ops_dir)
+    auto_path = auto_decisions_path(args.ops_dir)
     rows = [row for row in read_decisions(path) if month_matches(row.get("date", ""), args.month)]
+    auto_rows = [row for row in read_auto_decisions(auto_path) if month_matches(row.get("date", ""), args.month)]
     report = {
         "ok": True,
         "decisions": str(path),
+        "auto_decisions": str(auto_path),
         "month": args.month or "all",
-        **summarize_rows(rows),
+        **summarize_rows(rows, auto_rows),
     }
     if args.output:
         atomic_write_text(args.output, markdown_summary(report))
@@ -451,7 +591,7 @@ def add_decision_args(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Append and inspect human decisions.")
+    parser = argparse.ArgumentParser(description="Append and inspect human and auto-decision audit rows.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     append = subparsers.add_parser("append", help="Append a structured decision row.")
@@ -472,14 +612,17 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     resolve.add_argument("--status", choices=sorted(ALLOWED["needs_human"]))
     resolve.add_argument("--dry-run", action="store_true")
 
-    auto_resolve = subparsers.add_parser("auto-resolve-task", help="Resolve a needs_human task when interaction-mode policy allows it.")
+    auto_resolve = subparsers.add_parser(
+        "auto-resolve-task",
+        help="Resolve a needs_human task when interaction-mode policy allows it and write auto_decisions.md.",
+    )
     auto_resolve.add_argument("ops_dir", type=Path)
     auto_resolve.add_argument("task_dir", type=Path)
     auto_resolve.add_argument("--related-artifact", action="append", default=[])
     auto_resolve.add_argument("--date")
     auto_resolve.add_argument("--dry-run", action="store_true")
 
-    summarize = subparsers.add_parser("summarize", help="Summarize decision rows for calibration.")
+    summarize = subparsers.add_parser("summarize", help="Summarize human and auto-decision rows for calibration.")
     summarize.add_argument("ops_dir", type=Path)
     summarize.add_argument("--month")
     summarize.add_argument("--output", type=Path)

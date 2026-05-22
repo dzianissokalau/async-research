@@ -9,6 +9,19 @@ from typing import Any, Iterable, Optional
 
 
 HEADER = ["date", "item_id", "decision", "reason", "approver", "related_artifacts"]
+AUTO_DECISION_HEADER = [
+    "date",
+    "item_id",
+    "mode",
+    "policy_version",
+    "decision",
+    "target_status",
+    "reason",
+    "confidence",
+    "actor",
+    "related_artifacts",
+]
+AUTO_DECISION_REQUIRED_FIELDS = tuple(AUTO_DECISION_HEADER)
 STARTER_LEGACY_HEADER = [
     "decision_id",
     "item_id",
@@ -128,6 +141,19 @@ def active_decision_header(path: Path) -> tuple[str, ...] | None:
     return None
 
 
+def active_auto_decision_header(path: Path) -> tuple[str, ...] | None:
+    if not path.exists():
+        return None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line.startswith("|") or "---" in line:
+            continue
+        normalized = normalize_header(split_markdown_row(line))
+        if normalized == tuple(AUTO_DECISION_HEADER):
+            return normalized
+    return None
+
+
 def render_decision_row(row: dict[str, Any], active_header: tuple[str, ...]) -> str:
     mapping = HEADER_MAPS.get(active_header)
     if mapping is None:
@@ -143,12 +169,27 @@ def render_decision_row(row: dict[str, Any], active_header: tuple[str, ...]) -> 
     return "| " + " | ".join(markdown_escape(value) for value in values) + " |\n"
 
 
+def render_auto_decision_row(row: dict[str, Any]) -> str:
+    values = [row.get(column, "") for column in AUTO_DECISION_HEADER]
+    return "| " + " | ".join(markdown_escape(value) for value in values) + " |\n"
+
+
 def render_decision_header(active_header: tuple[str, ...]) -> str:
     return (
         "| "
         + " | ".join(active_header)
         + " |\n| "
         + " | ".join("---" for _ in active_header)
+        + " |\n"
+    )
+
+
+def render_auto_decision_header() -> str:
+    return (
+        "| "
+        + " | ".join(AUTO_DECISION_HEADER)
+        + " |\n| "
+        + " | ".join("---" for _ in AUTO_DECISION_HEADER)
         + " |\n"
     )
 
@@ -175,6 +216,28 @@ def read_decisions(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+def read_auto_decisions(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, str]] = []
+    active_header: tuple[str, ...] | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line.startswith("|") or "---" in line:
+            continue
+        cells = split_markdown_row(line)
+        normalized = normalize_header(cells)
+        if normalized == tuple(AUTO_DECISION_HEADER):
+            active_header = normalized
+            continue
+        if active_header != tuple(AUTO_DECISION_HEADER) or len(cells) != len(AUTO_DECISION_HEADER):
+            continue
+        row = {key: markdown_unescape(value) for key, value in zip(AUTO_DECISION_HEADER, cells)}
+        if row.get("item_id") and row.get("decision"):
+            rows.append(row)
+    return rows
+
+
 def has_decision(
     path: Path,
     item_id: str,
@@ -186,6 +249,44 @@ def has_decision(
             continue
         if allowed is None or row.get("decision") in allowed:
             return True
+    return False
+
+
+def auto_decision_row_errors(row: dict[str, Any]) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    for field in AUTO_DECISION_REQUIRED_FIELDS:
+        value = str(row.get(field, "") or "").strip()
+        if not value or value == "none":
+            errors.append({"field": field, "reason": "required_field_missing"})
+    return errors
+
+
+def has_auto_decision(
+    path: Path,
+    item_id: str,
+    *,
+    policy_version: str | None = None,
+    decision: str | None = None,
+    target_status: str | None = None,
+    actor: str | None = None,
+    mode: str | None = None,
+) -> bool:
+    for row in read_auto_decisions(path):
+        if auto_decision_row_errors(row):
+            continue
+        if row.get("item_id") != item_id:
+            continue
+        if policy_version is not None and row.get("policy_version") != policy_version:
+            continue
+        if decision is not None and row.get("decision") != decision:
+            continue
+        if target_status is not None and row.get("target_status") != target_status:
+            continue
+        if actor is not None and row.get("actor") != actor:
+            continue
+        if mode is not None and row.get("mode") != mode:
+            continue
+        return True
     return False
 
 
@@ -206,6 +307,25 @@ def append_decision(path: Path, row: dict[str, Any]) -> None:
             handle.write(prefix)
         if needs_header:
             handle.write(render_decision_header(header))
+        handle.write(line)
+
+
+def append_auto_decision(path: Path, row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    active_header = active_auto_decision_header(path)
+    needs_header = active_header is None
+    prefix = ""
+    if path.exists() and path.stat().st_size > 0:
+        text = path.read_text(encoding="utf-8")
+        if text and not text.endswith("\n"):
+            prefix = "\n"
+
+    line = render_auto_decision_row(row)
+    with path.open("a", encoding="utf-8") as handle:
+        if prefix:
+            handle.write(prefix)
+        if needs_header:
+            handle.write(render_auto_decision_header())
         handle.write(line)
 
 

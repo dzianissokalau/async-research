@@ -1,9 +1,9 @@
 # Interaction Modes And Autonomous Mode Roadmap
 
 Status: In Progress
-Current phase: Phase 3 - Auto-Decision Audit Trail
+Current phase: Phase 4 - Workflow Integration
 Last updated: 2026-05-22
-Next action: Expand auto-decision audit rows with policy, reason, actor, confidence, artifacts, and summary support
+Next action: Wire interaction modes into readiness, workflow next/advance, review aggregation, idea catalog, and deliverable gates
 Blocked by: None
 
 Created: 2026-05-21
@@ -69,7 +69,7 @@ approved sources, reject unsafe outputs, or defer publication claims.
 | 0 | Complete | P0 | Mode contract and authority model | Define modes, authority boundaries, interrupt classes, and default behavior. | A future implementer can tell exactly which decisions each mode may make. |
 | 1 | Complete | P0 | Workspace mode config | Add a durable `research_ops` mode config, validators, and CLI visibility. | Operators and LLMs can inspect and set the current mode safely. |
 | 2 | Complete | P0 | Mode-aware `needs_human` policy | Split gates by category and map each category to automatic or human resolution by mode. | Routine `needs_human` states stop blocking autonomous runs. |
-| 3 | Not Started | P0 | Auto-decision audit trail | Record framework-made decisions with policy, reason, confidence, actor, and artifacts. | Autonomy remains inspectable without requiring approval. |
+| 3 | Complete | P0 | Auto-decision audit trail | Record framework-made decisions with policy, reason, confidence, actor, and artifacts. | Autonomy remains inspectable without requiring approval. |
 | 4 | Not Started | P0 | Workflow integration | Wire modes into readiness, workflow next/advance, review aggregation, idea catalog, and deliverable gates. | The main workflow can advance under mode policy end to end. |
 | 5 | Not Started | P1 | Dashboard and operator UX | Show mode, interrupt policy, auto-decisions, and progression-flow effects in the console. | Users can understand what the framework is allowed to do and what it already did. |
 | 6 | Not Started | P1 | Tests and autonomous simulations | Add mode contract tests, fixture gates, and zero-human loop simulations. | Autonomous mode is proven by tests, not just configuration. |

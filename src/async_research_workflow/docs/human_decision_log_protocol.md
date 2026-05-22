@@ -76,7 +76,11 @@ The auto resolver reads `interaction_mode.json` and the structured
 `human_gate.gate_category`. It preserves manual-compatible behavior in
 `manual` and `guided`, blocks hard-stop categories, and only writes a clearly
 marked framework-policy decision row when a routine gate can be resolved
-through the existing transition validator.
+through the existing transition validator. Write mode also appends
+`research_ops/auto_decisions.md` with the mode, policy version, target status,
+confidence, actor, reason, and linked artifacts. The transition validator
+rejects mode-policy status changes when that auto-decision audit row is
+missing or incomplete.
 
 Check whether a decision row exists:
 
@@ -117,10 +121,12 @@ rejected
 ```
 
 If no matching decision row exists for the task ID, transition validation fails with `missing_human_decision`.
+If the transition reason starts with `mode_policy_auto_`, validation also
+requires a matching complete `research_ops/auto_decisions.md` row.
 
 ## Monthly Calibration
 
-Summarize human gate reasons:
+Summarize human gate reasons and framework-made auto decisions:
 
 ```bash
 async-research decision summarize \

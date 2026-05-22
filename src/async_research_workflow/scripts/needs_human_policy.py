@@ -377,6 +377,7 @@ def evaluate_policy(ops_dir: Path, task_dir: Path, status: dict[str, Any]) -> di
         "instruction": action["instruction"],
         "required_auto_decision": required_auto_decision,
         "actor": POLICY_ACTOR,
+        "confidence": "high",
         "audit_reason": audit_reason,
         "allowed_transition": "needs_human -> " + target_status,
         **base,
