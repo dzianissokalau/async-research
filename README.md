@@ -176,6 +176,8 @@ live:
 ```bash
 async-research init research_ops
 async-research schema-check research_ops
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research surface update research_ops
@@ -185,6 +187,16 @@ async-research surface validate research_ops
 The default starter is generic and domain-neutral. It creates the operational
 files and empty task/review/discovery folders, but no live seed tasks and no
 precomputed health report.
+
+New starter workspaces include `interaction_mode.json` in `supervised` mode so
+routine, policy-backed gates can be resolved without repeated operator
+interruptions. Before the first worker loop, decide how autonomous this run
+should be: keep `supervised` for normal research operations, set `manual` when
+you want explicit approval for most transitions, or choose `autonomous` /
+`publication_guarded` only for bounded internal runs with the publication
+boundary understood. Existing workspaces without `interaction_mode.json` keep
+manual-compatible behavior until you explicitly run
+`async-research mode set research_ops --mode <mode>`.
 
 To initialize the real-estate worked example instead:
 
@@ -248,6 +260,7 @@ research_ops/
   result_acceptance_policy.md
   escalation_policy.md
   cost_ledger.csv
+  interaction_mode.json
   metrics_baseline.json
   metrics_history.jsonl
   revalidation_schedule.md

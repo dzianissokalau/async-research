@@ -36,8 +36,11 @@ states.
 
 ## Default Behavior
 
-In `guided` mode, stop before writes and present the exact command that would be
-run. In `bounded_autonomous` mode, still stop at every mandatory stop condition.
+New starter workspaces default to `supervised` interaction mode, but existing
+workspaces with missing or invalid mode config remain manual-compatible until
+an explicit mode set succeeds. In `guided` operator mode, stop before writes and
+present the exact command that would be run. In `bounded_autonomous` operator
+mode, still stop at every mandatory stop condition.
 
 ## Role And Autonomy Gates
 

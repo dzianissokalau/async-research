@@ -8,9 +8,13 @@ description: Operate async-research workspaces through public CLI commands, dash
 ## Purpose
 
 Operate an async-research workspace safely through public `async-research` CLI
-commands, dashboard snapshots, and file-backed `research_ops/` state. Default to
-`guided` autonomy unless the user asks only for inspection (`read_only`) or
-explicitly asks for one bounded autonomous loop (`bounded_autonomous`).
+commands, dashboard snapshots, and file-backed `research_ops/` state. Treat the
+workspace interaction mode from `async-research mode show research_ops` as the
+workflow authority: new starter workspaces default to `supervised`, and missing
+or invalid mode config stays manual-compatible. Keep that separate from this
+operator skill's own `autonomy_level`, which defaults to `guided` unless the
+user asks only for inspection (`read_only`) or explicitly asks for one bounded
+autonomous loop (`bounded_autonomous`).
 
 ## First Five Checks
 
@@ -37,6 +41,10 @@ reports. If any command is missing or unsafe to run, stop and report the gap.
 - Prefer public `async-research` commands over direct file edits.
 - Read `async-research mode show research_ops` before mutating workflow state;
   missing or invalid mode config means manual-compatible behavior.
+- Explain whether each interrupt came from interaction-mode policy, a hard
+  stop, or a missing result/source/deliverable gate.
+- Use `decision auto-resolve-task` only when mode policy allows the route and
+  the command can write the required auto-decision audit row.
 - Dry-run before writes whenever the command supports it.
 - Operate one bounded task at a time.
 - Ask before creating environments, installing packages, using network access,

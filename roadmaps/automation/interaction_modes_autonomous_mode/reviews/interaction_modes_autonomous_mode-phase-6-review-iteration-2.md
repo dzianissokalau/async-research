@@ -1,6 +1,6 @@
 # Phase 6 Review - Iteration 2
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 6 - Tests And Autonomous Simulations
 Reviewed at: 2026-05-22T15:50:16Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-6`

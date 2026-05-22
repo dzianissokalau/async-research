@@ -25,6 +25,14 @@ async-research surface update research_ops
 async-research surface validate research_ops
 ```
 
+Before the first worker loop, ask: "How autonomous should this run be?" This
+starter includes `interaction_mode.json` in `supervised` mode so routine,
+policy-backed gates can continue with audit rows while hard stops still ask.
+Set `manual` for explicit approval on most transitions, or choose
+`autonomous` / `publication_guarded` only for bounded runs with clear
+publication rules. Missing or invalid mode config keeps manual-compatible
+behavior until an explicit mode set succeeds.
+
 ## Idea Catalog
 
 `discovery_inbox.md` is the short-lived buffer for rough discoveries.
@@ -152,6 +160,7 @@ accepted task or review proof, a foundation apply lock, and post-write
 6. Run the health and readiness checks before scheduling workers.
 
 LLM operators must read `interaction_mode.json` through
-`async-research mode show research_ops` before mutating workflow state. Missing
-or invalid mode config keeps manual-compatible behavior until an explicit mode
-set succeeds.
+`async-research mode show research_ops` before mutating workflow state and
+explain whether an interrupt is required by mode policy, a hard stop, or a
+missing gate. Missing or invalid mode config keeps manual-compatible behavior
+until an explicit mode set succeeds.

@@ -1,6 +1,6 @@
 # Phase 6 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 6 - Tests And Autonomous Simulations
 Reviewed at: 2026-05-22T15:36:48Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-6`
@@ -15,7 +15,7 @@ Verdict: blocked
   `roadmaps/automation/interaction_modes_autonomous_mode/automation_guide.md`,
   `roadmaps/automation/interaction_modes_autonomous_mode/delivery_log.md`, and
   the latest Phase 5 review all point to
-  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`. The
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`. The
   phase-gated workflow says to stop and record a blocker when these surfaces
   disagree.
 - [P2] The saved automation config lacks the all-phases-complete hard-stop

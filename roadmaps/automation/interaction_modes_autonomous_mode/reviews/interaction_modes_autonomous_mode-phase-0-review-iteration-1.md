@@ -1,6 +1,6 @@
 # Phase 0 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 0 - Mode contract and authority model
 Reviewed at: 2026-05-22T07:09:02Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-0`

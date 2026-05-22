@@ -1,6 +1,6 @@
 # Phase 1 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 1 - Workspace Mode Config
 Reviewed at: 2026-05-22T08:15:40Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-1`

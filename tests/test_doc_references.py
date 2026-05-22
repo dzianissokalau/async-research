@@ -530,7 +530,7 @@ class DocumentationReferenceTests(unittest.TestCase):
                 failures.append(f"interaction_mode_contract.md missing category {category}")
 
         for snippet in [
-            "New workspaces should default to `supervised` once mode config exists.",
+            "New starter workspaces default to `supervised` through a checked-in `interaction_mode.json`.",
             "Existing workspaces without an interaction-mode config keep manual-compatible behavior for mutating commands.",
             "Autonomous mode has no path that skips result acceptance, source governance, or deliverable maturity gates.",
             "Every framework-made mutating decision must write a durable audit row.",
@@ -542,6 +542,75 @@ class DocumentationReferenceTests(unittest.TestCase):
         ]:
             if " ".join(snippet.split()) not in normalized:
                 failures.append(f"interaction_mode_contract.md missing {snippet}")
+
+        self.assertEqual([], failures)
+
+    def test_interaction_mode_phase7_default_migration_docs(self) -> None:
+        docs = {
+            "README.md": ROOT / "README.md",
+            "CHANGELOG.md": ROOT / "CHANGELOG.md",
+            "first_success_quickstart.md": PACKAGE_ROOT / "docs" / "first_success_quickstart.md",
+            "interaction_mode_contract.md": PACKAGE_ROOT / "docs" / "interaction_mode_contract.md",
+            "operational_readiness_runbook.md": PACKAGE_ROOT / "docs" / "operational_readiness_runbook.md",
+            "generic starter README": PACKAGE_ROOT
+            / "templates"
+            / "generic_research_ops_starter"
+            / "research_ops"
+            / "README.md",
+            "real-estate starter README": PACKAGE_ROOT
+            / "templates"
+            / "research_ops_starter"
+            / "research_ops"
+            / "README.md",
+        }
+        required = {
+            "README.md": [
+                "New starter workspaces include `interaction_mode.json` in `supervised` mode",
+                "Existing workspaces without `interaction_mode.json` keep manual-compatible behavior",
+                "async-research mode show research_ops",
+                "interaction_mode.json",
+            ],
+            "CHANGELOG.md": [
+                "## Unreleased",
+                "new starter workspaces use `supervised`",
+                "existing workspaces without `interaction_mode.json` keep manual-compatible behavior",
+            ],
+            "first_success_quickstart.md": [
+                "How autonomous should this run be?",
+                "New workspaces start in `supervised` mode",
+                "async-research mode show research_ops",
+                "async-research mode validate research_ops",
+                "explicit mode set succeeds",
+            ],
+            "interaction_mode_contract.md": [
+                "Status: Active contract",
+                "routine, reversible gates may continue only when policy, transition validation, and audit logging allow them",
+                "Existing workspaces without an interaction-mode config keep manual-compatible behavior",
+            ],
+            "operational_readiness_runbook.md": [
+                "## Unexpectedly Frequent Interrupts",
+                "New starter workspaces should report `supervised`",
+                "auto-decision audit row can be written",
+                "Missing source governance, result acceptance, deliverable maturity, or publication approval",
+            ],
+            "generic starter README": [
+                "How autonomous should this run be?",
+                "This starter includes `interaction_mode.json` in `supervised` mode",
+                "explain whether an interrupt is required by mode policy, a hard stop, or a missing gate",
+            ],
+            "real-estate starter README": [
+                "How autonomous should this run be?",
+                "This starter includes `interaction_mode.json` in `supervised` mode",
+                "explain whether an interrupt is required by mode policy, a hard stop, or a missing gate",
+            ],
+        }
+        failures: list[str] = []
+
+        for label, snippets in required.items():
+            normalized = " ".join(docs[label].read_text(encoding="utf-8").split())
+            for snippet in snippets:
+                if " ".join(snippet.split()) not in normalized:
+                    failures.append(f"{label} missing {snippet}")
 
         self.assertEqual([], failures)
 
@@ -577,6 +646,9 @@ class DocumentationReferenceTests(unittest.TestCase):
         for snippet in [
             "# First Success Quickstart",
             "async-research init research_ops",
+            "async-research mode show research_ops",
+            "async-research mode validate research_ops",
+            "How autonomous should this run be?",
             "async-research readiness research_ops --dry-run",
             'async-research review draft "$TASK" --role primary',
             'async-research review submit "$TASK"',

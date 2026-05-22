@@ -1,6 +1,6 @@
 # Phase 4 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 4 - Workflow Integration
 Reviewed at: 2026-05-22T11:19:59Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-4`

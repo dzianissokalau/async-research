@@ -1,0 +1,37 @@
+# Interaction Modes Autonomous Mode Deep Review Prompt
+
+Review the delivered Interaction Modes And Autonomous Mode roadmap on branch
+`codex/interaction-modes-autonomous-mode-phase-7` against
+`roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`.
+
+Take a skeptical release-readiness stance. Lead with findings, ordered by
+severity, with file and line references where possible.
+
+Evaluate:
+
+- whether `supervised` is truly the default for new starter workspaces;
+- whether existing workspaces without `interaction_mode.json` remain
+  manual-compatible and are not silently migrated;
+- whether `manual`, `guided`, `supervised`, `autonomous`, and
+  `publication_guarded` behavior remains explainable to LLM operators;
+- whether autonomous mode still preserves quality gates, result acceptance,
+  source governance, audit logging, deliverable maturity, and publication or
+  public-claim approval gates;
+- whether the quickstart, README, starter docs, operator skill, release notes,
+  and troubleshooting guidance match the delivered behavior;
+- whether tests cover the default/migration promises and interrupt explanation
+  requirements;
+- whether lifecycle closeout artifacts, roadmap index, delivery state, review
+  files, and automation logs agree.
+
+Do not make public release, publication-readiness, or production-readiness
+claims unless the evidence supports them. If the saved Codex automation remains
+active, verify that `delivery_state.json` hard-stops future runs through
+`completed_pending_pause` / `all_phases_complete`.
+
+Output:
+
+- Findings
+- Missing tests
+- Residual risks
+- Verdict: delivered, needs-fix, or blocked

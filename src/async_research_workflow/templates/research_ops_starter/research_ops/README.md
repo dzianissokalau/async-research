@@ -9,9 +9,12 @@ transitions, source governance, health, accepted evidence, cost, and human
 review surfaces.
 
 LLM operators must read `interaction_mode.json` through
-`async-research mode show research_ops` before mutating workflow state. Missing
-or invalid mode config keeps manual-compatible behavior until an explicit mode
-set succeeds.
+`async-research mode show research_ops` before mutating workflow state and
+explain whether an interrupt is required by mode policy, a hard stop, or a
+missing gate. This starter includes `interaction_mode.json` in `supervised`
+mode so routine, policy-backed gates can continue with audit rows while hard
+stops still ask. Missing or invalid mode config keeps manual-compatible
+behavior until an explicit mode set succeeds.
 
 ## First Commands
 
@@ -28,6 +31,11 @@ async-research health research_ops --dry-run
 async-research surface update research_ops
 async-research surface validate research_ops
 ```
+
+Before the first worker loop, ask: "How autonomous should this run be?" Keep
+`supervised` for normal research operations, set `manual` when you want explicit
+approval for most transitions, and use `autonomous` / `publication_guarded` only
+for bounded runs with clear publication rules.
 
 ## Idea Catalog
 

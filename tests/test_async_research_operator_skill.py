@@ -170,6 +170,45 @@ class AsyncResearchOperatorSkillTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual([], payload["failures"])
 
+    def test_skill_guides_interaction_mode_default_and_migration(self) -> None:
+        files = {
+            "SKILL.md": SKILL_DIR / "SKILL.md",
+            "startup.md": SKILL_DIR / "references" / "startup.md",
+            "roles.md": SKILL_DIR / "references" / "roles.md",
+            "safety-and-stop-conditions.md": SKILL_DIR / "references" / "safety-and-stop-conditions.md",
+        }
+        required = {
+            "SKILL.md": [
+                "workspace interaction mode from `async-research mode show research_ops`",
+                "new starter workspaces default to `supervised`",
+                "missing or invalid mode config stays manual-compatible",
+                "required auto-decision audit row",
+            ],
+            "startup.md": [
+                "fresh starter workspaces should be `supervised`",
+                "missing or invalid config preserves manual-compatible behavior",
+                "public commands that validate transitions and write audit rows",
+            ],
+            "roles.md": [
+                "operator `autonomy_level` is separate from the workspace interaction mode",
+                "new starter workspaces default to `supervised`",
+                "records the required audit row",
+            ],
+            "safety-and-stop-conditions.md": [
+                "New starter workspaces default to `supervised` interaction mode",
+                "existing workspaces with missing or invalid mode config remain manual-compatible",
+            ],
+        }
+        failures: list[str] = []
+
+        for label, snippets in required.items():
+            normalized = " ".join(files[label].read_text(encoding="utf-8").split())
+            for snippet in snippets:
+                if " ".join(snippet.split()) not in normalized:
+                    failures.append(f"{label} missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_validator_rejects_missing_required_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             candidate = Path(temp_dir) / "async-research-operator"

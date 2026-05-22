@@ -1,7 +1,7 @@
 # Interaction Mode Contract
 
 Created: 2026-05-22
-Status: Phase 0 contract
+Status: Active contract
 
 ## Purpose
 
@@ -37,7 +37,10 @@ budget controls, or publication approval.
 
 ## Defaults And Migration
 
-New workspaces should default to `supervised` once mode config exists.
+New starter workspaces default to `supervised` through a checked-in
+`interaction_mode.json`. That is the less-interruptive default for fresh
+research runs: routine, reversible gates may continue only when policy,
+transition validation, and audit logging allow them.
 
 Existing workspaces without an interaction-mode config keep manual-compatible
 behavior for mutating commands. Tools may report an effective mode such as

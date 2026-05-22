@@ -2,7 +2,7 @@
 
 Status: Draft guide
 Created: 2026-05-22
-Primary roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Primary roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 
 ## Purpose
 

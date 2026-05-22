@@ -1,9 +1,8 @@
 # First Success Quickstart
 
 Use this when you want one quiet path from a fresh workspace to a reviewed
-operator surface. It assumes `async-research` is already installed; see the
-top-level [README](../../../README.md) for install options and the full command
-map.
+operator surface. It assumes `async-research` is installed; see the top-level
+[README](../../../README.md) for install options and the full command map.
 
 ## 1. Create The Generic Workspace
 
@@ -12,14 +11,22 @@ Run these from the research repo where `research_ops/` should live:
 ```bash
 async-research init research_ops
 async-research schema-check research_ops
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research surface update research_ops
 async-research surface validate research_ops
 ```
 
-Stop if any command returns non-OK JSON. Repair the reported file before
-starting worker or reviewer work.
+Stop if any command returns non-OK JSON; repair the reported file before worker
+or reviewer work.
+
+Ask: "How autonomous should this run be?" New workspaces start in `supervised`
+mode: routine policy-backed gates can continue with audit rows, while hard
+stops still interrupt. Use `manual` for explicit approval on most transitions;
+existing workspaces without `interaction_mode.json` stay manual-compatible until
+an explicit mode set succeeds.
 
 ## 2. Pick One Task
 
@@ -56,8 +63,6 @@ async-research review submit "$TASK" \
   --concern "First operator pass; keep the result out of accepted memory until a human checks it."
 ```
 
-Use a real review decision once you have inspected the worker output.
-
 ## 4. Aggregate And Refresh Surfaces
 
 Run the aggregate as a dry run first:
@@ -89,11 +94,7 @@ task route is visible in `daily_status.md` and `human_review_queue.md`.
 
 ## 5. Where To Go Next
 
-- For task fields and worker expectations, read
-  [Task Contracts](./task_contracts.md).
-- For review isolation, read
-  [Structural Reviewer Isolation Protocol](./reviewer_isolation_protocol.md).
-- For aggregate routing, read
-  [Algorithmic Review Aggregation Protocol](./algorithmic_review_aggregation_protocol.md).
-- For repair and operations, read
-  [Operational Readiness Runbook](./operational_readiness_runbook.md).
+- [Task Contracts](./task_contracts.md)
+- [Structural Reviewer Isolation Protocol](./reviewer_isolation_protocol.md)
+- [Algorithmic Review Aggregation Protocol](./algorithmic_review_aggregation_protocol.md)
+- [Operational Readiness Runbook](./operational_readiness_runbook.md)

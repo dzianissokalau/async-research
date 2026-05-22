@@ -1,39 +1,25 @@
 {
-  "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
+  "roadmap": "roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 7 - Default Behavior And Migration",
-  "branch": null,
-  "status": "ready_for_next_run",
-  "review_iterations": 0,
+  "current_phase": "Complete",
+  "branch": "codex/interaction-modes-autonomous-mode-phase-7",
+  "status": "completed_pending_pause",
+  "review_iterations": 1,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "Phase 6 - Tests And Autonomous Simulations",
+    "phase": "Phase 7 - Default Behavior And Migration",
     "status": "passed",
-    "verified_at": "2026-05-22T15:50:16Z",
+    "verified_at": "2026-05-22T16:10:13Z",
     "commands": [
       {
-        "command": "python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json",
-        "status": "warnings",
-        "summary": "Automation prompt now references the current roadmap and has the hard-stop guard; remaining warning is expected dirty worktree with preserved unrelated roadmap files plus Phase 6-owned test artifacts."
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_interaction_mode_autonomous_simulations -v",
+        "command": ".venv/bin/python -m unittest tests.test_doc_references tests.test_async_research_operator_skill tests.test_interaction_mode -v",
         "status": "passed",
-        "summary": "Ran 4 tests in 0.299s"
+        "summary": "Ran 55 tests in 1.517s"
       },
       {
-        "command": ".venv/bin/python -m json.tool tests/fixtures/interaction_modes/needs_human_gate_categories.json",
-        "status": "passed"
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_needs_human_policy tests.test_workflow_orchestrator tests.test_deliverable_maturity -v",
+        "command": ".venv/bin/python -m unittest tests.test_docs_packaging tests.test_packaged_resources -v",
         "status": "passed",
-        "summary": "Ran 71 tests in 2.892s"
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_doc_references",
-        "status": "passed",
-        "summary": "Ran 17 tests in 0.271s"
+        "summary": "Ran 15 tests in 0.151s"
       },
       {
         "command": "git diff --check",
@@ -42,28 +28,56 @@
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "summary": "Ran 822 tests in 27.198s"
+        "summary": "Ran 824 tests in 25.260s"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
         "status": "passed",
         "summary": "15 checks passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_doc_references -v",
+        "status": "passed",
+        "summary": "Ran 18 tests in 0.281s after lifecycle rename"
+      },
+      {
+        "command": ".venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/review_fix_state.json",
+        "status": "passed"
+      },
+      {
+        "command": "python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json",
+        "status": "warnings",
+        "summary": "No errors. Expected warnings remain for active saved cron config with stale pre-rename prompt path, hard-stop guard present, and dirty worktree."
       }
     ]
   },
-  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md",
+  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-1.md",
   "last_review_verdict": "delivered",
-  "last_delivered_phase": "Phase 6 - Tests And Autonomous Simulations",
-  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-6",
+  "deep_review_prompt": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction-modes-autonomous-mode-deep-review-prompt.txt",
+  "last_delivered_phase": "Phase 7 - Default Behavior And Migration",
+  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-7",
   "blocked_reason": null,
+  "all_phases_complete": true,
+  "pause_instruction": "All phases are delivered and the saved cron automation is paused. Keep the completed_pending_pause/all_phases_complete hard-stop if the automation is repurposed.",
+  "last_hard_stop": {
+    "observed_at": "2026-05-22T17:12:26Z",
+    "requested_roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
+    "authoritative_roadmap": "roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md",
+    "reason": "all_phases_complete is true and status is completed_pending_pause; no current phase remains to deliver.",
+    "action": "Stopped before phase work. Human approval is required before repurposing the paused automation."
+  },
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
   "automation_id": "interaction-modes-autonomous-mode-delivery",
-  "automation_status": "ACTIVE",
+  "automation_status": "PAUSED",
   "model": "gpt-5.5",
   "reasoning_effort": "xhigh",
-  "updated_at": "2026-05-22T15:50:16Z"
+  "updated_at": "2026-05-22T17:26:00Z"
 }

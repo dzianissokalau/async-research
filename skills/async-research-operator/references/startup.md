@@ -51,7 +51,10 @@ install, initialize, or mutate anything.
     inside a public tool repo, a framework repo, or a repo whose visibility is
     unknown, stop and ask before writing research state.
 13. Run read-only checks when the CLI and workspace both exist.
-14. Summarize setup actions taken or still needed, capability gaps, version
+14. Interpret `async-research mode show research_ops` as workflow policy:
+    fresh starter workspaces should be `supervised`, while missing or invalid
+    config preserves manual-compatible behavior until explicitly migrated.
+15. Summarize setup actions taken or still needed, capability gaps, version
     drift, privacy status, read-only check results, and the next safe action.
 
 ## Read-Only State Checks
@@ -73,6 +76,11 @@ The first four commands provide object-level status and blocker details. The
 console snapshot is a compact dashboard-alignment check, not the sole authority.
 If raw CLI output and the snapshot disagree, trust the raw CLI for the specific
 object and report the discrepancy.
+
+When the mode check reports `supervised`, routine policy-backed gates may
+continue only through public commands that validate transitions and write audit
+rows. When it reports a missing or invalid config, keep manual-compatible
+behavior and ask before resolving human gates.
 
 ## Optional Inspection Helper
 

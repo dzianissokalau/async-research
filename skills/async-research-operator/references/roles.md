@@ -4,6 +4,11 @@ Use role names to make the current operating mode explicit before acting. A
 single conversation may switch roles, but the switch must be stated and review
 independence must not be overstated.
 
+The operator `autonomy_level` is separate from the workspace interaction mode.
+Read `async-research mode show research_ops` before writes, because new starter
+workspaces default to `supervised` while missing or invalid mode config remains
+manual-compatible.
+
 ## First Status Report
 
 The first operator report for any workspace action must include:
@@ -77,3 +82,9 @@ and report the maturity ceiling implied by `deliverable check`.
 | `guided` | Only the user-approved write step, after dry-run where supported. | Exact paths named in the approved recipe, preferably changed by public CLI commands. | Public commands from the loaded recipe; dry-run before write whenever available. | Any mandatory stop, unclear approval, stale preflight hash, or unsupported command. | Commands run, files touched, dry-run/write results, validation, caveats, and next approval needed. |
 | `bounded_autonomous` | One bounded task loop or one bounded approved recipe; no self-acceptance. | The claimed task directory, declared allowed paths, and necessary framework state written by public workflow commands. | Public workflow/review/maintenance commands needed for that one loop, with dry-runs where supported. | Human gates, credentials/spend/network, lock conflicts, product decisions, same-agent independence limits, failed validation, or acceptance/readiness contradictions. | Task boundary, commands run, files changed, validation, review/acceptance status, and any stopped next action. |
 | `maintenance` | Bounded derived-state writes only. | Surface/dashboard/validation artifacts and logs produced by public maintenance commands. | Schema, readiness, health, surface update/validate, accepted update, validation, and console snapshot commands. | Research-content changes, direction decisions, human gates, broken tooling, or readiness contradictions. | Checks run, warnings, generated artifacts, dashboard/snapshot summary, and residual risks. |
+
+Within any autonomy level, interaction-mode policy may only reduce routine
+interrupts when the public command validates the route and records the required
+audit row. Hard stops for credentials, destructive operations, private data,
+budget breaches, legal or policy-sensitive claims, and publication approval
+still stop the operator.

@@ -97,6 +97,35 @@ update path. Resolve rows with
 `async-research decision resolve-task`; do
 not delete queue rows by hand.
 
+## Unexpectedly Frequent Interrupts
+
+First confirm the effective interaction mode instead of editing task state:
+
+```bash
+async-research mode show research_ops
+async-research mode validate research_ops
+async-research escalation scan-needs-human research_ops
+async-research workflow next research_ops
+async-research readiness research_ops --dry-run
+```
+
+New starter workspaces should report `supervised`. Existing workspaces that
+lack `interaction_mode.json`, or any workspace with invalid mode config, stay
+manual-compatible and will interrupt more often until an explicit
+`async-research mode set research_ops --mode supervised` succeeds. Even in
+`supervised` or `autonomous`, credentials, destructive operations, private data,
+hard budget breaches, legal or policy-sensitive claims, and publication or
+submission approval still require a human.
+
+When interrupts remain frequent, inspect the structured `human_gate` categories
+from `escalation scan-needs-human` and the next action from `workflow next`.
+Routine categories such as quality uncertainty, source freshness, review
+disagreement, revision limits, budget warnings, and idea prioritization can only
+auto-resolve when the policy allows the route, transition validation passes, and
+an auto-decision audit row can be written. Missing source governance, result
+acceptance, deliverable maturity, or publication approval should be repaired at
+the underlying gate rather than bypassed through mode changes.
+
 ## Escalation Policy
 
 When a task may require human judgment, run:

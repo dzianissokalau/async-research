@@ -1,6 +1,6 @@
 # Phase 3 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 3 - Auto-Decision Audit Trail
 Reviewed at: 2026-05-22T10:15:20Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-3`

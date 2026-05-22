@@ -1,13 +1,14 @@
 {
-  "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
+  "roadmap": "roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 7 - Default Behavior And Migration",
-  "status": "ready_for_next_run",
-  "iteration": 0,
+  "current_phase": "Complete",
+  "status": "completed_pending_pause",
+  "iteration": 1,
   "max_iterations": 3,
-  "last_reviewed_phase": "Phase 6 - Tests And Autonomous Simulations",
-  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md",
+  "last_reviewed_phase": "Phase 7 - Default Behavior And Migration",
+  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-1.md",
   "last_verdict": "delivered",
   "blocked_reason": null,
-  "updated_at": "2026-05-22T15:50:16Z"
+  "all_phases_complete": true,
+  "updated_at": "2026-05-22T16:10:13Z"
 }

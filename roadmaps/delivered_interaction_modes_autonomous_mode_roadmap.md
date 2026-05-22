@@ -1,9 +1,9 @@
 # Interaction Modes And Autonomous Mode Roadmap
 
-Status: In Progress
-Current phase: Phase 7 - Default Behavior And Migration
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-22
-Next action: Decide default behavior, migration behavior, quickstart copy, and LLM operator prompt updates
+Next action: Pause automation and run any independent release-readiness review before public release claims
 Blocked by: None
 
 Created: 2026-05-21
@@ -73,7 +73,7 @@ approved sources, reject unsafe outputs, or defer publication claims.
 | 4 | Complete | P0 | Workflow integration | Wire modes into readiness, workflow next/advance, review aggregation, idea catalog, and deliverable gates. | The main workflow can advance under mode policy end to end. |
 | 5 | Complete | P1 | Dashboard and operator UX | Show mode, interrupt policy, auto-decisions, and progression-flow effects in the console. | Users can understand what the framework is allowed to do and what it already did. |
 | 6 | Complete | P1 | Tests and autonomous simulations | Add mode contract tests, fixture gates, and zero-human loop simulations. | Autonomous mode is proven by tests, not just configuration. |
-| 7 | Not Started | P1 | Default behavior and migration | Decide default mode, migration behavior, quickstart copy, and LLM operator prompts. | New users get less interruptive behavior without surprising existing workspaces. |
+| 7 | Complete | P1 | Default behavior and migration | Decide default mode, migration behavior, quickstart copy, and LLM operator prompts. | New users get less interruptive behavior without surprising existing workspaces. |
 
 ## Phase 0 - Mode Contract And Authority Model
 

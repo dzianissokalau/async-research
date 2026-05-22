@@ -1,7 +1,7 @@
 # Interaction Modes And Autonomous Mode Delivery Log
 
-Status: Ready For Next Run
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Status: Completed Pending Pause
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Automation template: `roadmaps/automation/codex_phase_gated_delivery_automation_template.md`
 Automation guide: `roadmaps/automation/interaction_modes_autonomous_mode/automation_guide.md`
 State file: `roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json`
@@ -56,7 +56,7 @@ Branch: pending
 - Execution environment: `local`
 - CWD: `/Users/dzianissokalau/Documents/projects/async-research`
 - Roadmap reference:
-  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 
 ### Review
 
@@ -440,7 +440,7 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-6`
   referenced the stale missing lifecycle path
   `roadmaps/not_started_interaction_modes_autonomous_mode_roadmap.md`, while
   state, guide, delivery log, and latest reviews point to
-  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`.
 - Recorded that the saved automation config reports `ACTIVE` while the prior
   delivery state recorded `PAUSED`; editing Codex app automation config is
   outside approved scope.
@@ -543,7 +543,7 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-6`
 ### Next Action
 
 - Repair the automation prompt/config to target
-  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`, or rerun
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`, or rerun
   with matching current-roadmap instructions and clarify ownership of the
   untracked Phase 6 test artifacts.
 
@@ -563,7 +563,7 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-6`
 ### Changes
 
 - Updated the saved Codex automation prompt to target
-  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md` and add
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md` and add
   the `all_phases_complete` / `completed_pending_pause` hard-stop guard.
 - Adopted the prior Phase 6 automation-owned test artifacts:
   `tests/fixtures/interaction_modes/needs_human_gate_categories.json` and
@@ -614,3 +614,119 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-6`
 ### Next Action
 
 - Next automation run should deliver Phase 7 - Default Behavior And Migration.
+
+## Phase 7 - 2026-05-22 - Delivery Pass 1
+
+Status: completed_pending_pause
+Branch: `codex/interaction-modes-autonomous-mode-phase-7`
+
+### Scope
+
+- Objective: make the framework less interruptive for new users without
+  surprising existing workspaces.
+- Current phase scope: default mode decision, migration note, quickstart update,
+  LLM operator prompt updates, release notes, and troubleshooting docs.
+- Non-goals preserved: no weakening of quality gates, result acceptance, source
+  governance, audit logging, deliverable/publication gates, or hard-stop
+  behavior.
+
+### Changes
+
+- Documented `supervised` as the new-workspace default while preserving
+  manual-compatible behavior for existing workspaces without
+  `interaction_mode.json`.
+- Updated the README and first-success quickstart to run `mode show` /
+  `mode validate` and ask "How autonomous should this run be?" before the first
+  worker loop.
+- Updated starter workspace READMEs and the async-research operator skill
+  prompts to read mode before writes and explain interrupts by policy, hard
+  stop, or missing gate.
+- Added release-note copy to `CHANGELOG.md` and troubleshooting guidance for
+  unexpectedly frequent interrupts to the operational runbook.
+- Added regression coverage for the Phase 7 docs and operator-skill guidance.
+- Marked Phase 7 complete, renamed the roadmap to
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`, updated
+  the roadmap index, and set state to `completed_pending_pause` with
+  `all_phases_complete: true`.
+- Added a final deep-review prompt for an independent release-readiness pass.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_doc_references tests.test_async_research_operator_skill tests.test_interaction_mode -v`: passed, 55 tests.
+- `.venv/bin/python -m unittest tests.test_docs_packaging tests.test_packaged_resources -v`: passed, 15 tests.
+- `git diff --check`: passed.
+- `.venv/bin/python -m unittest discover -s tests`: passed, 824 tests.
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks.
+- `.venv/bin/python -m unittest tests.test_doc_references -v`: passed, 18 tests after lifecycle rename.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json`: passed.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/review_fix_state.json`: passed.
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with no errors and expected warnings for the active saved cron config's stale pre-rename prompt path, hard-stop guard present, and dirty worktree.
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- The saved Codex cron automation remains `ACTIVE` and still references the
+  former in-progress roadmap path, but its prompt includes the
+  `all_phases_complete` / `completed_pending_pause` hard-stop guard and the
+  state now requires a hard stop. The automation config was not edited per the
+  prompt guardrail.
+- Unrelated pre-existing roadmap additions in `roadmaps/README.md` and
+  untracked roadmap/prompt files were preserved.
+
+### Next Action
+
+- Pause or repurpose the automation with human approval. Future runs should
+  hard-stop on `completed_pending_pause` / `all_phases_complete`.
+
+## Completion Hard Stop - 2026-05-22 - Run Check
+
+Status: completed_pending_pause
+Branch: `codex/interaction-modes-autonomous-mode-phase-7`
+
+### Reconciliation
+
+- `delivery_state.json` has `all_phases_complete: true`, current phase
+  `Complete`, and status `completed_pending_pause`.
+- The authoritative roadmap is
+  `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`; the
+  requested stale pre-rename path
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md` no
+  longer exists.
+- Latest review remains
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-1.md`
+  with verdict `delivered`.
+- Current branch is `codex/interaction-modes-autonomous-mode-phase-7`.
+- The worktree is dirty with prior delivered Phase 7 artifacts and unrelated
+  roadmap files; no implementation or review edits were made.
+
+### Tests And Verification
+
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with no errors and expected warnings for stale automation prompt path and dirty worktree.
+- Additional phase verification was not run because the completion hard-stop
+  guard prevents phase work.
+
+### Review
+
+- No review was performed because there is no current phase to deliver.
+
+### Residual Risks
+
+- The saved Codex cron automation is now `PAUSED` and still references the
+  former in-progress roadmap path; the validator confirmed the hard-stop guard
+  is present if it is repurposed later.
+
+### Next Action
+
+- Repurpose the paused automation only with human approval. Future runs should
+  continue to hard-stop on `completed_pending_pause` / `all_phases_complete`.

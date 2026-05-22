@@ -1,6 +1,6 @@
 # Phase 2 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`
+Roadmap: `roadmaps/delivered_interaction_modes_autonomous_mode_roadmap.md`
 Phase: Phase 2 - Mode-Aware `needs_human` Policy
 Reviewed at: 2026-05-22T09:19:39Z
 Branch: `codex/interaction-modes-autonomous-mode-phase-2`

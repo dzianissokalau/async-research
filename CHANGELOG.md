@@ -5,6 +5,16 @@ All notable changes to `async-research-workflow` are tracked here.
 The project is pre-release. Alpha versions are intended for careful dogfooding
 while the public CLI and workflow contracts harden.
 
+## Unreleased
+
+- Documented the interaction-mode default and migration behavior: new starter
+  workspaces use `supervised`, while existing workspaces without
+  `interaction_mode.json` keep manual-compatible behavior until explicitly
+  migrated.
+- Updated quickstart, operator, and troubleshooting guidance so LLM operators
+  read the effective mode first and can explain why the framework did or did
+  not interrupt the user.
+
 ## 0.2.0a5 - 2026-05-13
 
 - Delivered the local async research dashboard as an operator surface for
