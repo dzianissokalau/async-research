@@ -493,6 +493,58 @@ class DocumentationReferenceTests(unittest.TestCase):
 
         self.assertEqual([], failures)
 
+    def test_interaction_mode_phase0_contract_is_documented(self) -> None:
+        contract_path = PACKAGE_ROOT / "docs" / "interaction_mode_contract.md"
+        docs_index = (PACKAGE_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+        contract = contract_path.read_text(encoding="utf-8")
+        normalized = " ".join(contract.split())
+        failures: list[str] = []
+
+        if "[Interaction Mode Contract](./interaction_mode_contract.md)" not in docs_index:
+            failures.append("docs/README.md missing Interaction Mode Contract link")
+
+        for mode in [
+            "`manual`",
+            "`guided`",
+            "`supervised`",
+            "`autonomous`",
+            "`publication_guarded`",
+        ]:
+            if mode not in contract:
+                failures.append(f"interaction_mode_contract.md missing mode {mode}")
+
+        for category in [
+            "quality uncertainty",
+            "source freshness or approval problem",
+            "review disagreement",
+            "revision limit reached",
+            "idea prioritization ambiguity",
+            "budget warning",
+            "hard budget breach",
+            "missing credentials or inaccessible data",
+            "destructive file or system operation",
+            "private or sensitive data use",
+            "external or publication claim approval",
+        ]:
+            if category not in contract:
+                failures.append(f"interaction_mode_contract.md missing category {category}")
+
+        for snippet in [
+            "New workspaces should default to `supervised` once mode config exists.",
+            "Existing workspaces without an interaction-mode config keep manual-compatible behavior for mutating commands.",
+            "Autonomous mode has no path that skips result acceptance, source governance, or deliverable maturity gates.",
+            "Every framework-made mutating decision must write a durable audit row.",
+            "Task status changes must still validate through the existing transition rules.",
+            "Human approval required; pause or stop.",
+            "Defer publication claims until explicit approval exists.",
+            "never silently approve a new source",
+            "publication readiness cannot be claimed after an exhausted revision loop",
+        ]:
+            if " ".join(snippet.split()) not in normalized:
+                failures.append(f"interaction_mode_contract.md missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_first_success_quickstart_stays_short_and_public(self) -> None:
         quickstart = PACKAGE_ROOT / "docs" / "first_success_quickstart.md"
         text = quickstart.read_text(encoding="utf-8")
