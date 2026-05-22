@@ -410,6 +410,18 @@ def run_console_command(args: argparse.Namespace) -> int:
     return server.main([str(ops_dir), "--host", args.host, "--port", str(args.port)])
 
 
+def run_mode_show_command(args: argparse.Namespace) -> int:
+    return module_main("interaction_mode", ["show", str(args.ops_dir)])
+
+
+def run_mode_set_command(args: argparse.Namespace) -> int:
+    return module_main("interaction_mode", ["set", str(args.ops_dir), "--mode", args.mode])
+
+
+def run_mode_validate_command(args: argparse.Namespace) -> int:
+    return module_main("interaction_mode", ["validate", str(args.ops_dir)])
+
+
 def run_version(args: argparse.Namespace) -> int:
     print_json({"ok": True, "version": __version__})
     return SUCCESS
@@ -1797,6 +1809,55 @@ def register_schema_command(subparsers) -> None:
     )
     add_common_ops(schema)
     schema.set_defaults(func=lambda a: module_main("check_schema_versions", [str(a.ops_dir)]))
+
+
+def register_mode_commands(subparsers) -> None:
+    mode = add_command(
+        subparsers,
+        "mode",
+        help="Inspect or set workspace interaction mode.",
+        description=(
+            "Show, set, or validate research_ops/interaction_mode.json without changing task transitions. "
+            "Missing config resolves to a manual-compatible default until an explicit set command writes the file."
+        ),
+    )
+    mode_sub = mode.add_subparsers(dest="mode_command", required=True)
+
+    show = add_command(
+        mode_sub,
+        "show",
+        help="Show the effective interaction mode as JSON.",
+        description="Show the effective interaction mode as JSON by reading interaction_mode.json, or report the deterministic manual-compatible default when the file is missing.",
+        epilog="Exits 0 when a valid config or missing-config default is available, and 4 when config is invalid or unreadable.",
+    )
+    add_common_ops(show)
+    show.set_defaults(func=run_mode_show_command)
+
+    set_cmd = add_command(
+        mode_sub,
+        "set",
+        help="Write a safe interaction mode config.",
+        description="Write research_ops/interaction_mode.json with conservative defaults for the selected mode.",
+        epilog="Exits 0 when the config is written, and 4 when the workspace or existing config is invalid.",
+    )
+    add_common_ops(set_cmd)
+    set_cmd.add_argument(
+        "--mode",
+        required=True,
+        choices=("manual", "guided", "supervised", "autonomous", "publication_guarded"),
+        help="Interaction mode to write.",
+    )
+    set_cmd.set_defaults(func=run_mode_set_command)
+
+    validate_cmd = add_command(
+        mode_sub,
+        "validate",
+        help="Validate interaction mode config.",
+        description="Validate interaction_mode.json schema and hard-stop safeguards without mutating research_ops.",
+        epilog="Exits 0 when the config or missing-config default is valid, and 4 when it fails closed.",
+    )
+    add_common_ops(validate_cmd)
+    validate_cmd.set_defaults(func=run_mode_validate_command)
 
 
 def register_workflow_commands(subparsers) -> None:
@@ -3916,6 +3977,7 @@ COMMAND_REGISTRARS = (
     register_surface_commands,
     register_console_commands,
     register_schema_command,
+    register_mode_commands,
     register_workflow_commands,
     register_queue_commands,
     register_prompt_commands,

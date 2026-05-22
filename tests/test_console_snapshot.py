@@ -25,6 +25,7 @@ SNAPSHOT_GROUPS = {
     "accepted_outputs",
     "delivered_projects",
     "deliverables",
+    "interaction_mode",
     "rejected_results",
     "cost",
     "sources",
@@ -197,6 +198,9 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertEqual(0, payload["human_decisions"]["open_count"])
             self.assertEqual(0, payload["accepted_outputs"]["count"])
             self.assertEqual(0, payload["rejected_results"]["count"])
+            self.assertTrue(payload["interaction_mode"]["available"])
+            self.assertEqual("supervised", payload["interaction_mode"]["mode"])
+            self.assertTrue(payload["interaction_mode"]["config_present"])
             self.assertFalse(payload["prompts"]["available"])
             self.assertEqual("unavailable", payload["prompts"]["status"])
             self.assertFalse(payload["schedules"]["available"])
@@ -217,6 +221,58 @@ class ConsoleSnapshotTests(unittest.TestCase):
             discovery_links = {link["label"]: link for link in by_station["discovery"]["artifact_links"]}
             self.assertTrue(discovery_links["Discovery inbox"]["viewer_allowed"])
             self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_snapshot_defaults_missing_interaction_mode_without_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            (ops_dir / "interaction_mode.json").unlink()
+            before = file_snapshot(ops_dir)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(payload["interaction_mode"]["available"])
+            self.assertFalse(payload["interaction_mode"]["config_present"])
+            self.assertTrue(payload["interaction_mode"]["defaulted"])
+            self.assertEqual("manual", payload["interaction_mode"]["mode"])
+            self.assertTrue(any(item["message"].startswith("interaction_mode.json is missing") for item in payload["warnings"]))
+            self.assertEqual(before, file_snapshot(ops_dir))
+
+    def test_snapshot_surfaces_invalid_interaction_mode_as_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            write_json(
+                ops_dir / "interaction_mode.json",
+                {
+                    "schema_version": "1.0",
+                    "mode": "autonomous",
+                    "risk_tolerance": "conservative",
+                    "interrupt_policy": {
+                        "allow_interrupts": False,
+                        "interrupt_only_for": ["hard_budget_breach"],
+                    },
+                    "auto_decisions": {
+                        "allow_resume": True,
+                        "allow_revision": True,
+                        "allow_reject": True,
+                        "allow_claim_downgrade": True,
+                        "allow_source_substitution": True,
+                        "allow_idea_prioritization": True,
+                    },
+                    "audit": {
+                        "write_decisions": True,
+                        "write_auto_decisions": False,
+                        "explain_auto_decisions": True,
+                    },
+                },
+            )
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertFalse(payload["interaction_mode"]["available"])
+            self.assertEqual("invalid", payload["interaction_mode"]["status"])
+            self.assertTrue(any("interaction modes must allow human interrupts" in item["message"] for item in payload["warnings"]))
 
     def test_snapshot_surfaces_malformed_task_status_as_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

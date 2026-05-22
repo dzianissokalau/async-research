@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "mode": "supervised",
+  "risk_tolerance": "conservative",
+  "interrupt_policy": {
+    "allow_interrupts": true,
+    "interrupt_only_for": [
+      "hard_budget_breach",
+      "credentials_missing",
+      "destructive_operation",
+      "private_data_approval",
+      "legal_policy_sensitive_claim",
+      "external_publication_approval"
+    ]
+  },
+  "auto_decisions": {
+    "allow_resume": true,
+    "allow_revision": true,
+    "allow_reject": true,
+    "allow_claim_downgrade": true,
+    "allow_source_substitution": true,
+    "allow_idea_prioritization": true
+  },
+  "audit": {
+    "write_decisions": true,
+    "write_auto_decisions": true,
+    "explain_auto_decisions": true
+  }
+}

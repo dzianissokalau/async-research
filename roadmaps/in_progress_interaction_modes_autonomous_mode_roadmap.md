@@ -1,9 +1,9 @@
 # Interaction Modes And Autonomous Mode Roadmap
 
 Status: In Progress
-Current phase: Phase 1 - Workspace Mode Config
+Current phase: Phase 2 - Mode-Aware `needs_human` Policy
 Last updated: 2026-05-22
-Next action: Add durable mode config, validators, starter defaults, CLI visibility, and console snapshot fields
+Next action: Split human gates by category and add mode-aware routing policy
 Blocked by: None
 
 Created: 2026-05-21
@@ -67,7 +67,7 @@ approved sources, reject unsafe outputs, or defer publication claims.
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- | --- |
 | 0 | Complete | P0 | Mode contract and authority model | Define modes, authority boundaries, interrupt classes, and default behavior. | A future implementer can tell exactly which decisions each mode may make. |
-| 1 | Not Started | P0 | Workspace mode config | Add a durable `research_ops` mode config, validators, and CLI visibility. | Operators and LLMs can inspect and set the current mode safely. |
+| 1 | Complete | P0 | Workspace mode config | Add a durable `research_ops` mode config, validators, and CLI visibility. | Operators and LLMs can inspect and set the current mode safely. |
 | 2 | Not Started | P0 | Mode-aware `needs_human` policy | Split gates by category and map each category to automatic or human resolution by mode. | Routine `needs_human` states stop blocking autonomous runs. |
 | 3 | Not Started | P0 | Auto-decision audit trail | Record framework-made decisions with policy, reason, confidence, actor, and artifacts. | Autonomy remains inspectable without requiring approval. |
 | 4 | Not Started | P0 | Workflow integration | Wire modes into readiness, workflow next/advance, review aggregation, idea catalog, and deliverable gates. | The main workflow can advance under mode policy end to end. |

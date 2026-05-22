@@ -42,6 +42,10 @@ def artifact_paths(ops_dir: Path) -> list[tuple[Path, str]]:
     if health_report.exists():
         paths.append((health_report, "health_report"))
 
+    interaction_mode = ops_dir / "interaction_mode.json"
+    if interaction_mode.exists():
+        paths.append((interaction_mode, "interaction_mode"))
+
     deliverable_manifest = ops_dir / "deliverables" / "deliverable_manifest.json"
     if deliverable_manifest.exists():
         paths.append((deliverable_manifest, "deliverable_manifest"))
@@ -128,6 +132,7 @@ def scan_schema_versions(ops_dir: Path, expected_version: str = DEFAULT_SCHEMA_V
     return {
         "expected_schema_version": expected_version,
         "artifact_count": len(artifacts),
+        "artifacts": artifacts,
         "warning_count": len(warnings),
         "error_count": len(errors),
         "warnings": warnings,

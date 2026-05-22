@@ -1,15 +1,15 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 1 - Workspace Mode Config",
+  "current_phase": "Phase 2 - Mode-Aware `needs_human` Policy",
   "branch": null,
   "status": "ready_for_next_run",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "Phase 0 - Mode contract and authority model",
+    "phase": "Phase 1 - Workspace Mode Config",
     "status": "passed",
-    "verified_at": "2026-05-22T07:10:50Z",
+    "verified_at": "2026-05-22T08:17:52Z",
     "commands": [
       {
         "command": "git diff --check",
@@ -18,14 +18,24 @@
       {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "summary": "Ran 17 tests in 0.263s"
+        "summary": "Ran 17 tests in 0.290s"
+      },
+      {
+        "command": ".venv/bin/python -m unittest discover -s tests",
+        "status": "passed",
+        "summary": "Ran 807 tests in 23.433s"
+      },
+      {
+        "command": ".venv/bin/async-research acceptance-suite",
+        "status": "passed",
+        "summary": "15 checks passed"
       }
     ]
   },
-  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-0-review-iteration-1.md",
+  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-1-review-iteration-1.md",
   "last_review_verdict": "delivered",
-  "last_delivered_phase": "Phase 0 - Mode contract and authority model",
-  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-0",
+  "last_delivered_phase": "Phase 1 - Workspace Mode Config",
+  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-1",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
@@ -36,5 +46,5 @@
   "automation_status": "PAUSED",
   "model": "gpt-5.5",
   "reasoning_effort": "xhigh",
-  "updated_at": "2026-05-22T07:10:50Z"
+  "updated_at": "2026-05-22T08:17:52Z"
 }

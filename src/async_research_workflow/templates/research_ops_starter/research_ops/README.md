@@ -8,10 +8,17 @@ Durable state lives in this folder. Use `async-research` commands to validate
 transitions, source governance, health, accepted evidence, cost, and human
 review surfaces.
 
+LLM operators must read `interaction_mode.json` through
+`async-research mode show research_ops` before mutating workflow state. Missing
+or invalid mode config keeps manual-compatible behavior until an explicit mode
+set succeeds.
+
 ## First Commands
 
 ```bash
 async-research schema-check research_ops
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research library init research_ops --dry-run
 async-research library validate research_ops
 async-research idea catalog init research_ops --dry-run

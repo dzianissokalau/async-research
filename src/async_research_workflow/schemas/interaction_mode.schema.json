@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "interaction_mode.schema.json",
+  "title": "Interaction Mode Config",
+  "description": "Durable async-research interaction mode and conservative autonomy policy.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mode",
+    "risk_tolerance",
+    "interrupt_policy",
+    "auto_decisions",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.0$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "guided",
+        "supervised",
+        "autonomous",
+        "publication_guarded"
+      ]
+    },
+    "risk_tolerance": {
+      "type": "string",
+      "enum": [
+        "conservative",
+        "moderate"
+      ]
+    },
+    "interrupt_policy": {
+      "type": "object",
+      "required": [
+        "allow_interrupts",
+        "interrupt_only_for"
+      ],
+      "properties": {
+        "allow_interrupts": {
+          "type": "boolean"
+        },
+        "interrupt_only_for": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "quality_uncertainty",
+              "source_freshness_or_approval",
+              "review_disagreement",
+              "revision_limit_reached",
+              "idea_prioritization_ambiguity",
+              "budget_warning",
+              "hard_budget_breach",
+              "credentials_missing",
+              "destructive_operation",
+              "private_data_approval",
+              "legal_policy_sensitive_claim",
+              "external_publication_approval",
+              "source_governance_missing",
+              "result_acceptance_missing",
+              "deliverable_maturity_missing"
+            ]
+          }
+        }
+      }
+    },
+    "auto_decisions": {
+      "type": "object",
+      "required": [
+        "allow_resume",
+        "allow_revision",
+        "allow_reject",
+        "allow_claim_downgrade",
+        "allow_source_substitution",
+        "allow_idea_prioritization"
+      ],
+      "properties": {
+        "allow_resume": {
+          "type": "boolean"
+        },
+        "allow_revision": {
+          "type": "boolean"
+        },
+        "allow_reject": {
+          "type": "boolean"
+        },
+        "allow_claim_downgrade": {
+          "type": "boolean"
+        },
+        "allow_source_substitution": {
+          "type": "boolean"
+        },
+        "allow_idea_prioritization": {
+          "type": "boolean"
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "required": [
+        "write_decisions",
+        "write_auto_decisions",
+        "explain_auto_decisions"
+      ],
+      "properties": {
+        "write_decisions": {
+          "type": "boolean"
+        },
+        "write_auto_decisions": {
+          "type": "boolean"
+        },
+        "explain_auto_decisions": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

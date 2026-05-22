@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 1 - Workspace Mode Config",
+  "current_phase": "Phase 2 - Mode-Aware `needs_human` Policy",
   "status": "ready_for_next_run",
   "iteration": 0,
   "max_iterations": 3,
-  "last_reviewed_phase": "Phase 0 - Mode contract and authority model",
-  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-0-review-iteration-1.md",
+  "last_reviewed_phase": "Phase 1 - Workspace Mode Config",
+  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-1-review-iteration-1.md",
   "last_verdict": "delivered",
   "blocked_reason": null,
-  "updated_at": "2026-05-22T07:10:50Z"
+  "updated_at": "2026-05-22T08:17:52Z"
 }

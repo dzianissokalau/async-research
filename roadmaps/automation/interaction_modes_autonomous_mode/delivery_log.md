@@ -110,3 +110,59 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-0`
 ### Next Action
 
 - Next automation run should deliver Phase 1 - Workspace Mode Config.
+
+## Phase 1 - 2026-05-22 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-1`
+
+### Scope
+
+- Add durable workspace interaction mode config.
+- Add schema validation, starter defaults, public CLI visibility, console
+  snapshot fields, and LLM operator guidance to read mode before mutation.
+- Preserve manual-compatible behavior for existing workspaces with missing or
+  invalid mode config.
+
+### Changes
+
+- Added `src/async_research_workflow/schemas/interaction_mode.schema.json`.
+- Added `src/async_research_workflow/scripts/interaction_mode.py` with
+  `show`, `set`, and `validate` behavior.
+- Added `research_ops/interaction_mode.json` starter defaults for both packaged
+  starter templates.
+- Added public `async-research mode show|set|validate` CLI commands.
+- Added read-only `interaction_mode` data to console snapshots.
+- Updated LLM operator startup docs and inspection helper to read mode before
+  mutating workflow state.
+- Added focused regression coverage for defaults, invalid configs, CLI help,
+  packaging, schema-check visibility, and console snapshot fields.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 807 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-1-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- Phase 1 deliberately does not change workflow transitions or automatic
+  `needs_human` resolution.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 1 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 2 - Mode-Aware `needs_human` Policy.

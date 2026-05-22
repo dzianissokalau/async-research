@@ -29,6 +29,7 @@ from async_research_workflow.scripts import data_foundations
 from async_research_workflow.scripts import deliverable_maturity
 from async_research_workflow.scripts import evidence_memory
 from async_research_workflow.scripts import health_check
+from async_research_workflow.scripts import interaction_mode
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import prompt_library
 from async_research_workflow.scripts import runtime_artifacts
@@ -1378,6 +1379,27 @@ def deliverables_snapshot(ops_dir: Path) -> dict[str, Any]:
     }
 
 
+def interaction_mode_snapshot(ops_dir: Path) -> dict[str, Any]:
+    result = interaction_mode.inspect_mode_config(ops_dir)
+    payload = {
+        "available": result.get("ok") is True,
+        "status": "available" if result.get("ok") is True else "invalid",
+        "mode": (result.get("summary") or {}).get("mode"),
+        "risk_tolerance": (result.get("summary") or {}).get("risk_tolerance"),
+        "config_present": result.get("config_present", False),
+        "defaulted": result.get("defaulted", False),
+        "source": result.get("source", result.get("reason")),
+        "path": result.get("path"),
+        "summary": result.get("summary", {}),
+        "warnings": result.get("warnings", []),
+        "errors": result.get("errors", []),
+    }
+    if result.get("ok") is not True:
+        payload["reason"] = result.get("reason", "invalid_mode_config")
+        payload["message"] = "interaction mode config is invalid; mode-aware automation must fail closed"
+    return payload
+
+
 def prompts_snapshot(ops_dir: Path) -> dict[str, Any]:
     try:
         return prompt_library.library_snapshot(ops_dir)
@@ -2311,6 +2333,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     accepted_outputs, accepted_warnings = accepted_outputs_snapshot(ops_dir, current)
     delivered_projects = delivered_projects_snapshot(ops_dir, current)
     deliverables = deliverables_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "deliverables are unavailable until research_ops exists", ops_dir)
+    mode = interaction_mode_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "interaction mode is unavailable until research_ops exists", ops_dir)
     rejected_results, rejected_warnings = rejected_results_snapshot(ops_dir)
     cost = cost_snapshot(ops_dir, current, tasks.get("all", []))
     prompts = prompts_snapshot(ops_dir) if workspace_ready else unavailable("ops_dir_missing", "prompts are unavailable until research_ops exists", ops_dir)
@@ -2340,6 +2363,12 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         warnings.extend(sources.get("warnings", []))
     if deliverables.get("available") is not False:
         warnings.extend(deliverables.get("warnings", []))
+    if mode.get("available") is False:
+        warnings.extend(mode.get("warnings", []))
+        warnings.extend(mode.get("errors", []))
+    else:
+        warnings.extend(mode.get("warnings", []))
+        warnings.extend(mode.get("errors", []))
     if runtime.get("available") is not False:
         warnings.extend(runtime.get("warnings", []))
         warnings.extend(runtime.get("errors", []))
@@ -2349,7 +2378,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
     if structured_memory.get("available") is not False:
         warnings.extend(structured_memory.get("warnings", []))
         warnings.extend(structured_memory.get("errors", []))
-    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, structured_memory, lifecycle, deliverables, *dashboards.values()]))
+    warnings.extend(collect_unavailable_warnings([readiness, health, prompts, schedules, sources, runs, runtime, evals, structured_memory, lifecycle, deliverables, mode, *dashboards.values()]))
 
     return {
         "ok": True,
@@ -2367,6 +2396,7 @@ def snapshot(ops_dir: Path, now: datetime | None = None) -> dict[str, Any]:
         "accepted_outputs": accepted_outputs,
         "delivered_projects": delivered_projects,
         "deliverables": deliverables,
+        "interaction_mode": mode,
         "rejected_results": rejected_results,
         "cost": cost,
         "sources": sources,

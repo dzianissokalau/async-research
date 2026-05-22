@@ -22,6 +22,7 @@ pwd
 git rev-parse --is-inside-work-tree
 command -v async-research || test -x .venv/bin/async-research
 async-research version
+async-research mode show research_ops
 async-research workflow next research_ops
 ```
 
@@ -34,6 +35,8 @@ reports. If any command is missing or unsafe to run, stop and report the gap.
 - Treat `research_ops/` files as the highest authority, followed by public CLI
   JSON output, dashboard or console snapshots, user messages, then model memory.
 - Prefer public `async-research` commands over direct file edits.
+- Read `async-research mode show research_ops` before mutating workflow state;
+  missing or invalid mode config means manual-compatible behavior.
 - Dry-run before writes whenever the command supports it.
 - Operate one bounded task at a time.
 - Ask before creating environments, installing packages, using network access,

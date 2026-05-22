@@ -20,17 +20,21 @@ EXPECTED_TOP_LEVEL_COMMANDS = (
     "version",
     "init",
     "schema-check",
+    "mode",
     "readiness",
     "health",
     "workflow",
     "console",
 )
 EXPECTED_NESTED_COMMANDS = {
+    "mode": ("show",),
     "workflow": ("next",),
     "console": ("snapshot",),
 }
 READ_ONLY_CHECKS = (
     ("schema_check", ("schema-check", "{ops_dir}")),
+    ("mode_show", ("mode", "show", "{ops_dir}")),
+    ("mode_validate", ("mode", "validate", "{ops_dir}")),
     ("readiness_dry_run", ("readiness", "{ops_dir}", "--dry-run")),
     ("health_dry_run", ("health", "{ops_dir}", "--dry-run")),
     ("workflow_next", ("workflow", "next", "{ops_dir}")),
@@ -601,7 +605,7 @@ def help_payload() -> dict[str, Any]:
             "--workspace": "Directory to inspect; defaults to the current working directory.",
             "--research-ops": "Explicit research_ops path, relative to --workspace when not absolute.",
             "--cli": "Explicit async-research CLI path, relative to --workspace when not absolute.",
-            "--run-read-only-checks": "Run schema, readiness, health, workflow next, and console snapshot checks.",
+            "--run-read-only-checks": "Run schema, mode, readiness, health, workflow next, and console snapshot checks.",
             "--timeout-seconds": "Per-command timeout for CLI and git probes.",
             "--json-indent": "Indentation for emitted JSON.",
             "-h, --help": "Print this JSON help payload.",

@@ -13,6 +13,8 @@ reflects the current repo state.
 
 ```bash
 async-research schema-check research_ops
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research library init research_ops --dry-run
 async-research library validate research_ops
 async-research idea catalog init research_ops --dry-run
@@ -148,3 +150,8 @@ accepted task or review proof, a foundation apply lock, and post-write
 4. Add discovery sources to `discovery/source_register.md`.
 5. Add one small task under `tasks/` and one row in `queue.md`.
 6. Run the health and readiness checks before scheduling workers.
+
+LLM operators must read `interaction_mode.json` through
+`async-research mode show research_ops` before mutating workflow state. Missing
+or invalid mode config keeps manual-compatible behavior until an explicit mode
+set succeeds.

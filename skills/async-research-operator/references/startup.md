@@ -61,6 +61,8 @@ reports:
 
 ```bash
 async-research schema-check research_ops
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research readiness research_ops --dry-run
 async-research health research_ops --dry-run
 async-research workflow next research_ops
