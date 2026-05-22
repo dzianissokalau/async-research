@@ -1,69 +1,60 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 6 - Tests And Autonomous Simulations",
+  "current_phase": "Phase 7 - Default Behavior And Migration",
   "branch": null,
   "status": "ready_for_next_run",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "Phase 5 - Dashboard And Operator UX",
+    "phase": "Phase 6 - Tests And Autonomous Simulations",
     "status": "passed",
-    "verified_at": "2026-05-22T12:25:04Z",
+    "verified_at": "2026-05-22T15:50:16Z",
     "commands": [
       {
-        "command": ".venv/bin/python -m py_compile src/async_research_workflow/console/snapshot.py src/async_research_workflow/console/actions.py",
+        "command": "python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json",
+        "status": "warnings",
+        "summary": "Automation prompt now references the current roadmap and has the hard-stop guard; remaining warning is expected dirty worktree with preserved unrelated roadmap files plus Phase 6-owned test artifacts."
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_interaction_mode_autonomous_simulations -v",
+        "status": "passed",
+        "summary": "Ran 4 tests in 0.299s"
+      },
+      {
+        "command": ".venv/bin/python -m json.tool tests/fixtures/interaction_modes/needs_human_gate_categories.json",
         "status": "passed"
       },
       {
-        "command": "node --check src/async_research_workflow/console/static/app.js",
-        "status": "passed"
+        "command": ".venv/bin/python -m unittest tests.test_needs_human_policy tests.test_workflow_orchestrator tests.test_deliverable_maturity -v",
+        "status": "passed",
+        "summary": "Ran 71 tests in 2.892s"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_console_snapshot",
+        "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "summary": "Ran 30 tests in 0.976s"
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_console_actions",
-        "status": "passed",
-        "summary": "Ran 26 tests in 0.645s"
-      },
-      {
-        "command": ".venv/bin/python -m unittest tests.test_console_server",
-        "status": "passed",
-        "summary": "Ran 17 tests in 0.787s"
+        "summary": "Ran 17 tests in 0.271s"
       },
       {
         "command": "git diff --check",
         "status": "passed"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_doc_references",
-        "status": "passed",
-        "summary": "Ran 17 tests in 0.301s"
-      },
-      {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "summary": "Ran 818 tests in 25.199s"
+        "summary": "Ran 822 tests in 27.198s"
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
         "status": "passed",
         "summary": "15 checks passed"
-      },
-      {
-        "command": "local browser smoke at http://127.0.0.1:8765",
-        "status": "passed",
-        "summary": "Autonomy panel, mode controls, progression policy, and auto-decision feed rendered with zero console errors"
       }
     ]
   },
-  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-2.md",
+  "last_review": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md",
   "last_review_verdict": "delivered",
-  "last_delivered_phase": "Phase 5 - Dashboard And Operator UX",
-  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-5",
+  "last_delivered_phase": "Phase 6 - Tests And Autonomous Simulations",
+  "last_delivered_branch": "codex/interaction-modes-autonomous-mode-phase-6",
   "blocked_reason": null,
   "auto_advance_after_delivered_review": true,
   "commit_delivered_phase_locally": true,
@@ -71,8 +62,8 @@
   "execution_environment": "local",
   "cadence": "hourly",
   "automation_id": "interaction-modes-autonomous-mode-delivery",
-  "automation_status": "PAUSED",
+  "automation_status": "ACTIVE",
   "model": "gpt-5.5",
   "reasoning_effort": "xhigh",
-  "updated_at": "2026-05-22T12:25:04Z"
+  "updated_at": "2026-05-22T15:50:16Z"
 }

@@ -1,13 +1,13 @@
 {
   "roadmap": "roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md",
   "roadmap_slug": "interaction_modes_autonomous_mode",
-  "current_phase": "Phase 6 - Tests And Autonomous Simulations",
+  "current_phase": "Phase 7 - Default Behavior And Migration",
   "status": "ready_for_next_run",
   "iteration": 0,
   "max_iterations": 3,
-  "last_reviewed_phase": "Phase 5 - Dashboard And Operator UX",
-  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-5-review-iteration-2.md",
+  "last_reviewed_phase": "Phase 6 - Tests And Autonomous Simulations",
+  "last_review_file": "roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md",
   "last_verdict": "delivered",
   "blocked_reason": null,
-  "updated_at": "2026-05-22T12:25:04Z"
+  "updated_at": "2026-05-22T15:50:16Z"
 }

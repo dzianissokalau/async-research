@@ -1,0 +1,146 @@
+[
+  {
+    "gate_category": "quality_uncertainty",
+    "trigger": "high_confidence_weak_evidence",
+    "available_decisions": ["resume", "request_revision", "pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "bounded_revision"
+    }
+  },
+  {
+    "gate_category": "source_freshness_or_approval",
+    "trigger": "source_freshness_expired",
+    "available_decisions": ["resume", "refresh_source", "request_revision", "pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "refresh_or_substitute_source"
+    }
+  },
+  {
+    "gate_category": "review_disagreement",
+    "trigger": "reviewer_disagreement_beyond_threshold",
+    "available_decisions": ["resume", "request_revision", "pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "bounded_review_revision"
+    }
+  },
+  {
+    "gate_category": "revision_limit_reached",
+    "trigger": "revision_limit_hit",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_revision_limit"
+    }
+  },
+  {
+    "gate_category": "idea_prioritization_ambiguity",
+    "trigger": "idea_prioritization_ambiguity",
+    "available_decisions": ["resume", "park", "reject", "promote"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "apply_idea_prioritization_policy"
+    }
+  },
+  {
+    "gate_category": "budget_warning",
+    "trigger": "budget_warning",
+    "available_decisions": ["resume", "pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "narrow_budget_scope"
+    }
+  },
+  {
+    "gate_category": "hard_budget_breach",
+    "trigger": "task_exceeds_budget",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "credentials_missing",
+    "trigger": "credentials_missing",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "destructive_operation",
+    "trigger": "destructive_operation",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "private_data_approval",
+    "trigger": "private_data_approval",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "legal_policy_sensitive_claim",
+    "trigger": "legal_policy_sensitive_claim",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "external_publication_approval",
+    "trigger": "publication_approval_required",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
+    "gate_category": "source_governance_missing",
+    "trigger": "source_governance_missing",
+    "available_decisions": ["resume", "request_revision", "refresh_source", "pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "bounded_source_governance_revision"
+    }
+  },
+  {
+    "gate_category": "result_acceptance_missing",
+    "trigger": "result_acceptance_missing",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_missing_result_acceptance"
+    }
+  },
+  {
+    "gate_category": "deliverable_maturity_missing",
+    "trigger": "deliverable_maturity_missing",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_missing_deliverable_maturity"
+    }
+  }
+]

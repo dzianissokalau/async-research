@@ -415,3 +415,202 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-5`
 
 - Next automation run should deliver Phase 6 - Tests And Autonomous
   Simulations.
+
+## Phase 6 - 2026-05-22 - Reconciliation Blocker
+
+Status: blocked
+Branch: `codex/interaction-modes-autonomous-mode-phase-6`
+
+### Scope
+
+- Objective: prove interaction modes with tests and end-to-end autonomous
+  simulations.
+- Current phase scope: mode contract tests, gate-resolution fixtures,
+  zero-human autonomous loop simulation, publication gate regressions, and
+  audit completeness tests.
+- Non-goals: do not weaken quality gates, source governance, audit logging,
+  deliverable/publication gates, or hard-stop behavior.
+- Stop condition hit before implementation: roadmap/state/log/review/config
+  reconciliation disagreed.
+
+### Changes
+
+- No Phase 6 implementation files changed.
+- Recorded a blocker because the run target and saved automation prompt
+  referenced the stale missing lifecycle path
+  `roadmaps/not_started_interaction_modes_autonomous_mode_roadmap.md`, while
+  state, guide, delivery log, and latest reviews point to
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.
+- Recorded that the saved automation config reports `ACTIVE` while the prior
+  delivery state recorded `PAUSED`; editing Codex app automation config is
+  outside approved scope.
+- Recorded that final status showed untracked Phase 6-owned test artifacts not
+  created by this run:
+  `tests/fixtures/interaction_modes/needs_human_gate_categories.json` and
+  `tests/test_interaction_mode_autonomous_simulations.py`.
+
+### Tests And Verification
+
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with warnings for stale automation roadmap path, missing hard-stop guard, automation status drift, and unrelated dirty worktree.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json`: passed.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/review_fix_state.json`: passed.
+- `git diff --check`: passed for the current worktree after blocker
+  bookkeeping updates.
+- `git status --short --branch`: blocked by stale automation prompt/config
+  drift and untracked Phase 6-owned test artifacts not created by this run.
+- `.venv/bin/python -m unittest tests.test_doc_references`: not run because
+  the reconciliation gate blocked before implementation or phase verification.
+- `.venv/bin/python -m unittest discover -s tests`: not run because Phase 6
+  implementation did not start.
+- `.venv/bin/async-research acceptance-suite`: not run because Phase 6
+  implementation did not start.
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-1.md`
+- Verdict: blocked
+
+### Finding Disposition
+
+- [P1] stale automation roadmap target and missing prompt hard-stop guard:
+  blocked pending human-approved automation config repair or an explicit rerun
+  target that matches the current state.
+- [P2] automation status drift between saved config and prior state: blocked
+  as part of the same reconciliation failure.
+- [P1] unexplained untracked Phase 6 test artifacts: blocked pending
+  reconciliation so this run does not overwrite or implicitly adopt user or
+  concurrent automation work.
+
+### Residual Risks
+
+- No Phase 6 acceptance criteria were attempted.
+- Same-context review limitation applies.
+- Unrelated dirty roadmap files and unexplained untracked Phase 6 test files
+  were preserved and excluded from this blocker update.
+
+### Next Action
+
+- Human-approved repair should update the automation prompt/config to the
+  current in-progress roadmap and add the hard-stop guard, or explicitly rerun
+  with matching current-roadmap instructions.
+
+## Phase 6 - 2026-05-22 - Blocker Recheck
+
+Status: blocked
+Branch: `codex/interaction-modes-autonomous-mode-phase-6`
+
+### Scope
+
+- Reconciled the current Phase 6 state before implementation.
+- Did not start Phase 6 implementation because the existing reconciliation
+  blocker remains current.
+
+### Changes
+
+- Refreshed blocked verification evidence in `delivery_state.json`.
+- Preserved the existing blocked review iteration and untracked Phase 6-owned
+  test artifacts without adopting or overwriting them.
+
+### Tests And Verification
+
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with warnings for stale automation roadmap path, missing hard-stop guard, automation status drift, and dirty worktree.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json`: passed.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/review_fix_state.json`: passed.
+- `git diff --check`: passed.
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-1.md`
+- Verdict: blocked
+
+### Finding Disposition
+
+- [P1] stale automation roadmap target and missing prompt hard-stop guard:
+  still blocked pending human-approved automation config repair or an explicit
+  rerun target that matches the current state.
+- [P2] automation status drift between saved config and prior state: still
+  blocked.
+- [P1] unexplained untracked Phase 6 test artifacts: still blocked pending
+  ownership reconciliation.
+
+### Residual Risks
+
+- No Phase 6 acceptance criteria were attempted.
+- Same-context review limitation from iteration 1 remains.
+
+### Next Action
+
+- Repair the automation prompt/config to target
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`, or rerun
+  with matching current-roadmap instructions and clarify ownership of the
+  untracked Phase 6 test artifacts.
+
+## Phase 6 - 2026-05-22 - Delivery Pass 2
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-6`
+
+### Scope
+
+- Prove interaction modes with contract fixtures and autonomous simulations.
+- Cover mode contract categories, multi-mode gate routing, zero-human routine
+  workflow loops, hard-stop preservation, publication gate regression, and
+  auto-decision audit completeness.
+- Repair the approved automation prompt/config blocker before delivery.
+
+### Changes
+
+- Updated the saved Codex automation prompt to target
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md` and add
+  the `all_phases_complete` / `completed_pending_pause` hard-stop guard.
+- Adopted the prior Phase 6 automation-owned test artifacts:
+  `tests/fixtures/interaction_modes/needs_human_gate_categories.json` and
+  `tests/test_interaction_mode_autonomous_simulations.py`.
+- Added fixtures covering every interrupt category from the mode contract and
+  expected autonomous routing.
+- Added end-to-end simulations proving routine autonomous gates advance with
+  zero human interrupts, hard blockers remain human-required without audit
+  mutation, publication-ready deliverables cannot bypass required gates, and
+  every auto-decision row links status/config/decision artifacts.
+- Advanced the roadmap current phase to Phase 7 after delivered review.
+
+### Tests And Verification
+
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with only expected dirty-worktree warning.
+- `.venv/bin/python -m unittest tests.test_interaction_mode_autonomous_simulations -v`: passed, 4 tests.
+- `.venv/bin/python -m json.tool tests/fixtures/interaction_modes/needs_human_gate_categories.json`: passed.
+- `.venv/bin/python -m unittest tests.test_needs_human_policy tests.test_workflow_orchestrator tests.test_deliverable_maturity -v`: passed, 71 tests.
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests.
+- `git diff --check`: passed.
+- `.venv/bin/python -m unittest discover -s tests`: passed, 822 tests.
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks.
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- [P1] stale automation roadmap target and missing prompt hard-stop guard:
+  fixed with approved saved automation prompt repair and validator readback.
+- [P2] automation status drift between saved config and prior state: resolved
+  by operator approval to unblock while leaving the automation `ACTIVE`.
+- [P1] unexplained untracked Phase 6 test artifacts: resolved as prior
+  automation-owned Phase 6 artifacts and adopted into the delivered diff.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- The saved automation config lives outside the repository and is not captured
+  by git diff, but validator readback confirmed the current roadmap path and
+  hard-stop guard.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 6 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 7 - Default Behavior And Migration.

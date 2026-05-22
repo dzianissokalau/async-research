@@ -154,3 +154,55 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-5`
 
 - Next run should start Phase 6 from
   `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.
+
+## Phase 6 - 2026-05-22 - Review Iteration 1
+
+Status: blocked
+Branch: `codex/interaction-modes-autonomous-mode-phase-6`
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-1.md`
+- Verdict: blocked
+
+### Finding Disposition
+
+- [P1] stale automation roadmap target and missing prompt hard-stop guard:
+  blocked pending human-approved automation config repair or an explicit rerun
+  target that matches the current state.
+- [P2] automation status drift between saved config and prior state: blocked
+  as part of the same reconciliation failure.
+- [P1] unexplained untracked Phase 6 test artifacts: blocked pending
+  reconciliation so this run does not overwrite or implicitly adopt user or
+  concurrent automation work.
+
+### Next Action
+
+- Repair the automation prompt/config or rerun with matching current-roadmap
+  instructions before Phase 6 implementation starts.
+
+## Phase 6 - 2026-05-22 - Review Iteration 2
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-6`
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-6-review-iteration-2.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- [P1] stale automation roadmap target and missing prompt hard-stop guard:
+  fixed.
+- [P2] automation status drift between saved config and prior state: resolved
+  by operator approval to unblock while leaving the automation `ACTIVE`.
+- [P1] unexplained untracked Phase 6 test artifacts: resolved as prior
+  automation-owned Phase 6 artifacts and adopted into the delivered diff.
+
+### Next Action
+
+- Next run should start Phase 7 from
+  `roadmaps/in_progress_interaction_modes_autonomous_mode_roadmap.md`.
