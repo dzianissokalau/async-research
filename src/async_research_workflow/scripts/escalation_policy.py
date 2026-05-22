@@ -20,6 +20,8 @@ from async_research_workflow.scripts.data_source_audit import (
     validate_rows,
 )
 from async_research_workflow.scripts.health_check import parse_datetime, row_amount
+from async_research_workflow.scripts.needs_human_policy import GATE_CATEGORY_BY_TRIGGER
+from async_research_workflow.scripts.needs_human_policy import KNOWN_GATE_CATEGORIES
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 from async_research_workflow.scripts.validate_transition import validate_payload
 from async_research_workflow.scripts.version_metadata import apply_default_versions
@@ -576,9 +578,16 @@ def build_human_gate(triggers: list[dict[str, Any]], now: datetime) -> dict[str,
     reasons = [trigger["message"] for trigger in triggers[:3]]
     if len(triggers) > 3:
         reasons.append(f"{len(triggers) - 3} additional trigger(s)")
+    gate_categories: list[str] = []
+    for trigger in triggers:
+        category = GATE_CATEGORY_BY_TRIGGER.get(trigger["trigger"])
+        if category and category not in gate_categories:
+            gate_categories.append(category)
     return {
         "policy_version": FRAMEWORK_VERSION,
         "trigger": primary["trigger"],
+        "gate_category": gate_categories[0] if gate_categories else "quality_uncertainty",
+        "gate_categories": gate_categories or ["quality_uncertainty"],
         "triggered_at": iso_now(now),
         "severity": primary["severity"],
         "reason": "; ".join(reasons),
@@ -656,6 +665,7 @@ def structured_human_gate_errors(status: dict[str, Any], task_dir: Path) -> list
     required = [
         "policy_version",
         "trigger",
+        "gate_category",
         "severity",
         "reason",
         "required_human_decision",
@@ -671,6 +681,8 @@ def structured_human_gate_errors(status: dict[str, Any], task_dir: Path) -> list
         errors.append({"task_dir": str(task_dir), "field": "human_gate.available_decisions", "reason": "clear_decisions_required"})
     if gate.get("trigger") not in POLICY_BY_TRIGGER:
         errors.append({"task_dir": str(task_dir), "field": "human_gate.trigger", "reason": "unknown_policy_trigger"})
+    if gate.get("gate_category") not in KNOWN_GATE_CATEGORIES:
+        errors.append({"task_dir": str(task_dir), "field": "human_gate.gate_category", "reason": "unknown_gate_category"})
     return errors
 
 

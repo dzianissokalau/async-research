@@ -43,6 +43,8 @@ Every `needs_human` task must include:
   "human_gate": {
     "policy_version": "escalation_policy_v1.0",
     "trigger": "required_source_unaudited",
+    "gate_category": "source_governance_missing",
+    "gate_categories": ["source_governance_missing"],
     "triggered_at": "2026-05-03T10:00:00Z",
     "severity": "high",
     "reason": "DS-0004 is not experiment-ready",

@@ -453,6 +453,49 @@
         "trigger": {
           "type": "string"
         },
+        "gate_category": {
+          "type": "string",
+          "enum": [
+            "quality_uncertainty",
+            "source_freshness_or_approval",
+            "review_disagreement",
+            "revision_limit_reached",
+            "idea_prioritization_ambiguity",
+            "budget_warning",
+            "hard_budget_breach",
+            "credentials_missing",
+            "destructive_operation",
+            "private_data_approval",
+            "legal_policy_sensitive_claim",
+            "external_publication_approval",
+            "source_governance_missing",
+            "result_acceptance_missing",
+            "deliverable_maturity_missing"
+          ]
+        },
+        "gate_categories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "quality_uncertainty",
+              "source_freshness_or_approval",
+              "review_disagreement",
+              "revision_limit_reached",
+              "idea_prioritization_ambiguity",
+              "budget_warning",
+              "hard_budget_breach",
+              "credentials_missing",
+              "destructive_operation",
+              "private_data_approval",
+              "legal_policy_sensitive_claim",
+              "external_publication_approval",
+              "source_governance_missing",
+              "result_acceptance_missing",
+              "deliverable_maturity_missing"
+            ]
+          }
+        },
         "triggered_at": {
           "type": "string"
         },

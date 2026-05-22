@@ -63,6 +63,21 @@ async-research decision resolve-task \
 
 The resolver appends a decision row, updates `status.json`, and validates the transition. It is the preferred way to move a task out of `needs_human`.
 
+Dry-run a mode-policy resolution without human input:
+
+```bash
+async-research decision auto-resolve-task \
+  research_ops \
+  research_ops/tasks/TASK-0001 \
+  --dry-run
+```
+
+The auto resolver reads `interaction_mode.json` and the structured
+`human_gate.gate_category`. It preserves manual-compatible behavior in
+`manual` and `guided`, blocks hard-stop categories, and only writes a clearly
+marked framework-policy decision row when a routine gate can be resolved
+through the existing transition validator.
+
 Check whether a decision row exists:
 
 ```bash

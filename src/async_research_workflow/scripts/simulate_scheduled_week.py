@@ -633,6 +633,8 @@ def day5_rejection_and_human_gate(ops_dir: Path, when: date) -> dict[str, Any]:
     human_status["human_gate"] = {
         "policy_version": "escalation_policy_v1.0",
         "trigger": "ambiguous_task_contract",
+        "gate_category": "quality_uncertainty",
+        "gate_categories": ["quality_uncertainty"],
         "triggered_at": iso_at(when, 13),
         "severity": "high",
         "reason": human_status["human_gate_reason"],

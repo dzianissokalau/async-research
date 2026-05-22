@@ -19,6 +19,7 @@ from async_research_workflow.scripts.decision_log import (
     normalize_related_artifacts,
     read_decisions,
 )
+from async_research_workflow.scripts.needs_human_policy import evaluate_policy
 from async_research_workflow.scripts.validate_json_artifact import load_json, validate
 from async_research_workflow.scripts.validate_transition import ALLOWED, validate_payload
 from async_research_workflow.scripts.version_metadata import apply_default_versions
@@ -264,6 +265,115 @@ def run_resolve_task(args: argparse.Namespace) -> int:
     return SUCCESS
 
 
+def auto_resolution_row(args: argparse.Namespace, resolution: dict[str, Any], item_id: str) -> dict[str, Any]:
+    related_artifacts = list(args.related_artifact or [])
+    task_dir = Path(str(resolution.get("task_dir") or ""))
+    if task_dir:
+        related_artifacts.append(str(task_dir / "status.json"))
+    return {
+        "date": args.date or iso_now(),
+        "item_id": item_id,
+        "decision": resolution["decision"],
+        "reason": resolution["audit_reason"],
+        "approver": resolution["actor"],
+        "related_artifacts": normalize_related_artifacts(related_artifacts),
+    }
+
+
+def run_auto_resolve_task(args: argparse.Namespace) -> int:
+    task_dir = resolve_task_dir(args.task_dir)
+    path = decisions_path(args.ops_dir)
+    try:
+        status = load_status(task_dir)
+    except ValueError as exc:
+        print_json({"ok": False, "reason": "invalid_request", "error": str(exc), "task_dir": str(task_dir)})
+        return INVALID_REQUEST
+
+    task_id = status.get("id")
+    if not isinstance(task_id, str) or not task_id.strip():
+        print_json({"ok": False, "reason": "missing_task_id", "task_dir": str(task_dir)})
+        return INVALID_REQUEST
+
+    resolution = evaluate_policy(args.ops_dir, task_dir, status)
+    if not resolution.get("can_auto_resolve"):
+        print_json({**resolution, "action": "auto_resolution_skipped"})
+        return INVALID_REQUEST
+
+    new_status = str(resolution["target_status"])
+    updated = dict(status)
+    updated.setdefault("schema_version", SCHEMA_VERSION)
+    apply_default_versions(updated)
+    opened_at = status.get("updated_at")
+    if should_replace_cycle_timestamp(updated.get("human_gate_opened_at"), opened_at):
+        updated["human_gate_opened_at"] = opened_at
+    updated["previous_status"] = "needs_human"
+    updated["status"] = new_status
+    updated["last_transition_reason"] = f"mode_policy_auto_{resolution['policy_action']}"
+    updated["updated_at"] = args.date or iso_now()
+    updated["requires_human"] = False
+    updated["auto_resolution"] = {
+        "policy_version": resolution["policy_version"],
+        "mode": resolution["mode"],
+        "gate_category": resolution["gate_category"],
+        "gate_categories": resolution["gate_categories"],
+        "policy_action": resolution["policy_action"],
+        "decision": resolution["decision"],
+        "target_status": new_status,
+        "actor": resolution["actor"],
+        "reason": resolution["audit_reason"],
+        "applied_at": updated["updated_at"],
+    }
+    if new_status in {"ready_for_worker", "paused", "rejected"}:
+        updated["human_gate_reason"] = None
+
+    row = auto_resolution_row(args, resolution, task_id)
+    schema_code, schema_errors = validate_status_schema(updated)
+    if schema_code != SUCCESS:
+        print_json(
+            {
+                "ok": False,
+                "reason": "auto_resolved_status_schema_invalid",
+                "errors": schema_errors,
+                "task_dir": str(task_dir),
+                "resolution": resolution,
+            }
+        )
+        return schema_code
+
+    dry_payload = {
+        "ok": True,
+        "action": "dry_run_auto_resolved" if args.dry_run else "auto_resolved",
+        "task_id": task_id,
+        "task_dir": str(task_dir),
+        "previous_status": status.get("status"),
+        "status": new_status,
+        "decisions": str(path),
+        "decision": row,
+        "resolution": resolution,
+    }
+    if args.dry_run:
+        print_json(dry_payload)
+        return SUCCESS
+
+    append_decision(path, row)
+    code, errors = validate_status(updated, path)
+    if code != SUCCESS:
+        print_json(
+            {
+                "ok": False,
+                "reason": "auto_resolved_status_invalid",
+                "errors": errors,
+                "task_dir": str(task_dir),
+                "resolution": resolution,
+            }
+        )
+        return code
+
+    atomic_write_json(task_dir / "status.json", updated)
+    print_json(dry_payload)
+    return SUCCESS
+
+
 def month_matches(value: str, month: Optional[str]) -> bool:
     if not month:
         return True
@@ -362,6 +472,13 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     resolve.add_argument("--status", choices=sorted(ALLOWED["needs_human"]))
     resolve.add_argument("--dry-run", action="store_true")
 
+    auto_resolve = subparsers.add_parser("auto-resolve-task", help="Resolve a needs_human task when interaction-mode policy allows it.")
+    auto_resolve.add_argument("ops_dir", type=Path)
+    auto_resolve.add_argument("task_dir", type=Path)
+    auto_resolve.add_argument("--related-artifact", action="append", default=[])
+    auto_resolve.add_argument("--date")
+    auto_resolve.add_argument("--dry-run", action="store_true")
+
     summarize = subparsers.add_parser("summarize", help="Summarize decision rows for calibration.")
     summarize.add_argument("ops_dir", type=Path)
     summarize.add_argument("--month")
@@ -378,6 +495,8 @@ def main(argv: Iterable[str]) -> int:
         return run_check(args)
     if args.command == "resolve-task":
         return run_resolve_task(args)
+    if args.command == "auto-resolve-task":
+        return run_auto_resolve_task(args)
     if args.command == "summarize":
         return run_summarize(args)
     print_json({"ok": False, "reason": "unknown_command", "command": args.command})

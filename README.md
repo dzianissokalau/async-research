@@ -423,6 +423,7 @@ readability aliases are also available: `review-surface` is an alias for
 | `async-research schedules trigger-now research_ops worker-loop` | Run one enabled schedule job now with bounded local execution. | `schedules.json`, prompt files, readiness inputs, existing run artifacts for concurrency, and `run_artifacts/.locks/<concurrency-key>` runtime locks. | `run_artifacts/<run-id>/run.json`, `events.jsonl`, `final_message.md`, `stdout.log`, `stderr.log`; appends a cost ledger usage row only when JSON events contain token usage. Same-concurrency active runs block execution. Orphan runtime locks are automatically renamed aside after the job timeout plus a five-minute grace period. |
 | `async-research decision append research_ops --item-id <id> --decision approve --reason "<why>" --approver <name>` | Record a structured human decision. | Command flags. | `decisions.md`; with `--dry-run`, stdout only. |
 | `async-research decision resolve-task research_ops <task-dir> --decision resume --reason "<why>" --approver <name>` | Resolve a `needs_human` task through the decision log. | Task `status.json` and `decisions.md`. | `decisions.md` and task `status.json`; with `--dry-run`, stdout only. |
+| `async-research decision auto-resolve-task research_ops <task-dir> --dry-run` | Explain or apply a mode-policy route for a structured `needs_human` gate. | `interaction_mode.json`, task `status.json`, structured `human_gate`, and `decisions.md`. | `decisions.md` and task `status.json` only when policy allows and `--dry-run` is omitted. |
 | `async-research decision check research_ops --item-id <id>` | Check whether an item has a matching decision row. | `decisions.md`. | JSON to stdout only. |
 | `async-research decision summarize research_ops --output research_ops/monthly_human_decision_summary.md` | Summarize human decisions for calibration. | `decisions.md`. | JSON to stdout; optional Markdown output file. |
 | `async-research escalation list` | List deterministic escalation policy triggers. | Packaged escalation policy. | JSON to stdout only. |
@@ -639,6 +640,7 @@ specific diagnostic.
 | `decision append` | `0` decision row appended or dry-run row printed. | `2` missing reason or approver. |
 | `decision check` | `0` matching decision found. | `3` no matching decision row. |
 | `decision resolve-task` | `0` task resolved or dry-run transition printed. | `2` invalid request such as task not in `needs_human`; `3` transition validation failed; `4` malformed task state. |
+| `decision auto-resolve-task` | `0` policy route applied or dry-run route printed. | `2` manual mode, hard stop, invalid gate, or policy route unavailable; `3` transition validation failed; `4` malformed task state. |
 | `decision summarize` | `0` summary printed or written. | No command-specific nonzero return from the backing script. |
 | `escalation list` | `0` policy trigger table printed. | No command-specific runtime failures. |
 | `escalation scan-needs-human` | `0` structured gates are valid. | `2` one or more `needs_human` tasks are missing structured gates; `4` workspace is missing. |

@@ -68,7 +68,7 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
         r"(?:python -m\s+async_research_workflow\.scripts\.queue_capacity\s+\\?\s*|queue_capacity\.py\s+)discovery-gate\b"
     ),
     "human_decision_log": re.compile(
-        r"(?:python -m\s+async_research_workflow\.scripts\.human_decision_log\s+\\?\s*|human_decision_log\.py\s+)(?:append|check|resolve-task|summarize)\b|async_research_workflow/scripts/human_decision_log\.py|human_decision_log\.py\b"
+        r"(?:python -m\s+async_research_workflow\.scripts\.human_decision_log\s+\\?\s*|human_decision_log\.py\s+)(?:append|check|resolve-task|auto-resolve-task|summarize)\b|async_research_workflow/scripts/human_decision_log\.py|human_decision_log\.py\b"
     ),
     "escalation_policy": re.compile(
         r"(?:python -m\s+async_research_workflow\.scripts\.escalation_policy\s+\\?\s*|escalation_policy\.py\s+)(?:list|scan-needs-human|evaluate)\b|async_research_workflow/scripts/escalation_policy\.py"

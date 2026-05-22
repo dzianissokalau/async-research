@@ -1316,6 +1316,16 @@ def run_decision_resolve_task_command(args: argparse.Namespace) -> int:
     )
 
 
+def run_decision_auto_resolve_task_command(args: argparse.Namespace) -> int:
+    return module_main(
+        "human_decision_log",
+        ["auto-resolve-task", str(args.ops_dir), str(args.task_dir)]
+        + repeated_option("--related-artifact", args.related_artifact)
+        + optional_text("--date", args.date)
+        + (["--dry-run"] if args.dry_run else []),
+    )
+
+
 def run_decision_summarize_command(args: argparse.Namespace) -> int:
     return module_main(
         "human_decision_log",
@@ -2245,8 +2255,8 @@ def register_decision_commands(subparsers) -> None:
     decision = add_command(
         subparsers,
         "decision",
-        help="Append, check, resolve, or summarize human decisions.",
-        description="Manage the append-only decisions.md audit trail for human gates.",
+        help="Append, check, resolve, auto-resolve, or summarize decisions.",
+        description="Manage the append-only decisions.md audit trail for human and mode-policy gates.",
     )
     decision_sub = decision.add_subparsers(dest="decision_command", required=True)
     append = add_command(
@@ -2282,6 +2292,21 @@ def register_decision_commands(subparsers) -> None:
     resolve.add_argument("--status", choices=RESOLUTION_STATUS_CHOICES, help="Target status; defaults from the decision when possible.")
     resolve.add_argument("--dry-run", action="store_true", help="Preview decision and status transition without writing decisions.md or status.json.")
     resolve.set_defaults(func=run_decision_resolve_task_command)
+    auto_resolve = add_command(
+        decision_sub,
+        "auto-resolve-task",
+        help="Resolve a needs_human task when mode policy allows it.",
+        description=(
+            "Evaluate the current interaction mode and structured human_gate, then resolve the task with "
+            "a framework-policy decision row only when the route is allowed. Use --dry-run to explain the policy result without writing."
+        ),
+    )
+    add_required_ops(auto_resolve)
+    auto_resolve.add_argument("task_dir", type=Path, help="Task directory or status.json path to evaluate and resolve.")
+    auto_resolve.add_argument("--related-artifact", action="append", default=[], help="Related task, artifact, or report path. Repeat for multiple artifacts.")
+    auto_resolve.add_argument("--date", help="Decision timestamp or date to record; defaults to current UTC time.")
+    auto_resolve.add_argument("--dry-run", action="store_true", help="Explain the mode-policy route without writing decisions.md or status.json.")
+    auto_resolve.set_defaults(func=run_decision_auto_resolve_task_command)
     summarize = add_command(
         decision_sub,
         "summarize",

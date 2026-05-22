@@ -166,3 +166,64 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-1`
 ### Next Action
 
 - Next automation run should deliver Phase 2 - Mode-Aware `needs_human` Policy.
+
+## Phase 2 - 2026-05-22 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-2`
+
+### Scope
+
+- Split structured `needs_human` gates by normalized category.
+- Add a mode-aware resolver for routine gates, dry-run explanations, hard-stop
+  preservation, and transition validation.
+- Keep manual resolution through `async-research decision resolve-task`.
+
+### Changes
+
+- Added `src/async_research_workflow/scripts/needs_human_policy.py` with
+  gate-category normalization, per-mode policy evaluation, hard-stop blocking,
+  and conservative automatic routes.
+- Extended escalation-generated `human_gate` payloads and task-status schema
+  with `gate_category` and `gate_categories`.
+- Added public `async-research decision auto-resolve-task` dry-run/write
+  behavior. Write mode records a framework-policy row in `decisions.md`, then
+  validates the `needs_human` transition before writing `status.json`.
+- Updated CLI/help/docs and scheduled-week fixture surfaces for the new
+  structured category and auto-resolution command.
+- Added regression coverage for manual mode preserving the human gate,
+  autonomous routine quality-gate resolution with audit evidence, hard-stop
+  blocking, and escalation category output.
+- Advanced the roadmap current phase to Phase 3 after delivered review.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 17 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 810 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No blocking findings in the final reviewed diff.
+- Same-context pre-review scanner category validation gap: fixed before final
+  verdict.
+
+### Residual Risks
+
+- Review was performed in the same Codex context because no separate reviewer
+  context was available.
+- Phase 2 uses clearly marked `decisions.md` framework-policy rows for audit
+  evidence; richer auto-decision audit rows remain Phase 3 scope.
+- Workflow-wide invocation of the resolver remains Phase 4 scope.
+- Unrelated dirty roadmap files were preserved and excluded from Phase 2 scope.
+
+### Next Action
+
+- Next automation run should deliver Phase 3 - Auto-Decision Audit Trail.

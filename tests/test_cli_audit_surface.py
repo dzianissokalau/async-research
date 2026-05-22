@@ -1014,6 +1014,7 @@ class CliAuditSurfaceTests(unittest.TestCase):
             self.assertEqual("needs_human", status["status"])
             self.assertTrue(status["requires_human"])
             self.assertEqual("ambiguous_task_contract", status["human_gate"]["trigger"])
+            self.assertEqual("quality_uncertainty", status["human_gate"]["gate_category"])
             self.assertIn("required_human_decision", status["human_gate"])
 
     def test_source_authoring_commands_use_public_cli(self) -> None:
