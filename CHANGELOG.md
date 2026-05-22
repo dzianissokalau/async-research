@@ -14,6 +14,10 @@ while the public CLI and workflow contracts harden.
 - Updated quickstart, operator, and troubleshooting guidance so LLM operators
   read the effective mode first and can explain why the framework did or did
   not interrupt the user.
+- Clarified that preserved source-governance, result-acceptance, and
+  deliverable-maturity gates are never bypassed by interaction mode, added
+  `guided` and `publication_guarded` policy coverage, and documented mode
+  checks in the LLM setup guide.
 
 ## 0.2.0a5 - 2026-05-13
 

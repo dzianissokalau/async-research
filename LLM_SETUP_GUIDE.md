@@ -60,10 +60,16 @@ Please do the following:
 
 4. Run the first checks.
    - Run:
+     async-research mode show research_ops
+     async-research mode validate research_ops
      async-research workflow check research_ops
      async-research surface update research_ops
      async-research surface validate research_ops
-   - Explain the result in plain English.
+   - Explain the interaction mode and check results in plain English.
+   - Before mutating workflow state, read the mode. New starter workspaces
+     normally report `supervised`; older workspaces without
+     `interaction_mode.json` use manual-compatible behavior until I explicitly
+     choose a mode.
 
 5. Show me the dashboard option.
    - If appropriate, run:
@@ -172,12 +178,26 @@ research_ops/
 ### 6. Run Safety Checks
 
 ```bash
+async-research mode show research_ops
+async-research mode validate research_ops
 async-research workflow check research_ops
 async-research surface update research_ops
 async-research surface validate research_ops
 ```
 
 If anything fails, stop and fix that before starting research work.
+
+The `mode show` command tells the LLM operator how much authority the framework
+has before it mutates task state. New starter workspaces should show
+`supervised`, which lets the framework handle routine revisions and source
+substitutions while still stopping for credentials, destructive actions, private
+data, hard budget breaches, legal/policy-sensitive claims, and publication or
+external-claim approval. Existing workspaces without `interaction_mode.json`
+stay manual-compatible until you explicitly choose a mode with:
+
+```bash
+async-research mode set research_ops --mode supervised
+```
 
 ### 7. Open The Dashboard
 

@@ -730,3 +730,61 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-7`
 
 - Repurpose the paused automation only with human approval. Future runs should
   continue to hard-stop on `completed_pending_pause` / `all_phases_complete`.
+
+## Phase 7 - 2026-05-22 - Release Readiness Fixes
+
+Status: completed_pending_pause
+Branch: `codex/interaction-modes-autonomous-mode-phase-7`
+
+### Scope
+
+- Address the independent release-readiness review findings without expanding
+  interaction-mode authority.
+- Preserve the delivered lifecycle state and automation hard-stop behavior.
+
+### Changes
+
+- Recorded the independent release-readiness review under the reviews
+  directory with verdict `needs-fix`.
+- Clarified the mode contract: true hard stops always require human approval;
+  source-governance, result-acceptance, and deliverable-maturity gates are never
+  bypassed but may route to conservative audited follow-up states.
+- Documented `publication_guarded` as sharing internal autonomous routing while
+  preserving a hard external/publication approval boundary.
+- Added direct tests for `guided`, `publication_guarded`, every mode config
+  round-trip, and every trigger mapped by `GATE_CATEGORY_BY_TRIGGER`.
+- Added `LLM_SETUP_GUIDE.md` guidance for `mode show` / `mode validate` before
+  workflow mutation.
+- Updated `CHANGELOG.md` and review state/log files for the review-hardening
+  follow-up.
+
+### Tests And Verification
+
+- `.venv/bin/python -m json.tool tests/fixtures/interaction_modes/needs_human_gate_categories.json`: passed.
+- `.venv/bin/python -m unittest tests.test_interaction_mode tests.test_interaction_mode_autonomous_simulations tests.test_doc_references -v`: passed, 30 tests.
+- `git diff --check`: passed.
+- `.venv/bin/python -m unittest discover -s tests`: passed, 827 tests.
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/delivery_state.json`: passed.
+- `.venv/bin/python -m json.tool roadmaps/automation/interaction_modes_autonomous_mode/review_fix_state.json`: passed.
+- `python3 /Users/dzianissokalau/.codex/skills/autonomous-roadmap-delivery/scripts/validate_delivery_artifacts.py --repo-root /Users/dzianissokalau/Documents/projects/async-research --roadmap-slug interaction_modes_autonomous_mode --automation-id interaction-modes-autonomous-mode-delivery --json`: completed with no errors and expected warnings for stale paused automation prompt path and dirty worktree before commit.
+
+### Review
+
+- Release-readiness review:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-release-readiness-review.md`
+- Fix review:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-2.md`
+- Verdict: delivered
+
+### Residual Risks
+
+- `publication_guarded` remains intentionally scoped to publication-boundary
+  enforcement until a future roadmap defines deeper claim-level classification.
+- `CHANGELOG.md` remains under `Unreleased` until a package release is cut.
+
+### Next Action
+
+- Push the reviewed fix commit to
+  `origin/codex/interaction-modes-autonomous-mode-phase-7`; then create or
+  update the PR manually if the GitHub connector still cannot open one.

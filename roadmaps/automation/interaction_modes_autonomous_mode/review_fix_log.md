@@ -227,3 +227,38 @@ Branch: `codex/interaction-modes-autonomous-mode-phase-7`
 - All phases are delivered. Pause or repurpose the automation with human
   approval; future runs should hard-stop on `completed_pending_pause` /
   `all_phases_complete`.
+
+## Phase 7 - 2026-05-22 - Release Readiness Review Fixes
+
+Status: delivered
+Branch: `codex/interaction-modes-autonomous-mode-phase-7`
+
+### Review
+
+- Release-readiness review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-release-readiness-review.md`
+- Fix review file:
+  `roadmaps/automation/interaction_modes_autonomous_mode/reviews/interaction_modes_autonomous_mode-phase-7-review-iteration-2.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- [F1] Contract wording mismatch: fixed with hard-stop vs preserved-gate
+  wording.
+- [F2] Missing mode tests: fixed for `guided` and `publication_guarded`.
+- [F3] `publication_guarded` false-assurance risk: fixed by documenting the
+  publication-boundary distinction and testing external-publication blocking.
+- [F4] Trigger coverage gaps: fixed with fixtures for every mapped trigger.
+- [F5] LLM setup guide gap: fixed with mode-inspection guidance and doc tests.
+- [F6] Changelog versioning: accepted as `Unreleased` until package release.
+- [F7] Independent review evidence: recorded as the release-readiness review.
+
+### Verification
+
+- `.venv/bin/python -m unittest tests.test_interaction_mode tests.test_interaction_mode_autonomous_simulations tests.test_doc_references -v`: passed, 30 tests.
+- `.venv/bin/python -m unittest discover -s tests`: passed, 827 tests.
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks.
+
+### Next Action
+
+- Push the fix commit to GitHub and use the branch for PR review.

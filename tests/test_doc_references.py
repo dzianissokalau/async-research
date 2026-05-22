@@ -549,6 +549,7 @@ class DocumentationReferenceTests(unittest.TestCase):
         docs = {
             "README.md": ROOT / "README.md",
             "CHANGELOG.md": ROOT / "CHANGELOG.md",
+            "LLM_SETUP_GUIDE.md": ROOT / "LLM_SETUP_GUIDE.md",
             "first_success_quickstart.md": PACKAGE_ROOT / "docs" / "first_success_quickstart.md",
             "interaction_mode_contract.md": PACKAGE_ROOT / "docs" / "interaction_mode_contract.md",
             "operational_readiness_runbook.md": PACKAGE_ROOT / "docs" / "operational_readiness_runbook.md",
@@ -575,6 +576,12 @@ class DocumentationReferenceTests(unittest.TestCase):
                 "new starter workspaces use `supervised`",
                 "existing workspaces without `interaction_mode.json` keep manual-compatible behavior",
             ],
+            "LLM_SETUP_GUIDE.md": [
+                "async-research mode show research_ops",
+                "async-research mode validate research_ops",
+                "Before mutating workflow state, read the mode",
+                "Existing workspaces without `interaction_mode.json` stay manual-compatible",
+            ],
             "first_success_quickstart.md": [
                 "How autonomous should this run be?",
                 "New workspaces start in `supervised` mode",
@@ -586,6 +593,8 @@ class DocumentationReferenceTests(unittest.TestCase):
                 "Status: Active contract",
                 "routine, reversible gates may continue only when policy, transition validation, and audit logging allow them",
                 "Existing workspaces without an interaction-mode config keep manual-compatible behavior",
+                "These gates are never bypassed by interaction mode",
+                "`publication_guarded` uses the same internal research routing as `autonomous`",
             ],
             "operational_readiness_runbook.md": [
                 "## Unexpectedly Frequent Interrupts",

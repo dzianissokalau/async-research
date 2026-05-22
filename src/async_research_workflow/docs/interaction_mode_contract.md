@@ -68,9 +68,10 @@ the current manual behavior.
 | private or sensitive data use | Human approval required. | Human approval required. | Human approval required. | Human approval required. | Human approval required. |
 | external or publication claim approval | Human approval required. | Human approval required. | Human approval required before external use. | Defer, downgrade, or keep internal until a human approves external use. | Human approval required before external use. |
 
-## Hard Stops
+## Hard Stops And Preserved Gates
 
-These conditions are never auto-resolved by interaction mode:
+These conditions always require human approval and are never auto-resolved by
+interaction mode:
 
 - missing credentials, inaccessible private systems, or unavailable paid
   services;
@@ -79,7 +80,12 @@ These conditions are never auto-resolved by interaction mode:
 - hard budget breaches or requests to increase budget limits;
 - legal, policy-sensitive, or high-stakes claims that require accountable
   approval;
-- publication, submission, public distribution, or external-claim approval;
+- publication, submission, public distribution, or external-claim approval.
+
+These gates are never bypassed by interaction mode, but autonomous policy may
+route them to conservative, audited follow-up states instead of interrupting the
+operator when transition validation allows it:
+
 - missing source-governance evidence for claims that require approved sources;
 - missing result-acceptance evidence for accepted outputs;
 - missing deliverable maturity gates for submission-ready or publication-ready
@@ -89,6 +95,11 @@ These conditions are never auto-resolved by interaction mode:
 
 Autonomous mode has no path that skips result acceptance, source governance, or
 deliverable maturity gates.
+
+`publication_guarded` uses the same internal research routing as `autonomous`.
+Its distinct promise is the publication boundary: external publication,
+submission, public-distribution, and external-claim approval gates remain hard
+human stops and cannot be satisfied by mode policy.
 
 Mode policy may choose a conservative route around an unsafe gate: revise,
 downgrade claim strength, substitute an already-approved source, park the idea,

@@ -10,6 +10,36 @@
     }
   },
   {
+    "gate_category": "quality_uncertainty",
+    "trigger": "ambiguous_task_contract",
+    "available_decisions": ["pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_ambiguous_task_contract"
+    }
+  },
+  {
+    "gate_category": "quality_uncertainty",
+    "trigger": "unauthorized_scope_change",
+    "available_decisions": ["pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_unauthorized_scope_change"
+    }
+  },
+  {
+    "gate_category": "quality_uncertainty",
+    "trigger": "unverifiable_hidden_assumptions",
+    "available_decisions": ["resume", "request_revision", "pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "bounded_revision"
+    }
+  },
+  {
     "gate_category": "source_freshness_or_approval",
     "trigger": "source_freshness_expired",
     "available_decisions": ["resume", "refresh_source", "request_revision", "pause"],
@@ -17,6 +47,26 @@
       "can_auto_resolve": true,
       "target_status": "ready_for_worker",
       "policy_action": "refresh_or_substitute_source"
+    }
+  },
+  {
+    "gate_category": "source_governance_missing",
+    "trigger": "accepted_memory_lacks_citations",
+    "available_decisions": ["resume", "request_revision", "refresh_source", "pause"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "ready_for_worker",
+      "policy_action": "bounded_source_governance_revision"
+    }
+  },
+  {
+    "gate_category": "source_governance_missing",
+    "trigger": "required_source_unaudited",
+    "available_decisions": ["pause", "request_data_readiness"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_unaudited_source"
     }
   },
   {
@@ -105,6 +155,15 @@
     }
   },
   {
+    "gate_category": "legal_policy_sensitive_claim",
+    "trigger": "strategic_or_business_action",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": false,
+      "reason": "hard_stop_category_requires_human"
+    }
+  },
+  {
     "gate_category": "external_publication_approval",
     "trigger": "publication_approval_required",
     "available_decisions": ["pause", "reject"],
@@ -131,6 +190,16 @@
       "can_auto_resolve": true,
       "target_status": "paused",
       "policy_action": "park_missing_result_acceptance"
+    }
+  },
+  {
+    "gate_category": "result_acceptance_missing",
+    "trigger": "accepted_memory_conflict",
+    "available_decisions": ["pause", "reject"],
+    "expected_autonomous": {
+      "can_auto_resolve": true,
+      "target_status": "paused",
+      "policy_action": "park_accepted_memory_conflict"
     }
   },
   {

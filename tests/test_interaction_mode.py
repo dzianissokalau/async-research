@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.scripts import interaction_mode
 
 
 def run_cli_json(argv: list[str | Path]) -> tuple[int, dict]:
@@ -115,24 +116,54 @@ class InteractionModeTests(unittest.TestCase):
             self.assertEqual(cli.INVALID, set_code, set_payload)
             self.assertEqual(before, path.read_text(encoding="utf-8"))
 
-    def test_mode_set_writes_json_readable_config(self) -> None:
+    def test_mode_set_writes_json_readable_config_for_every_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
 
-            code, payload = run_cli_json(["mode", "set", ops_dir, "--mode", "manual"])
+            for mode in interaction_mode.INTERACTION_MODES:
+                with self.subTest(mode=mode):
+                    code, payload = run_cli_json(["mode", "set", ops_dir, "--mode", mode])
 
-            self.assertEqual(cli.SUCCESS, code, payload)
-            self.assertTrue(payload["ok"])
-            self.assertEqual("manual", payload["mode"])
-            self.assertTrue(payload["changed"])
-            self.assertEqual([], payload["summary"]["auto_decisions_enabled"])
-            self.assertIn("quality_uncertainty", payload["summary"]["interrupt_only_for"])
-            saved = json.loads((ops_dir / "interaction_mode.json").read_text(encoding="utf-8"))
-            self.assertEqual("manual", saved["mode"])
+                    self.assertEqual(cli.SUCCESS, code, payload)
+                    self.assertTrue(payload["ok"])
+                    self.assertEqual(mode, payload["mode"])
+                    self.assertTrue(payload["changed"])
+                    saved = json.loads((ops_dir / "interaction_mode.json").read_text(encoding="utf-8"))
+                    self.assertEqual(mode, saved["mode"])
+                    if mode in {"manual", "guided"}:
+                        self.assertEqual([], payload["summary"]["auto_decisions_enabled"])
+                        self.assertIn("quality_uncertainty", payload["summary"]["interrupt_only_for"])
+                    else:
+                        self.assertIn("allow_revision", payload["summary"]["auto_decisions_enabled"])
+                        self.assertNotIn("quality_uncertainty", payload["summary"]["interrupt_only_for"])
 
-            validate_code, validate_payload = run_cli_json(["mode", "validate", ops_dir])
-            self.assertEqual(cli.SUCCESS, validate_code, validate_payload)
-            self.assertTrue(validate_payload["ok"])
+                    validate_code, validate_payload = run_cli_json(["mode", "validate", ops_dir])
+                    self.assertEqual(cli.SUCCESS, validate_code, validate_payload)
+                    self.assertTrue(validate_payload["ok"])
+
+    def test_contract_hard_stop_categories_match_policy_constants(self) -> None:
+        contract = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "async_research_workflow"
+            / "docs"
+            / "interaction_mode_contract.md"
+        ).read_text(encoding="utf-8")
+        expected_phrases = {
+            "hard_budget_breach": "hard budget breaches",
+            "credentials_missing": "missing credentials",
+            "destructive_operation": "destructive file",
+            "private_data_approval": "private, sensitive",
+            "legal_policy_sensitive_claim": "legal, policy-sensitive",
+            "external_publication_approval": "external-claim approval",
+        }
+
+        for category in interaction_mode.HARD_STOP_INTERRUPT_CATEGORIES:
+            with self.subTest(category=category):
+                self.assertIn(expected_phrases[category], contract)
+
+        self.assertIn("never bypassed by interaction mode", contract)
+        self.assertIn("conservative, audited follow-up states", contract)
 
     def test_schema_check_includes_mode_config_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

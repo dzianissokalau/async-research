@@ -181,7 +181,9 @@ class InteractionModeAutonomousSimulationTests(unittest.TestCase):
     def test_gate_category_fixtures_cover_contract_and_route_by_mode(self) -> None:
         fixtures = load_gate_fixtures()
         fixture_categories = {item["gate_category"] for item in fixtures}
+        fixture_triggers = {item["trigger"] for item in fixtures}
         self.assertEqual(set(interaction_mode.ALL_INTERRUPT_CATEGORIES), fixture_categories)
+        self.assertLessEqual(set(needs_human_policy.GATE_CATEGORY_BY_TRIGGER), fixture_triggers)
 
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
@@ -211,6 +213,55 @@ class InteractionModeAutonomousSimulationTests(unittest.TestCase):
                 else:
                     self.assertTrue(resolution["human_required"], fixture["gate_category"])
                     self.assertEqual(expected["reason"], resolution["reason"])
+
+    def test_guided_mode_preserves_manual_decision_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_needs_human_task(
+                ops_dir,
+                "TASK-9651",
+                self.fixture_by_category("quality_uncertainty"),
+            )
+
+            self.set_mode(ops_dir, "guided")
+            resolution = needs_human_policy.evaluate_policy(ops_dir, task_dir, read_json(task_dir / "status.json"))
+
+            self.assertFalse(resolution["can_auto_resolve"])
+            self.assertTrue(resolution["human_required"])
+            self.assertEqual("guided", resolution["mode"])
+            self.assertEqual("manual_mode_requires_explicit_human_decision", resolution["reason"])
+
+    def test_publication_guarded_routes_internal_work_and_blocks_external_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            routine_task = write_needs_human_task(
+                ops_dir,
+                "TASK-9661",
+                self.fixture_by_category("quality_uncertainty"),
+            )
+            publication_task = write_needs_human_task(
+                ops_dir,
+                "TASK-9662",
+                self.fixture_by_category("external_publication_approval"),
+            )
+
+            self.set_mode(ops_dir, "publication_guarded")
+            routine = needs_human_policy.evaluate_policy(ops_dir, routine_task, read_json(routine_task / "status.json"))
+            publication = needs_human_policy.evaluate_policy(
+                ops_dir,
+                publication_task,
+                read_json(publication_task / "status.json"),
+            )
+
+            self.assertTrue(routine["can_auto_resolve"])
+            self.assertEqual("publication_guarded", routine["mode"])
+            self.assertEqual("ready_for_worker", routine["target_status"])
+            self.assertEqual("bounded_revision", routine["policy_action"])
+            self.assertFalse(publication["can_auto_resolve"])
+            self.assertTrue(publication["human_required"])
+            self.assertEqual("publication_guarded", publication["mode"])
+            self.assertEqual("external_publication_approval", publication["gate_category"])
+            self.assertEqual("hard_stop_category_requires_human", publication["reason"])
 
     def test_autonomous_workflow_loop_has_zero_human_interrupts_and_complete_audit(self) -> None:
         routine_categories = [
