@@ -40,7 +40,17 @@ SNAPSHOT_GROUPS = {
     "runs",
     "runtime",
     "evals",
+    "evidence_memory",
     "warnings",
+}
+SNAPSHOT_TOP_LEVEL_KEYS = SNAPSHOT_GROUPS | {
+    "ok",
+    "action",
+    "schema_version",
+    "generated_at",
+    "read_only",
+    "changed",
+    "ops_dir",
 }
 
 
@@ -191,6 +201,7 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["read_only"])
             self.assertFalse(payload["changed"])
+            self.assertEqual(SNAPSHOT_TOP_LEVEL_KEYS, set(payload))
             self.assertTrue(SNAPSHOT_GROUPS.issubset(payload))
             self.assertEqual("console_snapshot_rendered", payload["action"])
             self.assertEqual("console_snapshot_v1.0", payload["schema_version"])

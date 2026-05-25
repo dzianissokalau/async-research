@@ -185,3 +185,48 @@ Branch: `codex/framework-simplification-strategy-phase-2`
 ### Next Action
 
 - Next run should start Phase 3 on `codex/framework-simplification-strategy-phase-3` and split `console/snapshot.py` into facet collectors behind the same top-level payload.
+
+## Phase 3 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-3`
+
+### Scope
+
+- Split `console/snapshot.py` into facet collectors behind the same top-level payload.
+- Preserve `/api/snapshot` and `console snapshot --json` behavior, including warning aggregation and unavailable groups.
+- Avoid dashboard UI changes.
+
+### Changes
+
+- Added `src/async_research_workflow/console/facets/` with base helpers plus task, readiness, outcomes, cost, foundations, deliverables, mode, runtime, and lifecycle collectors.
+- Reduced `src/async_research_workflow/console/snapshot.py` to envelope assembly, CLI parsing, compatibility re-exports, and dashboard loader wiring.
+- Added an exact top-level snapshot key regression assertion covering the existing `evidence_memory` group.
+- Advanced the roadmap and delivery state to Phase 4 after a delivered review verdict.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_console_snapshot`: passed, 31 tests
+- `.venv/bin/python -m unittest tests.test_console_snapshot tests.test_console_server tests.test_console_actions tests.test_console_outcomes`: passed, 77 tests
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 18 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 831 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-3-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation requires explicit user permission. The review records this limitation.
+- `console.snapshot` keeps compatibility re-exports for moved helpers; future cleanup should narrow that surface only with explicit deprecation coverage.
+
+### Next Action
+
+- Next run should start Phase 4 on `codex/framework-simplification-strategy-phase-4` and map proposal flow mechanics before extracting shared engine code.
