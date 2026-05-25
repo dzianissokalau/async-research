@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from async_research_workflow import cli
+from async_research_workflow.starter_smoke import StarterSmokePlan
 
 
 class JsonPayloadFromOutputTests(unittest.TestCase):
@@ -221,6 +222,28 @@ class StarterSmokeSafetyTests(unittest.TestCase):
             self.assertEqual(code, cli.SUCCESS)
             self.assertTrue(payload["ok"])
 
+    def test_starter_smoke_plan_preserves_check_order(self):
+        work_dir = Path("/tmp/arw-smoke-order")
+        ops_dir = work_dir / "research_ops"
+        plan = StarterSmokePlan(work_dir=work_dir, ops_dir=ops_dir, template="generic")
+
+        checks = [(check.module_name, list(check.argv)) for check in plan.checks()]
+
+        self.assertEqual(
+            checks,
+            [
+                ("check_schema_versions", [str(ops_dir)]),
+                ("autonomy_readiness_gate", [str(ops_dir), "--dry-run"]),
+                ("health_check", [str(ops_dir), "--dry-run"]),
+                ("human_review_surface", ["update", str(ops_dir)]),
+                ("human_review_surface", ["validate", str(ops_dir)]),
+                ("data_source_audit", ["validate", str(ops_dir)]),
+                ("cost_tracking", ["summary", str(ops_dir)]),
+                ("run_autonomy_benchmark", []),
+                ("simulate_scheduled_week", [str(ops_dir)]),
+            ],
+        )
+
     def test_remove_path_unlinks_directory_symlink_without_removing_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             real_dir = Path(tmp) / "real"
@@ -324,6 +347,25 @@ class InitSafetyTests(unittest.TestCase):
             self.assertEqual(payload["reason"], "starter_metrics_init_failed")
             self.assertTrue(target.is_file())
             self.assertEqual(target.read_text(encoding="utf-8"), "previous file\n")
+
+    def test_init_force_rollback_failure_reports_backup_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "research_ops"
+            target.mkdir()
+            marker = target / "keep.txt"
+            marker.write_text("previous workspace\n", encoding="utf-8")
+
+            with mock.patch.object(cli, "module_json", return_value=(cli.INVALID, {"ok": False, "reason": "boom"})):
+                with mock.patch.object(cli, "restore_target", side_effect=OSError("restore failed")):
+                    code, payload = self.run_cli_json(["init", str(target), "--force"])
+
+            self.assertEqual(code, cli.INVALID)
+            self.assertEqual(payload["reason"], "starter_metrics_init_failed")
+            self.assertEqual(payload["rollback_error"], "restore failed")
+            self.assertIn("backup_dir", payload)
+            backup_dir = Path(payload["backup_dir"])
+            self.assertTrue(backup_dir.exists())
+            self.assertTrue((backup_dir / target.name / "keep.txt").exists())
 
     def test_init_success_creates_usable_starter_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:

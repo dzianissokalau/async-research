@@ -139,3 +139,49 @@ Branch: `codex/framework-simplification-strategy-phase-1`
 ### Next Action
 
 - Next run should start Phase 2 on `codex/framework-simplification-strategy-phase-2` and extract init/starter-smoke orchestration while preserving JSON envelopes and side effects.
+
+## Phase 2 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-2`
+
+### Scope
+
+- Extract transactional starter workspace installation, backup, rollback, metrics seeding, and cleanup from `cli.py`.
+- Extract starter-smoke work-dir safety checks, init wrapping, smoke check ordering, result aggregation, and JSON envelope assembly from `cli.py`.
+- Preserve `init` and `starter-smoke` public parser behavior, JSON envelopes, exit codes, side effects, and rollback reporting.
+
+### Changes
+
+- Added `src/async_research_workflow/workspace_install.py` with `WorkspaceInstaller`, template selection, copy/remove/restore helpers, rollback handling, and metrics seeding.
+- Added `src/async_research_workflow/starter_smoke.py` with `StarterSmokePlan`, `StarterSmokeCheck`, and `StarterSmokeRunner`.
+- Kept `cli.run_init` and `cli.run_starter_smoke` as thin public wrappers that inject the existing CLI helper names for compatibility with current contract tests.
+- Added regression coverage for starter-smoke check ordering and rollback failure backup reporting.
+- Advanced the roadmap and delivery state to Phase 3 after a delivered review verdict.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_cli_safety`: passed, 22 tests
+- `.venv/bin/python -m unittest tests.test_packaged_resources tests.test_cli_safety`: passed, 30 tests
+- `git diff --check`: passed
+- `.venv/bin/async-research starter-smoke /tmp/arw-simplification-smoke --force`: passed, 9 checks
+- `.venv/bin/python -m unittest discover -s tests`: passed, 831 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-2-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly authorized. The review records this limitation.
+- Phase 3 should start from the now-advanced branch `codex/framework-simplification-strategy-phase-3` and focus only on console snapshot facets.
+
+### Next Action
+
+- Next run should start Phase 3 on `codex/framework-simplification-strategy-phase-3` and split `console/snapshot.py` into facet collectors behind the same top-level payload.

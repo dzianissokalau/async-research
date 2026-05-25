@@ -1,39 +1,39 @@
 {
   "roadmap": "roadmaps/in_progress_framework_simplification_strategy.md",
   "roadmap_slug": "framework-simplification-strategy",
-  "current_phase": "2",
-  "branch": "codex/framework-simplification-strategy-phase-2",
+  "current_phase": "3",
+  "branch": "codex/framework-simplification-strategy-phase-3",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "1",
+    "phase": "2",
     "status": "passed",
-    "verified_at": "2026-05-25T08:14:30Z",
+    "verified_at": "2026-05-25T09:14:22Z",
     "commands": [
-      {
-        "command": ".venv/bin/python -m unittest tests.test_cli_architecture tests.test_cli_aliases tests.test_cli_help",
-        "status": "passed",
-        "tests": 21
-      },
       {
         "command": ".venv/bin/python -m unittest tests.test_cli_safety",
         "status": "passed",
-        "tests": 20
+        "tests": 22
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_packaged_resources tests.test_cli_safety",
+        "status": "passed",
+        "tests": 30
       },
       {
         "command": "git diff --check",
         "status": "passed"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_doc_references",
+        "command": ".venv/bin/async-research starter-smoke /tmp/arw-simplification-smoke --force",
         "status": "passed",
-        "tests": 18
+        "checks": 9
       },
       {
         "command": ".venv/bin/python -m unittest discover -s tests",
         "status": "passed",
-        "tests": 829
+        "tests": 831
       },
       {
         "command": ".venv/bin/async-research acceptance-suite",
@@ -43,16 +43,17 @@
     ]
   },
   "last_review": {
-    "phase": "1",
+    "phase": "2",
     "iteration": 1,
-    "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-1-review-iteration-1.md",
+    "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-2-review-iteration-1.md",
     "verdict": "delivered",
-    "reviewed_at": "2026-05-25T08:14:30Z"
+    "reviewed_at": "2026-05-25T09:14:22Z"
   },
   "blocked_reason": null,
   "delivered_phases": [
     "0",
-    "1"
+    "1",
+    "2"
   ],
   "human_approval_to_begin": {
     "granted": true,
@@ -64,5 +65,5 @@
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-25T08:14:30Z"
+  "updated_at": "2026-05-25T09:14:22Z"
 }

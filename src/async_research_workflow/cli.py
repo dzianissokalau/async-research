@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 from typing import Iterable
 
@@ -24,7 +22,6 @@ from async_research_workflow.cli_runner import run_script_call
 from async_research_workflow.cli_runner import script_call
 from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
-from async_research_workflow.resources import template_path
 from async_research_workflow.scripts.deliverable_maturity import CRITIC_REVIEW_STATUS_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import CRITIC_REVIEWER_ROLE_CHOICES
 from async_research_workflow.scripts.deliverable_maturity import INDEPENDENCE_CHOICES
@@ -40,14 +37,18 @@ from async_research_workflow.scripts.research_brief import PRIVATE_DATA_POLICIES
 from async_research_workflow.scripts.research_brief import PUBLIC_CLAIM_POLICIES
 from async_research_workflow.scripts.research_brief import SOURCE_CLASSES
 from async_research_workflow.scripts.task_authoring import TASK_TYPES
+from async_research_workflow.starter_smoke import StarterSmokeRunner
+from async_research_workflow.workspace_install import TEMPLATES
+from async_research_workflow.workspace_install import WorkspaceInstaller
+from async_research_workflow.workspace_install import copy_resource_tree
+from async_research_workflow.workspace_install import remove_path
+from async_research_workflow.workspace_install import restore_target
+from async_research_workflow.workspace_install import rollback_target
+from async_research_workflow.workspace_install import template_root
 
 
 SUCCESS = 0
 INVALID = 4
-TEMPLATES = {
-    "generic": ("generic_research_ops_starter", "research_ops"),
-    "real-estate": ("research_ops_starter", "research_ops"),
-}
 DECISION_CHOICES = (
     "acknowledge",
     "approve",
@@ -108,211 +109,26 @@ READINESS_EXIT_EPILOG = """Readiness exit codes:
 """
 
 
-def template_root(template: str):
-    parts = TEMPLATES.get(template)
-    if parts is None:
-        raise ValueError(f"unsupported template: {template}")
-    return template_path(*parts)
-
-
-def copy_resource_tree(src, dst: Path, force: bool = False) -> None:
-    dst.mkdir(parents=True, exist_ok=True)
-    for item in src.iterdir():
-        if item.name in {".DS_Store", "__pycache__"}:
-            continue
-        target = dst / item.name
-        if item.is_dir():
-            copy_resource_tree(item, target, force=force)
-            continue
-        if target.exists() and not force:
-            raise FileExistsError(f"target file already exists: {target}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(item.read_bytes())
-
-
-def remove_path(path: Path) -> None:
-    if not path.exists() and not path.is_symlink():
-        return
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-        return
-    shutil.rmtree(path)
-
-
-def restore_target(target: Path, backup: Path | None, target_installed: bool) -> None:
-    if backup is not None and backup.exists():
-        remove_path(target)
-        shutil.move(str(backup), str(target))
-        return
-    if target_installed:
-        remove_path(target)
-
-
-def rollback_target(target: Path, backup: Path | None, target_installed: bool) -> tuple[bool, str | None]:
-    try:
-        restore_target(target, backup, target_installed)
-    except Exception as exc:
-        return False, str(exc)
-    return True, None
-
-
 def run_init(args: argparse.Namespace) -> int:
-    target = args.target_dir
-    staging: Path | None = None
-    backup_root: Path | None = None
-    backup: Path | None = None
-    target_installed = False
-    preserve_backup_root = False
-    try:
-        source = template_root(args.template)
-        if target.exists() and not target.is_dir() and not args.force:
-            print_json({
-                "ok": False,
-                "reason": "target_exists",
-                "target_dir": str(target),
-                "next_step": "rerun with --force or choose an empty target directory",
-            })
-            return INVALID
-        if target.exists() and target.is_dir() and any(target.iterdir()) and not args.force:
-            print_json({
-                "ok": False,
-                "reason": "target_exists",
-                "target_dir": str(target),
-                "next_step": "rerun with --force or choose an empty target directory",
-            })
-            return INVALID
-        target.parent.mkdir(parents=True, exist_ok=True)
-        staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.staging-", dir=target.parent))
-        copy_resource_tree(source, staging, force=True)
-        if target.exists():
-            backup_root = Path(tempfile.mkdtemp(prefix=f".{target.name}.backup-", dir=target.parent))
-            backup = backup_root / target.name
-            shutil.move(str(target), str(backup))
-        shutil.move(str(staging), str(target))
-        staging = None
-        target_installed = True
-        metrics_init_code, metrics_init = module_json("metrics_history", ["init", str(target), "--label", "starter_init", "--force"])
-        metrics_append_code, metrics_append = module_json("metrics_history", ["append-snapshot", str(target), "--label", "starter_init"])
-        if metrics_init_code != SUCCESS or metrics_append_code != SUCCESS:
-            rollback_ok, rollback_error = rollback_target(target, backup, target_installed)
-            preserve_backup_root = not rollback_ok
-            payload = {
-                "ok": False,
-                "reason": "starter_metrics_init_failed",
-                "target_dir": str(target),
-                "metrics_init": metrics_init,
-                "metrics_append": metrics_append,
-            }
-            if rollback_error is not None:
-                payload["rollback_error"] = rollback_error
-                if backup_root is not None:
-                    payload["backup_dir"] = str(backup_root)
-            print_json(payload)
-            return INVALID
-    except Exception as exc:
-        rollback_ok, rollback_error = rollback_target(target, backup, target_installed)
-        preserve_backup_root = not rollback_ok
-        payload = {"ok": False, "reason": "init_failed", "error": str(exc), "target_dir": str(target)}
-        if rollback_error is not None:
-            payload["rollback_error"] = rollback_error
-            if backup_root is not None:
-                payload["backup_dir"] = str(backup_root)
-        print_json(payload)
-        return INVALID
-    finally:
-        if staging is not None:
-            remove_path(staging)
-        if backup_root is not None and not preserve_backup_root:
-            shutil.rmtree(backup_root, ignore_errors=True)
-    print_json({"ok": True, "action": "initialized", "target_dir": str(target), "template": args.template})
-    return SUCCESS
+    installer = WorkspaceInstaller(
+        module_json_func=module_json,
+        print_json_func=print_json,
+        copy_resource_tree_func=copy_resource_tree,
+        remove_path_func=remove_path,
+        restore_target_func=restore_target,
+    )
+    return installer.run(args)
 
 
 def run_starter_smoke(args: argparse.Namespace) -> int:
-    base = args.work_dir
-    ops_dir = base if base.name == "research_ops" else base / "research_ops"
-    if base.exists() and not base.is_dir():
-        print_json({
-            "ok": False,
-            "reason": "target_is_file",
-            "work_dir": str(base),
-            "ops_dir": str(ops_dir),
-            "next_step": "choose a directory work path",
-        })
-        return INVALID
-    if base.exists() and any(base.iterdir()) and not args.force:
-        print_json({
-            "ok": False,
-            "reason": "target_exists",
-            "work_dir": str(base),
-            "ops_dir": str(ops_dir),
-            "next_step": "rerun with --force or choose an empty work directory",
-        })
-        return INVALID
-    if base.exists() and args.force:
-        remove_path(base)
-    failures: list[dict] = []
-    reports: list[dict] = []
-
-    init_args = argparse.Namespace(target_dir=ops_dir, template=args.template, force=True)
-    init_code, init_payload = function_json(run_init, init_args)
-    init_result = {
-        "command": "init",
-        "args": [str(ops_dir), "--template", args.template, "--force"],
-        "exit_code": init_code,
-        "ok": init_code == SUCCESS and init_payload.get("ok", True) is not False,
-        "payload": init_payload,
-    }
-    if not init_result["ok"]:
-        init_failure = {
-            "command": "init",
-            "args": init_result["args"],
-            "exit_code": init_code,
-            "payload": init_payload,
-        }
-        smoke_result = {"ok": False, "checks": [], "failures": [init_failure]}
-        print_json({
-            "ok": False,
-            "action": "starter_smoke_checked",
-            "work_dir": str(base),
-            "ops_dir": str(ops_dir),
-            "template": args.template,
-            "init": init_result,
-            "smoke": smoke_result,
-            "checks": [],
-            "failures": [init_failure],
-        })
-        return init_code if init_code != SUCCESS else INVALID
-
-    checks = [
-        ("check_schema_versions", [str(ops_dir)]),
-        ("autonomy_readiness_gate", [str(ops_dir), "--dry-run"]),
-        ("health_check", [str(ops_dir), "--dry-run"]),
-        ("human_review_surface", ["update", str(ops_dir)]),
-        ("human_review_surface", ["validate", str(ops_dir)]),
-        ("data_source_audit", ["validate", str(ops_dir)]),
-        ("cost_tracking", ["summary", str(ops_dir)]),
-        ("run_autonomy_benchmark", []),
-        ("simulate_scheduled_week", [str(ops_dir)]),
-    ]
-    for module_name, argv in checks:
-        code, payload = module_json(module_name, argv)
-        reports.append({"command": module_name, "args": argv, "exit_code": code, "ok": code == 0})
-        if code != 0:
-            failures.append({"command": module_name, "args": argv, "exit_code": code, "payload": payload})
-    smoke_result = {"ok": not failures, "checks": reports, "failures": failures}
-    print_json({
-        "ok": not failures,
-        "action": "starter_smoke_checked",
-        "work_dir": str(base),
-        "ops_dir": str(ops_dir),
-        "template": args.template,
-        "init": init_result,
-        "smoke": smoke_result,
-        "checks": reports,
-        "failures": failures,
-    })
-    return SUCCESS if not failures else 1
+    runner = StarterSmokeRunner(
+        run_init_func=run_init,
+        module_json_func=module_json,
+        function_json_func=function_json,
+        print_json_func=print_json,
+        remove_path_func=remove_path,
+    )
+    return runner.run(args)
 
 
 def run_acceptance_suite_command(args: argparse.Namespace) -> int:
