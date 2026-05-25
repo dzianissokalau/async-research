@@ -1,6 +1,6 @@
 # Phase 3 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Phase: 3 - Snapshot facets
 Reviewed at: 2026-05-25T10:17:23Z
 Branch: `codex/framework-simplification-strategy-phase-3`

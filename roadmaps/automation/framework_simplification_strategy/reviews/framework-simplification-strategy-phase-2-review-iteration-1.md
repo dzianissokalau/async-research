@@ -1,6 +1,6 @@
 # Phase 2 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Phase: Phase 2 - Init and starter smoke services
 Reviewed at: 2026-05-25T09:14:22Z
 Branch: `codex/framework-simplification-strategy-phase-2`

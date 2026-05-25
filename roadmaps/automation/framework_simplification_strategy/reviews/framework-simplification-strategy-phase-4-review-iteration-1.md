@@ -1,6 +1,6 @@
 # Phase 4 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Phase: Phase 4 - Proposal engine discovery and consolidation
 Reviewed at: 2026-05-25T11:53:21Z
 Branch: `codex/framework-simplification-strategy-phase-4`

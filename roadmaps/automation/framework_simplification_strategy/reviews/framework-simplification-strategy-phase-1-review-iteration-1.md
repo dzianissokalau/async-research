@@ -1,6 +1,6 @@
 # Framework Simplification Strategy Phase 1 Review - Iteration 1
 
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Phase: Phase 1 - CLI runner seam
 Reviewed at: 2026-05-25T08:14:30Z
 Branch: `codex/framework-simplification-strategy-phase-1`

@@ -1,7 +1,7 @@
 # Phase 5 Command Normalization Design
 
 Status: delivered
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Date: 2026-05-25
 
 ## Phase Contract

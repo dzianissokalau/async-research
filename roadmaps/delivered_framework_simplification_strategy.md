@@ -1,9 +1,9 @@
 # Framework Simplification Strategy
 
-Status: In Progress
-Current phase: Phase 7 - Test Consolidation
+Status: Delivered
+Current phase: Complete
 Last updated: 2026-05-25
-Next action: Start Phase 7 by mapping replacement contracts and goldens before removing or rewriting tests
+Next action: Monitor simplification follow-ups; split future public command or dependency changes into a new roadmap before implementation
 Blocked by: None
 
 Created: 2026-05-22
@@ -138,7 +138,7 @@ while reducing the two biggest dependency hubs.
 | 4 | Delivered | P1 | Proposal engine discovery and consolidation | Map data, library, foundation, and idea proposal flows; extract only the common preflight/hash/lock/rollback spine. | At least two proposal families use one shared engine without losing surface-specific validation. |
 | 5 | Delivered | P1 | Command normalization design | Classify commands as keep, alias, deprecate, or internal; no removal yet. | A migration table exists and deprecated commands have explicit replacements. |
 | 6 | Delivered | P1 | Dependency decision record | Decide whether standard-library-only remains a release promise or becomes a core/minimal extra. | Typer, jsonschema, and filelock each have an explicit keep/defer/adopt decision. |
-| 7 | Not Started | P2 | Test consolidation | Delete or rewrite tests only after replacement contracts and goldens exist. | The remaining suite catches behavior regressions rather than obsolete command-shape drift. |
+| 7 | Delivered | P2 | Test consolidation | Delete or rewrite tests only after replacement contracts and goldens exist. | The remaining suite catches behavior regressions rather than obsolete command-shape drift. |
 
 ## Phase 0 - Contract Freeze
 

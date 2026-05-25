@@ -1,7 +1,7 @@
 # Framework Simplification Strategy Delivery Log
 
-Status: In Progress
-Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
+Status: Delivered
+Roadmap: `roadmaps/delivered_framework_simplification_strategy.md`
 Automation template: `roadmaps/automation/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/automation/framework_simplification_strategy/delivery_state.json`
 Review directory: `roadmaps/automation/framework_simplification_strategy/reviews`
@@ -110,7 +110,9 @@ Branch: `codex/framework-simplification-strategy-phase-1`
 - Imported the runner helpers back into `cli.py` so existing `cli.*` helper names remain available while the implementation moves out of the main parser file.
 - Migrated `cost summary`, `cost ingest-usage`, and `cost budget-check` to build typed `ScriptCall` values before dispatch.
 - Updated the `cost` argv-equivalence test to assert the exact `ScriptCall` module and argv contract.
-- Renamed the roadmap from `not_started_framework_simplification_strategy.md` to `in_progress_framework_simplification_strategy.md` after broad verification caught the lifecycle-status mismatch left by starting Phase 0.
+- Renamed the roadmap from its not-started lifecycle filename to the
+  in-progress lifecycle filename after broad verification caught the
+  lifecycle-status mismatch left by starting Phase 0.
 - Advanced the roadmap, roadmap index, and delivery state to Phase 2 after the delivered review verdict.
 
 ### Tests And Verification
@@ -375,3 +377,56 @@ Branch: `codex/framework-simplification-strategy-phase-6`
 ### Next Action
 
 - Next run should start Phase 7 on `codex/framework-simplification-strategy-phase-7` and map replacement contracts and goldens before deleting or rewriting tests.
+
+## Phase 7 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-7`
+
+### Scope
+
+- Consolidate tests only after replacement contracts and goldens exist.
+- Preserve public CLI behavior, aliases, JSON envelopes, exit codes, workspace
+  file formats, task state values, the HTTP console, and fail-closed gates.
+- Keep starter-smoke and acceptance-suite coverage for first-success paths.
+
+### Changes
+
+- Added `phase_7_test_consolidation.md` mapping each consolidated alias
+  integration test to its replacement parser, help/docs, dispatch, starter, and
+  acceptance contracts.
+- Replaced two workspace-heavy alias integration tests with one dispatch golden
+  covering `surface`, `review-surface`, `accepted revalidation`, and
+  `accepted revalidate`.
+- Renamed the roadmap to `delivered_framework_simplification_strategy.md` and
+  updated the roadmap index after the delivered review verdict.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_cli_aliases tests.test_cli_architecture tests.test_cli_help tests.test_cli_safety`: passed, 44 tests
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 19 tests
+- `.venv/bin/async-research starter-smoke /tmp/arw-simplification-smoke --force`: passed, 9 checks
+- `.venv/bin/python -m unittest discover -s tests`: passed, 835 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-7-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because independent reviewer delegation was not
+  available in this run.
+- Further test reduction should wait for a future behavior deprecation or
+  command-normalization roadmap.
+
+### Next Action
+
+- All roadmap phases are delivered. Automation-management tooling was not
+  available in this session, so state records `completed_pending_pause`.
