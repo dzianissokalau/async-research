@@ -73,6 +73,9 @@
     "github_compare_url": "https://github.com/dzianissokalau/async-research/compare/main...codex/framework-simplification-strategy-phase-7",
     "next_action": "Run this prompt in a fresh LLM/reviewer context before human merge review or promotion."
   },
+  "final_deep_review_prompt_prepared": true,
+  "final_deep_review_prompt_file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md",
+  "final_deep_review_status": "prompt-prepared",
   "github_push": {
     "status": "pushed",
     "remote": "origin",
@@ -85,7 +88,7 @@
     "pr_creation_url": "https://github.com/dzianissokalau/async-research/pull/new/codex/framework-simplification-strategy-phase-7"
   },
   "last_completion_check": {
-    "checked_at": "2026-05-25T14:33:06Z",
+    "checked_at": "2026-05-25T16:21:28Z",
     "status": "completed_pending_pause",
     "evidence": [
       "roadmap status is Delivered",
@@ -93,9 +96,46 @@
       "all phases 0 through 7 are delivered",
       "latest review verdict is delivered",
       "final full verification passed after Phase 7",
+      "final deep-review prompt is prepared",
+      "local completed operator alert is recorded",
+      "saved automation status readback is ACTIVE",
       "automation-management tooling was not exposed in this run"
     ]
   },
+  "automation_config_readback": {
+    "read_at": "2026-05-25T16:21:28Z",
+    "file": "/Users/dzianissokalau/.codex/automations/framework-simplification-strategy-delivery/automation.toml",
+    "status": "ACTIVE",
+    "model": "gpt-5.5",
+    "reasoning_effort": "xhigh"
+  },
+  "completion_reconciliation": {
+    "checked_at": "2026-05-25T16:21:28Z",
+    "status": "completed_pending_pause",
+    "artifact_validation_helper": {
+      "command": ".venv/bin/python /Users/dzianissokalau/.codex/skills/roadmap-delivery-skill/scripts/validate_delivery_artifacts.py --help",
+      "status": "unavailable",
+      "reason": "roadmap_delivery package is not importable from the installed skill wrapper"
+    },
+    "verification": [
+      {
+        "command": ".venv/bin/python -m json.tool roadmaps/automation/framework_simplification_strategy/delivery_state.json",
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_doc_references",
+        "status": "passed",
+        "tests": 19
+      }
+    ],
+    "next_action": "Pause the ACTIVE Codex automation; do not start another roadmap phase."
+  },
+  "configured_automation_model": "gpt-5.5",
+  "configured_automation_reasoning_effort": "xhigh",
   "human_approval_to_begin": {
     "granted": true,
     "source": "User requested automation setup for Framework Simplification Strategy",
@@ -106,5 +146,14 @@
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-25T14:33:06Z"
+  "updated_at": "2026-05-25T16:21:28Z",
+  "last_operator_alert": {
+    "kind": "completed",
+    "file": "roadmaps/automation/framework_simplification_strategy/alerts/2026-05-25T16-18-04Z-completed.md",
+    "timestamp": "2026-05-25T16:18:04Z",
+    "reason": "All Framework Simplification Strategy phases are delivered; automation is complete but still active.",
+    "next_human_action": "Pause the ACTIVE Codex automation; preserve final verification and deep-review prompt evidence.",
+    "notification_sink": "alert_file",
+    "notification_status": "local_alert_only"
+  }
 }
