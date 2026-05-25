@@ -1,9 +1,9 @@
 # Framework Simplification Strategy
 
 Status: In Progress
-Current phase: Phase 1 - CLI runner seam
+Current phase: Phase 2 - Init and starter smoke services
 Last updated: 2026-05-25
-Next action: Start the low-risk CLI runner extraction slice with the `cost` command family
+Next action: Start the transactional init and starter-smoke service extraction
 Blocked by: None
 
 Created: 2026-05-22
@@ -130,7 +130,7 @@ while reducing the two biggest dependency hubs.
 | Phase | Status | Priority | Focus | Scope | Exit Criteria |
 | ---: | --- | --- | --- | --- | --- |
 | 0 | Delivered | P0 | Contract freeze | Inventory public commands, JSON envelopes, exit codes, file writes, and high-value tests for touched areas. | A reviewer can tell which behavior must not change before each refactor PR. |
-| 1 | Not Started | P0 | CLI runner seam | Extract script dispatch, JSON capture, and option builders from `cli.py`; migrate one low-risk command family first. | Public parser output and wrapper argv tests stay identical. |
+| 1 | Delivered | P0 | CLI runner seam | Extract script dispatch, JSON capture, and option builders from `cli.py`; migrate one low-risk command family first. | Public parser output and wrapper argv tests stay identical. |
 | 2 | Not Started | P0 | Init and starter smoke services | Move workspace installation, rollback, and smoke orchestration out of `cli.py`. | `init` and `starter-smoke` JSON envelopes and side effects are unchanged. |
 | 3 | Not Started | P0 | Snapshot facets | Split `console/snapshot.py` into facet collectors behind the same top-level payload. | `console snapshot` golden fixtures match before and after, ignoring timestamps. |
 | 4 | Not Started | P1 | Proposal engine discovery and consolidation | Map data, library, foundation, and idea proposal flows; extract only the common preflight/hash/lock/rollback spine. | At least two proposal families use one shared engine without losing surface-specific validation. |

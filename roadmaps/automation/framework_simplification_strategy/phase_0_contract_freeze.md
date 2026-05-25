@@ -1,7 +1,7 @@
 # Phase 0 Contract Freeze
 
 Status: delivered
-Roadmap: `roadmaps/not_started_framework_simplification_strategy.md`
+Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
 Date: 2026-05-25
 
 ## Phase Contract

@@ -1,7 +1,7 @@
 # Framework Simplification Strategy Delivery Log
 
-Status: Not started
-Roadmap: `roadmaps/not_started_framework_simplification_strategy.md`
+Status: In Progress
+Roadmap: `roadmaps/in_progress_framework_simplification_strategy.md`
 Automation template: `roadmaps/automation/codex_phase_gated_delivery_automation_template.md`
 State file: `roadmaps/automation/framework_simplification_strategy/delivery_state.json`
 Review directory: `roadmaps/automation/framework_simplification_strategy/reviews`
@@ -92,3 +92,50 @@ Branch: `codex/framework-simplification-strategy-phase-0`
 ### Next Action
 
 - Next run should start Phase 1 on `codex/framework-simplification-strategy-phase-1` and migrate the `cost` command family through a CLI runner seam while preserving the new argv parity tests.
+
+## Phase 1 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-1`
+
+### Scope
+
+- Extract script dispatch, JSON output parsing, and common option-list helpers from `cli.py`.
+- Add typed script call objects so migrated wrappers expose exact backing module and argv contracts.
+- Migrate one low-risk command family, `cost`, behind the runner seam without changing parser output, help, aliases, JSON envelopes, or exit codes.
+
+### Changes
+
+- Added `src/async_research_workflow/cli_runner.py` with `ScriptCall`, script dispatch, JSON capture, and common optional/repeated option helpers.
+- Imported the runner helpers back into `cli.py` so existing `cli.*` helper names remain available while the implementation moves out of the main parser file.
+- Migrated `cost summary`, `cost ingest-usage`, and `cost budget-check` to build typed `ScriptCall` values before dispatch.
+- Updated the `cost` argv-equivalence test to assert the exact `ScriptCall` module and argv contract.
+- Renamed the roadmap from `not_started_framework_simplification_strategy.md` to `in_progress_framework_simplification_strategy.md` after broad verification caught the lifecycle-status mismatch left by starting Phase 0.
+- Advanced the roadmap, roadmap index, and delivery state to Phase 2 after the delivered review verdict.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_cli_architecture tests.test_cli_aliases tests.test_cli_help`: passed, 21 tests
+- `.venv/bin/python -m unittest tests.test_cli_safety`: passed, 20 tests
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 18 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 829 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-1-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation requires explicit user permission. The review records this limitation.
+- Future CLI wrapper migrations should continue one command family at a time using `ScriptCall` builders and exact argv contract tests.
+
+### Next Action
+
+- Next run should start Phase 2 on `codex/framework-simplification-strategy-phase-2` and extract init/starter-smoke orchestration while preserving JSON envelopes and side effects.

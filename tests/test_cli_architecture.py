@@ -169,7 +169,7 @@ class CliArchitectureTests(unittest.TestCase):
             ],
         )
 
-    def test_cost_command_family_routes_to_public_helper_contract(self) -> None:
+    def test_cost_command_family_routes_to_script_call_contract(self) -> None:
         cases = [
             (
                 [
@@ -310,11 +310,11 @@ class CliArchitectureTests(unittest.TestCase):
 
         for public_argv, expected_module_argv in cases:
             with self.subTest(public_argv=public_argv):
-                with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:
+                with mock.patch.object(cli, "run_script_call", return_value=cli.SUCCESS) as run_script_call:
                     code = cli.main(public_argv)
 
                 self.assertEqual(cli.SUCCESS, code)
-                module_main.assert_called_once_with("cost_tracking", expected_module_argv)
+                run_script_call.assert_called_once_with(cli.ScriptCall("cost_tracking", tuple(expected_module_argv)))
 
     def test_health_budget_flags_route_to_public_wrapper(self) -> None:
         with mock.patch.object(cli, "module_main", return_value=cli.SUCCESS) as module_main:

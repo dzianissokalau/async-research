@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
-import importlib
-import io
-import json
 import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable
 
 from async_research_workflow import __version__
+from async_research_workflow.cli_runner import ScriptCall
+from async_research_workflow.cli_runner import function_json
+from async_research_workflow.cli_runner import json_payload_from_output
+from async_research_workflow.cli_runner import module_json
+from async_research_workflow.cli_runner import module_main
+from async_research_workflow.cli_runner import optional_number
+from async_research_workflow.cli_runner import optional_path
+from async_research_workflow.cli_runner import optional_text
+from async_research_workflow.cli_runner import print_json
+from async_research_workflow.cli_runner import repeated_option
+from async_research_workflow.cli_runner import run_script_call
+from async_research_workflow.cli_runner import script_call
 from async_research_workflow.idea_catalog import PROMOTION_TASK_TYPES
 from async_research_workflow.idea_catalog import STORED_STATUSES
 from async_research_workflow.resources import template_path
@@ -98,42 +106,6 @@ READINESS_EXIT_EPILOG = """Readiness exit codes:
   4 invalid workspace state
   5 human action required before autonomous work continues
 """
-
-
-def print_json(payload: dict) -> None:
-    print(json.dumps(payload, indent=2, sort_keys=True))
-
-
-def json_payload_from_output(code: int, text: str) -> dict:
-    text = text.strip()
-    if not text:
-        return {}
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return {"ok": code == 0, "raw_output": text}
-    if isinstance(payload, dict):
-        return payload
-    return {"ok": code == 0, "value": payload}
-
-
-def module_main(module_name: str, argv: Sequence[str]) -> int:
-    module = importlib.import_module(f"async_research_workflow.scripts.{module_name}")
-    return int(module.main(list(argv)))
-
-
-def module_json(module_name: str, argv: Sequence[str]) -> tuple[int, dict]:
-    stream = io.StringIO()
-    with contextlib.redirect_stdout(stream):
-        code = module_main(module_name, argv)
-    return code, json_payload_from_output(code, stream.getvalue())
-
-
-def function_json(function, *args) -> tuple[int, dict]:
-    stream = io.StringIO()
-    with contextlib.redirect_stdout(stream):
-        code = int(function(*args))
-    return code, json_payload_from_output(code, stream.getvalue())
 
 
 def template_root(template: str):
@@ -449,25 +421,6 @@ def add_command(subparsers, *args, **kwargs) -> argparse.ArgumentParser:
 def add_budget_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--monthly-budget-usd", type=float, help="Override or seed the monthly budget in USD.")
     parser.add_argument("--weekly-budget-usd", type=float, help="Override or seed the weekly budget in USD.")
-
-
-def optional_path(flag: str, value: Path | None) -> list[str]:
-    return [flag, str(value)] if value else []
-
-
-def optional_text(flag: str, value: str | None) -> list[str]:
-    return [flag, value] if value else []
-
-
-def optional_number(flag: str, value: float | None) -> list[str]:
-    return [flag, str(value)] if value is not None else []
-
-
-def repeated_option(flag: str, values: Sequence[str] | None) -> list[str]:
-    args: list[str] = []
-    for value in values or []:
-        args.extend([flag, str(value)])
-    return args
 
 
 def budget_option_values(args: argparse.Namespace) -> list[str]:
@@ -883,8 +836,8 @@ def run_brief_apply_command(args: argparse.Namespace) -> int:
     )
 
 
-def run_cost_summary_command(args: argparse.Namespace) -> int:
-    return module_main(
+def cost_summary_call(args: argparse.Namespace) -> ScriptCall:
+    return script_call(
         "cost_tracking",
         ["summary", str(args.ops_dir)]
         + optional_path("--ledger", args.ledger)
@@ -892,8 +845,12 @@ def run_cost_summary_command(args: argparse.Namespace) -> int:
     )
 
 
-def run_cost_ingest_usage_command(args: argparse.Namespace) -> int:
-    return module_main(
+def run_cost_summary_command(args: argparse.Namespace) -> int:
+    return run_script_call(cost_summary_call(args))
+
+
+def cost_ingest_usage_call(args: argparse.Namespace) -> ScriptCall:
+    return script_call(
         "cost_tracking",
         [
             "ingest-usage",
@@ -926,8 +883,12 @@ def run_cost_ingest_usage_command(args: argparse.Namespace) -> int:
     )
 
 
-def run_cost_budget_check_command(args: argparse.Namespace) -> int:
-    return module_main(
+def run_cost_ingest_usage_command(args: argparse.Namespace) -> int:
+    return run_script_call(cost_ingest_usage_call(args))
+
+
+def cost_budget_check_call(args: argparse.Namespace) -> ScriptCall:
+    return script_call(
         "cost_tracking",
         [
             "budget-check",
@@ -946,6 +907,10 @@ def run_cost_budget_check_command(args: argparse.Namespace) -> int:
         + optional_path("--ledger", args.ledger)
         + budget_option_values(args),
     )
+
+
+def run_cost_budget_check_command(args: argparse.Namespace) -> int:
+    return run_script_call(cost_budget_check_call(args))
 
 
 def run_metrics_summarize_command(args: argparse.Namespace) -> int:
