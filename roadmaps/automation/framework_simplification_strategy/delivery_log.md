@@ -488,7 +488,7 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 
 ## GitHub Branch Publish - 2026-05-25
 
-Status: preparing
+Status: pushed
 Branch: `codex/framework-simplification-strategy-phase-7`
 
 ### Scope
@@ -504,5 +504,19 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 
 ### Verification
 
-- Pending before push: delivery state JSON parse, `git diff --check`, and
-  `tests.test_doc_references`.
+- Delivery state JSON parse: passed
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 19 tests
+
+### GitHub
+
+- Remote branch:
+  `origin/codex/framework-simplification-strategy-phase-7`
+- Branch URL:
+  `https://github.com/dzianissokalau/async-research/tree/codex/framework-simplification-strategy-phase-7`
+- Compare URL:
+  `https://github.com/dzianissokalau/async-research/compare/main...codex/framework-simplification-strategy-phase-7`
+- PR creation URL:
+  `https://github.com/dzianissokalau/async-research/pull/new/codex/framework-simplification-strategy-phase-7`
+- First pushed metadata commit:
+  `72cb2d8 Add GitHub review target to simplification prompt`

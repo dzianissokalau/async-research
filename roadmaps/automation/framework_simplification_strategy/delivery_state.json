@@ -74,10 +74,15 @@
     "next_action": "Run this prompt in a fresh LLM/reviewer context before human merge review or promotion."
   },
   "github_push": {
-    "status": "preparing",
+    "status": "pushed",
     "remote": "origin",
     "branch": "codex/framework-simplification-strategy-phase-7",
-    "requested_at": "2026-05-25T15:04:46Z"
+    "requested_at": "2026-05-25T15:04:46Z",
+    "pushed_at": "2026-05-25T15:05:46Z",
+    "first_pushed_metadata_commit": "72cb2d8",
+    "branch_url": "https://github.com/dzianissokalau/async-research/tree/codex/framework-simplification-strategy-phase-7",
+    "compare_url": "https://github.com/dzianissokalau/async-research/compare/main...codex/framework-simplification-strategy-phase-7",
+    "pr_creation_url": "https://github.com/dzianissokalau/async-research/pull/new/codex/framework-simplification-strategy-phase-7"
   },
   "last_completion_check": {
     "checked_at": "2026-05-25T14:33:06Z",

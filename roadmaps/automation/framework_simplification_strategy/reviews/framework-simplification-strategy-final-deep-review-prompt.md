@@ -7,10 +7,13 @@ GitHub repository: `dzianissokalau/async-research`
 GitHub branch after push: `origin/codex/framework-simplification-strategy-phase-7`
 GitHub branch URL: `https://github.com/dzianissokalau/async-research/tree/codex/framework-simplification-strategy-phase-7`
 GitHub compare URL: `https://github.com/dzianissokalau/async-research/compare/main...codex/framework-simplification-strategy-phase-7`
+GitHub PR creation URL: `https://github.com/dzianissokalau/async-research/pull/new/codex/framework-simplification-strategy-phase-7`
 Latest delivery commit: `4056e63 Deliver framework simplification phase 7`
 Latest completion-check commit: `cc6231e Record framework simplification completion check`
 Latest deep-review prompt commit before publish metadata:
 `5f67691 Add framework simplification deep review prompt`
+Latest pushed review-target metadata commit before final push-status
+bookkeeping: `72cb2d8 Add GitHub review target to simplification prompt`
 
 Review the pushed branch HEAD. The push metadata commit that updates this prompt
 may be newer than the commit hashes listed above.
@@ -28,6 +31,8 @@ If reviewing from GitHub, check out or inspect:
 - repository: `dzianissokalau/async-research`
 - branch: `codex/framework-simplification-strategy-phase-7`
 - compare target: `main...codex/framework-simplification-strategy-phase-7`
+- optional PR creation URL:
+  `https://github.com/dzianissokalau/async-research/pull/new/codex/framework-simplification-strategy-phase-7`
 
 Take a skeptical code-review and release-readiness stance. Lead with findings,
 ordered by severity. Do not summarize first.
