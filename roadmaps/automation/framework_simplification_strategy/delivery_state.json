@@ -65,8 +65,19 @@
   "deep_review_prompt": {
     "status": "prepared",
     "prepared_at": "2026-05-25T14:54:20Z",
+    "updated_with_github_review_target_at": "2026-05-25T15:04:46Z",
     "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md",
+    "github_repository": "dzianissokalau/async-research",
+    "github_branch": "codex/framework-simplification-strategy-phase-7",
+    "github_branch_url": "https://github.com/dzianissokalau/async-research/tree/codex/framework-simplification-strategy-phase-7",
+    "github_compare_url": "https://github.com/dzianissokalau/async-research/compare/main...codex/framework-simplification-strategy-phase-7",
     "next_action": "Run this prompt in a fresh LLM/reviewer context before human merge review or promotion."
+  },
+  "github_push": {
+    "status": "preparing",
+    "remote": "origin",
+    "branch": "codex/framework-simplification-strategy-phase-7",
+    "requested_at": "2026-05-25T15:04:46Z"
   },
   "last_completion_check": {
     "checked_at": "2026-05-25T14:33:06Z",

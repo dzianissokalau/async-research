@@ -485,3 +485,24 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 
 - Run the prompt in a fresh LLM/reviewer context before any merge or promotion
   decision.
+
+## GitHub Branch Publish - 2026-05-25
+
+Status: preparing
+Branch: `codex/framework-simplification-strategy-phase-7`
+
+### Scope
+
+- Update the final deep review prompt with the GitHub repository, remote branch,
+  branch URL, and compare URL so another LLM can locate the pushed changes.
+- Push the simplification branch to GitHub after committing the prompt metadata.
+
+### Artifact
+
+- Deep review prompt:
+  `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md`
+
+### Verification
+
+- Pending before push: delivery state JSON parse, `git diff --check`, and
+  `tests.test_doc_references`.
