@@ -465,3 +465,23 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 
 - Keep work local. Automation-management tooling was not exposed in this run,
   so the file-backed state remains `completed_pending_pause`.
+
+## Final Deep Review Prompt - 2026-05-25
+
+Status: prepared
+Branch: `codex/framework-simplification-strategy-phase-7`
+
+### Scope
+
+- Prepared the missing fresh-context/deep-review prompt for another LLM before
+  human merge review or promotion.
+
+### Artifact
+
+- Prompt file:
+  `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md`
+
+### Next Action
+
+- Run the prompt in a fresh LLM/reviewer context before any merge or promotion
+  decision.
