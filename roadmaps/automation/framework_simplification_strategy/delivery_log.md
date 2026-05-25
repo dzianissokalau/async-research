@@ -202,7 +202,7 @@ Branch: `codex/framework-simplification-strategy-phase-3`
 ### Changes
 
 - Added `src/async_research_workflow/console/facets/` with base helpers plus task, readiness, outcomes, cost, foundations, deliverables, mode, runtime, and lifecycle collectors.
-- Reduced `src/async_research_workflow/console/snapshot.py` to envelope assembly, CLI parsing, compatibility re-exports, and dashboard loader wiring.
+- Reduced `src/async_research_workflow/console/snapshot.py` to envelope assembly, CLI parsing, compatibility module attributes imported from facets, and dashboard loader wiring.
 - Added an exact top-level snapshot key regression assertion covering the existing `evidence_memory` group.
 - Advanced the roadmap and delivery state to Phase 4 after a delivered review verdict.
 
@@ -227,7 +227,7 @@ Branch: `codex/framework-simplification-strategy-phase-3`
 ### Residual Risks
 
 - Same-context review was used because sub-agent delegation requires explicit user permission. The review records this limitation.
-- `console.snapshot` keeps compatibility re-exports for moved helpers; future cleanup should narrow that surface only with explicit deprecation coverage.
+- `console.snapshot` keeps compatibility module attributes for moved helpers that existing internal imports and tests still reference; future cleanup should narrow that surface only with explicit deprecation coverage.
 
 ### Next Action
 
@@ -595,3 +595,37 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 
 - No further scheduled delivery should run. Before any merge or promotion,
   run the final deep-review prompt in a fresh reviewer context.
+
+## Final Deep Review Follow-Up - 2026-05-25
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-7`
+
+### Scope
+
+- Address reasonable non-blocking findings from the fresh-context final deep
+  review supplied by the operator.
+
+### Changes
+
+- Clarified Phase 3 wording from `compatibility re-exports` to compatibility
+  module attributes imported from facets. This preserves the intended meaning:
+  `console.snapshot` still exposes module attributes used by internal imports
+  and tests, without implying a formal `__all__` export contract.
+- Added a thin real-workspace integration test for `accepted revalidate` that
+  compares timestamp-stripped JSON envelopes with `accepted revalidation`.
+- Added a final deep-review disposition artifact:
+  `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-disposition.md`.
+
+### Tests And Verification
+
+- `.venv/bin/python -m json.tool roadmaps/automation/framework_simplification_strategy/delivery_state.json`: passed
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_cli_aliases`: passed, 2 tests
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 19 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 836 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Next Action
+
+- Commit and push the updated branch.

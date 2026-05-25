@@ -31,7 +31,7 @@ Verdict: delivered
 ## Residual Risks
 
 - Same-context review was used because sub-agent delegation requires explicit user permission. The review is therefore based on direct artifact inspection and the passing verification evidence.
-- The split preserves compatibility re-exports from `console.snapshot` for existing internal imports; future cleanup can narrow that compatibility surface only after a deprecation decision.
+- The split preserves compatibility module attributes on `console.snapshot` for existing internal imports and tests; future cleanup can narrow that compatibility surface only after a deprecation decision.
 
 ## Verdict
 

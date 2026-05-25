@@ -32,6 +32,10 @@ formats, task state values, the HTTP console, or fail-closed gates.
 | `CliAliasTests.test_review_surface_alias_updates_and_validates_surface` initialized a workspace, then re-ran `review-surface update` and `review-surface validate` to prove the alias worked. | `CliArchitectureTests.test_build_parser_registers_expected_public_commands` proves `review-surface` is the same parser object as `surface`; `CliHelpTests.test_every_public_command_help_has_operator_context` covers the alias help; `CliAliasTests.test_supported_aliases_dispatch_to_canonical_modules` now proves both spellings dispatch to `human_review_surface` with identical argv. Workspace side effects stay covered by starter-smoke and surface tests. |
 | `CliAliasTests.test_accepted_revalidate_alias_matches_revalidation_report` initialized a workspace, then ran both accepted-memory spellings and diffed timestamp-stripped JSON. | `CliArchitectureTests.test_build_parser_registers_nested_aliases` proves `accepted revalidate` is the same parser object as `accepted revalidation`; `CliHelpTests.test_every_public_command_help_has_operator_context` and the Phase 5 command-normalization design cover the public alias; `CliAliasTests.test_supported_aliases_dispatch_to_canonical_modules` now proves both spellings dispatch to `update_accepted_outputs_index revalidation-report` with identical argv. Accepted-memory behavior remains covered by workflow and accepted-memory regression tests. |
 
+After final deep review, one thin `accepted revalidate` integration check was
+restored to exercise the alias against a real starter workspace while keeping
+the broader Phase 7 consolidation intact.
+
 ## Non-Goals
 
 - Do not remove tests for source audit, freshness, claim verification, review

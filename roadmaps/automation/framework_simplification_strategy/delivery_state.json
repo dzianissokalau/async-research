@@ -75,7 +75,59 @@
   },
   "final_deep_review_prompt_prepared": true,
   "final_deep_review_prompt_file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md",
-  "final_deep_review_status": "prompt-prepared",
+  "final_deep_review_status": "review-complete-followups-addressed",
+  "final_deep_review": {
+    "status": "ready-for-human-merge-review",
+    "reviewed_branch_head": "785ba05",
+    "operator_supplied_file": "/Users/dzianissokalau/Downloads/framework-simplification-strategy-deep-review.md",
+    "disposition_file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-disposition.md",
+    "followups_addressed_at": "2026-05-25T17:42:45Z",
+    "followups_verified_at": "2026-05-25T17:44:17Z",
+    "followups": [
+      {
+        "finding": "Phase 3 compatibility re-export wording was unclear",
+        "disposition": "clarified wording to compatibility module attributes"
+      },
+      {
+        "finding": "accepted revalidate alias lacked a thin real-workspace integration check",
+        "disposition": "added accepted revalidate envelope parity integration test"
+      },
+      {
+        "finding": "cli.py shrinkage is modest",
+        "disposition": "accepted as informational and in-scope for the conservative roadmap"
+      }
+    ],
+    "verification": [
+      {
+        "command": ".venv/bin/python -m json.tool roadmaps/automation/framework_simplification_strategy/delivery_state.json",
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_cli_aliases",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_doc_references",
+        "status": "passed",
+        "tests": 19
+      },
+      {
+        "command": ".venv/bin/python -m unittest discover -s tests",
+        "status": "passed",
+        "tests": 836
+      },
+      {
+        "command": ".venv/bin/async-research acceptance-suite",
+        "status": "passed",
+        "checks": 15
+      }
+    ]
+  },
   "github_push": {
     "status": "pushed",
     "remote": "origin",
@@ -151,7 +203,7 @@
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-25T17:35:38Z",
+  "updated_at": "2026-05-25T17:44:17Z",
   "last_operator_alert": {
     "kind": "completed",
     "file": "roadmaps/automation/framework_simplification_strategy/alerts/2026-05-25T16-18-04Z-completed.md",
