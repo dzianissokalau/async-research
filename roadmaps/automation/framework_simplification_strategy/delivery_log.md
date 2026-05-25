@@ -278,3 +278,48 @@ Branch: `codex/framework-simplification-strategy-phase-4`
 ### Next Action
 
 - Next run should start Phase 5 on `codex/framework-simplification-strategy-phase-5` and classify commands as keep, alias, deprecate, or internal without removing public behavior.
+
+## Phase 5 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-5`
+
+### Scope
+
+- Classify public commands as keep, alias, deprecate, or internal without removing behavior.
+- Produce a user-facing migration table.
+- Preserve current public commands, aliases, help shape, JSON envelopes, exit codes, and docs examples.
+
+### Changes
+
+- Added `roadmaps/automation/framework_simplification_strategy/phase_5_command_normalization_design.md` with classification rules, a migration table, deprecation requirements, and a complete public command classification.
+- Recorded no active public deprecations for Phase 5; `review-surface` and `accepted revalidate` remain supported aliases with canonical replacements documented.
+- Added README command-normalization status and internal-helper migration guidance.
+- Added regression coverage requiring the design record to include every live public parser path plus `console snapshot`.
+- Advanced the roadmap and delivery state to Phase 6 after a delivered review verdict.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_cli_help`: passed, 9 tests
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 18 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 835 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-5-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation requires explicit user permission. The review records this limitation.
+- Future command deprecation remains a product decision and must add runtime replacement/rationale messaging in the same slice as README example updates.
+
+### Next Action
+
+- Next run should start Phase 6 on `codex/framework-simplification-strategy-phase-6` and record explicit Typer, jsonschema, and filelock decisions.

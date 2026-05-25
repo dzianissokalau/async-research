@@ -401,6 +401,21 @@ The original command names remain canonical for scripts and docs. Two additive
 readability aliases are also available: `review-surface` is an alias for
 `surface`, and `accepted revalidate` is an alias for `accepted revalidation`.
 
+## Command Normalization Status
+
+Active public deprecations: none. All public commands and aliases in the command
+map remain supported.
+
+| Current surface | Status | Canonical replacement | Operator action |
+| --- | --- | --- | --- |
+| `async-research review-surface` | Supported alias | `async-research surface` | Existing usage remains valid; prefer `surface` in new examples. |
+| `async-research accepted revalidate` | Supported alias | `async-research accepted revalidation` | Existing usage remains valid; prefer `accepted revalidation` in new examples. |
+| Direct `python -m async_research_workflow.scripts.<module>` calls | Internal helper usage | Public `async-research ...` commands | Use only in advanced/internal docs with that label. |
+
+Any future public deprecation must keep the old command callable for a
+deprecation period, report a specific replacement or rationale, and update README
+examples in the same change.
+
 | Command | Use | Reads | Writes |
 | --- | --- | --- | --- |
 | `async-research version` | Confirm the installed CLI version. | Package metadata. | JSON to stdout. |

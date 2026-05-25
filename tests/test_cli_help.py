@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import unittest
@@ -33,6 +34,40 @@ def cli_exit_code(argv: list[str]) -> int:
             return int(cli.main(argv))
         except SystemExit as exc:
             return int(exc.code)
+
+
+def subparser_action(parser: argparse.ArgumentParser) -> argparse._SubParsersAction | None:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action
+    return None
+
+
+def public_cli_paths() -> set[str]:
+    paths: set[str] = set()
+
+    def visit(subparsers: argparse._SubParsersAction, prefix: list[str]) -> None:
+        for choice in subparsers._choices_actions:
+            canonical = choice.dest
+            child = subparsers._name_parser_map[canonical]
+            names = [
+                name
+                for name, candidate in subparsers._name_parser_map.items()
+                if candidate is child
+            ]
+            child_subparsers = subparser_action(child)
+            for name in names:
+                path = [*prefix, name]
+                paths.add(f"async-research {' '.join(path)}")
+                if child_subparsers is not None:
+                    visit(child_subparsers, path)
+
+    root_subparsers = subparser_action(cli.build_parser())
+    if root_subparsers is None:
+        raise AssertionError("CLI parser has no subcommands")
+    visit(root_subparsers, [])
+    paths.add("async-research console snapshot")
+    return paths
 
 
 class CliHelpTests(unittest.TestCase):
@@ -362,6 +397,37 @@ class CliHelpTests(unittest.TestCase):
             "`metrics_history init`",
             "`decision_log`",
             "`version_metadata`",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
+
+    def test_command_normalization_design_covers_public_cli_surface(self) -> None:
+        design_path = ROOT / "roadmaps" / "automation" / "framework_simplification_strategy" / "phase_5_command_normalization_design.md"
+        design = design_path.read_text(encoding="utf-8")
+        failures = [path for path in sorted(public_cli_paths()) if f"`{path}`" not in design]
+
+        self.assertEqual([], failures)
+
+        normalized = " ".join(design.split())
+        for snippet in [
+            "Public command deprecations | None active",
+            "`async-research review-surface` | Alias",
+            "`async-research accepted revalidate` | Alias",
+            "No public `async-research` command is reclassified as internal in Phase 5.",
+            "A future slice must print a replacement or rationale.",
+        ]:
+            self.assertIn(" ".join(snippet.split()), normalized)
+
+    def test_readme_documents_command_normalization_status(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        normalized = " ".join(readme.split())
+        for snippet in [
+            "## Command Normalization Status",
+            "Active public deprecations: none.",
+            "`async-research review-surface` | Supported alias | `async-research surface`",
+            "`async-research accepted revalidate` | Supported alias | `async-research accepted revalidation`",
+            "Any future public deprecation must keep the old command callable",
+            "report a specific replacement or rationale",
+            "update README examples in the same change",
         ]:
             self.assertIn(" ".join(snippet.split()), normalized)
 
