@@ -1,0 +1,47 @@
+{
+  "roadmap": "roadmaps/not_started_framework_simplification_strategy.md",
+  "roadmap_slug": "framework-simplification-strategy",
+  "current_phase": "1",
+  "branch": "codex/framework-simplification-strategy-phase-1",
+  "status": "not_started",
+  "review_iterations": 0,
+  "max_review_iterations": 3,
+  "last_verification": {
+    "phase": "0",
+    "status": "passed",
+    "verified_at": "2026-05-25T07:50:21Z",
+    "commands": [
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": ".venv/bin/python -m unittest tests.test_cli_architecture tests.test_console_snapshot",
+        "status": "passed",
+        "tests": 43
+      }
+    ]
+  },
+  "last_review": {
+    "phase": "0",
+    "iteration": 1,
+    "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-0-review-iteration-1.md",
+    "verdict": "delivered",
+    "reviewed_at": "2026-05-25T07:50:21Z"
+  },
+  "blocked_reason": null,
+  "delivered_phases": [
+    "0"
+  ],
+  "human_approval_to_begin": {
+    "granted": true,
+    "source": "User requested automation setup for Framework Simplification Strategy",
+    "granted_at": "2026-05-25T07:41:32Z"
+  },
+  "auto_advance_after_delivered_review": true,
+  "commit_delivered_phase_locally": true,
+  "push_to_github": false,
+  "execution_environment": "local",
+  "cadence": "hourly",
+  "updated_at": "2026-05-25T07:50:21Z"
+}

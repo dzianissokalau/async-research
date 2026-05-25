@@ -223,6 +223,37 @@ class ConsoleSnapshotTests(unittest.TestCase):
             self.assertTrue(discovery_links["Discovery inbox"]["viewer_allowed"])
             self.assertEqual(before, file_snapshot(ops_dir))
 
+    def test_snapshot_contract_covers_awaiting_review_fixture_without_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ops_dir = self.init_ops(Path(tmp))
+            task_dir = write_task_status(
+                ops_dir,
+                "TASK-2001",
+                "awaiting_review",
+                task_type="data_readiness",
+                title="Review fixture",
+            )
+            (task_dir / "task.md").write_text("# Review fixture\n", encoding="utf-8")
+            (task_dir / "worker_output.md").write_text("# Worker output\n", encoding="utf-8")
+            before = file_snapshot(ops_dir)
+
+            code, payload = self.snapshot(ops_dir)
+
+            self.assertEqual(cli.SUCCESS, code, payload)
+            self.assertTrue(SNAPSHOT_GROUPS.issubset(payload))
+            self.assertEqual({"awaiting_review": 1}, payload["tasks"]["status_counts"])
+            self.assertEqual(1, len(payload["tasks"]["review"]))
+            review_task = payload["tasks"]["review"][0]
+            self.assertEqual("TASK-2001", review_task["task_id"])
+            self.assertEqual("awaiting_review", review_task["status"])
+            self.assertEqual("data_readiness", review_task["type"])
+            self.assertEqual(["needs_human", "panel_review", "single_review"], review_task["allowed_next_statuses"])
+            labels = {item["label"]: item for item in review_task["files"]}
+            self.assertTrue(labels["Task brief"]["viewer_allowed"])
+            self.assertEqual("/artifacts/tasks/TASK-2001-fixture/worker_output.md", labels["Worker output"]["viewer_url"])
+            self.assertFalse(review_task["qa"]["available"])
+            self.assertEqual(before, file_snapshot(ops_dir))
+
     def test_snapshot_defaults_missing_interaction_mode_without_mutating_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ops_dir = self.init_ops(Path(tmp))
