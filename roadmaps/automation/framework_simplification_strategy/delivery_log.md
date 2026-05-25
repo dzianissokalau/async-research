@@ -565,3 +565,33 @@ Branch: `codex/framework-simplification-strategy-phase-7`
 - Human operator should pause the ACTIVE Codex automation. Until then, the
   completed-state hard stop remains the safety guard and no further roadmap
   phase should start.
+
+## Completion Pause Readback - 2026-05-25
+
+Status: completed_paused
+Branch: `codex/framework-simplification-strategy-phase-7`
+
+### Evidence
+
+- Roadmap remains delivered at
+  `roadmaps/delivered_framework_simplification_strategy.md`.
+- Delivery state remains complete with phases 0 through 7 delivered,
+  `all_phases_complete: true`, and latest phase review verdict `delivered`.
+- Final deep-review prompt remains prepared at
+  `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-final-deep-review-prompt.md`.
+- Saved automation config readback from
+  `/Users/dzianissokalau/.codex/automations/framework-simplification-strategy-delivery/automation.toml`
+  now reports `PAUSED` with model `gpt-5.5` and reasoning effort `xhigh`.
+- `automation_update` tooling was not exposed, so no tool-driven pause action
+  was attempted in this run.
+
+### Verification
+
+- `.venv/bin/python -m json.tool roadmaps/automation/framework_simplification_strategy/delivery_state.json`: passed
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 19 tests
+
+### Next Action
+
+- No further scheduled delivery should run. Before any merge or promotion,
+  run the final deep-review prompt in a fresh reviewer context.
