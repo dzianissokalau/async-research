@@ -8,7 +8,6 @@ import copy
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -52,6 +51,7 @@ from async_research_workflow.scripts import task_transaction
 from async_research_workflow.scripts.decision_log import append_decision
 from async_research_workflow.scripts.decision_log import normalize_related_artifacts
 from async_research_workflow.scripts.version_metadata import apply_default_versions
+from async_research_workflow.proposals import engine as proposal_engine
 
 
 SUCCESS = 0
@@ -107,48 +107,18 @@ def post_write_failure_context(files_written: list[dict[str, Any]]) -> dict[str,
 
 
 def snapshot_files(paths: list[Path]) -> dict[Path, bytes | None]:
-    snapshots: dict[Path, bytes | None] = {}
-    for path in paths:
-        try:
-            snapshots[path] = path.read_bytes() if path.exists() else None
-        except OSError:
-            snapshots[path] = None
-    return snapshots
+    return proposal_engine.snapshot_files(paths, missing_on_error=True)
 
 
 def restore_file_snapshots(snapshots: dict[Path, bytes | None]) -> list[dict[str, Any]]:
-    actions: list[dict[str, Any]] = []
-    for path, content in snapshots.items():
-        if content is None:
-            if path.exists():
-                try:
-                    path.unlink()
-                    actions.append({"path": str(path), "action": "restore_absent_file", "changed": True})
-                except OSError as exc:
-                    actions.append(
-                        {
-                            "path": str(path),
-                            "action": "restore_absent_file_failed",
-                            "changed": False,
-                            "error": str(exc),
-                        }
-                    )
-            else:
-                actions.append({"path": str(path), "action": "restore_absent_file", "changed": False})
-            continue
-        try:
-            changed = atomic_write_bytes(path, content)
-            actions.append({"path": str(path), "action": "restore_file_snapshot", "changed": changed})
-        except OSError as exc:
-            actions.append(
-                {
-                    "path": str(path),
-                    "action": "restore_file_snapshot_failed",
-                    "changed": False,
-                    "error": str(exc),
-                }
-            )
-    return actions
+    return proposal_engine.restore_file_snapshots(
+        snapshots,
+        atomic_write_bytes,
+        absent_action="restore_absent_file",
+        absent_failed_action="restore_absent_file_failed",
+        restored_action="restore_file_snapshot",
+        restored_failed_action="restore_file_snapshot_failed",
+    )
 
 
 def rollback_action_failed(action: dict[str, Any]) -> bool:
@@ -2769,12 +2739,7 @@ def promotion_preflight_payload(payload: dict[str, Any], task_type: str, brief_s
 
 
 def promotion_preflight_hash(payload: dict[str, Any], task_type: str, brief_summary: dict[str, Any] | None = None) -> str:
-    encoded = json.dumps(
-        promotion_preflight_payload(payload, task_type, brief_summary),
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return proposal_engine.stable_json_hash(promotion_preflight_payload(payload, task_type, brief_summary))
 
 
 def promotion_idempotency_key(idea_id: str, task_type: str, preflight_hash: str) -> str:

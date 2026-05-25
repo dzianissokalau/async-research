@@ -230,3 +230,51 @@ Branch: `codex/framework-simplification-strategy-phase-3`
 ### Next Action
 
 - Next run should start Phase 4 on `codex/framework-simplification-strategy-phase-4` and map proposal flow mechanics before extracting shared engine code.
+
+## Phase 4 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-4`
+
+### Scope
+
+- Map data, library, foundation, and idea proposal flow mechanics before extracting shared behavior.
+- Extract only the common preflight/hash/lock/rollback spine after concrete flow evidence.
+- Preserve dry-run/write modes, post-write validation, rollback semantics, manual notes, public JSON envelopes, and surface-specific validation.
+
+### Changes
+
+- Added `roadmaps/automation/framework_simplification_strategy/phase_4_proposal_engine_mapping.md` documenting shared mechanics, surface-specific boundaries, preserved contracts, and deferred candidates.
+- Added `src/async_research_workflow/proposals/engine.py` with stable JSON hashing, file hashes, directory lock primitives, snapshots, restore helpers, and atomic byte writes.
+- Migrated data and library foundation apply to use the shared engine for preflight hashes, foundation lock acquisition/release, target snapshots, and rollback wrappers.
+- Migrated idea promotion hash and snapshot/restore wrappers to the shared engine while keeping catalog lock, idempotency recovery, task transaction, and human override behavior in `idea_catalog.py`.
+- Added focused regression tests for data/library shared engine lock usage and idea promotion stable preflight hashing.
+- Advanced the roadmap and delivery state to Phase 5 after a delivered review verdict.
+
+### Tests And Verification
+
+- `.venv/bin/python -m unittest tests.test_foundation_proposals tests.test_foundation_proposal_apply`: passed, 19 tests
+- `.venv/bin/python -m unittest tests.test_data_proposal_inspection tests.test_library_proposal_inspection`: passed, 14 tests
+- `.venv/bin/python -m unittest tests.test_idea_catalog_v2_proposal_write`: passed, 20 tests
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 18 tests
+- `.venv/bin/python -m unittest discover -s tests`: passed, 833 tests
+- `.venv/bin/async-research acceptance-suite`: passed, 15 checks
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-4-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation requires explicit user permission. The review records this limitation.
+- Idea catalog capture, maintenance, status, and resolution writes remain future candidates; Phase 4 only migrated the proven proposal promotion primitives.
+
+### Next Action
+
+- Next run should start Phase 5 on `codex/framework-simplification-strategy-phase-5` and classify commands as keep, alias, deprecate, or internal without removing public behavior.

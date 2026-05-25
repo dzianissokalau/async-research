@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.proposals import engine as proposal_engine
 from async_research_workflow.scripts import foundation_proposal_apply
 
 
@@ -588,6 +589,24 @@ class FoundationProposalApplyTests(unittest.TestCase):
         self.assertEqual(2, written["validation"][0]["exit_code"])
         self.assertEqual("passed", written["validation"][0]["status"])
         self.assertIn("LIT-0101", source_text)
+
+    def test_foundation_lock_uses_shared_engine_for_data_and_library_targets(self) -> None:
+        for target in ("data", "library"):
+            with self.subTest(target=target):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    ops_dir = Path(tmpdir) / "research_ops"
+                    ops_dir.mkdir()
+
+                    lock = foundation_proposal_apply.acquire_lock(ops_dir, target)
+                    try:
+                        self.assertIsInstance(lock, proposal_engine.DirectoryLock)
+                        self.assertEqual(ops_dir / f".foundation_{target}_apply.LOCK", lock.path)
+                        self.assertEqual(target, lock.owner["target"])
+                        self.assertTrue((lock.path / "owner.json").exists())
+                    finally:
+                        foundation_proposal_apply.release_lock(lock)
+
+                    self.assertFalse((ops_dir / f".foundation_{target}_apply.LOCK").exists())
 
 
 if __name__ == "__main__":

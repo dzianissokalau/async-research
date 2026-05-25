@@ -11,6 +11,7 @@ from unittest import mock
 from pathlib import Path
 
 from async_research_workflow import cli
+from async_research_workflow.proposals import engine as proposal_engine
 from async_research_workflow.scripts import idea_catalog as idea_catalog_script
 
 
@@ -143,6 +144,17 @@ class IdeaCatalogV2ProposalWriteTests(unittest.TestCase):
         code, payload = run_cli_json(["idea", "promote", ops_dir, idea_id, "--dry-run", *extra])
         self.assertEqual(cli.SUCCESS, code, payload)
         return payload["promotion_preflight_hash"], payload
+
+    def test_promotion_preflight_hash_uses_shared_engine_payload_hash(self) -> None:
+        candidate = promotable_candidate("IDEA-7499")
+        task_type = "data_readiness"
+
+        self.assertEqual(
+            proposal_engine.stable_json_hash(
+                idea_catalog_script.promotion_preflight_payload(candidate, task_type)
+            ),
+            idea_catalog_script.promotion_preflight_hash(candidate, task_type),
+        )
 
     def test_write_appends_inbox_creates_task_queue_and_updates_idea(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

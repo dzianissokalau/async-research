@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-from dataclasses import dataclass
-import hashlib
 import io
 import json
 import os
@@ -24,6 +22,7 @@ from async_research_workflow.scripts import foundation_proposals
 from async_research_workflow.scripts import knowledge_library
 from async_research_workflow.scripts import library_proposal_inspection
 from async_research_workflow.scripts import validate_result_acceptance
+from async_research_workflow.proposals import engine as proposal_engine
 
 
 SUCCESS = 0
@@ -44,13 +43,6 @@ DATA_TABLES = {
 }
 LIBRARY_TABLES = library_proposal_inspection.LIBRARY_TARGET_TABLES
 LIBRARY_APPEND_OPERATIONS = {"append_library_update_log"}
-
-
-@dataclass(frozen=True)
-class ApplyLock:
-    target: str
-    path: Path
-    owner: dict[str, Any]
 
 
 class ApplyError(RuntimeError):
@@ -93,10 +85,7 @@ def write_text_atomic(path: Path, text: str) -> bool:
 
 
 def file_sha256(path: Path) -> str | None:
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except FileNotFoundError:
-        return None
+    return proposal_engine.file_sha256(path)
 
 
 def split_table_row(line: str) -> list[str]:
@@ -577,18 +566,11 @@ def build_preflight_hash(
 ) -> str:
     state = {
         "target": target,
-        "proposal_documents": [
-            {"path": str(path), "sha256": file_sha256(path)}
-            for path in proposal_document_paths(parse_result)
-        ],
+        "proposal_documents": proposal_engine.file_hashes(proposal_document_paths(parse_result)),
         "proposals": [proposal.raw for proposal in parse_result.proposals if proposal.target == target],
-        "target_files": [
-            {"path": str(path), "sha256": file_sha256(path)}
-            for path in target_paths
-        ],
+        "target_files": proposal_engine.file_hashes(target_paths),
     }
-    data = json.dumps(state, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
+    return proposal_engine.stable_json_hash(state)
 
 
 def task_id_prefix(value: str) -> str:
@@ -816,7 +798,7 @@ def lock_path(ops_dir: Path, target: str) -> Path:
     return ops_dir / f".foundation_{target}_apply.LOCK"
 
 
-def acquire_lock(ops_dir: Path, target: str) -> ApplyLock:
+def acquire_lock(ops_dir: Path, target: str) -> proposal_engine.DirectoryLock:
     path = lock_path(ops_dir, target)
     owner = {
         "target": target,
@@ -824,62 +806,59 @@ def acquire_lock(ops_dir: Path, target: str) -> ApplyLock:
         "hostname": socket.gethostname(),
         "acquired_at": utc_now(),
     }
-    try:
-        path.mkdir()
-        (path / "owner.json").write_text(json.dumps(owner, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    except FileExistsError as exc:
-        existing = load_json_file(path / "owner.json") or {}
-        raise ApplyError(
+    return proposal_engine.acquire_directory_lock(
+        path,
+        owner,
+        on_exists=lambda lock_dir, existing: ApplyError(
             {
                 "ok": False,
                 "reason": "foundation_apply_locked",
                 "message": f"{target} proposal apply is already locked",
-                "lock_dir": str(path),
+                "lock_dir": str(lock_dir),
                 "owner": existing,
             },
             VALIDATION_FAILED,
-        ) from exc
-    except OSError as exc:
-        shutil.rmtree(path, ignore_errors=True)
-        raise ApplyError(
+        ),
+        on_failure=lambda lock_dir, exc: ApplyError(
             {
                 "ok": False,
                 "reason": "foundation_apply_lock_failed",
                 "message": f"could not acquire {target} proposal apply lock",
-                "lock_dir": str(path),
+                "lock_dir": str(lock_dir),
                 "error": str(exc),
             },
             MALFORMED,
-        ) from exc
-    return ApplyLock(target=target, path=path, owner=owner)
+        ),
+    )
 
 
-def release_lock(lock: ApplyLock | None) -> None:
-    if lock is not None:
-        shutil.rmtree(lock.path, ignore_errors=True)
+def release_lock(lock: proposal_engine.DirectoryLock | None) -> None:
+    proposal_engine.release_directory_lock(lock)
 
 
 def snapshot_files(paths: Iterable[Path]) -> dict[Path, bytes | None]:
-    snapshots: dict[Path, bytes | None] = {}
-    for path in paths:
-        snapshots[path] = path.read_bytes() if path.exists() else None
-    return snapshots
+    return proposal_engine.snapshot_files(paths)
 
 
 def rollback_files(snapshots: dict[Path, bytes | None]) -> dict[str, Any]:
-    actions: list[dict[str, Any]] = []
-    failures: list[dict[str, Any]] = []
-    for path, content in snapshots.items():
-        try:
-            if content is None:
-                if path.exists():
-                    path.unlink()
-                    actions.append({"path": str(path), "action": "removed_created_file"})
-                continue
-            write_text_atomic(path, content.decode("utf-8"))
-            actions.append({"path": str(path), "action": "restored_snapshot"})
-        except OSError as exc:
-            failures.append({"path": str(path), "error": str(exc)})
+    def write_snapshot(path: Path, content: bytes) -> bool:
+        return write_text_atomic(path, content.decode("utf-8"))
+
+    rollback_actions = proposal_engine.restore_file_snapshots(
+        snapshots,
+        write_snapshot,
+        absent_action="removed_created_file",
+        absent_failed_action="remove_created_file_failed",
+        restored_action="restored_snapshot",
+        restored_failed_action="restore_snapshot_failed",
+    )
+    actions = [
+        {key: value for key, value in action.items() if key != "changed"}
+        for action in rollback_actions
+        if not action.get("error")
+        if not (action["action"] == "removed_created_file" and action.get("changed") is False)
+    ]
+    failures = [{"path": action["path"], "error": action["error"]} for action in rollback_actions if action.get("error")]
     return {"ok": not failures, "actions": actions, "failures": failures}
 
 
@@ -939,7 +918,7 @@ def apply_write(
     preflight_hash: str,
     accepted_artifact: Path | None = None,
 ) -> tuple[int, dict[str, Any]]:
-    lock: ApplyLock | None = None
+    lock: proposal_engine.DirectoryLock | None = None
     source_lock: dict[str, Any] | None = None
     try:
         lock = acquire_lock(ops_dir, target)
