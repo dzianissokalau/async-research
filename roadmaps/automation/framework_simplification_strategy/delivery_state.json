@@ -1,48 +1,33 @@
 {
   "roadmap": "roadmaps/in_progress_framework_simplification_strategy.md",
   "roadmap_slug": "framework-simplification-strategy",
-  "current_phase": "6",
-  "branch": "codex/framework-simplification-strategy-phase-6",
+  "current_phase": "7",
+  "branch": "codex/framework-simplification-strategy-phase-7",
   "status": "not_started",
   "review_iterations": 0,
   "max_review_iterations": 3,
   "last_verification": {
-    "phase": "5",
+    "phase": "6",
     "status": "passed",
-    "verified_at": "2026-05-25T12:18:40Z",
+    "verified_at": "2026-05-25T14:10:33Z",
     "commands": [
       {
         "command": "git diff --check",
         "status": "passed"
       },
       {
-        "command": ".venv/bin/python -m unittest tests.test_cli_help",
-        "status": "passed",
-        "tests": 9
-      },
-      {
         "command": ".venv/bin/python -m unittest tests.test_doc_references",
         "status": "passed",
-        "tests": 18
-      },
-      {
-        "command": ".venv/bin/python -m unittest discover -s tests",
-        "status": "passed",
-        "tests": 835
-      },
-      {
-        "command": ".venv/bin/async-research acceptance-suite",
-        "status": "passed",
-        "checks": 15
+        "tests": 19
       }
     ]
   },
   "last_review": {
-    "phase": "5",
+    "phase": "6",
     "iteration": 1,
-    "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-5-review-iteration-1.md",
+    "file": "roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-6-review-iteration-1.md",
     "verdict": "delivered",
-    "reviewed_at": "2026-05-25T12:16:19Z"
+    "reviewed_at": "2026-05-25T14:10:33Z"
   },
   "blocked_reason": null,
   "delivered_phases": [
@@ -51,7 +36,8 @@
     "2",
     "3",
     "4",
-    "5"
+    "5",
+    "6"
   ],
   "human_approval_to_begin": {
     "granted": true,
@@ -63,5 +49,5 @@
   "push_to_github": false,
   "execution_environment": "local",
   "cadence": "hourly",
-  "updated_at": "2026-05-25T12:18:40Z"
+  "updated_at": "2026-05-25T14:10:33Z"
 }

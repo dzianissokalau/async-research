@@ -1,9 +1,9 @@
 # Framework Simplification Strategy
 
 Status: In Progress
-Current phase: Phase 6 - Dependency decision record
+Current phase: Phase 7 - Test Consolidation
 Last updated: 2026-05-25
-Next action: Decide Typer, jsonschema, and filelock explicitly while preserving the standard-library posture unless evidence changes
+Next action: Start Phase 7 by mapping replacement contracts and goldens before removing or rewriting tests
 Blocked by: None
 
 Created: 2026-05-22
@@ -137,7 +137,7 @@ while reducing the two biggest dependency hubs.
 | 3 | Delivered | P0 | Snapshot facets | Split `console/snapshot.py` into facet collectors behind the same top-level payload. | `console snapshot` golden fixtures match before and after, ignoring timestamps. |
 | 4 | Delivered | P1 | Proposal engine discovery and consolidation | Map data, library, foundation, and idea proposal flows; extract only the common preflight/hash/lock/rollback spine. | At least two proposal families use one shared engine without losing surface-specific validation. |
 | 5 | Delivered | P1 | Command normalization design | Classify commands as keep, alias, deprecate, or internal; no removal yet. | A migration table exists and deprecated commands have explicit replacements. |
-| 6 | Not Started | P1 | Dependency decision record | Decide whether standard-library-only remains a release promise or becomes a core/minimal extra. | Typer, jsonschema, and filelock each have an explicit keep/defer/adopt decision. |
+| 6 | Delivered | P1 | Dependency decision record | Decide whether standard-library-only remains a release promise or becomes a core/minimal extra. | Typer, jsonschema, and filelock each have an explicit keep/defer/adopt decision. |
 | 7 | Not Started | P2 | Test consolidation | Delete or rewrite tests only after replacement contracts and goldens exist. | The remaining suite catches behavior regressions rather than obsolete command-shape drift. |
 
 ## Phase 0 - Contract Freeze
@@ -399,13 +399,18 @@ Longer-term success:
 
 - Is the local HTTP console a core product surface, or should it become an
   optional operator extra after snapshot facets exist?
-- Is standard-library-only a hard release promise or a current implementation
-  preference?
 - How long should public command deprecations live during alpha dogfooding?
 - Should command normalization wait until the Codex plugin product boundary is
   decided?
 - Should simplification implementation pause until the active interaction-mode
   roadmap is delivered, or can Phase 1 start in parallel because it is internal?
+
+## Resolved Decisions
+
+- Phase 6 keeps the default runtime standard-library-only and defers Typer,
+  jsonschema, and filelock. Any future adoption should be justified by new
+  evidence and should prefer optional operator extras over default runtime
+  dependencies.
 
 ## Relationship To The Input Proposals
 

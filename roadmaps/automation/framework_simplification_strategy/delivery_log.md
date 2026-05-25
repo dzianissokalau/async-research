@@ -323,3 +323,55 @@ Branch: `codex/framework-simplification-strategy-phase-5`
 ### Next Action
 
 - Next run should start Phase 6 on `codex/framework-simplification-strategy-phase-6` and record explicit Typer, jsonschema, and filelock decisions.
+
+## Phase 6 - 2026-05-25 - Delivery Pass 1
+
+Status: delivered
+Branch: `codex/framework-simplification-strategy-phase-6`
+
+### Scope
+
+- Decide Typer, jsonschema, and filelock explicitly without adding runtime
+  dependencies.
+- Preserve the standard-library-only runtime posture, public CLI behavior, JSON
+  envelopes, exit codes, schema behavior, workspace file formats, and lock
+  semantics.
+- Add a focused doc-reference guard for the decision record and runtime
+  dependency posture.
+
+### Changes
+
+- Added `phase_6_dependency_decision_record.md` with explicit `defer`
+  decisions for Typer, jsonschema, and filelock.
+- Linked the README runtime dependency promise to the Phase 6 decision record.
+- Added `tests.test_doc_references` coverage requiring the decision record to
+  include all three dependency decisions and `pyproject.toml` to keep
+  `project.dependencies = []`.
+- Advanced the roadmap and delivery state to Phase 7 after a delivered review
+  verdict.
+
+### Tests And Verification
+
+- `git diff --check`: passed
+- `.venv/bin/python -m unittest tests.test_doc_references`: passed, 19 tests
+
+### Review
+
+- Review file: `roadmaps/automation/framework_simplification_strategy/reviews/framework-simplification-strategy-phase-6-review-iteration-1.md`
+- Verdict: delivered
+
+### Finding Disposition
+
+- No findings.
+
+### Residual Risks
+
+- Same-context review was used because sub-agent delegation was not explicitly
+  authorized. The review records this limitation.
+- Future dependency adoption remains possible, but must be justified by new
+  evidence and should prefer optional operator extras over default runtime
+  requirements.
+
+### Next Action
+
+- Next run should start Phase 7 on `codex/framework-simplification-strategy-phase-7` and map replacement contracts and goldens before deleting or rewriting tests.

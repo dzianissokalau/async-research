@@ -13,7 +13,10 @@ accepted evidence, rejected result, revision, or human decision without relying
 on chat history as the source of truth.
 
 Runtime dependencies are standard-library-only. Python 3.11 or newer is
-required.
+required. The Phase 6
+[dependency decision record](roadmaps/automation/framework_simplification_strategy/phase_6_dependency_decision_record.md)
+keeps Typer, jsonschema, and filelock deferred rather than default runtime
+requirements.
 
 ## Status
 

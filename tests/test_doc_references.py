@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -219,6 +220,43 @@ def has_historical_roadmap_label(context: str) -> bool:
 
 
 class DocumentationReferenceTests(unittest.TestCase):
+    def test_framework_dependency_decision_record_matches_runtime_posture(self) -> None:
+        record = (
+            ROOT
+            / "roadmaps"
+            / "automation"
+            / "framework_simplification_strategy"
+            / "phase_6_dependency_decision_record.md"
+        )
+        readme = ROOT / "README.md"
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        record_text = record.read_text(encoding="utf-8")
+        record_normalized = " ".join(record_text.lower().split())
+        readme_normalized = " ".join(readme.read_text(encoding="utf-8").lower().split())
+        dependencies = pyproject["project"].get("dependencies", [])
+        failures: list[str] = []
+
+        if dependencies != []:
+            failures.append("pyproject.toml project.dependencies must stay empty for the Phase 6 default runtime")
+
+        for package in ("typer", "jsonschema", "filelock"):
+            if f"| {package} | defer |" not in record_normalized:
+                failures.append(f"phase_6_dependency_decision_record.md missing defer decision for {package}")
+            if package not in readme_normalized:
+                failures.append(f"README.md missing dependency posture note for {package}")
+            if any(package == requirement.lower().split("[", 1)[0].split("<", 1)[0].split(">", 1)[0] for requirement in dependencies):
+                failures.append(f"pyproject.toml unexpectedly adds {package} as a default dependency")
+
+        for snippet in [
+            "project.dependencies = []",
+            "That future shape is not adopted in Phase 6.",
+            "standard-library-only",
+        ]:
+            if " ".join(snippet.lower().split()) not in record_normalized:
+                failures.append(f"phase_6_dependency_decision_record.md missing {snippet}")
+
+        self.assertEqual([], failures)
+
     def test_docs_do_not_use_removed_or_stale_paths(self) -> None:
         failures: list[str] = []
         for path in iter_documentation_files():
