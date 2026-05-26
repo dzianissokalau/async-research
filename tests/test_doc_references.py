@@ -81,6 +81,12 @@ PUBLIC_CLI_ADVANCED_REF_PATTERNS = {
         r"python -m\s+async_research_workflow\.scripts\.run_acceptance_suite\b"
     ),
 }
+STALE_PUBLIC_HELPER_COMMANDS = {
+    "run_acceptance_suite.py": "async-research acceptance-suite",
+    "run_autonomy_benchmark.py": "async-research benchmark",
+    "simulate_scheduled_week.py": "async-research simulate-week",
+    "autonomy_readiness_gate.py": "async-research readiness",
+}
 INTERNAL_HELPER_MODULES = (
     "validate_json_artifact",
     "validate_transition",
@@ -311,6 +317,28 @@ class DocumentationReferenceTests(unittest.TestCase):
                 for match in pattern.finditer(text):
                     line = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path.relative_to(ROOT)}:{line} -> advanced {module_name} invocation")
+
+        self.assertEqual([], failures)
+
+    def test_docs_do_not_use_stale_public_helper_script_names(self) -> None:
+        failures: list[str] = []
+        for path in iter_documentation_files():
+            if "roadmaps/automation" in path.as_posix() and "/reviews/" in path.as_posix():
+                continue
+            text = path.read_text(encoding="utf-8")
+            for helper_name, public_command in STALE_PUBLIC_HELPER_COMMANDS.items():
+                search_from = 0
+                while True:
+                    index = text.find(helper_name, search_from)
+                    if index == -1:
+                        break
+                    context = line_context_for_offset(text, index)
+                    if not has_historical_roadmap_label(context):
+                        line = line_number_for_offset(text, index)
+                        failures.append(
+                            f"{path.relative_to(ROOT)}:{line} uses stale {helper_name}; use {public_command}"
+                        )
+                    search_from = index + len(helper_name)
 
         self.assertEqual([], failures)
 

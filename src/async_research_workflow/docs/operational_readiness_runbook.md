@@ -631,6 +631,7 @@ async-research health research_ops --dry-run
 If any command fails, do not run autonomous jobs until the failure is resolved or
 intentionally paused with a human decision row.
 
-`simulate_scheduled_week.py` is a no-op rehearsal: it creates a temporary ops
-copy, uses fixture/model-free outputs, and should report `external_api_calls=0`.
-Use `--keep-work-dir` only when debugging the simulated artifacts.
+`async-research simulate-week` is a no-op rehearsal: it creates a temporary
+ops copy, uses fixture/model-free outputs, and should report
+`external_api_calls=0`. Use `--keep-work-dir` only when debugging the simulated
+artifacts.

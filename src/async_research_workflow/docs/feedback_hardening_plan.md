@@ -946,27 +946,27 @@ synthesizer: weekly
 
 | Priority | Item | Status |
 | --- | --- | --- |
-| P0 | atomic locking protocol | implemented in docs/examples |
-| P0 | state transition validator | implemented in docs/examples |
-| P0 | schema validation after writes | implemented in docs/examples |
-| P0 | structural reviewer isolation | implemented in docs/examples |
-| P0 | portable repo root variable | implemented in docs/examples |
-| P1 | revision counters | implemented in docs/examples |
-| P1 | algorithmic review aggregation | implemented in docs/examples |
-| P1 | health monitor | implemented in docs/examples |
-| P1 | dynamic tier escalation | implemented in docs/examples |
-| P1 | mission-weighted idea scoring | implemented in docs/examples |
-| P1 | accepted outputs index | implemented in docs/examples |
-| P2 | schema versioning | implemented in docs/examples |
-| P2 | prompt/framework versioning | implemented in docs/examples |
-| P2 | human decision log | implemented in docs/examples |
-| P2 | metrics baseline/history | implemented in docs/examples |
-| P2 | claim-strength re-evaluation | implemented in docs/examples |
-| P2 | cross-task anti-context injection | implemented in docs/examples |
-| P3 | batch job lifecycle | implemented in docs/examples |
-| P3 | programmatic cost tracking | implemented in docs/examples |
-| P3 | dynamic killability thresholds | implemented in docs/examples |
-| P3 | data source audit register | implemented in docs/examples |
+| P0 | atomic locking protocol | implemented in package docs/scripts/templates |
+| P0 | state transition validator | implemented in package docs/scripts/templates |
+| P0 | schema validation after writes | implemented in package docs/scripts/templates |
+| P0 | structural reviewer isolation | implemented in package docs/scripts/templates |
+| P0 | portable repo root variable | implemented in package docs/scripts/templates |
+| P1 | revision counters | implemented in package docs/scripts/templates |
+| P1 | algorithmic review aggregation | implemented in package docs/scripts/templates |
+| P1 | health monitor | implemented in package docs/scripts/templates |
+| P1 | dynamic tier escalation | implemented in package docs/scripts/templates |
+| P1 | mission-weighted idea scoring | implemented in package docs/scripts/templates |
+| P1 | accepted outputs index | implemented in package docs/scripts/templates |
+| P2 | schema versioning | implemented in package docs/scripts/templates |
+| P2 | prompt/framework versioning | implemented in package docs/scripts/templates |
+| P2 | human decision log | implemented in package docs/scripts/templates |
+| P2 | metrics baseline/history | implemented in package docs/scripts/templates |
+| P2 | claim-strength re-evaluation | implemented in package docs/scripts/templates |
+| P2 | cross-task anti-context injection | implemented in package docs/scripts/templates |
+| P3 | batch job lifecycle | implemented in package docs/scripts/templates |
+| P3 | programmatic cost tracking | implemented in package docs/scripts/templates |
+| P3 | dynamic killability thresholds | implemented in package docs/scripts/templates |
+| P3 | data source audit register | implemented in package docs/scripts/templates |
 
 ## What Not To Change
 

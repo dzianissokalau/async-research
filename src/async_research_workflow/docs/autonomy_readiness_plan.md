@@ -464,10 +464,10 @@ This order makes the workflow measurable and safe before adding more autonomous 
 
 The workflow is ready for controlled real loops when:
 
-- `run_acceptance_suite.py` passes;
-- `run_autonomy_benchmark.py` passes;
-- `simulate_scheduled_week.py` passes;
-- `autonomy_readiness_gate.py research_ops` exits `0` or `2`;
+- `async-research acceptance-suite` exits `0`;
+- `async-research benchmark` exits `0`;
+- `async-research simulate-week research_ops` exits `0`;
+- `async-research readiness research_ops --dry-run` exits `0` or `2`;
 - no unresolved high-severity `needs_human` items remain;
 - source register has approved seed sources;
 - freshness windows are configured for accepted evidence;

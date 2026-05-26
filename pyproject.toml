@@ -37,7 +37,7 @@ Homepage = "https://github.com/dzianissokalau/async-research"
 Repository = "https://github.com/dzianissokalau/async-research"
 Issues = "https://github.com/dzianissokalau/async-research/issues"
 Changelog = "https://github.com/dzianissokalau/async-research/blob/main/CHANGELOG.md"
-Roadmap = "https://github.com/dzianissokalau/async-research/blob/main/roadmaps/delivered_public_alpha_hardening_roadmap.md"
+Roadmap = "https://github.com/dzianissokalau/async-research/blob/main/roadmaps/README.md"
 
 [project.scripts]
 async-research = "async_research_workflow.cli:main"
